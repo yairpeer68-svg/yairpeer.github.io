@@ -83,20 +83,34 @@ class MainActivity : Activity() {
     private fun startPingMeasurement() {
         pingJob?.cancel()
         pingJob = mainScope.launch(Dispatchers.IO) {
-            val targets = listOf("1.1.1.1", "8.8.8.8")
-            var idx = 0
+            val fallbacks = listOf("1.1.1.1" to 53, "8.8.8.8" to 53)
+            var fbIdx = 0
             while (isActive) {
                 try {
-                    val host = targets[idx % targets.size]
-                    val result = IcmpPinger.ping(host, 2000)
-                    if (result.reachable && result.pingMs > 0) {
-                        livePingMs = result.pingMs.toInt().coerceIn(1, 9999)
+                    val gameServer = AutoServerSelector.getBestServer()
+                    val ms: Long = if (gameServer != null) {
+                        tcpPing(gameServer.host, gameServer.port)
+                    } else {
+                        val (host, port) = fallbacks[fbIdx % fallbacks.size]
+                        fbIdx++
+                        val r = IcmpPinger.ping(host, 2000)
+                        if (r.reachable) r.pingMs else -1L
                     }
-                    idx++
+                    if (ms > 0) livePingMs = ms.toInt().coerceIn(1, 9999)
                 } catch (_: Exception) { }
                 delay(900)
             }
         }
+    }
+
+    private fun tcpPing(host: String, port: Int): Long {
+        val t0 = System.currentTimeMillis()
+        return try {
+            java.net.Socket().use { s ->
+                s.connect(java.net.InetSocketAddress(host, port), 2000)
+                System.currentTimeMillis() - t0
+            }
+        } catch (_: Exception) { -1L }
     }
 
     private fun stopPingMeasurement() {

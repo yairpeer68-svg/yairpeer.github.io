@@ -1,10 +1,10 @@
 package com.yourname.gamemodevpn
 
-import android.content.ContentValues
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
+import com.yourname.gamemodevpn.db.AppDatabase
+import com.yourname.gamemodevpn.db.SessionEntity
 
+// Existing SessionRecord data class stays the same for backward compatibility
 data class SessionRecord(
     val id: Long = 0,
     val game: String,
@@ -17,67 +17,41 @@ data class SessionRecord(
     val avgJitter: Int
 )
 
-class SessionDatabase(ctx: Context) :
-    SQLiteOpenHelper(ctx, "sessions.db", null, 2) {
+// Bridge: SessionRecord ↔ SessionEntity
+private fun SessionRecord.toEntity() = SessionEntity(
+    id = id, game = game, startTime = startTime, durationSec = durationSec,
+    avgPing = avgPing, minPing = minPing, maxPing = maxPing,
+    packetLoss = packetLoss, avgJitter = avgJitter
+)
 
-    companion object {
-        const val TABLE = "sessions"
-    }
+private fun SessionEntity.toRecord() = SessionRecord(
+    id = id, game = game, startTime = startTime, durationSec = durationSec,
+    avgPing = avgPing, minPing = minPing, maxPing = maxPing,
+    packetLoss = packetLoss, avgJitter = avgJitter
+)
 
-    override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("""CREATE TABLE $TABLE (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            game TEXT, start_time INTEGER, duration_sec INTEGER,
-            avg_ping INTEGER, min_ping INTEGER, max_ping INTEGER,
-            packet_loss REAL, avg_jitter INTEGER
-        )""")
-    }
+class SessionDatabase(ctx: Context) {
 
-    override fun onUpgrade(db: SQLiteDatabase, old: Int, new: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE"); onCreate(db)
-    }
+    private val dao = AppDatabase.get(ctx).sessionDao()
 
-    fun insert(s: SessionRecord) {
-        writableDatabase.insert(TABLE, null, ContentValues().apply {
-            put("game", s.game); put("start_time", s.startTime)
-            put("duration_sec", s.durationSec); put("avg_ping", s.avgPing)
-            put("min_ping", s.minPing); put("max_ping", s.maxPing)
-            put("packet_loss", s.packetLoss); put("avg_jitter", s.avgJitter)
-        })
-    }
+    fun insert(s: SessionRecord) { dao.insert(s.toEntity()) }
 
-    fun getLast(n: Int = 20): List<SessionRecord> {
-        val list = mutableListOf<SessionRecord>()
-        val c = readableDatabase.query(TABLE, null, null, null, null, null,
-            "start_time DESC", "$n")
-        c.use {
-            while (it.moveToNext()) list.add(SessionRecord(
-                id          = it.getLong(0),
-                game        = it.getString(1),
-                startTime   = it.getLong(2),
-                durationSec = it.getInt(3),
-                avgPing     = it.getInt(4),
-                minPing     = it.getInt(5),
-                maxPing     = it.getInt(6),
-                packetLoss  = it.getFloat(7),
-                avgJitter   = it.getInt(8)
-            ))
-        }
-        return list
-    }
+    fun getLast(n: Int = 20): List<SessionRecord> = dao.getLast(n).map { it.toRecord() }
 
     fun getOverallStats(): Map<String, Any> {
-        val c = readableDatabase.rawQuery("""
-            SELECT COUNT(*), AVG(avg_ping), MIN(min_ping), MAX(max_ping),
-                   AVG(packet_loss), SUM(duration_sec)
-            FROM $TABLE""", null)
-        return if (c.moveToFirst()) mapOf(
-            "sessions"    to c.getInt(0),
-            "avg_ping"    to c.getInt(1),
-            "best_ping"   to c.getInt(2),
-            "worst_ping"  to c.getInt(3),
-            "packet_loss" to c.getFloat(4),
-            "total_hours" to c.getInt(5) / 3600
-        ).also { c.close() } else emptyMap()
+        val raw = runCatching { dao.getOverallRaw() }.getOrNull() ?: return emptyMap()
+        return mapOf(
+            "sessions"    to raw.count,
+            "avg_ping"    to raw.avgPing.toInt(),
+            "best_ping"   to raw.minPing,
+            "worst_ping"  to raw.maxPing,
+            "packet_loss" to raw.avgLoss.toFloat(),
+            "total_hours" to (raw.totalSec / 3600).toInt()
+        )
+    }
+
+    fun pruneOldSessions(keepDays: Int = 30) {
+        val cutoff = System.currentTimeMillis() - keepDays.toLong() * 24 * 3600 * 1000
+        dao.deleteOlderThan(cutoff)
     }
 }

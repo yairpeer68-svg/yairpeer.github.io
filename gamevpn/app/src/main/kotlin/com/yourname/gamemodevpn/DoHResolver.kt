@@ -80,8 +80,7 @@ object DoHResolver {
         val query = buildDnsQuery(domain)
         val t0 = System.currentTimeMillis()
         return try {
-            val conn = java.net.URL(provider).openConnection() as javax.net.ssl.HttpsURLConnection
-            conn.apply {
+            val conn = CertPinner.openPinnedConnection(provider).apply {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "application/dns-message")
                 setRequestProperty("Accept", "application/dns-message")

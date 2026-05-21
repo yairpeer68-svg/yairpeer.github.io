@@ -1,5 +1,136 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App -->
     <string name="app_name">Ping Booster</string>
-    <string name="accessibility_desc">מסנן התראות ומגן על ריכוז בזמן משחק</string>
+    <string name="app_subtitle">Game VPN Optimizer</string>
+
+    <!-- Status -->
+    <string name="status_active">פעיל</string>
+    <string name="status_inactive">כבוי</string>
+    <string name="tap_to_start">לחץ להפעלה</string>
+
+    <!-- Tabs -->
+    <string name="tab_home">⚡</string>
+    <string name="tab_game">🎮</string>
+    <string name="tab_hardware">🖥</string>
+    <string name="tab_network">📡</string>
+    <string name="tab_analytics">📈</string>
+    <string name="tab_settings">⚙️</string>
+
+    <!-- Stats labels -->
+    <string name="stat_ping">Ping</string>
+    <string name="stat_loss">Loss%</string>
+    <string name="stat_score">Score</string>
+    <string name="stat_cpu">CPU%</string>
+    <string name="stat_ram">RAM</string>
+    <string name="stat_temp">Temp</string>
+    <string name="stat_fps">FPS</string>
+    <string name="stat_battery">Battery</string>
+
+    <!-- Alerts -->
+    <string name="alert_low_battery">🔋 סוללה נמוכה</string>
+    <string name="alert_charging">⚡ בטעינה — boost!</string>
+    <string name="alert_spike">⚠️ Spike: %1$dms!</string>
+    <string name="alert_thermal">🌡 %1$s</string>
+    <string name="alert_roaming">🌍 %1$s</string>
+    <string name="alert_voice_chat">🎙 Voice chat — audio boosted</string>
+    <string name="alert_frame_drop">⚠️ Frame drop: %1$df</string>
+
+    <!-- Profiles -->
+    <string name="profile_competitive">🏆 תחרותי</string>
+    <string name="profile_casual">🎮 Casual</string>
+    <string name="profile_battery_save">🔋 חיסכון</string>
+    <string name="profile_applied">✅ %1$s</string>
+
+    <!-- Games section -->
+    <string name="games_title">🎮 משחקים</string>
+    <string name="games_none">לא נבחרו</string>
+    <string name="games_edit">ערוך</string>
+    <string name="games_auto_detect">🔍 מזהה…</string>
+    <string name="games_detected">✅ %1$d משחקים</string>
+    <string name="games_select_first">בחר משחקים קודם</string>
+    <string name="games_settings_applied">✅ הגדרות %1$s הוחלו</string>
+
+    <!-- Network -->
+    <string name="net_title">📡 רשת</string>
+    <string name="net_doh_testing">בודק…</string>
+    <string name="net_doh_ok">✅ DoH: %1$s (%2$dms)</string>
+    <string name="net_doh_fail">❌ DoH נכשל</string>
+    <string name="net_leak_testing">בודק…</string>
+    <string name="net_not_roaming">✅ לא</string>
+    <string name="net_roaming">⚠️ %1$s</string>
+    <string name="net_mtu">MTU</string>
+
+    <!-- Hardware -->
+    <string name="hw_title">🖥 חומרה</string>
+    <string name="hw_temps_title">🌡 טמפרטורות</string>
+    <string name="hw_throttling_yes">⚠️ כן!</string>
+    <string name="hw_throttling_no">✅ לא</string>
+    <string name="hw_no_bt">אין BT מחובר</string>
+    <string name="hw_boost_all">🚀 נתב כל המשאבים</string>
+    <string name="hw_all_routed">✅ הכל מנותב!</string>
+
+    <!-- Analytics -->
+    <string name="analytics_title">📈 אנליטיקה</string>
+    <string name="analytics_csv">📁 CSV</string>
+    <string name="analytics_backup">💾 גיבוי הגדרות</string>
+
+    <!-- Settings -->
+    <string name="settings_title">⚙️ הגדרות</string>
+    <string name="settings_spike_threshold">⚠️ סף Spike</string>
+    <string name="settings_auto_trigger">Auto-Trigger</string>
+    <string name="settings_auto_trigger_sub">UsageEvents streaming</string>
+    <string name="settings_mptcp">MPTCP</string>
+    <string name="settings_mptcp_sub">WiFi + 5G במקביל</string>
+    <string name="settings_cpu_boost">CPU Boost</string>
+    <string name="settings_cpu_boost_sub">WakeLock + Hint + FIFO</string>
+    <string name="settings_rst">RST Burst</string>
+    <string name="settings_rst_sub">קוטע TCP ברקע</string>
+    <string name="settings_dscp">DSCP QoS</string>
+    <string name="settings_dscp_sub">EF priority</string>
+    <string name="settings_120hz">120Hz</string>
+    <string name="settings_120hz_sub">קצב רענון מקסימלי</string>
+    <string name="settings_dnd">DND</string>
+    <string name="settings_dnd_sub">שקט מוחלט</string>
+    <string name="settings_audio_fx">Audio FX</string>
+    <string name="settings_audio_fx_sub">EQ + Loudness</string>
+    <string name="settings_sound_alerts">Sound Alerts</string>
+    <string name="settings_sound_alerts_sub">צלילי Spike/הפעלה</string>
+    <string name="settings_thermal">Thermal Monitor</string>
+    <string name="settings_thermal_sub">overlay צף</string>
+    <string name="settings_gyro_dnd">Gyro DND</string>
+    <string name="settings_gyro_dnd_sub">גריפה הפוכה = שקט</string>
+    <string name="settings_kill_bg">Kill BG</string>
+    <string name="settings_kill_bg_sub">הורג תהליכי רקע</string>
+    <string name="settings_kill_switch">Kill Switch</string>
+    <string name="settings_kill_switch_sub">חסום רשת אם VPN נופל</string>
+
+    <!-- ML predictor -->
+    <string name="ml_no_data">ML Predictor: אין נתונים</string>
+    <string name="ml_stable">✅ Ping יציב (%1$dms)</string>
+    <string name="ml_rising_fast">⚠️ Ping עולה מהר — spike בדרך!</string>
+    <string name="ml_rising">📈 Ping עולה — היזהר</string>
+    <string name="ml_improving">📉 Ping משתפר</string>
+
+    <!-- Score labels -->
+    <string name="score_excellent">🟢 מצוין (%1$d)</string>
+    <string name="score_good">🟡 טוב (%1$d)</string>
+    <string name="score_medium">🟠 בינוני (%1$d)</string>
+    <string name="score_poor">🔴 גרוע (%1$d)</string>
+
+    <!-- Updates -->
+    <string name="update_available">🆕 עדכון זמין: v%1$s</string>
+
+    <!-- Auto server -->
+    <string name="server_scanning">סורק…</string>
+    <string name="server_best">✅ מומלץ: %1$s (%2$dms)\nחסם: %3$d שרתים איטיים</string>
+    <string name="server_not_found">❌ לא נמצא שרת</string>
+    <string name="server_not_checked">לא נבדק</string>
+
+    <!-- Session summary -->
+    <string name="session_summary">📊 avg %1$dms · loss %2$.1f%%</string>
+
+    <!-- Kill switch -->
+    <string name="kill_switch_vpn_down">🛡 VPN ירד — תעבורה חסומה!</string>
+    <string name="kill_switch_reconnecting">🔄 מתחבר מחדש לVPN…</string>
 </resources>
