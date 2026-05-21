@@ -108,4 +108,32 @@ class PerGameProfileManager(private val ctx: Context) {
         }.apply()
         Log.i(TAG, "Applied per-game config for ${cfg.gameName}: MTU=${cfg.mtu} spike=${cfg.spikeThreshold}ms")
     }
+
+    // ── Learned per-game adaptive data ────────────────────────────────────────
+
+    fun saveLearnedPing(packageName: String, avgPing: Int) {
+        val key = "learned_ping_${packageName.replace(".", "_")}"
+        ctx.getSharedPreferences("gameboost", Context.MODE_PRIVATE)
+            .edit().putInt(key, avgPing).apply()
+    }
+
+    fun getLearnedPing(packageName: String): Int {
+        val key = "learned_ping_${packageName.replace(".", "_")}"
+        return ctx.getSharedPreferences("gameboost", Context.MODE_PRIVATE)
+            .getInt(key, -1)
+    }
+
+    fun getAdaptiveThresholdForGame(packageName: String): Int {
+        val learned = getLearnedPing(packageName)
+        return if (learned > 0) (learned * 1.5f).toInt().coerceIn(40, 200)
+        else getConfig(packageName)?.spikeThreshold ?: 80
+    }
+
+    fun getAllLearnedPings(): Map<String, Int> {
+        val prefs = ctx.getSharedPreferences("gameboost", Context.MODE_PRIVATE)
+        return prefs.all
+            .filterKeys { it.startsWith("learned_ping_") }
+            .mapKeys { it.key.removePrefix("learned_ping_").replace("_", ".") }
+            .mapValues { (it.value as? Int) ?: 0 }
+    }
 }
