@@ -48,3 +48,36 @@
 # Suppress warnings for known safe suppressions
 -dontwarn kotlin.**
 -dontwarn kotlinx.coroutines.**
+
+# Room Database
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-keep @androidx.room.Dao interface *
+-dontwarn androidx.room.**
+
+# WorkManager
+-keep class * extends androidx.work.Worker
+-keep class * extends androidx.work.ListenableWorker
+-keepclassmembers class * extends androidx.work.Worker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+
+# Security Crypto / EncryptedSharedPreferences
+-keep class androidx.security.crypto.** { *; }
+-dontwarn androidx.security.crypto.**
+
+# WireGuard config serialization
+-keep class com.yourname.gamemodevpn.WireGuardManager$WgConfig { *; }
+
+# Play Integrity
+-keep class com.google.android.play.core.integrity.** { *; }
+-dontwarn com.google.android.play.core.integrity.**
+
+# Wear OS DataLayer
+-keep class com.google.android.gms.wearable.** { *; }
+-dontwarn com.google.android.gms.wearable.**
+
+# DoT/DoH: keep DNS resolver classes intact
+-keep class com.yourname.gamemodevpn.DoTResolver { *; }
+-keep class com.yourname.gamemodevpn.DoHResolver { *; }
+-keep class com.yourname.gamemodevpn.CertPinner { *; }
