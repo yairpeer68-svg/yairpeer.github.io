@@ -26,6 +26,8 @@ class GameModeVpnService : VpnService() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile private var lastPackages: List<String> = listOf("com.activision.callofduty.shooter")
+    @Volatile private var useCompression = false
+    @Volatile private var useObfuscation = false
 
     companion object {
         const val TAG = "GameModeVPN"
@@ -52,6 +54,9 @@ class GameModeVpnService : VpnService() {
         val packages = intent?.getStringArrayListExtra(EXTRA_PACKAGES)
             ?: arrayListOf("com.activision.callofduty.shooter")
         lastPackages = packages
+        val prefs = getSharedPreferences("gameboost", 0)
+        useCompression = prefs.getBoolean("pkt_compress", false)
+        useObfuscation = prefs.getBoolean("pkt_obfuscate", false)
         startForeground(NOTIF_ID, buildNotification("Ping Booster פעיל"))
         startVpn(packages)
         return START_STICKY
@@ -156,11 +161,19 @@ class GameModeVpnService : VpnService() {
             try {
                 val len = input.read(buf)
                 if (len <= 0) continue
-                val pkt = buf.copyOf(len)
-                val result = PacketEngine.processPacket(pkt, len, false)
+                var pkt = buf.copyOf(len)
+                // Decompress inbound if compression enabled
+                if (useCompression) pkt = PacketCompressor.decompress(pkt) ?: pkt
+                // Deobfuscate inbound if obfuscation enabled
+                if (useObfuscation) pkt = TrafficObfuscator.deobfuscate(pkt)
+                val result = PacketEngine.processPacket(pkt, pkt.size, false)
                 if (result >= 0) {
-                    val writeLen = if (result > 0 && result <= len) result else len
-                    output.write(pkt, 0, writeLen)
+                    var outPkt = pkt.copyOf(if (result > 0 && result <= pkt.size) result else pkt.size)
+                    // Obfuscate outbound
+                    if (useObfuscation) outPkt = TrafficObfuscator.obfuscate(outPkt)
+                    // Compress outbound
+                    if (useCompression) outPkt = PacketCompressor.compress(outPkt) ?: outPkt
+                    output.write(outPkt)
                 }
             } catch (e: Exception) {
                 if (running.get()) Log.e(TAG, "Packet error: ${e.message}")

@@ -17,6 +17,8 @@ object DoHResolver {
     private const val CF_DOH  = "https://1.1.1.1/dns-query"
     private const val G_DOH   = "https://8.8.8.8/dns-query"
 
+    @Volatile var preferDoT = false
+
     data class DoHResult(val ip: String?, val latencyMs: Long, val provider: String)
 
     // Build RFC 8484 DNS wire format query for A record
@@ -66,6 +68,12 @@ object DoHResolver {
     }
 
     suspend fun resolve(domain: String, provider: String = CF_DOH): DoHResult = withContext(Dispatchers.IO) {
+        // Use DNS-over-TLS if preferred
+        if (preferDoT) {
+            val dotIp = try { DoTResolver.resolve(domain) } catch (_: Exception) { null }
+            if (dotIp != null) return@withContext DoHResult(dotIp, -1L, "DoT")
+            Log.i(TAG, "DoT failed, falling back to DoH")
+        }
         val result = doResolve(domain, provider)
         if (result.ip != null) return@withContext result
         // Fallback to Google DoH if Cloudflare failed

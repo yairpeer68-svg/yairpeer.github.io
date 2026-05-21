@@ -21,6 +21,12 @@ class MainActivity : Activity() {
     private var pingJob: Job? = null
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
+    private lateinit var antiLag: AntiLagManager
+    private lateinit var bandwidthMon: BandwidthMonitor
+    private lateinit var usageMonitor: UsageEventsMonitor
+    @Volatile private var rxKbps = 0f
+    @Volatile private var txKbps = 0f
+
     // Core managers
     private lateinit var shield: GameShieldManager
     private lateinit var thermal: ThermalMonitor
@@ -89,12 +95,13 @@ class MainActivity : Activity() {
                 try {
                     val gameServer = AutoServerSelector.getBestServer()
                     val ms: Long = if (gameServer != null) {
-                        tcpPing(gameServer.host, gameServer.port)
+                        // HappyEyeballs races IPv4 + IPv6 for fastest connect
+                        HappyEyeballs.measureLatency(gameServer.host, gameServer.port)
+                            .takeIf { it > 0 } ?: tcpPing(gameServer.host, gameServer.port)
                     } else {
                         val (host, port) = fallbacks[fbIdx % fallbacks.size]
                         fbIdx++
-                        val r = IcmpPinger.ping(host, 2000)
-                        if (r.reachable) r.pingMs else -1L
+                        HappyEyeballs.measureLatency(host, port)
                     }
                     if (ms > 0) livePingMs = ms.toInt().coerceIn(1, 9999)
                 } catch (_: Exception) { }
@@ -159,6 +166,10 @@ class MainActivity : Activity() {
             adaptive.saveLearnedData(ping, temp)
             GameBoostWidget.updateAllWidgets(this@MainActivity)
             overlay.updateStats(cpu, mem.availMb, mem.totalMb, ping, temp, PacketEngine.getNumCores())
+            // Push ping to Wear OS watch
+            if (prefs.getBoolean("wear_sync", false)) {
+                WearDataSender.pushPingUpdate(this@MainActivity, ping, true)
+            }
             handler.postDelayed(this, 1100)
         }
     }
@@ -184,6 +195,22 @@ class MainActivity : Activity() {
         appOps = AppOpsBlocker(this); roamingGuard = RoamingGuard(this)
         maintenance = MaintenanceScheduler(this); voiceChat = VoiceChatMonitor(this)
         framePacing = FramePacingMonitor()
+
+        // New integrated managers
+        antiLag = AntiLagManager(this)
+        bandwidthMon = BandwidthMonitor().also { bm ->
+            bm.onSample = { s -> rxKbps = s.rxKbps; txKbps = s.txKbps }
+            bm.start()
+        }
+        usageMonitor = UsageEventsMonitor(this).also { um ->
+            um.onGameForeground = { pkg ->
+                if (prefs.getBoolean("anti_lag", true)) antiLag.triggerForGame(pkg)
+            }
+            um.onGameBackground = { _ -> antiLag.reset() }
+            um.start()
+        }
+        // Apply DoT preference to DNS resolver
+        DoHResolver.preferDoT = prefs.getBoolean("use_dot", false)
 
         // Wire up callbacks
         networkMon.start(); battery.start(); gameApi.startThermalMonitoring()
@@ -354,6 +381,55 @@ class MainActivity : Activity() {
         root.addView(tvDoh)
         root.addView(Button(this).apply { text = "🔍 Leak Test"; textSize = 11f; setTextColor(ACCENT); setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt()); setPadding(0, 10, 0, 10); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }; setOnClickListener { tvLeak.text = "בודק..."; CoroutineScope(Dispatchers.Main).launch { val r = LeakTester.run(GameModeVpnService.isRunning); tvLeak.text = r.summary; tvLeak.setTextColor(if (r.dnsLeak) RED else GREEN) } } })
         root.addView(tvLeak)
+
+        // Live bandwidth
+        root.addView(tv("📊 Bandwidth", 13f, TEXT, bold = true, mt = 12, mb = 6))
+        val tvBw = tv("RX: — Kbps  TX: — Kbps", 12f, ACCENT, mono = true)
+        root.addView(tvBw)
+        handler.post(object : Runnable {
+            override fun run() {
+                tvBw.text = "RX: ${rxKbps.toInt()} Kbps  TX: ${txKbps.toInt()} Kbps"
+                handler.postDelayed(this, 1000)
+            }
+        })
+
+        // Speed Test
+        root.addView(tv("🚀 Speed Test", 13f, TEXT, bold = true, mt = 12, mb = 6))
+        val tvSpeed = tv("", 12f, MUTED)
+        root.addView(Button(this).apply {
+            text = "⚡ Run Speed Test"; textSize = 11f; setTextColor(0xFF070C18.toInt()); setBackgroundColor(ACCENT)
+            setPadding(0, 10, 0, 10)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }
+            setOnClickListener {
+                tvSpeed.text = "בודק..."; setEnabled(false)
+                CoroutineScope(Dispatchers.Main).launch {
+                    val r = SpeedTest.run()
+                    tvSpeed.text = "⬇ ${String.format("%.1f", r.downloadMbps)} Mbps  ⬆ ${String.format("%.1f", r.uploadMbps)} Mbps  📶 ${r.pingMs}ms"
+                    tvSpeed.setTextColor(if (r.downloadMbps > 10f) GREEN else ORANGE)
+                    setEnabled(true)
+                }
+            }
+        })
+        root.addView(tvSpeed)
+
+        // Traceroute
+        root.addView(tv("🔍 Traceroute", 13f, TEXT, bold = true, mt = 12, mb = 6))
+        val tvTrace = tv("", 11f, MUTED, mono = true)
+        root.addView(Button(this).apply {
+            text = "🌐 Traceroute 1.1.1.1"; textSize = 11f; setTextColor(ACCENT)
+            setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt())
+            setPadding(0, 10, 0, 10)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }
+            setOnClickListener {
+                tvTrace.text = "מבצע traceroute..."; setEnabled(false)
+                CoroutineScope(Dispatchers.Main).launch {
+                    val hops = TracerouteSimulator.trace("1.1.1.1")
+                    tvTrace.text = hops.joinToString("\n") { h -> "${h.hop}. ${h.host}  ${if (h.pingMs > 0) "${h.pingMs}ms" else "*"}" }
+                    setEnabled(true)
+                }
+            }
+        })
+        root.addView(tvTrace)
         return root
     }
 
@@ -390,6 +466,20 @@ class MainActivity : Activity() {
         sw("🌡","Thermal Monitor","overlay צף","thermal",true)
         sw("📱","Gyro DND","גריפה הפוכה = שקט","gyro_dnd",true)
         sw("💀","Kill BG","הורג תהליכי רקע","kill_bg")
+        sw("🔢","Anti-Lag","60s resource burst לפני משחק","anti_lag",true)
+        sw("📌","Floating Ping","overlay ping צף","floating_ping"){on->
+            val intent = Intent(this, FloatingPingService::class.java)
+            if (on) startService(intent) else stopService(intent)
+        }
+        sw("🔐","DNS-over-TLS","DoT port 853 (עדכון ידני)","use_dot"){on->DoHResolver.preferDoT=on}
+        sw("⌚","Wear OS Sync","שלח ping לשעון","wear_sync")
+        root.addView(Button(this).apply {
+            text = "⚙️ הגדרות מתקדמות"; textSize = 12f; setTextColor(ACCENT)
+            setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt())
+            setPadding(0, 12, 0, 12)
+            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 12 }
+            setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
+        })
 
         root.addView(tv("⚠️ סף Spike", 13f, TEXT, mb = 6))
         val sv = tv("${prefs.getInt("spike_threshold", 80)}ms", 13f, ORANGE, bold = true)
@@ -452,6 +542,7 @@ class MainActivity : Activity() {
         startService(Intent(this, GameModeVpnService::class.java).apply { action = GameModeVpnService.ACTION_STOP })
         resourceMgr.deactivate(); shield.deactivateAll(); thermal.stop(); audioFx.deactivate()
         displayMgr.clearMaxRefreshRate(this); multiPath.deactivateAll()
+        antiLag.reset()
         gameApi.reportLoadingStarted(); overlay.hide(); liveNotif.cancel()
         val rec = sessionStats.finish()
         rec?.let { Toast.makeText(this, "📊 avg ${it.avgPing}ms · loss ${String.format("%.1f", it.packetLoss)}%", Toast.LENGTH_LONG).show() }
@@ -475,5 +566,5 @@ class MainActivity : Activity() {
     private fun hrow(g: Int = Gravity.START, mb: Int = 0) = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; this.gravity = g; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = mb } }
     private fun card(mb: Int = 0, pv: Int = 14) = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setBackgroundColor(CARD); setPadding(16, pv, 16, pv); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = mb } }
     private fun tv(t: String, sz: Float, col: Int, bold: Boolean = false, w: Float = -1f, g: Int = Gravity.END, mono: Boolean = false, mt: Int = 0, mb: Int = 0) = TextView(this).apply { text = t; textSize = sz; setTextColor(col); this.gravity = g; if (bold) typeface = android.graphics.Typeface.DEFAULT_BOLD; if (mono) typeface = android.graphics.Typeface.MONOSPACE; layoutParams = (if (w > 0) LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, w) else LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)).also { it.topMargin = mt; it.bottomMargin = mb } }
-    override fun onDestroy() { mainScope.cancel(); stopPingMeasurement(); handler.removeCallbacks(statsUpdater); networkMon.stop(); battery.stop(); gyro.stop(); gameApi.stopThermalMonitoring(); roamingGuard.stop(); voiceChat.stop(); framePacing.stop(); if (isActive) { resourceMgr.deactivate(); shield.deactivateAll(); thermal.stop(); audioFx.deactivate(); multiPath.deactivateAll() }; super.onDestroy() }
+    override fun onDestroy() { mainScope.cancel(); stopPingMeasurement(); handler.removeCallbacks(statsUpdater); networkMon.stop(); battery.stop(); gyro.stop(); gameApi.stopThermalMonitoring(); roamingGuard.stop(); voiceChat.stop(); framePacing.stop(); bandwidthMon.stop(); usageMonitor.stop(); antiLag.destroy(); if (isActive) { resourceMgr.deactivate(); shield.deactivateAll(); thermal.stop(); audioFx.deactivate(); multiPath.deactivateAll() }; super.onDestroy() }
 }
