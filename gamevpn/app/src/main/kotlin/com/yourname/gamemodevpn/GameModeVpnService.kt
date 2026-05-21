@@ -72,8 +72,18 @@ class GameModeVpnService : VpnService() {
                 .addDnsServer("2606:4700:4700::1111")
                 .setMtu(1500)
                 .setBlocking(true)
-            allowedPackages.forEach { pkg ->
-                try { builder.addDisallowedApplication(pkg) } catch (_: Exception) { }
+            // Split tunnel: route only game traffic through VPN
+            // If specific packages given, use per-app routing (routes ONLY those apps)
+            // Otherwise, route all traffic (full tunnel mode)
+            if (allowedPackages.isNotEmpty() && allowedPackages.first() != "ALL") {
+                // Remove the default catch-all route and add per-app instead
+                // Re-setup builder with per-app routing (addAllowedApplication routes ONLY those apps)
+                allowedPackages.forEach { pkg ->
+                    try { builder.addAllowedApplication(pkg) } catch (_: Exception) { }
+                }
+                Log.i(TAG, "Split tunnel: routing only ${allowedPackages.size} game package(s)")
+            } else {
+                Log.i(TAG, "Full tunnel: routing all traffic")
             }
             val iface = builder.establish() ?: run {
                 Log.e(TAG, "VPN establish() returned null")

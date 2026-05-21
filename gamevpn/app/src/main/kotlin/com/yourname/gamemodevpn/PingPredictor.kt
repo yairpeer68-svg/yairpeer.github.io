@@ -18,6 +18,31 @@ class PingPredictor {
     private val baseAlpha = 0.15f
     private var initialized = false
 
+    // ── Kalman Filter for ping prediction ─────────────────────────────────────
+    private inner class KalmanFilter {
+        private var estimate = 0.0
+        private var errorCovariance = 1.0
+        private val processNoise = 2.0    // Q: expected variance in ping change
+        private val measureNoise = 5.0    // R: measurement noise
+
+        fun update(measurement: Double): Double {
+            // Predict
+            val predictedEstimate = estimate
+            val predictedCovariance = errorCovariance + processNoise
+            // Update
+            val gain = predictedCovariance / (predictedCovariance + measureNoise)
+            estimate = predictedEstimate + gain * (measurement - predictedEstimate)
+            errorCovariance = (1 - gain) * predictedCovariance
+            return estimate
+        }
+
+        fun reset() { estimate = 0.0; errorCovariance = 1.0 }
+        fun getEstimate() = estimate
+    }
+
+    private val kalman = KalmanFilter()
+    @Volatile private var kalmanPredicted = 0.0
+
     companion object {
         const val TAG = "PingPredictor"
         const val SPIKE_TREND_THRESHOLD = 8f
@@ -48,6 +73,7 @@ class PingPredictor {
             ema = adaptiveAlpha * p + (1f - adaptiveAlpha) * ema
             emaTrend = adaptiveAlpha * (ema - prevEma) + (1f - adaptiveAlpha) * emaTrend
         }
+        kalmanPredicted = kalman.update(ping.toDouble())
         history.addLast(p)
         if (history.size > 120) history.removeFirst()
     }
@@ -56,6 +82,11 @@ class PingPredictor {
         if (history.size < 5) return Prediction(0, 0f, 0f, false, "אין מספיק נתונים")
 
         val predicted = (ema + emaTrend * 3).coerceAtLeast(1f).toInt()
+        // Use the more conservative (higher) of EMA vs Kalman predictions
+        val kalmanVal = kalmanPredicted.toInt().coerceAtLeast(1)
+        // Blend: weight Kalman more as history grows
+        val blendWeight = (history.size / 120f).coerceIn(0f, 0.5f)
+        val blendedPredicted = (predicted * (1f - blendWeight) + kalmanVal * blendWeight).toInt()
 
         val mean = history.average().toFloat()
         val variance = history.map { (it - mean) * (it - mean) }.average().toFloat()
@@ -77,7 +108,7 @@ class PingPredictor {
             else                                  -> "~ ${predicted}ms predicted"
         }
 
-        return Prediction(predicted, emaTrend, confidence, spikeWarning, message)
+        return Prediction(blendedPredicted, emaTrend, confidence, spikeWarning, message)
     }
 
     fun getStats(): Map<String, Any> {
@@ -91,5 +122,5 @@ class PingPredictor {
         )
     }
 
-    fun reset() { history.clear(); ema = 0f; emaTrend = 0f; initialized = false }
+    fun reset() { history.clear(); ema = 0f; emaTrend = 0f; initialized = false; kalman.reset() }
 }

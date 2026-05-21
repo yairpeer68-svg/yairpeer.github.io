@@ -89,6 +89,14 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.6'
     implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.6'
 
+    // Wear OS DataLayer (for companion communication)
+    implementation 'com.google.android.gms:play-services-wearable:18.2.0'
+
+    // Crashlytics — uncomment when google-services.json is added
+    // implementation platform('com.google.firebase:firebase-bom:33.0.0')
+    // implementation 'com.google.firebase:firebase-crashlytics-ktx'
+    // implementation 'com.google.firebase:firebase-analytics-ktx'
+
     // Testing
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'org.mockito:mockito-core:5.11.0'
