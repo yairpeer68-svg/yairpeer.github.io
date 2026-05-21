@@ -22,12 +22,28 @@ class GameBoostWidget : AppWidgetProvider() {
             val isRunning = GameModeVpnService.isRunning
             val prefs = ctx.getSharedPreferences("gameboost", Context.MODE_PRIVATE)
             val ping = prefs.getInt("last_ping", 0)
+            val bestServer = AutoServerSelector.getBestServer()
+
+            val pingColor = when {
+                ping <= 0    -> 0xFF888888.toInt()
+                ping < 50    -> 0xFF00FFAA.toInt()
+                ping < 100   -> 0xFFFF9500.toInt()
+                else         -> 0xFFFF3B6B.toInt()
+            }
+            val statusText = when {
+                !isRunning   -> "⏸ כבוי"
+                ping <= 0    -> "⚡ מחבר..."
+                else         -> "⚡ פעיל"
+            }
+            val pingText  = if (ping > 0) "${ping}ms" else "--"
+            val serverText = bestServer?.let { "${it.region} • ${it.pingMs}ms" } ?: "בוחר שרת..."
 
             val views = RemoteViews(ctx.packageName, R.layout.widget_layout)
-            views.setTextViewText(R.id.widget_status,
-                if (isRunning) "⚡ פעיל" else "⏸ כבוי")
-            views.setTextViewText(R.id.widget_ping,
-                if (ping > 0) "${ping}ms" else "--")
+            views.setTextViewText(R.id.widget_status, statusText)
+            views.setTextViewText(R.id.widget_ping, pingText)
+            views.setTextColor(R.id.widget_ping, pingColor)
+            // Show server name if widget_server view exists in layout
+            try { views.setTextViewText(R.id.widget_server, serverText) } catch (_: Exception) { }
             views.setInt(R.id.widget_bg, "setBackgroundColor",
                 if (isRunning) 0xFF0A1F2E.toInt() else 0xFF0C1422.toInt())
 
