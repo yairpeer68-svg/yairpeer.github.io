@@ -1,0 +1,33 @@
+# GameBoost Baseline Profile
+# Pre-compiles hot paths: VPN startup, ping measurement, UI rendering
+
+# Core VPN + packet processing
+HSPLcom/yourname/gamemodevpn/GameModeVpnService;->onStartCommand(Landroid/content/Intent;II)I
+HSPLcom/yourname/gamemodevpn/GameModeVpnService;->startVpn(Ljava/util/List;)V
+HSPLcom/yourname/gamemodevpn/GameModeVpnService;->processPackets()V
+HSPLcom/yourname/gamemodevpn/PacketEngine;->processPacket([BIZ)I
+HSPLcom/yourname/gamemodevpn/PacketEngine;->getPacketLoss()F
+
+# Ping measurement hot path
+HSPLcom/yourname/gamemodevpn/IcmpPinger;->ping(Ljava/lang/String;I)Lcom/yourname/gamemodevpn/IcmpPinger$PingResult;
+HSPLcom/yourname/gamemodevpn/ServerPingScanner;->scan(Ljava/lang/String;Lcom/yourname/gamemodevpn/ServerPingScanner$ScanCallback;)V
+HSPLcom/yourname/gamemodevpn/AutoServerSelector;->selectAndApply(Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
+
+# Session stats (called every second)
+HSPLcom/yourname/gamemodevpn/SessionStats;->recordPing(I)V
+HSPLcom/yourname/gamemodevpn/SessionStats;->getLivePingHistory()Ljava/util/List;
+HSPLcom/yourname/gamemodevpn/SessionStats;->getCurrentJitter()I
+HSPLcom/yourname/gamemodevpn/PingPredictor;->addSample(I)V
+HSPLcom/yourname/gamemodevpn/PingPredictor;->predict()Lcom/yourname/gamemodevpn/PingPredictor$Prediction;
+HSPLcom/yourname/gamemodevpn/AdaptiveLearner;->computeScore(IFI F)I
+
+# UI hot paths
+HSPLcom/yourname/gamemodevpn/PingGraphView;->onDraw(Landroid/graphics/Canvas;)V
+HSPLcom/yourname/gamemodevpn/MainActivity;->onCreate(Landroid/os/Bundle;)V
+
+# DoH resolver
+HSPLcom/yourname/gamemodevpn/DoHResolver;->resolve(Ljava/lang/String;Ljava/lang/String;)Lcom/yourname/gamemodevpn/DoHResolver$DoHResult;
+
+# Room DB
+HSPLcom/yourname/gamemodevpn/SessionDatabase;->insert(Lcom/yourname/gamemodevpn/SessionRecord;)V
+HSPLcom/yourname/gamemodevpn/SessionDatabase;->getLast(I)Ljava/util/List;
