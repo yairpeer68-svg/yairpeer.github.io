@@ -87,6 +87,57 @@ class MultiPathManager(private val ctx: Context) {
         releaseMulticastLock()
     }
 
+    // ── Packet duplication: send via both WiFi and Cellular for zero packet loss ──
+    private val cellularNetwork: Network? get() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
+        return try {
+            cm.allNetworks.firstOrNull { n ->
+                val caps = cm.getNetworkCapabilities(n) ?: return@firstOrNull false
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            }
+        } catch (_: Exception) { null }
+    }
+
+    private val wifiNetwork: Network? get() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null
+        return try {
+            cm.allNetworks.firstOrNull { n ->
+                val caps = cm.getNetworkCapabilities(n) ?: return@firstOrNull false
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) &&
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            }
+        } catch (_: Exception) { null }
+    }
+
+    /**
+     * Bind a socket to a specific network interface.
+     * Used for packet duplication: send same UDP packet on both WiFi and Cellular.
+     * The first ACK wins; the duplicate is ignored by the server.
+     */
+    fun bindToNetwork(socket: java.net.DatagramSocket, preferCellular: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        val network = if (preferCellular) cellularNetwork else wifiNetwork
+        try {
+            network?.bindSocket(socket)
+            Log.d(TAG, "Socket bound to ${if (preferCellular) "cellular" else "wifi"}")
+        } catch (e: Exception) { Log.w(TAG, "bindSocket: ${e.message}") }
+    }
+
+    /** Returns true if both WiFi and Cellular are simultaneously available. */
+    fun isDualPathAvailable(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+        return cellularNetwork != null && wifiNetwork != null
+    }
+
+    fun getStatus(): String {
+        val parts = mutableListOf<String>()
+        if (isWifiLocked()) parts.add("WiFiLock✓")
+        if (isMptcpAvailable()) parts.add("MPTCP✓")
+        if (isDualPathAvailable()) parts.add("DualPath✓")
+        return if (parts.isEmpty()) "Standard" else parts.joinToString(" ")
+    }
+
     fun isWifiLocked() = wifiLock?.isHeld == true
     fun isMptcpAvailable() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 }
