@@ -29,7 +29,7 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
 
     <application
-        android:allowBackup="true" android:largeHeap="true"
+        android:name=".GameBoostApp" android:allowBackup="true" android:largeHeap="true"
         android:icon="@mipmap/ic_launcher" android:label="Ping Booster"
         android:theme="@style/AppTheme">
 
@@ -39,6 +39,9 @@
         <activity android:name=".MainActivity" android:exported="false" android:screenOrientation="portrait"
             android:supportsPictureInPicture="true" android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"/>
         <activity android:name=".AppSelectionActivity" android:exported="false"/>
+        <activity android:name=".SettingsActivity" android:exported="false" android:screenOrientation="portrait"/>
+        <service android:name=".FloatingPingService" android:exported="false" android:foregroundServiceType="mediaProjection"
+            android:permission="android.permission.FOREGROUND_SERVICE"/>
 
         <service android:name=".GameModeVpnService" android:permission="android.permission.BIND_VPN_SERVICE" android:exported="false">
             <intent-filter><action android:name="android.net.VpnService"/></intent-filter>
@@ -54,6 +57,9 @@
             <meta-data android:name="android.service.quicksettings.ACTIVE_TILE" android:value="true"/>
         </service>
         <service android:name=".MaintenanceJobService" android:exported="true" android:permission="android.permission.BIND_JOB_SERVICE"/>
+        <service android:name=".DailyMaintenanceWorker" android:exported="false"/>
+        <service android:name=".NetworkCheckWorker" android:exported="false"/>
+        <service android:name=".WeeklyReportWorker" android:exported="false"/>
         <receiver android:name=".GameBoostWidget" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
