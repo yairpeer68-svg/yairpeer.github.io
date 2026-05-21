@@ -49,6 +49,29 @@ object ShortcutHelper {
             shortcuts.add(builder.build())
         }
 
+        // 4. Check ping shortcut
+        shortcuts.add(
+            ShortcutInfo.Builder(ctx, "check_ping")
+                .setShortLabel("📊 בדוק פינג")
+                .setLongLabel("בדוק פינג לכל השרתים")
+                .setIntent(Intent(ctx, MainActivity::class.java).apply {
+                    action = "ACTION_CHECK_PING"
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+                .build()
+        )
+        // 5. Settings shortcut
+        shortcuts.add(
+            ShortcutInfo.Builder(ctx, "open_settings")
+                .setShortLabel("⚙️ הגדרות")
+                .setLongLabel("פתח הגדרות GameBoost")
+                .setIntent(Intent(ctx, SettingsActivity::class.java).apply {
+                    action = Intent.ACTION_VIEW
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                })
+                .build()
+        )
+
         try {
             sm.dynamicShortcuts = shortcuts
             Log.i("Shortcuts", "✅ ${shortcuts.size} shortcuts registered")
