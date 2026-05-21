@@ -8,3 +8,5 @@ pluginManagement {
 
 rootProject.name = "GameModeVPN"
 include ':app'
+include ':wear'
+project(':wear').projectDir = new File('wear')
