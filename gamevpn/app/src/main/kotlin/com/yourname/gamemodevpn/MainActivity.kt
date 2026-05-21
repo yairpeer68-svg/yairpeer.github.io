@@ -402,12 +402,23 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }
             setOnClickListener {
                 tvSpeed.text = "בודק..."; setEnabled(false)
-                CoroutineScope(Dispatchers.Main).launch {
-                    val r = SpeedTest.run()
-                    tvSpeed.text = "⬇ ${String.format("%.1f", r.downloadMbps)} Mbps  ⬆ ${String.format("%.1f", r.uploadMbps)} Mbps  📶 ${r.pingMs}ms"
-                    tvSpeed.setTextColor(if (r.downloadMbps > 10f) GREEN else ORANGE)
-                    setEnabled(true)
-                }
+                val btn = this
+                SpeedTestManager.runTest(object : SpeedTestManager.ProgressCallback {
+                    override fun onDownloadProgress(percent: Int, currentMbps: Float) {
+                        tvSpeed.text = "⬇ $percent%  ${String.format("%.1f", currentMbps)} Mbps"
+                    }
+                    override fun onUploadProgress(percent: Int, currentMbps: Float) {
+                        tvSpeed.text = "⬆ $percent%  ${String.format("%.1f", currentMbps)} Mbps"
+                    }
+                    override fun onComplete(result: SpeedTestManager.SpeedResult) {
+                        tvSpeed.text = "⬇ ${String.format("%.1f", result.downloadMbps)} Mbps  ⬆ ${String.format("%.1f", result.uploadMbps)} Mbps  📶 ${result.latencyMs}ms"
+                        tvSpeed.setTextColor(if (result.downloadMbps > 10f) GREEN else ORANGE)
+                        btn.isEnabled = true
+                    }
+                    override fun onError(msg: String) {
+                        tvSpeed.text = "❌ שגיאה: $msg"; tvSpeed.setTextColor(RED); btn.isEnabled = true
+                    }
+                })
             }
         })
         root.addView(tvSpeed)
@@ -422,11 +433,14 @@ class MainActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }
             setOnClickListener {
                 tvTrace.text = "מבצע traceroute..."; setEnabled(false)
-                CoroutineScope(Dispatchers.Main).launch {
-                    val hops = TracerouteSimulator.trace("1.1.1.1")
-                    tvTrace.text = hops.joinToString("\n") { h -> "${h.hop}. ${h.host}  ${if (h.pingMs > 0) "${h.pingMs}ms" else "*"}" }
-                    setEnabled(true)
-                }
+                val btn = this
+                TracerouteManager.trace("1.1.1.1", 443, object : TracerouteManager.TraceCallback {
+                    override fun onHop(hop: TracerouteManager.Hop) {
+                        val status = if (hop.reachable) "✅" else "  "
+                        tvTrace.append("$status ${hop.hopNumber}. ${hop.host}  ${hop.latencyMs}ms\n")
+                    }
+                    override fun onComplete(hops: List<TracerouteManager.Hop>) { btn.isEnabled = true }
+                })
             }
         })
         root.addView(tvTrace)
@@ -437,7 +451,7 @@ class MainActivity : Activity() {
     private fun analyticsTab(): View {
         val root = col(pad = 20); root.addView(tv("📈 אנליטיקה", 14f, TEXT, bold = true, mb = 14))
         analytics.getBestHours().take(4).forEach { h -> val r = hrow(g = Gravity.CENTER_VERTICAL, mb = 8); r.addView(tv(String.format("%02d:00", h.hour), 12f, ACCENT, mono = true, w = 0.25f)); r.addView(tv("${h.avgPing.toInt()}ms", 13f, ORANGE, bold = true, mono = true, w = 0.25f)); r.addView(tv(h.rating, 11f, GREEN, w = 0.5f)); root.addView(r) }
-        val heatmap = HeatmapView(this).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 200).also { it.bottomMargin = 12 }; setBackgroundColor(CARD); setData(db.getLast(200)) }
+        val heatmap = PingHeatmapCalendarView(this).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 200).also { it.bottomMargin = 12 }; setBackgroundColor(CARD); loadFromDb(this@MainActivity) }
         root.addView(heatmap)
         root.addView(Button(this).apply { text = "📁 CSV"; textSize = 11f; setTextColor(0xFF070C18.toInt()); setBackgroundColor(ACCENT); setPadding(0, 10, 0, 10); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }; setOnClickListener { BackupManager.shareBackup(this@MainActivity) } })
         root.addView(Button(this).apply { text = "💾 גיבוי הגדרות"; textSize = 11f; setTextColor(ACCENT); setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt()); setPadding(0, 10, 0, 10); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }; setOnClickListener { BackupManager.shareBackup(this@MainActivity) } })
