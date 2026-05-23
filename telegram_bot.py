@@ -80,7 +80,7 @@ RATE_LIMIT_PER_HOUR = 20
 CACHE_TTL_SECONDS   = 3600
 SEARCH_VARIANTS     = 15
 BOT_START_TIME      = datetime.utcnow()
-ENRICH_SEM          = asyncio.Semaphore(5)
+ENRICH_SEM: asyncio.Semaphore | None = None  # initialized in run_all()
 
 # Proxy pool (optional) — PROXIES=http://user:pass@host:port,http://...
 PROXY_LIST: list[str] = [p.strip() for p in os.getenv('PROXIES', '').split(',') if p.strip()]
@@ -791,7 +791,8 @@ async def get_recent_messages(user_client, entity, limit: int = 5) -> list[str]:
         return []
 
 async def enrich_channel_info(user_client, username: str) -> dict | None:
-    async with ENRICH_SEM:
+    sem = ENRICH_SEM or asyncio.Semaphore(5)
+    async with sem:
         if await db_is_blacklisted(username):
             return None
         try:
@@ -1938,6 +1939,9 @@ async def watchdog(bot_client, user_client):
 # ─────────────────────────────────────────────
 
 async def run_all():
+    global ENRICH_SEM
+    ENRICH_SEM = asyncio.Semaphore(5)  # חייב להיווצר בתוך event loop (Termux / Python 3.10+)
+
     await init_db()
     await _get_redis()  # נסה לחבר Redis
 
@@ -1974,6 +1978,17 @@ async def run_all():
 
 if __name__ == '__main__':
     try:
-        asyncio.run(run_all())
+        import sys
+        # Termux / Android: אין uvloop, אבל asyncio רגיל עובד
+        if sys.platform == 'linux' and 'TERMUX_VERSION' in os.environ:
+            log.info("Termux detected — using standard asyncio event loop")
+        try:
+            asyncio.run(run_all())
+        except AttributeError:
+            # Python < 3.7 fallback (נדיר, אבל בטוח)
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(run_all())
     except KeyboardInterrupt:
         log.info("Bot stopped by user.")
+    except Exception as e:
+        log.critical(f"Fatal error: {e}\n{traceback.format_exc()}")
