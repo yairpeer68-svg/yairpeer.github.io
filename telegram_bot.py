@@ -1,8 +1,8 @@
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║       TELEGRAM ULTRA SEARCH BOT — v2.0                         ║
-║  Async DB · Async HTTP · Growth · Trending · Similar           ║
-║  Broadcast · Excel · Preview · Inline · Progress · Cancel      ║
+║       TELEGRAM ULTRA SEARCH BOT — v3.0                         ║
+║  Relevance · Health Score · Compare · Alerts · Categories      ║
+║  PDF Export · Dashboard · Top Users · Share · Proxy Pool       ║
 ╚══════════════════════════════════════════════════════════════════╝
 """
 
@@ -34,6 +34,18 @@ try:
 except ImportError:
     HAS_OPENPYXL = False
 
+try:
+    from fpdf import FPDF
+    HAS_FPDF = True
+except ImportError:
+    HAS_FPDF = False
+
+try:
+    import redis.asyncio as aioredis
+    HAS_REDIS = True
+except ImportError:
+    HAS_REDIS = False
+
 load_dotenv()
 
 # ─────────────────────────────────────────────
@@ -50,7 +62,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
-#  הגדרות — חובה דרך .env (אין ברירות מחדל לסיסמאות)
+#  הגדרות — חובה דרך .env
 # ─────────────────────────────────────────────
 def _require(key: str) -> str:
     val = os.getenv(key)
@@ -62,13 +74,25 @@ API_ID    = int(_require('API_ID'))
 API_HASH  = _require('API_HASH')
 BOT_TOKEN = _require('BOT_TOKEN')
 ADMIN_IDS: set[int] = set(int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip())
-ALLOWED_USERS: set[int] = set()  # ריק = כולם מורשים
+ALLOWED_USERS: set[int] = set()
 
 RATE_LIMIT_PER_HOUR = 20
 CACHE_TTL_SECONDS   = 3600
 SEARCH_VARIANTS     = 15
 BOT_START_TIME      = datetime.utcnow()
-ENRICH_SEM          = asyncio.Semaphore(5)  # הגבלת בקשות מקביליות ל-Telegram
+ENRICH_SEM          = asyncio.Semaphore(5)
+
+# Proxy pool (optional) — PROXIES=http://user:pass@host:port,http://...
+PROXY_LIST: list[str] = [p.strip() for p in os.getenv('PROXIES', '').split(',') if p.strip()]
+_proxy_idx = 0
+
+def _next_proxy() -> str | None:
+    global _proxy_idx
+    if not PROXY_LIST:
+        return None
+    proxy = PROXY_LIST[_proxy_idx % len(PROXY_LIST)]
+    _proxy_idx += 1
+    return proxy
 
 HEADERS = {
     'User-Agent': (
@@ -78,9 +102,37 @@ HEADERS = {
     )
 }
 
+# Redis (optional) — REDIS_URL=redis://localhost:6379
+_redis_client = None
+
+async def _get_redis():
+    global _redis_client
+    if HAS_REDIS and _redis_client is None:
+        try:
+            _redis_client = aioredis.from_url(os.getenv('REDIS_URL', 'redis://localhost:6379'))
+            await _redis_client.ping()
+            log.info("Redis connected ✅")
+        except Exception as e:
+            log.warning(f"Redis unavailable, falling back to SQLite: {e}")
+            _redis_client = None
+    return _redis_client
+
 # ─────────────────────────────────────────────
-#  מילים נרדפות + Blacklist
+#  קטגוריות, מילים נרדפות, Blacklist
 # ─────────────────────────────────────────────
+CATEGORIES: dict[str, list[str]] = {
+    'קריפטו':    ['bitcoin', 'btc', 'crypto', 'ethereum', 'defi', 'nft', 'ביטקוין', 'קריפטו', 'blockchain', 'web3'],
+    'מניות':     ['stocks', 'trading', 'forex', 'השקעות', 'בורסה', 'מניות', 'finance', 'investment'],
+    'חדשות':     ['news', 'חדשות', 'עדכונים', 'breaking', 'אקטואליה', 'daily'],
+    'ספורט':     ['sport', 'football', 'basketball', 'כדורגל', 'ספורט', 'soccer', 'tennis', 'nba'],
+    'טכנולוגיה': ['tech', 'technology', 'ai', 'programming', 'code', 'טכנולוגיה', 'dev', 'software', 'cyber'],
+    'פוליטיקה':  ['politics', 'פוליטיקה', 'ממשלה', 'כנסת', 'government', 'election', 'בחירות'],
+    'בידור':     ['entertainment', 'music', 'movies', 'בידור', 'מוזיקה', 'סרטים', 'humor', 'memes'],
+    'חינוך':     ['education', 'learn', 'course', 'חינוך', 'למידה', 'קורס', 'study', 'university'],
+    'בריאות':    ['health', 'fitness', 'בריאות', 'כושר', 'תזונה', 'diet', 'workout', 'medical'],
+    'נדלן':      ['real estate', 'נדלן', 'דירות', 'property', 'apartment', 'housing'],
+}
+
 SYNONYMS: dict[str, list[str]] = {
     'ביטקוין':   ['bitcoin', 'btc', 'קריפטו', 'crypto', 'blockchain'],
     'קריפטו':    ['crypto', 'bitcoin', 'ethereum', 'defi', 'nft'],
@@ -103,49 +155,43 @@ LANGUAGE_MAP = {
 }
 
 # ─────────────────────────────────────────────
-#  מקורות חיפוש חיצוניים — כל המקורות
+#  מקורות חיפוש חיצוניים — 30 מקורות
 # ─────────────────────────────────────────────
-# fmt: off
 SEARCH_SOURCES: dict[str, callable] = {
-    # ── מנועי חיפוש כלליים (site:t.me) ──────────────────────────────────
-    'Google':      lambda q: f"https://www.google.com/search?q={urllib.parse.quote('site:t.me ' + q)}&num=100&hl=he",
-    'Bing':        lambda q: f"https://www.bing.com/search?q={urllib.parse.quote('site:t.me ' + q)}&count=50",
-    'DDG':         lambda q: f"https://html.duckduckgo.com/html/?q={urllib.parse.quote('site:t.me ' + q)}",
-    'Yandex':      lambda q: f"https://yandex.com/search/?text={urllib.parse.quote('site:t.me ' + q)}&lr=10174",
-    'Yahoo':       lambda q: f"https://search.yahoo.com/search?p={urllib.parse.quote('site:t.me ' + q)}&n=50",
-    'Brave':       lambda q: f"https://search.brave.com/search?q={urllib.parse.quote('site:t.me ' + q)}",
-    'Startpage':   lambda q: f"https://www.startpage.com/search?q={urllib.parse.quote('site:t.me ' + q)}",
-    'Ecosia':      lambda q: f"https://www.ecosia.org/search?q={urllib.parse.quote('site:t.me ' + q)}",
-    'Mojeek':      lambda q: f"https://www.mojeek.com/search?q={urllib.parse.quote('site:t.me ' + q)}",
-    'Baidu':       lambda q: f"https://www.baidu.com/s?wd={urllib.parse.quote('site:t.me ' + q)}",
-    # ── קטלוגי טלגרם ייעודיים ────────────────────────────────────────────
-    'TGStat':      lambda q: f"https://tgstat.ru/en/search?q={urllib.parse.quote(q)}",
-    'TGStatCom':   lambda q: f"https://tgstat.com/search?q={urllib.parse.quote(q)}",
-    'Telemetr':    lambda q: f"https://telemetr.io/en/channels?channel={urllib.parse.quote(q)}",
-    'Combot':      lambda q: f"https://combot.org/chats?q={urllib.parse.quote(q)}&lng=&type=",
-    'Lyzem':       lambda q: f"https://lyzem.com/search?q={urllib.parse.quote(q)}&lang=",
-    'HotTG':       lambda q: f"https://hottg.com/search?q={urllib.parse.quote(q)}",
-    'TgPw':        lambda q: f"https://tg.pw/search/{urllib.parse.quote(q)}",
-    'Tchannels':   lambda q: f"https://tchannels.me/search?q={urllib.parse.quote(q)}",
-    'TGrам':       lambda q: f"https://tgram.ru/search?q={urllib.parse.quote(q)}",
-    'TelegramDB':  lambda q: f"https://telegramdb.org/search?q={urllib.parse.quote(q)}",
-    'TgDev':       lambda q: f"https://tgdev.io/search?q={urllib.parse.quote(q)}",
-    'TgList':      lambda q: f"https://tglist.net/search?q={urllib.parse.quote(q)}",
-    'TeleList':    lambda q: f"https://telelist.com/search/{urllib.parse.quote(q)}",
+    'Google':        lambda q: f"https://www.google.com/search?q={urllib.parse.quote('site:t.me ' + q)}&num=100&hl=he",
+    'Bing':          lambda q: f"https://www.bing.com/search?q={urllib.parse.quote('site:t.me ' + q)}&count=50",
+    'DDG':           lambda q: f"https://html.duckduckgo.com/html/?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Yandex':        lambda q: f"https://yandex.com/search/?text={urllib.parse.quote('site:t.me ' + q)}&lr=10174",
+    'Yahoo':         lambda q: f"https://search.yahoo.com/search?p={urllib.parse.quote('site:t.me ' + q)}&n=50",
+    'Brave':         lambda q: f"https://search.brave.com/search?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Startpage':     lambda q: f"https://www.startpage.com/search?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Ecosia':        lambda q: f"https://www.ecosia.org/search?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Mojeek':        lambda q: f"https://www.mojeek.com/search?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Baidu':         lambda q: f"https://www.baidu.com/s?wd={urllib.parse.quote('site:t.me ' + q)}",
+    'TGStat':        lambda q: f"https://tgstat.ru/en/search?q={urllib.parse.quote(q)}",
+    'TGStatCom':     lambda q: f"https://tgstat.com/search?q={urllib.parse.quote(q)}",
+    'Telemetr':      lambda q: f"https://telemetr.io/en/channels?channel={urllib.parse.quote(q)}",
+    'Combot':        lambda q: f"https://combot.org/chats?q={urllib.parse.quote(q)}&lng=&type=",
+    'Lyzem':         lambda q: f"https://lyzem.com/search?q={urllib.parse.quote(q)}&lang=",
+    'HotTG':         lambda q: f"https://hottg.com/search?q={urllib.parse.quote(q)}",
+    'TgPw':          lambda q: f"https://tg.pw/search/{urllib.parse.quote(q)}",
+    'Tchannels':     lambda q: f"https://tchannels.me/search?q={urllib.parse.quote(q)}",
+    'TGrам':         lambda q: f"https://tgram.ru/search?q={urllib.parse.quote(q)}",
+    'TelegramDB':    lambda q: f"https://telegramdb.org/search?q={urllib.parse.quote(q)}",
+    'TgDev':         lambda q: f"https://tgdev.io/search?q={urllib.parse.quote(q)}",
+    'TgList':        lambda q: f"https://tglist.net/search?q={urllib.parse.quote(q)}",
+    'TeleList':      lambda q: f"https://telelist.com/search/{urllib.parse.quote(q)}",
     'TelegramGroup': lambda q: f"https://telegram-group.com/search?q={urllib.parse.quote(q)}",
-    'TGChannels':  lambda q: f"https://telegramchannels.me/search?query={urllib.parse.quote(q)}",
-    'TGDir':       lambda q: f"https://tg.directory/search?q={urllib.parse.quote(q)}",
-    'Tlgrm':       lambda q: f"https://tlgrm.eu/channels/search/{urllib.parse.quote(q)}",
-    'SocialBlade': lambda q: f"https://socialblade.com/telegram/search?q={urllib.parse.quote(q)}",
-    # ── Reddit ──────────────────────────────────────────────────────────
-    'Reddit':      lambda q: f"https://www.reddit.com/search/?q={urllib.parse.quote('telegram t.me ' + q)}&type=link&sort=relevance",
-    # ── GitHub (repos עם קישורי t.me) ───────────────────────────────────
-    'GitHub':      lambda q: f"https://github.com/search?q={urllib.parse.quote('t.me ' + q)}&type=code",
+    'TGChannels':    lambda q: f"https://telegramchannels.me/search?query={urllib.parse.quote(q)}",
+    'TGDir':         lambda q: f"https://tg.directory/search?q={urllib.parse.quote(q)}",
+    'Tlgrm':         lambda q: f"https://tlgrm.eu/channels/search/{urllib.parse.quote(q)}",
+    'SocialBlade':   lambda q: f"https://socialblade.com/telegram/search?q={urllib.parse.quote(q)}",
+    'Reddit':        lambda q: f"https://www.reddit.com/search/?q={urllib.parse.quote('telegram t.me ' + q)}&type=link&sort=relevance",
+    'GitHub':        lambda q: f"https://github.com/search?q={urllib.parse.quote('t.me ' + q)}&type=code",
 }
-# fmt: on
 
 # ─────────────────────────────────────────────
-#  DB — aiosqlite (async, לא חוסם את event loop)
+#  DB — aiosqlite (async)
 # ─────────────────────────────────────────────
 DB_PATH = 'bot_data.db'
 
@@ -200,8 +246,16 @@ async def init_db():
                 members  INTEGER NOT NULL,
                 ts       TEXT    DEFAULT (datetime('now'))
             );
+            CREATE TABLE IF NOT EXISTS alerts (
+                user_id   INTEGER NOT NULL,
+                keyword   TEXT    NOT NULL,
+                last_json TEXT    DEFAULT '[]',
+                ts        TEXT    DEFAULT (datetime('now')),
+                PRIMARY KEY (user_id, keyword)
+            );
             CREATE INDEX IF NOT EXISTS idx_growth_username ON growth(username);
             CREATE INDEX IF NOT EXISTS idx_growth_ts       ON growth(ts);
+            CREATE INDEX IF NOT EXISTS idx_searches_user   ON searches(user_id);
         """)
         await con.commit()
     log.info("DB initialized ✅")
@@ -247,6 +301,16 @@ async def db_check_rate(user_id) -> bool:
     return True
 
 async def db_get_cache(query) -> list | None:
+    # Try Redis first
+    r = await _get_redis()
+    if r:
+        try:
+            data = await r.get(f"cache:{query}")
+            if data:
+                return json.loads(data)
+        except Exception:
+            pass
+    # Fallback to SQLite
     async with aiosqlite.connect(DB_PATH) as con:
         cur = await con.execute(
             "SELECT data FROM cache WHERE query=? AND expires_at > datetime('now')",
@@ -257,6 +321,14 @@ async def db_get_cache(query) -> list | None:
 
 async def db_set_cache(query, data):
     exp = (datetime.utcnow() + timedelta(seconds=CACHE_TTL_SECONDS)).isoformat()
+    # Try Redis first
+    r = await _get_redis()
+    if r:
+        try:
+            await r.setex(f"cache:{query}", CACHE_TTL_SECONDS, json.dumps(data, ensure_ascii=False))
+        except Exception:
+            pass
+    # Always write to SQLite as backup
     async with aiosqlite.connect(DB_PATH) as con:
         await con.execute(
             "INSERT OR REPLACE INTO cache (query,data,expires_at) VALUES (?,?,?)",
@@ -265,6 +337,17 @@ async def db_set_cache(query, data):
         await con.commit()
 
 async def db_clear_cache(query=''):
+    r = await _get_redis()
+    if r:
+        try:
+            if query:
+                await r.delete(f"cache:{query}")
+            else:
+                keys = await r.keys("cache:*")
+                if keys:
+                    await r.delete(*keys)
+        except Exception:
+            pass
     async with aiosqlite.connect(DB_PATH) as con:
         if query:
             await con.execute("DELETE FROM cache WHERE query=?", (query,))
@@ -308,10 +391,13 @@ async def db_get_stats() -> dict:
         bl    = (await cur.fetchone())[0]
         cur   = await con.execute("SELECT COUNT(*) FROM subscriptions")
         subs  = (await cur.fetchone())[0]
+        cur   = await con.execute("SELECT COUNT(*) FROM alerts")
+        alrts = (await cur.fetchone())[0]
     stats['top_queries']   = top
     stats['unique_users']  = users
     stats['blacklisted']   = bl
     stats['subscriptions'] = subs
+    stats['alerts']        = alrts
     return stats
 
 async def db_is_blacklisted(username) -> bool:
@@ -401,8 +487,67 @@ async def db_get_all_user_ids() -> list[int]:
         rows = await cur.fetchall()
     return [r[0] for r in rows]
 
+# ── Alerts DB ──
+async def db_add_alert(user_id: int, keyword: str):
+    async with aiosqlite.connect(DB_PATH) as con:
+        await con.execute(
+            "INSERT OR IGNORE INTO alerts (user_id,keyword) VALUES (?,?)",
+            (user_id, keyword.lower())
+        )
+        await con.commit()
+
+async def db_remove_alert(user_id: int, keyword: str):
+    async with aiosqlite.connect(DB_PATH) as con:
+        await con.execute(
+            "DELETE FROM alerts WHERE user_id=? AND keyword=?",
+            (user_id, keyword.lower())
+        )
+        await con.commit()
+
+async def db_get_user_alerts(user_id: int) -> list[str]:
+    async with aiosqlite.connect(DB_PATH) as con:
+        cur  = await con.execute("SELECT keyword FROM alerts WHERE user_id=?", (user_id,))
+        rows = await cur.fetchall()
+    return [r[0] for r in rows]
+
+async def db_get_all_alerts() -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as con:
+        cur  = await con.execute("SELECT user_id,keyword,last_json FROM alerts")
+        rows = await cur.fetchall()
+    return [{'user_id': r[0], 'keyword': r[1], 'last_found': json.loads(r[2] or '[]')} for r in rows]
+
+async def db_update_alert_found(user_id: int, keyword: str, found: list):
+    async with aiosqlite.connect(DB_PATH) as con:
+        await con.execute(
+            "UPDATE alerts SET last_json=? WHERE user_id=? AND keyword=?",
+            (json.dumps(found, ensure_ascii=False), user_id, keyword)
+        )
+        await con.commit()
+
+# ── Rankings DB ──
+async def db_get_top_users(limit: int = 10) -> list[dict]:
+    async with aiosqlite.connect(DB_PATH) as con:
+        cur = await con.execute(
+            "SELECT user_id, COUNT(*) c, SUM(results_cnt) total "
+            "FROM searches GROUP BY user_id ORDER BY c DESC LIMIT ?",
+            (limit,)
+        )
+        rows = await cur.fetchall()
+    return [{'user_id': r[0], 'searches': r[1], 'total_results': r[2] or 0} for r in rows]
+
+async def db_get_hourly_stats(hours: int = 24) -> list[dict]:
+    since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+    async with aiosqlite.connect(DB_PATH) as con:
+        cur = await con.execute(
+            "SELECT strftime('%H', ts) h, COUNT(*) c "
+            "FROM searches WHERE ts > ? GROUP BY h ORDER BY h",
+            (since,)
+        )
+        rows = await cur.fetchall()
+    return [{'hour': r[0], 'count': r[1]} for r in rows]
+
 # ─────────────────────────────────────────────
-#  עזרי שפה וספאם
+#  עזרי שפה, ספאם, טיפוס
 # ─────────────────────────────────────────────
 
 def detect_language(text: str) -> str:
@@ -428,7 +573,6 @@ def is_spam_channel(title: str, username: str) -> bool:
     return any(kw.lower() in combined for kw in SPAM_KEYWORDS)
 
 def levenshtein(a: str, b: str) -> int:
-    """מרחק עריכה לתיקון שגיאות כתיב"""
     if len(a) < len(b):
         a, b = b, a
     if not b:
@@ -445,7 +589,6 @@ TYPO_DICT: dict[str, str] = {
     'ביטקיון': 'ביטקוין',
     'ביטקוון': 'ביטקוין',
     'קריפטא':  'קריפטו',
-    'אתריום':  'אתריום',
 }
 
 def fix_typo(query: str) -> str:
@@ -476,7 +619,66 @@ async def translate_query(session: aiohttp.ClientSession, query: str) -> str | N
     return None
 
 # ─────────────────────────────────────────────
-#  חיפוש חיצוני — async (aiohttp, לא חוסם)
+#  ניקוד רלוונטיות + Health Score + קטגוריה
+# ─────────────────────────────────────────────
+
+def _relevance_score(r: dict, query: str) -> float:
+    score = 0.0
+    q     = query.lower()
+    words = q.split()
+    title    = r.get('title', '').lower()
+    username = r.get('username', '').lower()
+    about    = r.get('about', '').lower()
+
+    if q in title:          score += 10.0
+    if q in username:       score += 6.0
+    if q in about:          score += 2.0
+    for w in words:
+        if w in title:      score += 3.0
+        if w in username:   score += 2.0
+        if w in about:      score += 0.5
+    return score
+
+def _health_score(r: dict) -> int:
+    score    = 0
+    members  = r.get('members', 0)
+    msgs_24h = r.get('msgs_24h', 0)
+    activity = r.get('activity', '')
+
+    if members >= 100_000: score += 40
+    elif members >= 10_000: score += 30
+    elif members >= 1_000:  score += 20
+    elif members >= 100:    score += 10
+    else:                   score += 3
+
+    if '🟢' in activity:   score += 40
+    elif '🟡' in activity: score += 25
+    elif '🟠' in activity: score += 10
+
+    if msgs_24h >= 20:   score += 20
+    elif msgs_24h >= 10: score += 15
+    elif msgs_24h >= 5:  score += 10
+    elif msgs_24h >= 1:  score += 5
+
+    return min(score, 100)
+
+def _health_bar(score: int) -> str:
+    filled = score // 10
+    bar    = '█' * filled + '░' * (10 - filled)
+    emoji  = '🟢' if score >= 70 else '🟡' if score >= 40 else '🔴'
+    return f"{emoji} {bar} {score}/100"
+
+def auto_categorize(title: str, about: str) -> str:
+    combined = (title + ' ' + about).lower()
+    best_cat, best_cnt = 'כללי', 0
+    for cat, keywords in CATEGORIES.items():
+        cnt = sum(1 for kw in keywords if kw in combined)
+        if cnt > best_cnt:
+            best_cnt, best_cat = cnt, cat
+    return best_cat
+
+# ─────────────────────────────────────────────
+#  חיפוש חיצוני — async (aiohttp + proxy)
 # ─────────────────────────────────────────────
 
 def _extract_tme(html: str) -> set[str]:
@@ -490,9 +692,12 @@ def _extract_tme(html: str) -> set[str]:
 async def _search_engine_async(
     session: aiohttp.ClientSession, url: str, name: str
 ) -> set[str]:
+    proxy = _next_proxy()
     try:
         async with session.get(
-            url, headers=HEADERS, timeout=aiohttp.ClientTimeout(total=10)
+            url, headers=HEADERS,
+            timeout=aiohttp.ClientTimeout(total=10),
+            proxy=proxy
         ) as r:
             html = await r.text()
             return _extract_tme(html)
@@ -516,7 +721,7 @@ async def search_all_external_async(
     for s in sets:
         if isinstance(s, set):
             merged |= s
-    log.info(f"External search: {len(merged)} unique t.me links from {len(SEARCH_SOURCES)} sources × {len(queries)} queries")
+    log.info(f"External: {len(merged)} links from {len(SEARCH_SOURCES)} sources × {len(queries)} queries")
     return list(merged)
 
 # ─────────────────────────────────────────────
@@ -537,22 +742,20 @@ async def telegram_search_variants(user_client, queries: list[str]) -> dict[str,
             for chat in res.chats:
                 if hasattr(chat, 'username') and chat.username:
                     results[chat.username] = {
-                        'title':   chat.title,
+                        'title':    chat.title,
                         'username': chat.username,
-                        'members': getattr(chat, 'participants_count', 0) or 0,
+                        'members':  getattr(chat, 'participants_count', 0) or 0,
                     }
             await asyncio.sleep(0.2)
         except FloodWaitError as e:
-            log.warning(f"FloodWait on variant '{q}': sleeping {e.seconds}s")
+            log.warning(f"FloodWait '{q}': sleeping {e.seconds}s")
             await asyncio.sleep(e.seconds)
         except Exception as e:
-            log.debug(f"Variant search error '{q}': {e}")
+            log.debug(f"Variant error '{q}': {e}")
 
-    # שולח 10 בקשות בו-זמנית עם pause בין קבוצות
     for i in range(0, len(variants), 10):
         await asyncio.gather(*[_one(v) for v in variants[i:i + 10]])
         await asyncio.sleep(0.5)
-
     return results
 
 async def get_channel_activity(user_client, entity) -> dict:
@@ -611,19 +814,16 @@ async def enrich_channel_info(user_client, username: str) -> dict | None:
             msgs_24h  = activity['msgs_24h']
             last_msg  = activity['last_msg']
 
-            if msgs_24h >= 10:
-                activity_label = "🟢 פעיל מאוד"
-            elif msgs_24h >= 1:
-                activity_label = "🟡 פעיל"
+            if msgs_24h >= 10:    activity_label = "🟢 פעיל מאוד"
+            elif msgs_24h >= 1:   activity_label = "🟡 פעיל"
             elif last_msg and (datetime.utcnow() - last_msg).days < 7:
-                activity_label = "🟠 נמוך"
-            else:
-                activity_label = "💀 לא פעיל"
+                                  activity_label = "🟠 נמוך"
+            else:                 activity_label = "💀 לא פעיל"
 
-            # שמירת נתוני צמיחה ברקע
+            category = auto_categorize(title, about)
             asyncio.create_task(db_save_growth(username, members))
 
-            return {
+            result = {
                 'title':     title,
                 'username':  username,
                 'members':   members,
@@ -633,7 +833,10 @@ async def enrich_channel_info(user_client, username: str) -> dict | None:
                 'lang_code': lang_code,
                 'activity':  activity_label,
                 'msgs_24h':  msgs_24h,
+                'category':  category,
             }
+            result['health'] = _health_score(result)
+            return result
         except FloodWaitError as e:
             log.warning(f"FloodWait enrich {username}: sleeping {e.seconds}s")
             await asyncio.sleep(e.seconds)
@@ -646,16 +849,16 @@ async def enrich_channel_info(user_client, username: str) -> dict | None:
 #  חיפוש מאוחד
 # ─────────────────────────────────────────────
 
-# user_ids של חיפושים פעילים (לביטול ע"י /cancel)
 active_searches: set[int] = set()
 
 async def full_search(
     user_client,
-    query: str,
-    min_members: int = 0,
+    query:        str,
+    min_members:  int  = 0,
     force_fresh:  bool = False,
     lang_filter:  str  = '',
-    progress_cb          = None,
+    cat_filter:   str  = '',
+    progress_cb        = None,
 ) -> list[dict]:
     query = fix_typo(query)
 
@@ -666,6 +869,8 @@ async def full_search(
             filtered = [r for r in cached if r['members'] >= min_members]
             if lang_filter:
                 filtered = [r for r in filtered if r.get('lang_code') == lang_filter]
+            if cat_filter:
+                filtered = [r for r in filtered if r.get('category') == cat_filter]
             return filtered
 
     log.info(f"Full search: '{query}'")
@@ -679,14 +884,14 @@ async def full_search(
             queries.append(translated)
             queries += expand_query(translated)
         queries = list(set(queries))[:8]
-        log.info(f"Queries: {queries}")
 
         if progress_cb:
-            await progress_cb("🌐 שלב 2/4: חיפוש חיצוני (Google · Bing · DDG)...")
+            await progress_cb("🌐 שלב 2/4: חיפוש חיצוני (30 מקורות)...")
 
-        external_task = search_all_external_async(session, queries)
-        internal_task = telegram_search_variants(user_client, queries)
-        external_links, internal_results = await asyncio.gather(external_task, internal_task)
+        external_links, internal_results = await asyncio.gather(
+            search_all_external_async(session, queries),
+            telegram_search_variants(user_client, queries)
+        )
 
     if progress_cb:
         await progress_cb("📡 שלב 3/4: מאחד תוצאות...")
@@ -700,16 +905,24 @@ async def full_search(
     if progress_cb:
         await progress_cb(f"✨ שלב 4/4: מעשיר {len(all_usernames)} ערוצים...")
 
-    tasks   = [enrich_channel_info(user_client, u) for u in all_usernames]
-    results = await asyncio.gather(*tasks)
+    results = await asyncio.gather(*[enrich_channel_info(user_client, u) for u in all_usernames])
     enriched = [
         r for r in results
         if r
         and r['members'] >= min_members
         and (not lang_filter or r.get('lang_code') == lang_filter)
+        and (not cat_filter  or r.get('category')  == cat_filter)
     ]
 
-    enriched.sort(key=lambda x: x['members'], reverse=True)
+    # מיון: רלוונטיות × health score × מנויים
+    enriched.sort(
+        key=lambda x: (
+            _relevance_score(x, query) * 2 +
+            x.get('health', 0) * 0.5 +
+            min(x['members'] / 10000, 10)
+        ),
+        reverse=True
+    )
     await db_set_cache(query, enriched)
     return enriched
 
@@ -717,19 +930,48 @@ async def full_search(
 #  פורמט ותוצאות
 # ─────────────────────────────────────────────
 
-def format_result(r: dict, rank: int) -> str:
+def format_result(r: dict, rank: int, show_health: bool = True) -> str:
     members_str = f"{r['members']:,}" if r['members'] else "?"
     about       = f"\n📝 _{r['about']}_" if r.get('about') else ""
+    health_line = f"\n{_health_bar(r.get('health', 0))}" if show_health else ""
+    cat         = f" [{r.get('category','כללי')}]" if r.get('category') else ""
     return (
-        f"**{rank}. {r['title']}** {r.get('lang', '🌐')}\n"
-        f"{about}\n"
+        f"**{rank}. {r['title']}** {r.get('lang', '🌐')}{cat}\n"
+        f"{about}"
+        f"{health_line}\n"
         f"👥 {members_str} | {r.get('activity', '')} ({r.get('msgs_24h', 0)} הודעות/יום)\n"
         f"🔗 {r['link']}"
     )
 
+def format_compare(r1: dict, r2: dict) -> str:
+    def row(label, v1, v2):
+        return f"**{label}**\n  A: {v1}\n  B: {v2}\n"
+
+    winner_members = "A ✅" if r1['members'] > r2['members'] else "B ✅"
+    winner_health  = "A ✅" if r1.get('health',0) > r2.get('health',0) else "B ✅"
+    winner_msgs    = "A ✅" if r1.get('msgs_24h',0) > r2.get('msgs_24h',0) else "B ✅"
+
+    return (
+        f"⚖️ **השוואת ערוצים**\n\n"
+        f"🅰️ **{r1['title']}** (@{r1['username']})\n"
+        f"🅱️ **{r2['title']}** (@{r2['username']})\n\n"
+        f"👥 מנויים ({winner_members})\n"
+        f"  A: {r1['members']:,}  |  B: {r2['members']:,}\n\n"
+        f"❤️ Health Score ({winner_health})\n"
+        f"  A: {_health_bar(r1.get('health',0))}\n"
+        f"  B: {_health_bar(r2.get('health',0))}\n\n"
+        f"📨 הודעות/יום ({winner_msgs})\n"
+        f"  A: {r1.get('msgs_24h',0)}  |  B: {r2.get('msgs_24h',0)}\n\n"
+        f"🏷 קטגוריה\n"
+        f"  A: {r1.get('category','כללי')}  |  B: {r2.get('category','כללי')}\n\n"
+        f"🔗 A: {r1['link']}\n"
+        f"🔗 B: {r2['link']}"
+    )
+
 def results_to_csv(results: list[dict]) -> bytes:
-    out = io.StringIO()
-    fields = ['rank', 'title', 'username', 'members', 'about', 'link', 'lang', 'activity', 'msgs_24h']
+    out    = io.StringIO()
+    fields = ['rank', 'title', 'username', 'members', 'health', 'category',
+              'about', 'link', 'lang', 'activity', 'msgs_24h']
     w = csv.DictWriter(out, fieldnames=fields)
     w.writeheader()
     for i, r in enumerate(results, 1):
@@ -746,29 +988,30 @@ def results_to_xlsx(results: list[dict]) -> bytes:
     ws = wb.active
     ws.title = "תוצאות חיפוש"
 
-    headers = ['#', 'שם', 'Username', 'מנויים', 'תיאור', 'קישור', 'שפה', 'פעילות', 'הודעות/יום']
+    headers = ['#', 'שם', 'Username', 'מנויים', 'Health', 'קטגוריה',
+               'תיאור', 'קישור', 'שפה', 'פעילות', 'הודעות/יום']
     ws.append(headers)
 
-    hdr_font = Font(bold=True, color="FFFFFF")
-    hdr_fill = PatternFill("solid", fgColor="2B5CE6")
+    hdr_font  = Font(bold=True, color="FFFFFF")
+    hdr_fill  = PatternFill("solid", fgColor="2B5CE6")
     hdr_align = Alignment(horizontal='center')
     for cell in ws[1]:
-        cell.font  = hdr_font
-        cell.fill  = hdr_fill
+        cell.font      = hdr_font
+        cell.fill      = hdr_fill
         cell.alignment = hdr_align
 
     for i, r in enumerate(results, 1):
-        ws.append([
-            i,
-            r.get('title', ''),
-            r.get('username', ''),
-            r.get('members', 0),
-            r.get('about', ''),
-            r.get('link', ''),
-            r.get('lang', ''),
-            r.get('activity', ''),
-            r.get('msgs_24h', 0),
-        ])
+        health = r.get('health', 0)
+        row_data = [
+            i, r.get('title',''), r.get('username',''), r.get('members',0),
+            health, r.get('category',''), r.get('about',''), r.get('link',''),
+            r.get('lang',''), r.get('activity',''), r.get('msgs_24h',0),
+        ]
+        ws.append(row_data)
+        # צבע שורה לפי health
+        fill_color = "C8E6C9" if health >= 70 else "FFF9C4" if health >= 40 else "FFCDD2"
+        for cell in ws[ws.max_row]:
+            cell.fill = PatternFill("solid", fgColor=fill_color)
 
     for col in ws.columns:
         max_len = max(len(str(cell.value or '')) for cell in col)
@@ -778,8 +1021,51 @@ def results_to_xlsx(results: list[dict]) -> bytes:
     wb.save(buf)
     return buf.getvalue()
 
+def results_to_pdf(results: list[dict], query: str) -> bytes:
+    if not HAS_FPDF:
+        return results_to_csv(results)
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, f"Telegram Search: {query}", ln=True, align="C")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.cell(0, 6, f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')} | {len(results)} results", ln=True, align="C")
+    pdf.ln(4)
+
+    # Table header
+    pdf.set_fill_color(43, 92, 230)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Helvetica", "B", 9)
+    col_w = [8, 50, 30, 20, 15, 25, 42]
+    headers_en = ["#", "Title", "Username", "Members", "Health", "Category", "Link"]
+    for w, h in zip(col_w, headers_en):
+        pdf.cell(w, 7, h, border=1, fill=True)
+    pdf.ln()
+
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Helvetica", "", 8)
+    for i, r in enumerate(results, 1):
+        health = r.get('health', 0)
+        if health >= 70:   pdf.set_fill_color(200, 230, 201)
+        elif health >= 40: pdf.set_fill_color(255, 249, 196)
+        else:              pdf.set_fill_color(255, 205, 210)
+        fill = True
+
+        title_ascii = r.get('title','')[:28].encode('ascii','replace').decode()
+        user        = r.get('username','')[:18]
+        members     = f"{r.get('members',0):,}"
+        cat         = r.get('category','')[:12].encode('ascii','replace').decode()
+        link        = f"t.me/{user}"
+
+        row_vals = [str(i), title_ascii, user, members, str(health), cat, link]
+        for w, v in zip(col_w, row_vals):
+            pdf.cell(w, 6, v, border=1, fill=fill)
+        pdf.ln()
+
+    return pdf.output()
+
 def draw_growth_chart(growth_data: list[dict]) -> str:
-    """גרף טקסטואלי ASCII של צמיחת מנויים"""
     if len(growth_data) < 2:
         return "אין מספיק נתונים"
     members = [d['members'] for d in growth_data]
@@ -792,8 +1078,7 @@ def draw_growth_chart(growth_data: list[dict]) -> str:
         pct  = (d['members'] - mn) / (mx - mn)
         bars = int(pct * HEIGHT)
         rows.append(f"{d['members']:>8,} │{'█' * bars}{'░' * (HEIGHT - bars)}")
-    header = f"📈 {mn:,} → {mx:,}  (גידול: +{mx - mn:,})"
-    return header + "\n" + "\n".join(rows)
+    return f"📈 {mn:,} → {mx:,}  (+{mx - mn:,})\n" + "\n".join(rows)
 
 # ─────────────────────────────────────────────
 #  Inline Buttons
@@ -809,17 +1094,19 @@ def make_buttons(query: str, page: int, total: int) -> list:
     if nav:
         btns.append(nav)
     btns.append([
-        Button.inline("🔄 רענן",  data=f"refresh:{query}"),
-        Button.inline("🔔 הרשם",  data=f"sub:{query}"),
+        Button.inline("🔄 רענן",   data=f"refresh:{query}"),
+        Button.inline("🔔 הרשם",   data=f"sub:{query}"),
+        Button.inline("📤 שתף",    data=f"share:{query}"),
     ])
     btns.append([
-        Button.inline("📊 Excel", data=f"xlsx:{query}"),
-        Button.inline("📥 CSV",   data=f"csv:{query}"),
+        Button.inline("📊 Excel",  data=f"xlsx:{query}"),
+        Button.inline("📥 CSV",    data=f"csv:{query}"),
+        Button.inline("📄 PDF",    data=f"pdf:{query}"),
     ])
     return btns
 
 # ─────────────────────────────────────────────
-#  סטטוס
+#  סטטוס ו-Dashboard
 # ─────────────────────────────────────────────
 
 async def get_status_text() -> str:
@@ -832,19 +1119,58 @@ async def get_status_text() -> str:
     except Exception:
         mem_mb, cpu = 0, 0
     db_size = os.path.getsize(DB_PATH) / 1024 if os.path.exists(DB_PATH) else 0
-    s       = await db_get_stats()
+    redis_ok = "✅" if await _get_redis() else "❌ (SQLite)"
+    s = await db_get_stats()
     return (
-        f"📡 **סטטוס הבוט v2.0**\n\n"
+        f"📡 **סטטוס הבוט v3.0**\n\n"
         f"⏱ Uptime: **{hours}h {minutes}m**\n"
-        f"💾 RAM: **{mem_mb:.1f} MB**\n"
-        f"⚙️ CPU: **{cpu:.1f}%**\n"
-        f"🗄 DB: **{db_size:.1f} KB**\n"
+        f"💾 RAM: **{mem_mb:.1f} MB** | ⚙️ CPU: **{cpu:.1f}%**\n"
+        f"🗄 DB: **{db_size:.1f} KB** | Redis: **{redis_ok}**\n"
         f"🔍 חיפושים: **{s.get('total_searches', 0)}**\n"
         f"👤 משתמשים: **{s.get('unique_users', 0)}**\n"
-        f"🔔 מנויים: **{s.get('subscriptions', 0)}**\n"
+        f"🔔 מנויים: **{s.get('subscriptions', 0)}** | "
+        f"🔔 Alerts: **{s.get('alerts', 0)}**\n"
         f"🚫 Blacklist: **{s.get('blacklisted', 0)}**\n"
         f"🐍 Python: **{platform.python_version()}**\n"
-        f"📊 Excel: **{'✅' if HAS_OPENPYXL else '❌  pip install openpyxl'}**"
+        f"📊 Excel: **{'✅' if HAS_OPENPYXL else '❌'}** | "
+        f"📄 PDF: **{'✅' if HAS_FPDF else '❌ pip install fpdf2'}**\n"
+        f"🔀 Proxies: **{len(PROXY_LIST)}**"
+    )
+
+async def get_dashboard_text() -> str:
+    hourly  = await db_get_hourly_stats(24)
+    s       = await db_get_stats()
+    top     = await db_get_top_users(5)
+    trending = await db_get_trending(24, 3)
+
+    # גרף שעתי ASCII
+    if hourly:
+        mx  = max(h['count'] for h in hourly) or 1
+        bar = ""
+        for h in hourly:
+            filled = int(h['count'] / mx * 10)
+            bar += f"  {h['hour']}:00 {'█' * filled}{'░' * (10 - filled)} {h['count']}\n"
+    else:
+        bar = "  אין נתונים עדיין\n"
+
+    top_str = "\n".join(
+        f"  {i+1}. uid={u['user_id']} — {u['searches']} חיפושים, {u['total_results']} תוצאות"
+        for i, u in enumerate(top)
+    ) or "  אין עדיין"
+
+    trend_str = "\n".join(
+        f"  @{t['username']} +{t['growth']:,}"
+        for t in trending
+    ) or "  אין עדיין"
+
+    top_q = "\n".join(f"  • `{q[0]}` ({q[1]}x)" for q in s.get('top_queries', [])) or "  אין עדיין"
+
+    return (
+        f"📊 **Dashboard v3.0**\n\n"
+        f"**📈 חיפושים לפי שעה (24h):**\n```\n{bar}```\n"
+        f"**🏆 Top 5 משתמשים:**\n{top_str}\n\n"
+        f"**🔥 Trending (24h):**\n{trend_str}\n\n"
+        f"**🔍 Top Queries:**\n{top_q}"
     )
 
 # ─────────────────────────────────────────────
@@ -853,10 +1179,8 @@ async def get_status_text() -> str:
 
 def register_handlers(bot_client, user_client):
 
-    # מצב אינטרקטיבי — user_id → state
     pending_search: dict[int, dict] = {}
 
-    # ── בדיקת תנאי שימוש ──
     async def _check_terms(event) -> bool:
         if await db_accepted_terms(event.sender_id):
             return True
@@ -879,46 +1203,54 @@ def register_handlers(bot_client, user_client):
     @bot_client.on(events.NewMessage(pattern='/start'))
     async def cmd_start(event):
         await event.respond(
-            "👋 **ברוך הבא לבוט החיפוש האולטימטיבי v2.0!**\n\n"
+            "👋 **ברוך הבא לבוט החיפוש v3.0!**\n\n"
             "שלח מילת חיפוש חופשית, או השתמש בפקודות:\n\n"
             "🔍 `/search <שאילתה>` — חיפוש רגיל\n"
             "🚀 `/deep <שאילתה>` — חיפוש עמוק (ללא מטמון)\n"
             "🧠 `/smart` — חיפוש אינטרקטיבי עם פילטרים\n"
             "📊 `/filter <מנויים> <שאילתה>` — סף מנויים\n"
+            "🏷 `/category <שם>` — חיפוש לפי קטגוריה\n"
+            "⚖️ `/compare @chan1 @chan2` — השוואת שני ערוצים\n"
             "🔗 `/similar @channel` — ערוצים דומים\n"
             "👁 `/preview @channel` — תצוגה מקדימה\n"
             "📈 `/growth @channel` — גרף צמיחה\n"
             "🔥 `/trending` — ערוצים עולים ב-24 שעות\n"
+            "🔔 `/alert <מילה>` — התראה על ערוץ חדש\n"
+            "📋 `/alerts` — רשימת ההתראות שלי\n"
+            "❌ `/unalert <מילה>` — מחק התראה\n"
             "📜 `/history` — היסטוריית חיפושים\n"
-            "🔔 `/subscribe <שאילתה>` — התראות על עדכונים\n"
-            "❌ `/unsubscribe <שאילתה>` — ביטול התראות\n"
+            "🔔 `/subscribe <שאילתה>` — מנוי לעדכונים\n"
             "🔕 `/quiet` — מצב שקט (Excel בלבד)\n"
             "🌐 `/lang <he/en/ru>` — שפת ממשק\n"
             "⛔ `/cancel` — ביטול חיפוש פעיל\n"
             "📡 `/status` — מצב הבוט\n"
-            "🔎 `/sources` — רשימת כל מקורות החיפוש\n"
+            "🏆 `/top` — דירוג משתמשים\n"
+            "🔎 `/sources` — כל מקורות החיפוש\n"
             "🚫 `/blacklist @user` — חסום ערוץ (אדמין)\n"
-            "📢 `/broadcast <msg>` — שלח הודעה לכולם (אדמין)\n"
+            "📢 `/broadcast <msg>` — שלח לכולם (אדמין)\n"
+            "📊 `/dashboard` — לוח מחוונים (אדמין)\n"
             "📊 `/stats` — סטטיסטיקות (אדמין)"
         )
 
     # ── /help ──
     @bot_client.on(events.NewMessage(pattern='/help'))
     async def cmd_help(event):
+        cats = " · ".join(f"`{c}`" for c in CATEGORIES.keys())
         await event.respond(
-            "📖 **מדריך שימוש מלא**\n\n"
-            "**חיפוש חכם:** מילים נרדפות + תרגום + תיקון שגיאות כתיב\n"
-            "**Levenshtein:** `ביטקיון` → `ביטקוין` אוטומטי\n\n"
-            "**📈 Growth Tracking:** צמיחת ערוצים נשמרת אוטומטית עם כל חיפוש\n"
-            "**🔥 Trending:** מציג ערוצים שגדלו הכי הרבה ב-24 שעות\n"
-            "**🔗 Similar:** מוצא ערוצים דומים לפי כותרת ותיאור\n"
-            "**👁 Preview:** 5 הודעות אחרונות מהערוץ\n\n"
-            "**סמלי פעילות:**\n"
-            "🟢 10+ הודעות/יום\n"
-            "🟡 1-9 הודעות/יום\n"
-            "🟠 פחות מ-7 ימים מהודעה אחרונה\n"
-            "💀 לא פעיל\n\n"
-            "**ייצוא:** 📊 Excel מעוצב | 📥 CSV\n"
+            "📖 **מדריך שימוש מלא v3.0**\n\n"
+            "**⭐ חדש ב-v3.0:**\n"
+            "• **Relevance Score** — דירוג לפי התאמה לשאילתה\n"
+            "• **Health Score (0-100)** — ציון בריאות ערוץ משוקלל\n"
+            "• **⚖️ Compare** — השוואת שני ערוצים\n"
+            "• **🔔 Alerts** — התראה כשערוץ חדש עם מילה מסוימת מופיע\n"
+            "• **🏷 Categories** — סינון לפי קטגוריה\n"
+            "• **📄 PDF Export** — ייצוא לפורמט PDF\n"
+            "• **📊 Dashboard** — גרפי שימוש\n"
+            "• **🏆 Top Users** — דירוג משתמשים\n"
+            "• **Proxy Pool** — רוטציה בין פרוקסים\n"
+            "• **Redis Cache** — מטמון מהיר (אופציונלי)\n\n"
+            f"**🏷 קטגוריות זמינות:**\n{cats}\n\n"
+            "**ייצוא:** 📊 Excel מעוצב | 📥 CSV | 📄 PDF\n"
             "**Inline Mode:** הקלד `@botname ביטקוין` בכל שיחה"
         )
 
@@ -927,6 +1259,15 @@ def register_handlers(bot_client, user_client):
     async def cmd_status(event):
         await event.respond(await get_status_text())
 
+    # ── /dashboard ──
+    @bot_client.on(events.NewMessage(pattern='/dashboard'))
+    async def cmd_dashboard(event):
+        if ADMIN_IDS and event.sender_id not in ADMIN_IDS:
+            await event.respond("⛔ פקודת אדמין בלבד.")
+            return
+        await event.respond(await get_dashboard_text())
+
+    # ── /sources ──
     @bot_client.on(events.NewMessage(pattern='/sources'))
     async def cmd_sources(event):
         categories = {
@@ -940,8 +1281,88 @@ def register_handlers(bot_client, user_client):
         for cat, names in categories.items():
             lines.append(f"\n**{cat}:**")
             lines.append("  " + " · ".join(f"`{n}`" for n in names))
-        lines.append(f"\n_כל מקור נסרק עבור כל שאילתה (כולל מילים נרדפות ותרגום)_")
+        if PROXY_LIST:
+            lines.append(f"\n🔀 **Proxy Pool:** {len(PROXY_LIST)} פרוקסים פעילים")
         await event.respond("\n".join(lines))
+
+    # ── /top ──
+    @bot_client.on(events.NewMessage(pattern='/top'))
+    async def cmd_top(event):
+        top = await db_get_top_users(10)
+        if not top:
+            await event.respond("📭 אין נתונים עדיין.")
+            return
+        lines = [
+            f"{'🥇' if i==0 else '🥈' if i==1 else '🥉' if i==2 else f'{i+1}.'} "
+            f"user `{u['user_id']}` — **{u['searches']}** חיפושים | {u['total_results']:,} תוצאות"
+            for i, u in enumerate(top)
+        ]
+        await event.respond("🏆 **Top 10 משתמשים:**\n\n" + "\n".join(lines))
+
+    # ── /compare ──
+    @bot_client.on(events.NewMessage(pattern=r'/compare @?(\w+)\s+@?(\w+)'))
+    async def cmd_compare(event):
+        u1 = event.pattern_match.group(1)
+        u2 = event.pattern_match.group(2)
+        msg = await event.respond(f"⚖️ משווה @{u1} ↔ @{u2}...")
+        info1, info2 = await asyncio.gather(
+            enrich_channel_info(user_client, u1),
+            enrich_channel_info(user_client, u2)
+        )
+        if not info1:
+            await msg.edit(f"❌ לא נמצא @{u1}")
+            return
+        if not info2:
+            await msg.edit(f"❌ לא נמצא @{u2}")
+            return
+        await msg.edit(format_compare(info1, info2))
+
+    # ── /alert ──
+    @bot_client.on(events.NewMessage(pattern=r'/alert (.+)'))
+    async def cmd_alert(event):
+        keyword = event.pattern_match.group(1).strip()
+        existing = await db_get_user_alerts(event.sender_id)
+        if len(existing) >= 10:
+            await event.respond("⚠️ מקסימום 10 התראות. מחק אחת קודם עם `/unalert`.")
+            return
+        await db_add_alert(event.sender_id, keyword)
+        await event.respond(
+            f"🔔 **התראה נוספה:** `{keyword}`\n"
+            f"תקבל הודעה כשערוצים חדשים עם מילה זו יתגלו."
+        )
+
+    # ── /alerts ──
+    @bot_client.on(events.NewMessage(pattern='/alerts'))
+    async def cmd_alerts(event):
+        kws = await db_get_user_alerts(event.sender_id)
+        if not kws:
+            await event.respond("📭 אין לך התראות פעילות.\nהוסף עם `/alert <מילה>`")
+            return
+        lines = [f"  {i+1}. `{kw}`" for i, kw in enumerate(kws)]
+        await event.respond(
+            f"🔔 **ההתראות שלך ({len(kws)}/10):**\n\n" + "\n".join(lines) +
+            "\n\nמחק עם `/unalert <מילה>`"
+        )
+
+    # ── /unalert ──
+    @bot_client.on(events.NewMessage(pattern=r'/unalert (.+)'))
+    async def cmd_unalert(event):
+        keyword = event.pattern_match.group(1).strip()
+        await db_remove_alert(event.sender_id, keyword)
+        await event.respond(f"✅ התראה הוסרה: `{keyword}`")
+
+    # ── /category ──
+    @bot_client.on(events.NewMessage(pattern=r'/category (.+)'))
+    async def cmd_category(event):
+        cat = event.pattern_match.group(1).strip()
+        if cat not in CATEGORIES:
+            cats = " | ".join(CATEGORIES.keys())
+            await event.respond(f"❌ קטגוריה לא קיימת.\nזמינות: {cats}")
+            return
+        keywords = CATEGORIES[cat]
+        query    = keywords[0]
+        await _do_search(event, query, cat_filter=cat,
+                         custom_title=f"קטגוריה: {cat}")
 
     # ── /history ──
     @bot_client.on(events.NewMessage(pattern='/history'))
@@ -969,6 +1390,7 @@ def register_handlers(bot_client, user_client):
             f"🔍 חיפושים: **{s.get('total_searches', 0)}**\n"
             f"👤 משתמשים: **{s.get('unique_users', 0)}**\n"
             f"🔔 מנויים: **{s.get('subscriptions', 0)}**\n"
+            f"🔔 Alerts: **{s.get('alerts', 0)}**\n"
             f"🚫 Blacklist: **{s.get('blacklisted', 0)}**\n\n"
             f"🏆 **TOP 5:**\n{top or 'אין עדיין'}"
         )
@@ -1011,8 +1433,7 @@ def register_handlers(bot_client, user_client):
         new_val  = 0 if settings['quiet'] else 1
         await db_set_user_setting(uid, 'quiet', new_val)
         status = "מופעל 🔕" if new_val else "כבוי 🔔"
-        suffix = "תקבל רק קובץ Excel." if new_val else "תקבל הודעות מלאות."
-        await event.respond(f"מצב שקט: **{status}**\n{suffix}")
+        await event.respond(f"מצב שקט: **{status}**")
 
     # ── /lang ──
     @bot_client.on(events.NewMessage(pattern=r'/lang ([a-z]{2})'))
@@ -1032,7 +1453,7 @@ def register_handlers(bot_client, user_client):
         else:
             await event.respond("אין חיפוש פעיל כרגע.")
 
-    # ── /subscribe ──
+    # ── /subscribe / /unsubscribe ──
     @bot_client.on(events.NewMessage(pattern=r'/subscribe (.+)'))
     async def cmd_subscribe(event):
         query   = event.pattern_match.group(1).strip()
@@ -1040,7 +1461,6 @@ def register_handlers(bot_client, user_client):
         await db_subscribe(event.sender_id, query, len(results))
         await event.respond(f"🔔 נרשמת לעדכונים עבור: `{query}`\nיש כעת {len(results)} תוצאות.")
 
-    # ── /unsubscribe ──
     @bot_client.on(events.NewMessage(pattern=r'/unsubscribe (.+)'))
     async def cmd_unsubscribe(event):
         query = event.pattern_match.group(1).strip()
@@ -1056,19 +1476,18 @@ def register_handlers(bot_client, user_client):
             min_members=int(event.pattern_match.group(1))
         )
 
-    # ── /search ──
+    # ── /search / /deep ──
     @bot_client.on(events.NewMessage(pattern=r'/search (.+)'))
     async def cmd_search(event):
         await _do_search(event, event.pattern_match.group(1).strip())
 
-    # ── /deep ──
     @bot_client.on(events.NewMessage(pattern=r'/deep (.+)'))
     async def cmd_deep(event):
         query = event.pattern_match.group(1).strip()
         await db_clear_cache(query)
         await _do_search(event, query, force_fresh=True)
 
-    # ── /smart — חיפוש אינטרקטיבי ──
+    # ── /smart ──
     @bot_client.on(events.NewMessage(pattern='/smart'))
     async def cmd_smart(event):
         pending_search[event.sender_id] = {'step': 'query'}
@@ -1089,7 +1508,7 @@ def register_handlers(bot_client, user_client):
         min_m = int(event.pattern_match.group(2))
         pending_search[uid] = {'step': 'lang', 'query': query, 'min_members': min_m}
         await event.edit(
-            f"🌐 **סינון לפי שפה**\nשאילתה: `{query}` | מינ' מנויים: {min_m:,}\n\nבחר שפה:",
+            f"🌐 **סינון לפי שפה** | שאילתה: `{query}` | מינ': {min_m:,}\n\nבחר שפה:",
             buttons=[
                 [Button.inline("🌐 הכל",    data=f"smart_lang:{query}:{min_m}:"),
                  Button.inline("🇮🇱 עברית",  data=f"smart_lang:{query}:{min_m}:he")],
@@ -1115,16 +1534,16 @@ def register_handlers(bot_client, user_client):
         if not trending:
             await event.respond(
                 "📭 אין מספיק נתוני צמיחה עדיין.\n"
-                "נתוני צמיחה נצברים אוטומטית עם כל חיפוש."
+                "נתונים נצברים אוטומטית עם כל חיפוש."
             )
             return
         lines = [
             f"**{i}. @{t['username']}**\n"
-            f"📈 +{t['growth']:,} מנויים | 👥 {t['current']:,} כעת\n"
+            f"📈 +{t['growth']:,} | 👥 {t['current']:,}\n"
             f"🔗 https://t.me/{t['username']}"
             for i, t in enumerate(trending, 1)
         ]
-        await event.respond("🔥 **ערוצים עולים (24 שעות אחרונות):**\n\n" + "\n\n".join(lines))
+        await event.respond("🔥 **ערוצים עולים (24h):**\n\n" + "\n\n".join(lines))
 
     # ── /growth ──
     @bot_client.on(events.NewMessage(pattern=r'/growth @?(\w+)'))
@@ -1133,12 +1552,9 @@ def register_handlers(bot_client, user_client):
         data_7d  = await db_get_growth(username, hours=168)
         data_24h = await db_get_growth(username, hours=24)
         if not data_7d:
-            await event.respond(
-                f"📭 אין נתוני צמיחה עבור @{username}.\n"
-                f"חפש אותו קודם כדי לצבור נתונים."
-            )
+            await event.respond(f"📭 אין נתוני צמיחה עבור @{username}.\nחפש אותו קודם.")
             return
-        chart = draw_growth_chart(data_7d)
+        chart      = draw_growth_chart(data_7d)
         change_24h = (data_24h[-1]['members'] - data_24h[0]['members']) if len(data_24h) >= 2 else 0
         change_7d  = (data_7d[-1]['members']  - data_7d[0]['members'])  if len(data_7d)  >= 2 else 0
         sign = lambda n: '+' if n >= 0 else ''
@@ -1157,7 +1573,7 @@ def register_handlers(bot_client, user_client):
         try:
             info = await enrich_channel_info(user_client, username)
             if not info:
-                await msg.edit(f"❌ לא ניתן למצוא את @{username}")
+                await msg.edit(f"❌ לא נמצא @{username}")
                 return
             search_term = info['title']
             if info.get('about'):
@@ -1184,7 +1600,7 @@ def register_handlers(bot_client, user_client):
                 return
             chat  = entity.chats[0]
             msgs  = await get_recent_messages(user_client, chat, limit=5)
-            text  = f"👁 **תצוגה מקדימה: {chat.title}**\n🔗 t.me/{username}\n\n"
+            text  = f"👁 **{chat.title}** | t.me/{username}\n\n"
             text += ("**5 הודעות אחרונות:**\n" + "\n".join(msgs)) if msgs else "_לא נמצאו הודעות ציבוריות_"
             await msg.edit(text)
         except Exception as e:
@@ -1207,9 +1623,9 @@ def register_handlers(bot_client, user_client):
             return
         articles = [
             event.builder.article(
-                title=f"{r['title']} ({r['members']:,} מנויים)",
+                title=f"{r['title']} ❤️{r.get('health',0)} ({r['members']:,})",
                 description=r.get('about', '')[:50],
-                text=f"**{r['title']}**\n👥 {r['members']:,}\n🔗 {r['link']}"
+                text=f"**{r['title']}**\n👥 {r['members']:,} | ❤️ {r.get('health',0)}/100\n🔗 {r['link']}"
             )
             for r in cached[:10]
         ]
@@ -1239,7 +1655,7 @@ def register_handlers(bot_client, user_client):
         if event.is_private and not event.text.startswith('/'):
             await _do_search(event, event.text.strip())
 
-    # ── Callbacks: pagination / refresh / sub / CSV / Excel ──
+    # ── Callbacks ──
     @bot_client.on(events.CallbackQuery(pattern=rb'page:(.+):(\d+)'))
     async def cb_page(event):
         query   = event.pattern_match.group(1).decode()
@@ -1262,6 +1678,21 @@ def register_handlers(bot_client, user_client):
         await db_subscribe(event.sender_id, query, len(results))
         await event.answer(f"🔔 נרשמת ל: {query}")
 
+    @bot_client.on(events.CallbackQuery(pattern=rb'share:(.+)'))
+    async def cb_share(event):
+        query   = event.pattern_match.group(1).decode()
+        results = await db_get_cache(query) or []
+        if not results:
+            await event.answer("❌ אין תוצאות במטמון")
+            return
+        top3 = results[:3]
+        text = f"🔍 **תוצאות חיפוש: {query}**\n\n"
+        for i, r in enumerate(top3, 1):
+            text += f"{i}. **{r['title']}** | 👥 {r['members']:,}\n🔗 {r['link']}\n\n"
+        text += f"_ועוד {len(results)-3} תוצאות — חפש בבוט_" if len(results) > 3 else ""
+        await bot_client.send_message(event.chat_id, text, link_preview=False)
+        await event.answer("📤 נשלח!")
+
     @bot_client.on(events.CallbackQuery(pattern=rb'csv:(.+)'))
     async def cb_csv(event):
         query   = event.pattern_match.group(1).decode()
@@ -1273,7 +1704,7 @@ def register_handlers(bot_client, user_client):
             event.chat_id,
             file=io.BytesIO(results_to_csv(results)),
             attributes=[types.DocumentAttributeFilename(file_name=f"{query}_results.csv")],
-            caption=f"📥 **{len(results)} תוצאות עבור:** `{query}`"
+            caption=f"📥 **{len(results)} תוצאות:** `{query}`"
         )
         await event.answer("📥 CSV נשלח!")
 
@@ -1286,12 +1717,28 @@ def register_handlers(bot_client, user_client):
             return
         await event.answer("📊 מייצר Excel...")
         ext  = 'xlsx' if HAS_OPENPYXL else 'csv'
-        data = results_to_xlsx(results)
+        await bot_client.send_file(
+            event.chat_id,
+            file=io.BytesIO(results_to_xlsx(results)),
+            attributes=[types.DocumentAttributeFilename(file_name=f"{query}_results.{ext}")],
+            caption=f"📊 **{len(results)} תוצאות:** `{query}`"
+        )
+
+    @bot_client.on(events.CallbackQuery(pattern=rb'pdf:(.+)'))
+    async def cb_pdf(event):
+        query   = event.pattern_match.group(1).decode()
+        results = await db_get_cache(query) or []
+        if not results:
+            await event.answer("❌ אין תוצאות במטמון")
+            return
+        await event.answer("📄 מייצר PDF...")
+        data = results_to_pdf(results, query)
+        ext  = 'pdf' if HAS_FPDF else 'csv'
         await bot_client.send_file(
             event.chat_id,
             file=io.BytesIO(data),
             attributes=[types.DocumentAttributeFilename(file_name=f"{query}_results.{ext}")],
-            caption=f"📊 **{len(results)} תוצאות עבור:** `{query}`"
+            caption=f"📄 **{len(results)} תוצאות:** `{query}`"
         )
 
     # ── שליחת עמוד ──
@@ -1318,10 +1765,12 @@ def register_handlers(bot_client, user_client):
     # ── חיפוש מרכזי ──
     async def _do_search(
         event,
-        query: str,
-        min_members: int = 0,
+        query:        str,
+        min_members:  int  = 0,
         force_fresh:  bool = False,
         lang_filter:  str  = '',
+        cat_filter:   str  = '',
+        custom_title: str  = '',
     ):
         uid      = event.sender_id
         settings = await db_get_user_settings(uid)
@@ -1337,10 +1786,11 @@ def register_handlers(bot_client, user_client):
 
         fixed = fix_typo(query)
         if fixed != query:
-            await event.respond(f"✏️ תיקון שגיאת כתיב: `{query}` → `{fixed}`")
+            await event.respond(f"✏️ תיקון: `{query}` → `{fixed}`")
             query = fixed
 
-        status_msg = await event.respond(f"🌐 מחפש: **{query}**\n⏳ אנא המתן...")
+        title      = custom_title or query
+        status_msg = await event.respond(f"🌐 מחפש: **{title}**\n⏳ אנא המתן...")
         active_searches.add(uid)
 
         async def progress_cb(text: str):
@@ -1357,6 +1807,7 @@ def register_handlers(bot_client, user_client):
                 min_members=min_members,
                 force_fresh=force_fresh,
                 lang_filter=lang_filter,
+                cat_filter=cat_filter,
                 progress_cb=progress_cb,
             )
         except asyncio.CancelledError:
@@ -1380,17 +1831,16 @@ def register_handlers(bot_client, user_client):
         await status_msg.delete()
 
         if not results:
-            await event.respond(f"❌ לא נמצאו קבוצות עבור **{query}**")
+            await event.respond(f"❌ לא נמצאו קבוצות עבור **{title}**")
             return
 
         if settings['quiet']:
             ext  = 'xlsx' if HAS_OPENPYXL else 'csv'
-            data = results_to_xlsx(results)
             await bot_client.send_file(
                 event.chat_id,
-                file=io.BytesIO(data),
+                file=io.BytesIO(results_to_xlsx(results)),
                 attributes=[types.DocumentAttributeFilename(file_name=f"{query}_results.{ext}")],
-                caption=f"📊 **{len(results)} תוצאות עבור:** `{query}` (מצב שקט)"
+                caption=f"📊 **{len(results)} תוצאות:** `{title}` (מצב שקט)"
             )
             await db_log_search(uid, query, len(results))
             return
@@ -1415,8 +1865,8 @@ async def subscription_checker(bot_client, user_client):
                     diff = new_count - sub['last_count']
                     await bot_client.send_message(
                         sub['user_id'],
-                        f"🔔 **עדכון:** `{sub['query']}`\n"
-                        f"נוספו **{diff}** קבוצות חדשות! סה\"כ: {new_count}\n"
+                        f"🔔 **עדכון מנוי:** `{sub['query']}`\n"
+                        f"נוספו **{diff}** ערוצים חדשים! סה\"כ: {new_count}\n"
                         f"שלח `/search {sub['query']}` לצפייה"
                     )
                     await db_subscribe(sub['user_id'], sub['query'], new_count)
@@ -1424,12 +1874,41 @@ async def subscription_checker(bot_client, user_client):
             except Exception as e:
                 log.warning(f"Subscription error: {e}")
 
+async def alert_checker(bot_client, user_client):
+    while True:
+        await asyncio.sleep(1800)  # כל 30 דקות
+        log.info("Checking alerts...")
+        for alert in await db_get_all_alerts():
+            try:
+                results  = await full_search(user_client, alert['keyword'])
+                new_uids = {r['username'] for r in results}
+                old_uids = set(alert['last_found'])
+                added    = new_uids - old_uids
+
+                if added:
+                    new_channels = [r for r in results if r['username'] in added][:5]
+                    lines = [
+                        f"• **{r['title']}** | 👥 {r['members']:,} | ❤️{r.get('health',0)}\n  {r['link']}"
+                        for r in new_channels
+                    ]
+                    await bot_client.send_message(
+                        alert['user_id'],
+                        f"🔔 **Alert: `{alert['keyword']}`**\n"
+                        f"נמצאו **{len(added)}** ערוצים חדשים!\n\n" + "\n\n".join(lines)
+                    )
+                    await db_update_alert_found(
+                        alert['user_id'], alert['keyword'], list(new_uids)
+                    )
+                await asyncio.sleep(1)
+            except Exception as e:
+                log.warning(f"Alert error: {e}")
+
 async def daily_backup(bot_client):
     while True:
         await asyncio.sleep(86400)
         if not ADMIN_IDS or not os.path.exists(DB_PATH):
             continue
-        log.info("Sending daily DB backup...")
+        log.info("Sending daily backup...")
         for admin in ADMIN_IDS:
             try:
                 await bot_client.send_file(
@@ -1460,6 +1939,7 @@ async def watchdog(bot_client, user_client):
 
 async def run_all():
     await init_db()
+    await _get_redis()  # נסה לחבר Redis
 
     bot_client  = TelegramClient('bot_session',  API_ID, API_HASH)
     user_client = TelegramClient('user_session', API_ID, API_HASH)
@@ -1473,18 +1953,22 @@ async def run_all():
         try:
             await bot_client.send_message(
                 admin,
-                f"🚀 **הבוט עלה! v2.0**\n"
+                f"🚀 **הבוט עלה! v3.0**\n"
                 f"{datetime.utcnow().strftime('%Y-%m-%d %H:%M')} UTC\n"
-                f"📊 Excel: {'✅' if HAS_OPENPYXL else '❌ pip install openpyxl'}"
+                f"📊 Excel: {'✅' if HAS_OPENPYXL else '❌'} | "
+                f"📄 PDF: {'✅' if HAS_FPDF else '❌'} | "
+                f"🔴 Redis: {'✅' if HAS_REDIS else '❌'}\n"
+                f"🔀 Proxies: {len(PROXY_LIST)}"
             )
         except Exception:
             pass
 
     asyncio.create_task(subscription_checker(bot_client, user_client))
+    asyncio.create_task(alert_checker(bot_client, user_client))
     asyncio.create_task(daily_backup(bot_client))
     asyncio.create_task(watchdog(bot_client, user_client))
 
-    log.info("🚀 Ultra Bot v2.0 running!")
+    log.info("🚀 Ultra Bot v3.0 running!")
     await bot_client.run_until_disconnected()
 
 
