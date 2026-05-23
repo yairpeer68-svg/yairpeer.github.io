@@ -7,7 +7,6 @@ import csv
 import io
 import subprocess
 import yt_dlp
-import psutil
 import re
 import sqlite3
 from datetime import datetime
@@ -387,15 +386,30 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+def _ram_percent():
+    try:
+        info = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, v = line.split(":")
+                info[k.strip()] = int(v.split()[0])
+        total = info.get("MemTotal", 1)
+        free  = info.get("MemAvailable", info.get("MemFree", 0))
+        return round((total - free) / total * 100)
+    except Exception:
+        return -1
+
+
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != MY_ID: return
     disk = shutil.disk_usage("/")
-    mem = psutil.virtual_memory()
+    ram = _ram_percent()
+    ram_str = f"{ram}%" if ram >= 0 else "N/A"
     active = sum(1 for t in download_tasks.values() if not t.done())
     await update.message.reply_text(
         f"📊 **מצב:**\n"
         f"💾 {disk.free//(2**30)} GB פנוי / {disk.total//(2**30)} GB\n"
-        f"🧠 RAM: {mem.percent:.0f}%\n"
+        f"🧠 RAM: {ram_str}\n"
         f"⬇️ פעיל: {active}/{MAX_DL}",
         parse_mode="Markdown",
     )
