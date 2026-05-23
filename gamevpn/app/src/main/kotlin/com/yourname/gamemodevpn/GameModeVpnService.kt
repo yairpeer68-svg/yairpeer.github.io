@@ -165,7 +165,7 @@ class GameModeVpnService : VpnService() {
                 // Decompress inbound if compression enabled
                 if (useCompression) pkt = PacketCompressor.decompress(pkt) ?: pkt
                 // Deobfuscate inbound if obfuscation enabled
-                if (useObfuscation) pkt = TrafficObfuscator.deobfuscate(pkt)
+                if (useObfuscation) pkt = TrafficObfuscator.deobfuscate(pkt) ?: pkt
                 val result = PacketEngine.processPacket(pkt, pkt.size, false)
                 if (result >= 0) {
                     var outPkt = pkt.copyOf(if (result > 0 && result <= pkt.size) result else pkt.size)

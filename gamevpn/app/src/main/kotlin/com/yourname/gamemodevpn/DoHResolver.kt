@@ -70,8 +70,8 @@ object DoHResolver {
     suspend fun resolve(domain: String, provider: String = CF_DOH): DoHResult = withContext(Dispatchers.IO) {
         // Use DNS-over-TLS if preferred
         if (preferDoT) {
-            val dotIp = try { DoTResolver.resolve(domain) } catch (_: Exception) { null }
-            if (dotIp != null) return@withContext DoHResult(dotIp, -1L, "DoT")
+            val dotResult = try { DoTResolver.resolve(domain) } catch (_: Exception) { null }
+            if (dotResult?.ip != null) return@withContext DoHResult(dotResult.ip, dotResult.latencyMs, "DoT")
             Log.i(TAG, "DoT failed, falling back to DoH")
         }
         val result = doResolve(domain, provider)

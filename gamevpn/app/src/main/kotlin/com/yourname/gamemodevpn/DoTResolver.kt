@@ -28,7 +28,7 @@ object DoTResolver {
         val result = doResolve(domain, CF_HOST)
         if (result.ip != null) return@withContext result
         Log.i(TAG, "Cloudflare DoT failed, trying Google...")
-        doResolve(domain, G_HOST)
+        return@withContext doResolve(domain, G_HOST)
     }
 
     private fun doResolve(domain: String, host: String): DoTResult {
