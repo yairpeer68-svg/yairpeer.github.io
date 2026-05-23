@@ -8,6 +8,7 @@ import android.provider.Settings
 import android.view.*
 import android.widget.*
 import kotlinx.coroutines.*
+import com.yourname.gamemodevpn.wear.WearDataSender
 
 class MainActivity : Activity() {
 
