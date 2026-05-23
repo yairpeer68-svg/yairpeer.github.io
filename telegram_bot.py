@@ -103,6 +103,48 @@ LANGUAGE_MAP = {
 }
 
 # ─────────────────────────────────────────────
+#  מקורות חיפוש חיצוניים — כל המקורות
+# ─────────────────────────────────────────────
+# fmt: off
+SEARCH_SOURCES: dict[str, callable] = {
+    # ── מנועי חיפוש כלליים (site:t.me) ──────────────────────────────────
+    'Google':      lambda q: f"https://www.google.com/search?q={urllib.parse.quote('site:t.me ' + q)}&num=100&hl=he",
+    'Bing':        lambda q: f"https://www.bing.com/search?q={urllib.parse.quote('site:t.me ' + q)}&count=50",
+    'DDG':         lambda q: f"https://html.duckduckgo.com/html/?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Yandex':      lambda q: f"https://yandex.com/search/?text={urllib.parse.quote('site:t.me ' + q)}&lr=10174",
+    'Yahoo':       lambda q: f"https://search.yahoo.com/search?p={urllib.parse.quote('site:t.me ' + q)}&n=50",
+    'Brave':       lambda q: f"https://search.brave.com/search?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Startpage':   lambda q: f"https://www.startpage.com/search?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Ecosia':      lambda q: f"https://www.ecosia.org/search?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Mojeek':      lambda q: f"https://www.mojeek.com/search?q={urllib.parse.quote('site:t.me ' + q)}",
+    'Baidu':       lambda q: f"https://www.baidu.com/s?wd={urllib.parse.quote('site:t.me ' + q)}",
+    # ── קטלוגי טלגרם ייעודיים ────────────────────────────────────────────
+    'TGStat':      lambda q: f"https://tgstat.ru/en/search?q={urllib.parse.quote(q)}",
+    'TGStatCom':   lambda q: f"https://tgstat.com/search?q={urllib.parse.quote(q)}",
+    'Telemetr':    lambda q: f"https://telemetr.io/en/channels?channel={urllib.parse.quote(q)}",
+    'Combot':      lambda q: f"https://combot.org/chats?q={urllib.parse.quote(q)}&lng=&type=",
+    'Lyzem':       lambda q: f"https://lyzem.com/search?q={urllib.parse.quote(q)}&lang=",
+    'HotTG':       lambda q: f"https://hottg.com/search?q={urllib.parse.quote(q)}",
+    'TgPw':        lambda q: f"https://tg.pw/search/{urllib.parse.quote(q)}",
+    'Tchannels':   lambda q: f"https://tchannels.me/search?q={urllib.parse.quote(q)}",
+    'TGrам':       lambda q: f"https://tgram.ru/search?q={urllib.parse.quote(q)}",
+    'TelegramDB':  lambda q: f"https://telegramdb.org/search?q={urllib.parse.quote(q)}",
+    'TgDev':       lambda q: f"https://tgdev.io/search?q={urllib.parse.quote(q)}",
+    'TgList':      lambda q: f"https://tglist.net/search?q={urllib.parse.quote(q)}",
+    'TeleList':    lambda q: f"https://telelist.com/search/{urllib.parse.quote(q)}",
+    'TelegramGroup': lambda q: f"https://telegram-group.com/search?q={urllib.parse.quote(q)}",
+    'TGChannels':  lambda q: f"https://telegramchannels.me/search?query={urllib.parse.quote(q)}",
+    'TGDir':       lambda q: f"https://tg.directory/search?q={urllib.parse.quote(q)}",
+    'Tlgrm':       lambda q: f"https://tlgrm.eu/channels/search/{urllib.parse.quote(q)}",
+    'SocialBlade': lambda q: f"https://socialblade.com/telegram/search?q={urllib.parse.quote(q)}",
+    # ── Reddit ──────────────────────────────────────────────────────────
+    'Reddit':      lambda q: f"https://www.reddit.com/search/?q={urllib.parse.quote('telegram t.me ' + q)}&type=link&sort=relevance",
+    # ── GitHub (repos עם קישורי t.me) ───────────────────────────────────
+    'GitHub':      lambda q: f"https://github.com/search?q={urllib.parse.quote('t.me ' + q)}&type=code",
+}
+# fmt: on
+
+# ─────────────────────────────────────────────
 #  DB — aiosqlite (async, לא חוסם את event loop)
 # ─────────────────────────────────────────────
 DB_PATH = 'bot_data.db'
@@ -463,16 +505,18 @@ async def search_all_external_async(
 ) -> list[str]:
     tasks = []
     for q in queries:
-        enc = urllib.parse.quote('site:t.me ' + q)
-        tasks += [
-            _search_engine_async(session, f"https://www.google.com/search?q={enc}&num=100", 'Google'),
-            _search_engine_async(session, f"https://www.bing.com/search?q={enc}&count=50",  'Bing'),
-            _search_engine_async(session, f"https://html.duckduckgo.com/html/?q={enc}",      'DDG'),
-        ]
-    sets = await asyncio.gather(*tasks)
+        for name, url_fn in SEARCH_SOURCES.items():
+            try:
+                url = url_fn(q)
+            except Exception:
+                continue
+            tasks.append(_search_engine_async(session, url, name))
+    sets = await asyncio.gather(*tasks, return_exceptions=True)
     merged: set[str] = set()
     for s in sets:
-        merged |= s
+        if isinstance(s, set):
+            merged |= s
+    log.info(f"External search: {len(merged)} unique t.me links from {len(SEARCH_SOURCES)} sources × {len(queries)} queries")
     return list(merged)
 
 # ─────────────────────────────────────────────
@@ -852,6 +896,7 @@ def register_handlers(bot_client, user_client):
             "🌐 `/lang <he/en/ru>` — שפת ממשק\n"
             "⛔ `/cancel` — ביטול חיפוש פעיל\n"
             "📡 `/status` — מצב הבוט\n"
+            "🔎 `/sources` — רשימת כל מקורות החיפוש\n"
             "🚫 `/blacklist @user` — חסום ערוץ (אדמין)\n"
             "📢 `/broadcast <msg>` — שלח הודעה לכולם (אדמין)\n"
             "📊 `/stats` — סטטיסטיקות (אדמין)"
@@ -881,6 +926,22 @@ def register_handlers(bot_client, user_client):
     @bot_client.on(events.NewMessage(pattern='/status'))
     async def cmd_status(event):
         await event.respond(await get_status_text())
+
+    @bot_client.on(events.NewMessage(pattern='/sources'))
+    async def cmd_sources(event):
+        categories = {
+            "🔎 מנועי חיפוש": ['Google','Bing','DDG','Yandex','Yahoo','Brave','Startpage','Ecosia','Mojeek','Baidu'],
+            "📋 קטלוגי טלגרם": ['TGStat','TGStatCom','Telemetr','Combot','Lyzem','HotTG','TgPw',
+                                 'Tchannels','TGrам','TelegramDB','TgDev','TgList','TeleList',
+                                 'TelegramGroup','TGChannels','TGDir','Tlgrm','SocialBlade'],
+            "🌐 מקורות נוספים": ['Reddit','GitHub'],
+        }
+        lines = [f"📡 **{len(SEARCH_SOURCES)} מקורות חיפוש פעילים:**\n"]
+        for cat, names in categories.items():
+            lines.append(f"\n**{cat}:**")
+            lines.append("  " + " · ".join(f"`{n}`" for n in names))
+        lines.append(f"\n_כל מקור נסרק עבור כל שאילתה (כולל מילים נרדפות ותרגום)_")
+        await event.respond("\n".join(lines))
 
     # ── /history ──
     @bot_client.on(events.NewMessage(pattern='/history'))
