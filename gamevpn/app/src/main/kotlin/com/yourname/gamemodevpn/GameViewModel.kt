@@ -34,7 +34,9 @@ class GameViewModel(private val app: Application) : AndroidViewModel(app) {
         val rxKbps: Float = 0f,
         val txKbps: Float = 0f,
         val sessionAvgPing: Int = 0,
-        val sessionLoss: Float = 0f
+        val sessionLoss: Float = 0f,
+        val analyticsDropped: Long = 0L,
+        val fecEnabled: Boolean = false
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -148,6 +150,17 @@ class GameViewModel(private val app: Application) : AndroidViewModel(app) {
                     sessionStats.recordPing(ping)
                     pingPredictor.addSample(ping)
                     val pred   = pingPredictor.predict()
+
+                    // When spike predicted → activate dual-path for 5 seconds
+                    if (pred.spikeWarning && multiPath.isDualPathAvailable()) {
+                        multiPath.activateAll()
+                        viewModelScope.launch {
+                            delay(5000)
+                            // After 5s, check if still spiking
+                            if (!_uiState.value.spikeWarning) multiPath.deactivateAll()
+                        }
+                    }
+
                     val cpu    = resourceMgr.getProcessBoostManager().getCpuUsagePercent()
                     val mem    = resourceMgr.getProcessBoostManager().getMemoryInfo()
                     val temp   = thermal.getTemperature()
@@ -172,7 +185,8 @@ class GameViewModel(private val app: Application) : AndroidViewModel(app) {
                             predictionMessage = pred.message,
                             spikeWarning     = pred.spikeWarning,
                             pingHistory      = sessionStats.getLivePingHistory(),
-                            adaptiveThreshold = adaptive.getAdaptiveThreshold()
+                            adaptiveThreshold = adaptive.getAdaptiveThreshold(),
+                            analyticsDropped = PacketEngine.getAnalyticsDropped()
                         )
                     }
 
