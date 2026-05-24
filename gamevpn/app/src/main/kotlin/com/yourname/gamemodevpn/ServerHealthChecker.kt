@@ -57,12 +57,14 @@ class ServerHealthChecker {
             GameServer("US East 🇺🇸",     "cod-use.prod.activision.com",3074, game)
         )
 
-        servers.map { server ->
-            async {
-                val latency = tcpPing(server.host, server.port)
-                updateHealth(server, latency)
-            }
-        }.awaitAll()
+        coroutineScope {
+            servers.map { server ->
+                async {
+                    val latency = tcpPing(server.host, server.port)
+                    updateHealth(server, latency)
+                }
+            }.awaitAll()
+        }
 
         val unhealthy = healthMap.values.filter { !it.healthy }
         if (unhealthy.isNotEmpty()) {

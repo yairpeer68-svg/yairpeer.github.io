@@ -100,7 +100,7 @@ class HeatmapView(ctx: Context) : View(ctx) {
             counts[day][hour]++
         }
         for (d in 0..6) for (h in 0..23)
-            if (counts[d][h] > 0) newData[d][h] /= counts[d][h]
+            if (counts[d][h] > 0) newData[d][h] /= counts[d][h].toFloat()
         data = newData
         invalidate()
     }

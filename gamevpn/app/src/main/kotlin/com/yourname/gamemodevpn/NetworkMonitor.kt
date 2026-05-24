@@ -2,7 +2,9 @@ package com.yourname.gamemodevpn
 
 import android.content.Context
 import android.net.*
+import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -86,7 +88,8 @@ class NetworkMonitor(private val ctx: Context) {
     }
 
     // WiFi channel & signal
-    fun getWifiInfo(): WifiInfo? = wifi.connectionInfo
+    @Suppress("DEPRECATION")
+    fun getWifiInfo(): WifiInfo? = try { wifi.connectionInfo } catch (_: Exception) { null }
 
     companion object { const val TAG = "NetworkMonitor" }
 }

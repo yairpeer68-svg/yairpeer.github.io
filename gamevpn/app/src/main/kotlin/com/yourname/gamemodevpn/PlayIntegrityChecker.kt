@@ -5,7 +5,7 @@ import android.util.Log
 import com.google.android.play.core.integrity.IntegrityManagerFactory
 import com.google.android.play.core.integrity.IntegrityTokenRequest
 import kotlinx.coroutines.*
-import kotlinx.coroutines.tasks.await
+import kotlin.coroutines.resumeWithException
 
 /**
  * Play Integrity API — verifies device integrity and app authenticity.
@@ -43,7 +43,11 @@ object PlayIntegrityChecker {
                 .setCloudProjectNumber(CLOUD_PROJECT_NUMBER)
                 .build()
 
-            val response = manager.requestIntegrityToken(request).await()
+            val response = suspendCancellableCoroutine { cont ->
+                manager.requestIntegrityToken(request)
+                    .addOnSuccessListener { cont.resume(it) { } }
+                    .addOnFailureListener { cont.resumeWithException(it) }
+            }
             val token = response.token()
 
             // Token should be verified server-side. For local use, just having a token = OK.

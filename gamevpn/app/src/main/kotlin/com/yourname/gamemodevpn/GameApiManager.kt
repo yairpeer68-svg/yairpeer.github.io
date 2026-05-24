@@ -26,7 +26,7 @@ class GameApiManager(private val ctx: Context) {
             val mode = android.app.GameManager.GAME_MODE_PERFORMANCE
             // Note: setGameMode requires MANAGE_GAME_ACTIVITY permission (system only)
             // But we can READ the current mode and inform the user
-            val current = gm.getGameMode()
+            val current = gm.getGameMode(pkg)
             Log.i(TAG, "GameMode for $pkg: $current (target=PERFORMANCE)")
         } catch (e: Exception) { Log.w(TAG, "GameManager: ${e.message}") }
     }

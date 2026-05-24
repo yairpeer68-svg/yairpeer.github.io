@@ -43,7 +43,8 @@ class RoamingGuard(private val ctx: Context) {
 
     fun start() {
         if (active) return; active = true
-        ctx.registerReceiver(receiver, IntentFilter(Intent.ACTION_NETWORK_COUNTRY_CHANGED))
+        // ACTION_NETWORK_COUNTRY_CHANGED added in API 31; use literal string for backward compat
+        ctx.registerReceiver(receiver, IntentFilter("android.telephony.action.NETWORK_COUNTRY_CHANGED"))
         lastRxBytes = TrafficStats.getMobileRxBytes()
         monitorRoamingUsage()
         Log.i(TAG, "✅ RoamingGuard active")
