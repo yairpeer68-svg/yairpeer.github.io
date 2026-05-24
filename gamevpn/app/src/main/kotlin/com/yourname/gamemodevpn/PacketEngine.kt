@@ -27,6 +27,9 @@ object PacketEngine {
     external fun enableFec(enable: Boolean)
     external fun getAnalyticsDropped(): Long
 
+    // Returns: 2 = AI elevated DSCP, 1 = normal, -1 = error
+    external fun injectPacketToAI(pkt: ByteArray, len: Int): Int
+
     var fecEnabled: Boolean
         get() = false // placeholder, controlled via enableFec()
         set(value) { enableFec(value) }
