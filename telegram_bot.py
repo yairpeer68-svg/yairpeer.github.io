@@ -64,10 +64,10 @@ log = logging.getLogger(__name__)
 # ─────────────────────────────────────────────
 #  ⬇️  שנה כאן את הפרטים שלך
 # ─────────────────────────────────────────────
-API_ID    = 0                # ← הכנס מספר API ID
-API_HASH  = ''               # ← הכנס API HASH
-BOT_TOKEN = ''               # ← הכנס טוקן בוט
-ADMIN_IDS: set[int] = set()  # ← לדוגמה: {123456789}
+API_ID    = 31798000
+API_HASH  = '8b930d39b76e44e98b45237c8d63db0f'
+BOT_TOKEN = '8616693129:AAFiPTc3pKQrUKhsolRxGhNJW1TY85_Y3Kw'
+ADMIN_IDS: set[int] = {7670817500}
 # ─────────────────────────────────────────────
 ALLOWED_USERS: set[int] = set()
 
