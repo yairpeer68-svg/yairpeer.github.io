@@ -498,7 +498,7 @@ Java_com_yourname_gamemodevpn_PacketEngine_pinToBigCores(JNIEnv*, jobject) {
     CPU_ZERO(&cpuset);
     int bigStart = numCores / 2;
     for (int i = bigStart; i < numCores; i++) CPU_SET(i, &cpuset);
-    int r = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+    int r = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
     LOGI("Thread affinity → cores %d-%d (r=%d)", bigStart, numCores - 1, r);
     return r;
 }
