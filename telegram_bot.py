@@ -62,18 +62,13 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────
-#  הגדרות — חובה דרך .env
+#  ⬇️  שנה כאן את הפרטים שלך
 # ─────────────────────────────────────────────
-def _require(key: str) -> str:
-    val = os.getenv(key)
-    if not val:
-        raise RuntimeError(f"Missing required env var: {key}  →  הוסף ל-.env")
-    return val
-
-API_ID    = int(_require('API_ID'))
-API_HASH  = _require('API_HASH')
-BOT_TOKEN = _require('BOT_TOKEN')
-ADMIN_IDS: set[int] = set(int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip())
+API_ID    = 0                # ← הכנס מספר API ID
+API_HASH  = ''               # ← הכנס API HASH
+BOT_TOKEN = ''               # ← הכנס טוקן בוט
+ADMIN_IDS: set[int] = set()  # ← לדוגמה: {123456789}
+# ─────────────────────────────────────────────
 ALLOWED_USERS: set[int] = set()
 
 RATE_LIMIT_PER_HOUR = 20
