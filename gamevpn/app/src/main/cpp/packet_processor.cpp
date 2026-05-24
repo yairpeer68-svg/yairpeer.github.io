@@ -32,6 +32,30 @@ static std::atomic<uint64_t> pkt_lost{0};
 static std::atomic<uint64_t> bytes_total{0};
 static std::atomic<uint64_t> dns_redirected{0};
 static std::atomic<uint64_t> dns_blocked{0};
+static std::atomic<uint64_t> analytics_dropped{0};
+
+// ── FEC state ────────────────────────────────────────────────────────────────
+#define FEC_GROUP     4          // every N data packets → 1 parity packet
+#define FEC_HEADER    0xFE       // parity packet marker
+#define FEC_NORMAL    0x00       // normal packet marker
+#define FEC_MAX_PKT   2048       // max bytes per FEC slot
+
+static std::atomic<bool> fec_enabled{false};
+
+struct FecSlot {
+    uint8_t  data[FEC_MAX_PKT];
+    int      len;   // 0 = slot empty
+};
+
+// Circular buffer holding the last FEC_GROUP outbound UDP payloads
+static FecSlot  fec_buf[FEC_GROUP];
+static int      fec_count{0};   // how many packets have been added since last reset
+
+// Received packet tracking: track lengths for last FEC_GROUP inbound packets
+// to detect which slot is missing (slot index → stored length, 0 = absent)
+static FecSlot  fec_rx_buf[FEC_GROUP];
+static int      fec_rx_count{0};
+static bool     fec_rx_have[FEC_GROUP]{false, false, false, false};
 
 // ── Checksum ─────────────────────────────────────────────────────────────────
 static uint16_t chksum(const void* d, int len) {
@@ -150,6 +174,137 @@ static int build_rst(const uint8_t* orig, int olen, uint8_t* out, int osz) {
     return ihl + tlen;
 }
 
+// ── FEC helpers ──────────────────────────────────────────────────────────────
+
+// Store outbound UDP payload into the circular FEC buffer.
+// Returns true when a parity packet should be emitted (every FEC_GROUP packets).
+static bool fec_store_outbound(const uint8_t* payload, int plen) {
+    if (plen <= 0 || plen > FEC_MAX_PKT) return false;
+    int slot = fec_count % FEC_GROUP;
+    memcpy(fec_buf[slot].data, payload, plen);
+    fec_buf[slot].len = plen;
+    fec_count++;
+    return (fec_count % FEC_GROUP) == 0;
+}
+
+// Build a parity (XOR) packet into dst.  dst must be FEC_MAX_PKT+1 bytes.
+// Layout: [0xFE][xor_byte_0][xor_byte_1]...[xor_byte_N-1]
+// Returns total length written (parity_len + 1), or 0 on error.
+static int fec_build_parity(uint8_t* dst, int dsz) {
+    // Find maximum payload length across the group
+    int maxlen = 0;
+    for (int i = 0; i < FEC_GROUP; i++) {
+        if (fec_buf[i].len > maxlen) maxlen = fec_buf[i].len;
+    }
+    if (maxlen == 0 || dsz < maxlen + 1) return 0;
+
+    dst[0] = FEC_HEADER;
+    memset(dst + 1, 0, maxlen);
+    for (int i = 0; i < FEC_GROUP; i++) {
+        int l = fec_buf[i].len;
+        for (int b = 0; b < l; b++) {
+            dst[1 + b] ^= fec_buf[i].data[b];
+        }
+    }
+    return maxlen + 1;
+}
+
+// Process an inbound FEC-tagged UDP payload (already stripped of IP/UDP headers).
+// payload[0] should be FEC_HEADER or FEC_NORMAL.
+// Returns:
+//   0  = normal packet, no reconstruction needed (caller uses payload+1, plen-1)
+//   1  = parity packet consumed; if a slot was missing, reconstructed data is
+//         written into fec_rx_buf[missing_slot] and its len is set
+//  -1  = error / not an FEC payload
+static int fec_process_inbound(const uint8_t* payload, int plen) {
+    if (plen < 2) return -1;
+
+    uint8_t hdr = payload[0];
+    if (hdr == FEC_NORMAL) {
+        // Store in receive circular buffer
+        int slot = fec_rx_count % FEC_GROUP;
+        int dlen = plen - 1;
+        if (dlen > FEC_MAX_PKT) dlen = FEC_MAX_PKT;
+        memcpy(fec_rx_buf[slot].data, payload + 1, dlen);
+        fec_rx_buf[slot].len = dlen;
+        fec_rx_have[slot]    = true;
+        fec_rx_count++;
+        return 0;
+    }
+
+    if (hdr == FEC_HEADER) {
+        // Count missing slots in the current group
+        int missing_slot = -1;
+        int missing_count = 0;
+        for (int i = 0; i < FEC_GROUP; i++) {
+            if (!fec_rx_have[i]) {
+                missing_slot = i;
+                missing_count++;
+            }
+        }
+
+        if (missing_count == 1 && missing_slot >= 0) {
+            // Reconstruct the missing packet via XOR
+            int parity_len = plen - 1;
+            if (parity_len > FEC_MAX_PKT) parity_len = FEC_MAX_PKT;
+
+            // Start with parity bytes
+            memcpy(fec_rx_buf[missing_slot].data, payload + 1, parity_len);
+            int maxlen = parity_len;
+
+            for (int i = 0; i < FEC_GROUP; i++) {
+                if (i == missing_slot) continue;
+                int l = fec_rx_buf[i].len;
+                if (l > maxlen) maxlen = l;
+                for (int b = 0; b < l; b++) {
+                    fec_rx_buf[missing_slot].data[b] ^= fec_rx_buf[i].data[b];
+                }
+            }
+            fec_rx_buf[missing_slot].len = maxlen;
+            fec_rx_have[missing_slot]    = true;
+            LOGI("FEC: reconstructed missing slot %d (%d bytes)", missing_slot, maxlen);
+        }
+
+        // Reset for the next group
+        for (int i = 0; i < FEC_GROUP; i++) fec_rx_have[i] = false;
+        fec_rx_count = 0;
+        return 1;
+    }
+
+    return -1;
+}
+
+// ── Analytics / telemetry detection ──────────────────────────────────────────
+
+// Activision analytics Cloudflare CDN range: 104.16.0.0/12  (104.16.x.x – 104.31.x.x)
+// We match only the documented 104.16.x.x /16 sub-range as specified.
+static inline bool is_activision_analytics_ip(uint32_t daddr_network) {
+    // daddr is in network byte order; convert to host order for comparison
+    uint32_t ip = ntohl(daddr_network);
+    // 104.16.0.0/16  → 0x68100000 / 0xFFFF0000
+    return (ip & 0xFFFF0000u) == 0x68100000u;
+}
+
+// Check if the UDP payload looks like analytics traffic.
+// payload points to first byte of UDP payload (after UdpHdr).
+// plen is the payload byte count.
+// dport and daddr are from the UDP/IP headers (network byte order).
+static bool is_analytics_packet(const uint8_t* payload, int plen,
+                                 uint16_t dport_network, uint32_t daddr_network) {
+    // Rule 1: destination IP in Activision analytics range (104.16.x.x)
+    if (is_activision_analytics_ip(daddr_network)) return true;
+
+    // Rule 2: UDP payload starts with "ANAL" magic bytes
+    if (plen >= 4 &&
+        payload[0] == 0x41 && payload[1] == 0x4E &&
+        payload[2] == 0x41 && payload[3] == 0x4C) return true;
+
+    // Rule 3: large (>500 bytes) UDP payload going to port 443 (HTTPS analytics)
+    if (plen > 500 && dport_network == htons(443)) return true;
+
+    return false;
+}
+
 // ── JNI ──────────────────────────────────────────────────────────────────────
 
 extern "C" JNIEXPORT jint JNICALL
@@ -173,7 +328,20 @@ Java_com_yourname_gamemodevpn_PacketEngine_processPacket(
     result = 1;
 
     if (ip->proto == PROTO_UDP && len > ihl + (int)sizeof(UdpHdr)) {
-        UdpHdr* udp = (UdpHdr*)((uint8_t*)buf + ihl);
+        UdpHdr* udp     = (UdpHdr*)((uint8_t*)buf + ihl);
+        uint8_t* udp_payload = (uint8_t*)buf + ihl + sizeof(UdpHdr);
+        int      udp_plen    = len - ihl - (int)sizeof(UdpHdr);
+
+        // ── Analytics trimming (outbound) ─────────────────────────────────
+        if (udp->dport != PORT_DNS && udp_plen > 0 &&
+            is_analytics_packet(udp_payload, udp_plen, udp->dport, ip->daddr)) {
+            analytics_dropped++;
+            LOGW("Analytics packet dropped (dst=%08x port=%d len=%d)",
+                 ntohl(ip->daddr), ntohs(udp->dport), udp_plen);
+            env->ReleaseByteArrayElements(pkt, buf, JNI_ABORT);
+            return -2;
+        }
+
         if (udp->dport == PORT_DNS) {
             uint8_t* dns  = (uint8_t*)buf + ihl + sizeof(UdpHdr);
             int      dlen = len - ihl - sizeof(UdpHdr);
