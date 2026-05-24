@@ -27,7 +27,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.yourname.gamemodevpn.wear.WearDataSender
 import kotlinx.coroutines.*
 
 // ── Colours ───────────────────────────────────────────────────────────────────

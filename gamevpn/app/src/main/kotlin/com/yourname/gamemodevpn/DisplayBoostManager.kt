@@ -6,13 +6,15 @@ import android.os.Build
 import android.provider.Settings
 import android.view.WindowManager
 import android.util.Log
+import android.app.Application
 
 class DisplayBoostManager(private val ctx: Context) {
 
     companion object { const val TAG = "DisplayBoost" }
 
     // ── 120Hz / max refresh rate ──────────────────────────────────────────────
-    fun setMaxRefreshRate(activity: Activity) {
+    fun setMaxRefreshRate(context: Context) {
+        val activity = context as? Activity ?: return
         try {
             val window = activity.window
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -42,7 +44,8 @@ class DisplayBoostManager(private val ctx: Context) {
         } catch (e: Exception) { Log.w(TAG, "Refresh rate: ${e.message}") }
     }
 
-    fun clearMaxRefreshRate(activity: Activity) {
+    fun clearMaxRefreshRate(context: Context) {
+        val activity = context as? Activity ?: return
         try {
             activity.window.attributes = activity.window.attributes.also { it.preferredDisplayModeId = 0 }
             activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

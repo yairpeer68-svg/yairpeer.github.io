@@ -7,7 +7,6 @@ import android.net.VpnService
 import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.yourname.gamemodevpn.wear.WearDataSender
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -195,7 +194,7 @@ class GameViewModel(private val app: Application) : AndroidViewModel(app) {
                     GameBoostWidget.updateAllWidgets(ctx)
 
                     if (prefs.getBoolean("wear_sync", false))
-                        WearDataSender.pushPingUpdate(ctx, ping, true)
+                        /* WearDataSender.pushPingUpdate(ctx, ping, true) */Unit
 
                     delay(200) // throttle — don't recompose faster than 5fps
                 }

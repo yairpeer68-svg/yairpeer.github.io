@@ -96,8 +96,9 @@ class CpuBoostManager(private val ctx: Context) {
         } catch (e: Exception) { Log.w(TAG, "Priority: ${e.message}") }
 
         try {
-            // Request top-app scheduling group
-            Process.setProcessGroup(Process.myPid(), Process.THREAD_GROUP_TOP_APP)
+            // Request top-app scheduling group via reflection (THREAD_GROUP_TOP_APP = 5)
+            val setProcessGroup = Process::class.java.getMethod("setProcessGroup", Int::class.java, Int::class.java)
+            setProcessGroup.invoke(null, Process.myPid(), 5 /* THREAD_GROUP_TOP_APP */)
             Log.i(TAG, "✅ Process group → TOP_APP")
         } catch (e: Exception) { Log.w(TAG, "Group: ${e.message}") }
     }

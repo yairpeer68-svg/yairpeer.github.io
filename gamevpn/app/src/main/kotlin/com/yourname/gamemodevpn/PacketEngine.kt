@@ -24,10 +24,8 @@ object PacketEngine {
     external fun adviseKeepInRam(pid: Int): Int  // madvise WILLNEED for game
 
     // ── FEC + Analytics ───────────────────────────────────────────────────────
-    companion object {
-        @JvmStatic external fun enableFec(enable: Boolean)
-        @JvmStatic external fun getAnalyticsDropped(): Long
-    }
+    external fun enableFec(enable: Boolean)
+    external fun getAnalyticsDropped(): Long
 
     var fecEnabled: Boolean
         get() = false // placeholder, controlled via enableFec()
