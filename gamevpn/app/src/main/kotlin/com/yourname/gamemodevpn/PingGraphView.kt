@@ -72,8 +72,8 @@ class PingGraphView @JvmOverloads constructor(
         val padL = 60f; val padR = 16f; val padT = 16f; val padB = 28f
         val graphW = w - padL - padR; val graphH = h - padT - padB
 
-        val maxPing = maxOf(displayData.max(), (spikeThreshold + 20).toFloat())
-        val minPing = maxOf(0f, displayData.min() - 10f)
+        val maxPing = maxOf(displayData.maxOrNull() ?: 0f, (spikeThreshold + 20).toFloat())
+        val minPing = maxOf(0f, (displayData.minOrNull() ?: 0f) - 10f)
         val range = maxOf(maxPing - minPing, 1f)
 
         fun px(i: Int) = padL + i.toFloat() / (displayData.size - 1).coerceAtLeast(1) * graphW

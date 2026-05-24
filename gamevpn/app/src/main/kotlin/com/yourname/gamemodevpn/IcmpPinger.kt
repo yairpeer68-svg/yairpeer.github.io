@@ -49,7 +49,7 @@ object IcmpPinger {
 
     fun calcStats(pings: List<Long>): Triple<Long, Long, Long> {  // min, avg, max
         if (pings.isEmpty()) return Triple(-1L, -1L, -1L)
-        return Triple(pings.min(), pings.average().toLong(), pings.max())
+        return Triple(pings.minOrNull() ?: -1L, pings.average().toLong(), pings.maxOrNull() ?: -1L)
     }
 
     suspend fun pingGameServers(game: String): List<PingResult> = withContext(Dispatchers.IO) {

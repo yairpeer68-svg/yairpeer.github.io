@@ -56,8 +56,8 @@ class SessionStats(private val ctx: Context, private val game: String) {
             startTime   = startTime,
             durationSec = ((System.currentTimeMillis() - startTime) / 1000).toInt(),
             avgPing     = pingSnapshot.average().toInt(),
-            minPing     = pingSnapshot.min(),
-            maxPing     = pingSnapshot.max(),
+            minPing     = pingSnapshot.minOrNull() ?: 0,
+            maxPing     = pingSnapshot.maxOrNull() ?: 0,
             packetLoss  = if (total > 0) lost.toFloat() / total * 100f else 0f,
             avgJitter   = if (jitterSnapshot.isNotEmpty()) jitterSnapshot.average().toInt() else 0
         )

@@ -116,8 +116,8 @@ class PingPredictor {
         return mapOf(
             "ema"     to ema.toInt(),
             "trend"   to emaTrend,
-            "min"     to history.min().toInt(),
-            "max"     to history.max().toInt(),
+            "min"     to (history.minOrNull()?.toInt() ?: 0),
+            "max"     to (history.maxOrNull()?.toInt() ?: 0),
             "samples" to history.size
         )
     }
