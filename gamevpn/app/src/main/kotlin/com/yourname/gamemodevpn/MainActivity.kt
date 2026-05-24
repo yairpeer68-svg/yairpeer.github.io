@@ -1,585 +1,593 @@
 package com.yourname.gamemodevpn
 
 import android.app.Activity
-import android.content.*
+import android.content.Context
+import android.content.Intent
 import android.net.VpnService
-import android.os.*
+import android.os.Bundle
 import android.provider.Settings
-import android.view.*
-import android.widget.*
-import kotlinx.coroutines.*
+import android.widget.Toast
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.yourname.gamemodevpn.wear.WearDataSender
+import kotlinx.coroutines.*
 
-class MainActivity : Activity() {
+// ── Colours ───────────────────────────────────────────────────────────────────
+private val BG      = Color(0xFF070C18)
+private val CARD    = Color(0xFF0D1A2E)
+private val ACCENT  = Color(0xFF00C8FF)
+private val GREEN   = Color(0xFF00FFAA)
+private val RED     = Color(0xFFFF3B6B)
+private val ORANGE  = Color(0xFFFF9500)
+private val TEXT    = Color(0xFFE8F4FF)
+private val MUTED   = Color(0xFF4A6A8A)
 
-    private val APP_SEL = 2
-    private var vpnReqCode = 1
-    private var isActive = false
-    private val handler = Handler(Looper.getMainLooper())
-    private val prefs by lazy { getSharedPreferences("gameboost", Context.MODE_PRIVATE) }
-    private var darkMode = true
-    @Volatile private var livePingMs: Int = 0
-    private var pingJob: Job? = null
-    private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+class MainActivity : ComponentActivity() {
 
-    private lateinit var antiLag: AntiLagManager
-    private lateinit var bandwidthMon: BandwidthMonitor
-    private lateinit var usageMonitor: UsageEventsMonitor
-    @Volatile private var rxKbps = 0f
-    @Volatile private var txKbps = 0f
+    private val vm: GameViewModel by viewModels()
 
-    // Core managers
-    private lateinit var shield: GameShieldManager
-    private lateinit var thermal: ThermalMonitor
-    private lateinit var profileMgr: ProfileManager
-    private lateinit var perGameMgr: PerGameProfileManager
-    private lateinit var resourceMgr: GameResourceManager
-    private lateinit var networkMon: NetworkMonitor
-    private lateinit var gameApi: GameApiManager
-    private lateinit var displayMgr: DisplayBoostManager
-    private lateinit var audioFx: AudioEffectManager
-    private lateinit var pingPredictor: PingPredictor
-    private lateinit var gyro: GyroManager
-    private lateinit var sessionStats: SessionStats
-    private lateinit var db: SessionDatabase
-    private lateinit var overlay: ResourceOverlayView
-    private lateinit var battery: BatteryAwareManager
-    private lateinit var cell: CellMonitor
-    private lateinit var analytics: NetworkAnalytics
-    private lateinit var multiPath: MultiPathManager
-    private lateinit var adaptive: AdaptiveLearner
-    private lateinit var liveNotif: LiveNotificationManager
-    private lateinit var btAudio: BluetoothAudioManager
-    private lateinit var hwMonitor: HardwareMonitor
-    private lateinit var appOps: AppOpsBlocker
-    private lateinit var roamingGuard: RoamingGuard
-    private lateinit var maintenance: MaintenanceScheduler
-    private lateinit var voiceChat: VoiceChatMonitor
-    private lateinit var framePacing: FramePacingMonitor
-    private lateinit var powerBtn: AnimatedPowerButton
-
-    // UI refs
-    private lateinit var statusDot: View
-    private lateinit var statusLabel: TextView
-    private lateinit var statPing: TextView
-    private lateinit var statLoss: TextView
-    private lateinit var statCpu: TextView
-    private lateinit var statRam: TextView
-    private lateinit var statTemp: TextView
-    private lateinit var statScore: TextView
-    private lateinit var statFps: TextView
-    private lateinit var tvPrediction: TextView
-    private lateinit var tvGames: TextView
-    private lateinit var tvBattery: TextView
-    private lateinit var pingGraph: PingGraphView
-    private lateinit var tabContent: FrameLayout
-
-    // Theme helpers
-    private fun C(d: Int, l: Int) = if (darkMode) d else l
-    private val BG     get() = C(ThemeManager.Dark.BG,    ThemeManager.Light.BG)
-    private val CARD   get() = C(ThemeManager.Dark.CARD,  ThemeManager.Light.CARD)
-    private val CARD2  get() = C(ThemeManager.Dark.CARD2, ThemeManager.Light.CARD2)
-    private val TEXT   get() = C(ThemeManager.Dark.TEXT,  ThemeManager.Light.TEXT)
-    private val MUTED  get() = C(ThemeManager.Dark.MUTED, ThemeManager.Light.MUTED)
-    private val MUTED2 get() = C(ThemeManager.Dark.MUTED2,ThemeManager.Light.MUTED2)
-    private val ACCENT get() = C(ThemeManager.Dark.ACCENT,ThemeManager.Light.ACCENT)
-    private val GREEN  get() = C(ThemeManager.Dark.GREEN, ThemeManager.Light.GREEN)
-    private val RED    get() = C(ThemeManager.Dark.RED,   ThemeManager.Light.RED)
-    private val ORANGE get() = C(ThemeManager.Dark.ORANGE,ThemeManager.Light.ORANGE)
-
-    private fun startPingMeasurement() {
-        pingJob?.cancel()
-        pingJob = mainScope.launch(Dispatchers.IO) {
-            val fallbacks = listOf("1.1.1.1" to 53, "8.8.8.8" to 53)
-            var fbIdx = 0
-            while (isActive) {
-                try {
-                    val gameServer = AutoServerSelector.getBestServer()
-                    val ms: Long = if (gameServer != null) {
-                        // HappyEyeballs races IPv4 + IPv6 for fastest connect
-                        HappyEyeballs.measureLatency(gameServer.host, gameServer.port)
-                            .takeIf { it > 0 } ?: tcpPing(gameServer.host, gameServer.port)
-                    } else {
-                        val (host, port) = fallbacks[fbIdx % fallbacks.size]
-                        fbIdx++
-                        HappyEyeballs.measureLatency(host, port)
-                    }
-                    if (ms > 0) livePingMs = ms.toInt().coerceIn(1, 9999)
-                } catch (_: Exception) { }
-                delay(900)
-            }
-        }
-    }
-
-    private fun tcpPing(host: String, port: Int): Long {
-        val t0 = System.currentTimeMillis()
-        return try {
-            java.net.Socket().use { s ->
-                s.connect(java.net.InetSocketAddress(host, port), 2000)
-                System.currentTimeMillis() - t0
-            }
-        } catch (_: Exception) { -1L }
-    }
-
-    private fun stopPingMeasurement() {
-        pingJob?.cancel()
-        pingJob = null
-        livePingMs = 0
-    }
-
-    private val statsUpdater = object : Runnable {
-        override fun run() {
-            if (!isActive) return
-            val ping = livePingMs.takeIf { it > 0 } ?: run {
-                handler.postDelayed(this, 500)
-                return
-            }
-            sessionStats.recordPing(ping)
-            pingPredictor.addSample(ping)
-            val pred   = pingPredictor.predict()
-            val cpu    = resourceMgr.getProcessBoostManager().getCpuUsagePercent()
-            val mem    = resourceMgr.getProcessBoostManager().getMemoryInfo()
-            val temp   = thermal.getTemperature()
-            val loss   = PacketEngine.getPacketLoss()
-            val jitter = sessionStats.getCurrentJitter()
-            val score  = adaptive.computeScore(ping, loss, jitter, temp)
-            val fps    = framePacing.getStats()
-            val bat    = battery.getBatteryPercent()
-
-            statPing.text  = "$ping ms"
-            statLoss.text  = String.format("%.1f%%", loss)
-            statCpu.text   = "$cpu%"
-            statRam.text   = "${mem.availMb}MB"
-            statScore.text = adaptive.getScoreLabel(score)
-            statFps.text   = "${fps.avgFps.toInt()} FPS"
-            statFps.setTextColor(when { fps.avgFps < 30f -> RED; fps.avgFps < 50f -> ORANGE; else -> GREEN })
-            tvBattery.text = "$bat%${if (battery.isCharging()) " ⚡" else ""}"
-            tvBattery.setTextColor(when { bat < 20 -> RED; bat < 50 -> ORANGE; else -> GREEN })
-            if (temp > 0) {
-                val tc = when { temp >= 43f -> RED; temp >= 38f -> ORANGE; else -> GREEN }
-                statTemp.text = "${temp.toInt()}°"; statTemp.setTextColor(tc)
-            }
-            tvPrediction.text = pred.message
-            tvPrediction.setTextColor(if (pred.spikeWarning) RED else GREEN)
-            pingGraph.update(sessionStats.getLivePingHistory(), adaptive.getAdaptiveThreshold())
-            prefs.edit().putInt("last_ping", ping).apply()
-            liveNotif.update(ping, loss, cpu, temp, "Game")
-            adaptive.saveLearnedData(ping, temp)
-            GameBoostWidget.updateAllWidgets(this@MainActivity)
-            overlay.updateStats(cpu, mem.availMb, mem.totalMb, ping, temp, PacketEngine.getNumCores())
-            // Push ping to Wear OS watch
-            if (prefs.getBoolean("wear_sync", false)) {
-                WearDataSender.pushPingUpdate(this@MainActivity, ping, true)
-            }
-            handler.postDelayed(this, 1100)
-        }
+    private val vpnLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) vm.launch()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        darkMode = ThemeManager.isDarkMode(this)
-        window.setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN)
-        window.statusBarColor = BG; window.navigationBarColor = BG
-
-        // Init all managers
-        shield = GameShieldManager(this); thermal = ThermalMonitor(this)
-        profileMgr = ProfileManager(this); perGameMgr = PerGameProfileManager(this)
-        db = SessionDatabase(this); resourceMgr = GameResourceManager(this)
-        networkMon = NetworkMonitor(this); gameApi = GameApiManager(this)
-        displayMgr = DisplayBoostManager(this); audioFx = AudioEffectManager()
-        pingPredictor = PingPredictor(); gyro = GyroManager(this)
-        sessionStats = SessionStats(this, "Game"); overlay = ResourceOverlayView(this)
-        battery = BatteryAwareManager(this); cell = CellMonitor(this)
-        analytics = NetworkAnalytics(this); multiPath = MultiPathManager(this)
-        adaptive = AdaptiveLearner(this); liveNotif = LiveNotificationManager(this).also { it.init() }
-        btAudio = BluetoothAudioManager(this); hwMonitor = HardwareMonitor(this)
-        appOps = AppOpsBlocker(this); roamingGuard = RoamingGuard(this)
-        maintenance = MaintenanceScheduler(this); voiceChat = VoiceChatMonitor(this)
-        framePacing = FramePacingMonitor()
-
-        // New integrated managers
-        antiLag = AntiLagManager(this)
-        bandwidthMon = BandwidthMonitor().also { bm ->
-            bm.onSample = { s -> rxKbps = s.rxKbps; txKbps = s.txKbps }
-            bm.start()
+        if (!Settings.canDrawOverlays(this))
+            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+        ShortcutHelper.register(this, vm.uiState.value.selectedGames)
+        if (intent?.action == "ACTION_QUICK_LAUNCH") {
+            lifecycleScope.launch { delay(500); startGame() }
         }
-        usageMonitor = UsageEventsMonitor(this).also { um ->
-            um.onGameForeground = { pkg ->
-                if (prefs.getBoolean("anti_lag", true)) antiLag.triggerForGame(pkg)
-            }
-            um.onGameBackground = { _ -> antiLag.reset() }
-            um.start()
-        }
-        // Apply DoT preference to DNS resolver
-        DoHResolver.preferDoT = prefs.getBoolean("use_dot", false)
-
-        // Wire up callbacks
-        networkMon.start(); battery.start(); gameApi.startThermalMonitoring()
-        gyro.start(); roamingGuard.start(); voiceChat.start(); framePacing.start()
-
-        gyro.onFaceDown = { if (isActive && prefs.getBoolean("gyro_dnd", true)) { shield.enableDnd(); HapticManager.tick(this) } }
-        gyro.onFaceUp   = { if (isActive && prefs.getBoolean("gyro_dnd", true)) shield.disableDnd() }
-        gameApi.onThermalStatus = { s, l -> handler.post { if (s >= 3) Toast.makeText(this, "🌡 $l", Toast.LENGTH_LONG).show() } }
-        battery.onLowBattery = { handler.post { SoundAlertManager.play(this, SoundAlertManager.AlertType.LOW_BATTERY); Toast.makeText(this, "🔋 סוללה נמוכה", Toast.LENGTH_LONG).show() } }
-        battery.onChargingStarted = { handler.post { if (isActive) Toast.makeText(this, "⚡ בטעינה — boost!", Toast.LENGTH_SHORT).show() } }
-        roamingGuard.onRoamingDetected = { msg -> handler.post { Toast.makeText(this, "🌍 $msg", Toast.LENGTH_LONG).show() } }
-        voiceChat.onVoiceChatStarted = { handler.post { Toast.makeText(this, "🎙 Voice chat — audio boosted", Toast.LENGTH_SHORT).show() } }
-        framePacing.onJankDetected = { n -> handler.post { if (n >= 5) Toast.makeText(this, "⚠️ Frame drop: ${n}f", Toast.LENGTH_SHORT).show() } }
-        resourceMgr.onStatsUpdate = { s -> handler.post { if (::statCpu.isInitialized) { statCpu.text = "${s.cpuPercent}%"; statRam.text = "${s.availRamMb}MB" } } }
-        sessionStats.onSpikeDetected = { ms -> handler.post { HapticManager.spike(this); SoundAlertManager.play(this, SoundAlertManager.AlertType.SPIKE); Toast.makeText(this, "⚠️ Spike: ${ms}ms!", Toast.LENGTH_SHORT).show() } }
-
-        maintenance.scheduleDailyMaintenance(); maintenance.scheduleNetworkCheck()
-
-        setContentView(buildUi())
-        checkPerms()
-        ShortcutHelper.register(this, prefs.getStringSet("selected_games", emptySet()) ?: emptySet())
-        if (intent?.action == "ACTION_QUICK_LAUNCH") handler.postDelayed({ startGameMode() }, 500)
-
-        // Check for updates in background
-        CoroutineScope(Dispatchers.IO).launch {
-            val update = UpdateChecker.check()
-            if (update.available) withContext(Dispatchers.Main) {
-                Toast.makeText(this@MainActivity, "🆕 עדכון זמין: v${update.latestVersion}", Toast.LENGTH_LONG).show()
+        setContent {
+            GameBoostTheme {
+                val state by vm.uiState.collectAsStateWithLifecycle()
+                GameBoostApp(state = state, vm = vm, onStartGame = ::startGame)
             }
         }
     }
 
-    private fun buildUi(): View {
-        val root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(BG) }
-        val h = hrow(); h.setPadding(20, 36, 20, 12)
-        h.addView(tv("Ping\nBooster", 22f, TEXT, bold = true, w = 1f))
-        val ctrl = hrow(g = Gravity.CENTER_VERTICAL)
-        ctrl.addView(Button(this).apply { text = if (darkMode) "☀️" else "🌙"; textSize = 16f; setBackgroundColor(0); setPadding(8, 0, 8, 0); setOnClickListener { darkMode = !darkMode; recreate() } })
-        val pill = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(CARD); setPadding(12, 8, 12, 8) }
-        statusDot = View(this).apply { layoutParams = LinearLayout.LayoutParams(10, 10).also { it.marginEnd = 8 }; setBackgroundColor(MUTED) }
-        statusLabel = tv("כבוי", 10f, MUTED, bold = true)
-        pill.addView(statusDot); pill.addView(statusLabel); ctrl.addView(pill); h.addView(ctrl)
-        root.addView(h); root.addView(buildTabs())
-        tabContent = FrameLayout(this).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f) }
-        showTab("home"); root.addView(tabContent); return root
+    private fun startGame() {
+        val intent = vm.getVpnPermissionIntent()
+        if (intent != null) vpnLauncher.launch(intent)
+        else vm.launch()
     }
 
-    private fun buildTabs(): LinearLayout {
-        val bar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setBackgroundColor(CARD2) }
-        listOf("home" to "⚡", "game" to "🎮", "hw" to "🖥", "net" to "📡", "analytics" to "📈", "settings" to "⚙️").forEach { (id, lbl) ->
-            bar.addView(Button(this).apply { text = lbl; textSize = 14f; setTextColor(MUTED); setBackgroundColor(0); layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f); setOnClickListener { showTab(id) } })
-        }; return bar
+    override fun onResume() { super.onResume(); vm.loadSelectedGames() }
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+@Composable
+fun GameBoostTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = darkColorScheme(
+            background = BG, surface = CARD,
+            primary = ACCENT, onPrimary = BG,
+            onBackground = TEXT, onSurface = TEXT
+        ),
+        content = content
+    )
+}
+
+// ── Root scaffold ─────────────────────────────────────────────────────────────
+@Composable
+fun GameBoostApp(state: GameViewModel.UiState, vm: GameViewModel, onStartGame: () -> Unit) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("⚡" to "בית", "🎮" to "משחק", "🖥" to "חומרה", "📡" to "רשת", "📈" to "ניתוח", "⚙️" to "הגדרות")
+
+    Scaffold(
+        containerColor = BG,
+        bottomBar = {
+            NavigationBar(containerColor = CARD, contentColor = ACCENT) {
+                tabs.forEachIndexed { i, (icon, label) ->
+                    NavigationBarItem(
+                        selected = selectedTab == i,
+                        onClick  = { selectedTab = i },
+                        icon     = { Text(icon, fontSize = 18.sp) },
+                        label    = { Text(label, fontSize = 9.sp) },
+                        colors   = NavigationBarItemDefaults.colors(
+                            selectedIconColor   = ACCENT,
+                            unselectedIconColor = MUTED,
+                            indicatorColor      = CARD
+                        )
+                    )
+                }
+            }
+        }
+    ) { padding ->
+        Box(Modifier.padding(padding).fillMaxSize()) {
+            when (selectedTab) {
+                0 -> HomeScreen(state, vm, onStartGame)
+                1 -> GameScreen(state, vm)
+                2 -> HwScreen(vm)
+                3 -> NetScreen(state, vm)
+                4 -> AnalyticsScreen(vm)
+                5 -> SettingsScreen(state, vm)
+            }
+        }
     }
+}
 
-    private fun showTab(id: String) {
-        tabContent.removeAllViews()
-        val scroll = ScrollView(this).apply { setBackgroundColor(BG); layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT) }
-        scroll.addView(when (id) { "home" -> homeTab(); "game" -> gameTab(); "hw" -> hwTab(); "net" -> netTab(); "analytics" -> analyticsTab(); else -> settingsTab() })
-        tabContent.addView(scroll)
-    }
+// ── HOME ──────────────────────────────────────────────────────────────────────
+@Composable
+fun HomeScreen(state: GameViewModel.UiState, vm: GameViewModel, onStartGame: () -> Unit) {
+    val ctx = LocalContext.current
+    Column(
+        Modifier.fillMaxSize().background(BG).verticalScroll(rememberScrollState()).padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Header
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Ping Booster", color = TEXT, fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            StatusPill(state.isActive)
+        }
+        Spacer(Modifier.height(16.dp))
 
-    // ── HOME TAB ──────────────────────────────────────────────────────────────
-    private fun homeTab(): View {
-        val root = col(pad = 20)
-        val pc = card(mb = 14, pv = 28)
-        powerBtn = AnimatedPowerButton(this).apply { layoutParams = LinearLayout.LayoutParams(180, 180).also { it.gravity = Gravity.CENTER; it.bottomMargin = 16 }; setOnClickListener { if (isActive) stop() else startGameMode() } }
-        tvPrediction = tv("ML Predictor: אין נתונים", 10f, MUTED2, g = Gravity.CENTER, mt = 4)
-        pc.addView(powerBtn); pc.addView(tv("לחץ להפעלה", 14f, MUTED, bold = true, g = Gravity.CENTER)); pc.addView(tvPrediction); root.addView(pc)
-
-        // Profiles row
-        val prc = card(mb = 12); prc.gravity = Gravity.START; prc.addView(tv("🎮 פרופיל", 12f, TEXT, bold = true, mb = 8))
-        val pr = hrow()
-        profileMgr.defaults.forEach { p -> pr.addView(Button(this).apply { text = p.name; textSize = 9f; setTextColor(ACCENT); setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt()); setPadding(8, 5, 8, 5); layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).also { it.marginEnd = 6 }; setOnClickListener { profileMgr.applyToPrefs(p, prefs); HapticManager.success(this@MainActivity); Toast.makeText(this@MainActivity, "✅ ${p.name}", Toast.LENGTH_SHORT).show() } }) }
-        prc.addView(pr); root.addView(prc)
+        // Power card
+        GameCard(Modifier.fillMaxWidth()) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(24.dp)) {
+                AnimatedPowerBtn(isActive = state.isActive) {
+                    if (state.isActive) vm.stop() else onStartGame()
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(if (state.isActive) "לחץ לעצירה" else "לחץ להפעלה", color = MUTED, fontSize = 13.sp)
+                Text(state.predictionMessage, color = if (state.spikeWarning) RED else GREEN, fontSize = 10.sp)
+                if (state.isActive && state.sessionAvgPing > 0) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("avg ${state.sessionAvgPing}ms · loss ${String.format("%.1f", state.sessionLoss)}%", color = MUTED, fontSize = 10.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(12.dp))
 
         // Stats grid
-        fun sg() = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 } }
-        fun sc(label: String, color: Int, c: LinearLayout): TextView { val cc = col(pv = 10); cc.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).also { it.marginEnd = 8 }; cc.setBackgroundColor(CARD); val v = tv("—", 15f, color, mono = true, g = Gravity.CENTER); cc.addView(v); cc.addView(tv(label, 9f, MUTED, g = Gravity.CENTER, mt = 3)); c.addView(cc); return v }
-        val r1 = sg(); statPing = sc("Ping", ORANGE, r1); statLoss = sc("Loss%", RED, r1); statScore = sc("Score", GREEN, r1); root.addView(r1)
-        val r2 = sg(); statCpu = sc("CPU%", 0xFFA259FF.toInt(), r2); statRam = sc("RAM", ACCENT, r2); statTemp = sc("Temp", GREEN, r2); root.addView(r2)
-        val r3 = sg(); statFps = sc("FPS", GREEN, r3); tvBattery = sc("Battery", GREEN, r3); root.addView(r3)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatCard("Ping", "${state.pingMs}ms", ORANGE, Modifier.weight(1f))
+            StatCard("Loss", "${String.format("%.1f", state.lossPercent)}%", RED, Modifier.weight(1f))
+            StatCard("Score", state.scoreLabel, GREEN, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatCard("CPU", "${state.cpuPercent}%", Color(0xFFA259FF), Modifier.weight(1f))
+            StatCard("RAM", "${state.availRamMb}MB", ACCENT, Modifier.weight(1f))
+            StatCard("Temp", "${state.tempC.toInt()}°", if (state.tempC >= 43f) RED else if (state.tempC >= 38f) ORANGE else GREEN, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatCard("FPS", "${state.avgFps.toInt()}", if (state.avgFps < 30f) RED else if (state.avgFps < 50f) ORANGE else GREEN, Modifier.weight(1f))
+            StatCard("Battery", "${state.batteryPercent}%${if (state.isCharging) " ⚡" else ""}", if (state.batteryPercent < 20) RED else if (state.batteryPercent < 50) ORANGE else GREEN, Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(12.dp))
 
-        pingGraph = PingGraphView(this).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 150).also { it.bottomMargin = 12 }; setBackgroundColor(CARD) }
-        root.addView(pingGraph)
+        // Ping graph
+        GameCard(Modifier.fillMaxWidth().height(140.dp)) {
+            AndroidViewPingGraph(pings = state.pingHistory, threshold = state.adaptiveThreshold)
+        }
+        Spacer(Modifier.height(12.dp))
 
-        val ac = card(mb = 12); val ah = hrow(g = Gravity.CENTER_VERTICAL)
-        ah.addView(tv("🎮 משחקים", 13f, TEXT, bold = true, w = 1f))
-        ah.addView(Button(this).apply { text = "ערוך"; textSize = 10f; setTextColor(ACCENT); setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt()); setPadding(12, 4, 12, 4); setOnClickListener { startActivityForResult(Intent(this@MainActivity, AppSelectionActivity::class.java), APP_SEL) } })
-        ah.addView(Button(this).apply { text = "🔍"; textSize = 10f; setTextColor(ORANGE); setBackgroundColor(0); setOnClickListener { autoDetect() } })
-        tvGames = tv("", 11f, MUTED2, mt = 8); ac.addView(ah); ac.addView(tvGames); root.addView(ac)
-        return root
-    }
-
-    // ── GAME TAB ──────────────────────────────────────────────────────────────
-    private fun gameTab(): View {
-        val root = col(pad = 20)
-        root.addView(tv("🎮 Per-Game Settings", 14f, TEXT, bold = true, mb = 14))
-
-        val games = prefs.getStringSet("selected_games", emptySet()) ?: emptySet()
-        if (games.isEmpty()) { root.addView(tv("בחר משחקים קודם", 13f, MUTED, g = Gravity.CENTER)); return root }
-
-        games.forEach { pkg ->
-            val cfg = perGameMgr.getConfig(pkg)
-            val gc = card(mb = 14); gc.gravity = Gravity.START
-            gc.addView(tv("🎮 ${cfg.gameName}", 13f, ACCENT, bold = true, mb = 10))
-            listOf("MTU" to "${cfg.mtu}B", "Target FPS" to "${cfg.targetFps}", "Spike Threshold" to "${cfg.spikeThreshold}ms", "DSCP EF" to if (cfg.dscpEf) "✅" else "❌", "RST Burst" to if (cfg.rstBurst) "✅" else "❌", "EQ Preset" to cfg.eqPreset, "Region" to cfg.preferredRegion).forEach { (l, v) ->
-                val r = hrow(g = Gravity.CENTER_VERTICAL, mb = 6)
-                r.addView(tv(l, 11f, MUTED2, w = 0.5f)); r.addView(tv(v, 12f, TEXT, bold = true, w = 0.5f)); gc.addView(r)
+        // Profiles
+        GameCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Text("🎮 פרופילים", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    vm.profileMgr.defaults.forEach { p ->
+                        OutlinedButton(
+                            onClick = { vm.profileMgr.applyToPrefs(p, ctx.getSharedPreferences("gameboost", Context.MODE_PRIVATE)); Toast.makeText(ctx,"✅ ${p.name}", Toast.LENGTH_SHORT).show() },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ACCENT)
+                        ) { Text(p.name, fontSize = 9.sp) }
+                    }
+                }
             }
-            gc.addView(Button(this).apply { text = "החל הגדרות עבור ${cfg.gameName}"; textSize = 11f; setTextColor(0xFF070C18.toInt()); setBackgroundColor(ACCENT); setPadding(0, 10, 0, 10); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.topMargin = 8 }; setOnClickListener { perGameMgr.applyToPrefs(pkg, prefs); HapticManager.success(this@MainActivity); Toast.makeText(this@MainActivity, "✅ הגדרות ${cfg.gameName} הוחלו", Toast.LENGTH_SHORT).show() } })
-            root.addView(gc)
+        }
+        Spacer(Modifier.height(12.dp))
+
+        // Games
+        GameCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🎮 משחקים", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { GameAutoDetector.detect(ctx); /* refresh */ }) {
+                        Text("🔍 זיהוי", color = ORANGE, fontSize = 10.sp)
+                    }
+                }
+                Text(
+                    if (state.selectedGames.isEmpty()) "לא נבחרו" else state.selectedGames.joinToString(" · ") { pkg ->
+                        try { ctx.packageManager.getApplicationLabel(ctx.packageManager.getApplicationInfo(pkg, 0)).toString() } catch (_: Exception) { pkg }
+                    },
+                    color = MUTED, fontSize = 11.sp
+                )
+            }
+        }
+    }
+}
+
+// ── GAME ──────────────────────────────────────────────────────────────────────
+@Composable
+fun GameScreen(state: GameViewModel.UiState, vm: GameViewModel) {
+    val ctx = LocalContext.current
+    Column(Modifier.fillMaxSize().background(BG).verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Text("🎮 Per-Game Settings", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Spacer(Modifier.height(14.dp))
+
+        if (state.selectedGames.isEmpty()) {
+            Text("בחר משחקים קודם", color = MUTED, modifier = Modifier.align(Alignment.CenterHorizontally))
+            return@Column
         }
 
-        // Auto server selection
-        root.addView(tv("🌐 Auto Server Select", 13f, TEXT, bold = true, mt = 8, mb = 8))
-        val tvServer = tv("לא נבדק", 12f, MUTED, mb = 8)
-        root.addView(Button(this).apply { text = "🔍 בחר שרת מהיר אוטומטי"; textSize = 12f; setTextColor(0xFF070C18.toInt()); setBackgroundColor(ACCENT); setPadding(0, 12, 0, 12); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }; setOnClickListener { tvServer.text = "סורק..."; AutoServerSelector.selectAndApply("CoD") { result -> tvServer.text = if (result.best != null) "✅ מומלץ: ${result.best.region} (${result.best.pingMs}ms)\nחסם: ${result.blocked.size} שרתים איטיים" else "❌ לא נמצא שרת"; tvServer.setTextColor(if (result.best != null) GREEN else RED) } } })
-        root.addView(tvServer)
+        state.selectedGames.forEach { pkg ->
+            val cfg = vm.perGameMgr.getConfig(pkg)
+            GameCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+                Column(Modifier.padding(14.dp)) {
+                    Text("🎮 ${cfg.gameName}", color = ACCENT, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    listOf("MTU" to "${cfg.mtu}B", "Target FPS" to "${cfg.targetFps}", "Spike Threshold" to "${cfg.spikeThreshold}ms", "DSCP EF" to if (cfg.dscpEf) "✅" else "❌", "Region" to cfg.preferredRegion).forEach { (l, v) ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                            Text(l, color = MUTED, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Text(v, color = TEXT, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { vm.perGameMgr.applyToPrefs(pkg, ctx.getSharedPreferences("gameboost", Context.MODE_PRIVATE)); Toast.makeText(ctx,"✅ ${cfg.gameName}", Toast.LENGTH_SHORT).show() },
+                        modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ACCENT, contentColor = BG)) {
+                        Text("החל הגדרות עבור ${cfg.gameName}", fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+
+        // Auto server
+        var serverStatus by remember { mutableStateOf("לא נבדק") }
+        GameCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Column(Modifier.padding(14.dp)) {
+                Text("🌐 Auto Server Select", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                Text(serverStatus, color = MUTED, fontSize = 11.sp)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { serverStatus = "סורק..."; AutoServerSelector.selectAndApply("CoD") { r -> serverStatus = if (r.best != null) "✅ ${r.best.region} (${r.best.pingMs}ms)" else "❌ לא נמצא" } }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ACCENT, contentColor = BG)) {
+                    Text("🔍 בחר שרת מהיר", fontSize = 12.sp)
+                }
+            }
+        }
 
         // Frame pacing
-        root.addView(tv("📊 Frame Pacing", 13f, TEXT, bold = true, mt = 8, mb = 8))
-        val fps = framePacing.getStats()
-        root.addView(tv("FPS: ${fps.avgFps.toInt()} | Jank: ${String.format("%.1f", fps.jankPercent)}% | ${fps.stability}", 12f, if (fps.jankPercent < 5f) GREEN else ORANGE))
-
-        // ICMP ping
-        root.addView(tv("📡 ICMP Ping אמיתי", 13f, TEXT, bold = true, mt = 8, mb = 8))
-        val tvIcmp = tv("לא נבדק", 12f, MUTED)
-        root.addView(Button(this).apply { text = "📡 Ping ICMP"; textSize = 11f; setTextColor(ACCENT); setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt()); setPadding(0, 10, 0, 10); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }; setOnClickListener { tvIcmp.text = "בודק ICMP..."; CoroutineScope(Dispatchers.Main).launch { val r = IcmpPinger.ping("1.1.1.1"); tvIcmp.text = if (r.reachable) "✅ ICMP: ${r.pingMs}ms → 1.1.1.1" else "❌ ICMP לא זמין"; tvIcmp.setTextColor(if (r.reachable) GREEN else RED) } } })
-        root.addView(tvIcmp)
-        return root
-    }
-
-    // ── HW TAB ────────────────────────────────────────────────────────────────
-    private fun hwTab(): View {
-        val root = col(pad = 20)
-        root.addView(tv("🖥 חומרה", 14f, TEXT, bold = true, mb = 14))
-        val hw = hwMonitor.getStats()
-        val hwc = card(mb = 14); hwc.gravity = Gravity.START
-        hwc.addView(tv("🌡 טמפרטורות", 13f, TEXT, bold = true, mb = 10))
-        listOf("CPU ממוצע" to "${hw.avgCpuTemp.toInt()}°C", "GPU" to "${hw.gpuTemp.toInt()}°C", "Surface" to "${hw.skinTemp.toInt()}°C", "Throttling" to if (hw.throttling) "⚠️ כן!" else "✅ לא").forEach { (l, v) ->
-            val r = hrow(g = Gravity.CENTER_VERTICAL, mb = 8); r.addView(tv(l, 12f, MUTED2, w = 0.5f)); r.addView(tv(v, 13f, if (v.contains("⚠️")) RED else if (v.contains("✅")) GREEN else ACCENT, bold = true, w = 0.5f)); hwc.addView(r)
+        val fps = vm.framePacing.getStats()
+        GameCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp)) {
+                Text("📊 Frame Pacing", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(6.dp))
+                Text("FPS: ${fps.avgFps.toInt()} · Jank: ${String.format("%.1f", fps.jankPercent)}% · ${fps.stability}", color = if (fps.jankPercent < 5f) GREEN else ORANGE, fontSize = 12.sp)
+            }
         }
-        root.addView(hwc)
-
-        val bt = btAudio.getInfo()
-        val btc = card(mb = 14); btc.gravity = Gravity.START; btc.addView(tv("🎧 Bluetooth", 13f, TEXT, bold = true, mb = 10))
-        if (bt.connected) { listOf("מכשיר" to bt.deviceName, "Codec" to bt.codec, "Latency" to "${bt.latencyMs}ms").forEach { (l, v) -> val r = hrow(g = Gravity.CENTER_VERTICAL, mb = 8); r.addView(tv(l, 12f, MUTED2, w = 0.4f)); r.addView(tv(v, 12f, ACCENT, w = 0.6f)); btc.addView(r) }; btc.addView(tv(bt.recommendation, 11f, if (bt.latencyMs < 80) GREEN else ORANGE, mt = 6)) } else btc.addView(tv("אין BT מחובר", 12f, MUTED))
-        root.addView(btc)
-
-        val cpu = resourceMgr.getCpuBoostManager()
-        val perc = card(mb = 14); perc.gravity = Gravity.START; perc.addView(tv("⚡ ביצועים", 13f, TEXT, bold = true, mb = 10))
-        listOf(Triple("PerformanceHintManager", if (cpu.isHintManagerAvailable()) "✅" else "❌", if (cpu.isHintManagerAvailable()) GREEN else MUTED), Triple("Sustained", if (cpu.isSustainedPerfSupported()) "✅" else "❌", if (cpu.isSustainedPerfSupported()) GREEN else MUTED), Triple("Cores", "${PacketEngine.getNumCores()}", ACCENT), Triple("MPTCP", if (multiPath.isMptcpAvailable()) "✅" else "❌", if (multiPath.isMptcpAvailable()) GREEN else MUTED)).forEach { (t, s, c) -> val r = hrow(g = Gravity.CENTER_VERTICAL, mb = 8); r.addView(tv(t, 12f, TEXT, w = 0.6f)); r.addView(tv(s, 12f, c, bold = true, w = 0.4f)); perc.addView(r) }
-        root.addView(perc)
-
-        root.addView(Button(this).apply { text = "🚀 נתב כל המשאבים"; textSize = 13f; setTextColor(0xFF070C18.toInt()); setBackgroundColor(ACCENT); setPadding(0, 14, 0, 14); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT); setOnClickListener { val pkgs = prefs.getStringSet("selected_games", null) ?: setOf("com.activision.callofduty.shooter"); resourceMgr.activate(pkgs); gameApi.reportGameplayStarted(pkgs.first()); displayMgr.setMaxRefreshRate(this@MainActivity); HapticManager.success(this@MainActivity); Toast.makeText(this@MainActivity, "✅ הכל מנותב!", Toast.LENGTH_SHORT).show() } })
-        return root
     }
+}
 
-    // ── NET TAB ───────────────────────────────────────────────────────────────
-    private fun netTab(): View {
-        val root = col(pad = 20); root.addView(tv("📡 רשת", 14f, TEXT, bold = true, mb = 14))
-        val wifi = networkMon.getWifiInfo()
-        listOf("📶 WiFi" to WiFiBandHelper.getCurrent5GhzStatus(this), "📊 RSSI" to WiFiBandHelper.getRssiQuality(wifi?.rssi ?: -100), "🌐 DNS" to networkMon.getActiveDnsServers().joinToString(", ").ifEmpty { "N/A" }, "📦 MTU" to "${networkMon.getActiveMtu()}B", "🌍 Roaming" to if (roamingGuard.isRoaming()) "⚠️ ${roamingGuard.getRoamingCountry()}" else "✅ לא").forEach { (l, v) -> val r = hrow(g = Gravity.CENTER_VERTICAL, mb = 10); r.addView(tv(l, 12f, MUTED2, w = 0.4f)); r.addView(tv(v, 12f, ACCENT, bold = true, w = 0.6f)); root.addView(r) }
-        val cellInfo = cell.getCellInfo()
-        root.addRow(tv("📱 ${cellInfo.technology} · ${cellInfo.operator} · ${cellInfo.signalDbm}dBm ${cellInfo.rating}", 12f, ACCENT, mt = 8, mb = 12))
-        val tvDoh = tv("", 12f, MUTED); val tvLeak = tv("", 12f, MUTED)
-        root.addView(Button(this).apply { text = "🔒 DoH Test"; textSize = 11f; setTextColor(ACCENT); setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt()); setPadding(0, 10, 0, 10); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }; setOnClickListener { tvDoh.text = "בודק..."; CoroutineScope(Dispatchers.Main).launch { val r = DoHResolver.resolve("cloudflare.com"); tvDoh.text = if (r.ip != null) "✅ DoH: ${r.ip} (${r.latencyMs}ms)" else "❌ DoH נכשל"; tvDoh.setTextColor(if (r.ip != null) GREEN else RED) } } })
-        root.addView(tvDoh)
-        root.addView(Button(this).apply { text = "🔍 Leak Test"; textSize = 11f; setTextColor(ACCENT); setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt()); setPadding(0, 10, 0, 10); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }; setOnClickListener { tvLeak.text = "בודק..."; CoroutineScope(Dispatchers.Main).launch { val r = LeakTester.run(GameModeVpnService.isRunning); tvLeak.text = r.summary; tvLeak.setTextColor(if (r.dnsLeak) RED else GREEN) } } })
-        root.addView(tvLeak)
+// ── HW ────────────────────────────────────────────────────────────────────────
+@Composable
+fun HwScreen(vm: GameViewModel) {
+    val hw = vm.hwMonitor.getStats()
+    val bt = vm.btAudio.getInfo()
+    Column(Modifier.fillMaxSize().background(BG).verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Text("🖥 חומרה", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Spacer(Modifier.height(14.dp))
 
-        // Live bandwidth
-        root.addView(tv("📊 Bandwidth", 13f, TEXT, bold = true, mt = 12, mb = 6))
-        val tvBw = tv("RX: — Kbps  TX: — Kbps", 12f, ACCENT, mono = true)
-        root.addView(tvBw)
-        handler.post(object : Runnable {
-            override fun run() {
-                tvBw.text = "RX: ${rxKbps.toInt()} Kbps  TX: ${txKbps.toInt()} Kbps"
-                handler.postDelayed(this, 1000)
+        GameCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Column(Modifier.padding(14.dp)) {
+                Text("🌡 טמפרטורות", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                HwRow("CPU ממוצע", "${hw.avgCpuTemp.toInt()}°C", if (hw.avgCpuTemp >= 43f) RED else GREEN)
+                HwRow("GPU", "${hw.gpuTemp.toInt()}°C", if (hw.gpuTemp >= 43f) RED else GREEN)
+                HwRow("Surface", "${hw.skinTemp.toInt()}°C", GREEN)
+                HwRow("Throttling", if (hw.throttling) "⚠️ כן!" else "✅ לא", if (hw.throttling) RED else GREEN)
             }
-        })
+        }
 
-        // Speed Test
-        root.addView(tv("🚀 Speed Test", 13f, TEXT, bold = true, mt = 12, mb = 6))
-        val tvSpeed = tv("", 12f, MUTED)
-        root.addView(Button(this).apply {
-            text = "⚡ Run Speed Test"; textSize = 11f; setTextColor(0xFF070C18.toInt()); setBackgroundColor(ACCENT)
-            setPadding(0, 10, 0, 10)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }
-            setOnClickListener {
-                tvSpeed.text = "בודק..."; setEnabled(false)
-                val btn = this
-                SpeedTestManager.runTest(object : SpeedTestManager.ProgressCallback {
-                    override fun onDownloadProgress(percent: Int, currentMbps: Float) {
-                        tvSpeed.text = "⬇ $percent%  ${String.format("%.1f", currentMbps)} Mbps"
-                    }
-                    override fun onUploadProgress(percent: Int, currentMbps: Float) {
-                        tvSpeed.text = "⬆ $percent%  ${String.format("%.1f", currentMbps)} Mbps"
-                    }
-                    override fun onComplete(result: SpeedTestManager.SpeedResult) {
-                        tvSpeed.text = "⬇ ${String.format("%.1f", result.downloadMbps)} Mbps  ⬆ ${String.format("%.1f", result.uploadMbps)} Mbps  📶 ${result.latencyMs}ms"
-                        tvSpeed.setTextColor(if (result.downloadMbps > 10f) GREEN else ORANGE)
-                        btn.isEnabled = true
-                    }
-                    override fun onError(msg: String) {
-                        tvSpeed.text = "❌ שגיאה: $msg"; tvSpeed.setTextColor(RED); btn.isEnabled = true
-                    }
-                })
+        GameCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Column(Modifier.padding(14.dp)) {
+                Text("🎧 Bluetooth", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                if (bt.connected) {
+                    HwRow("מכשיר", bt.deviceName, TEXT)
+                    HwRow("Codec", bt.codec, ACCENT)
+                    HwRow("Latency", "${bt.latencyMs}ms", if (bt.latencyMs < 80) GREEN else ORANGE)
+                    Text(bt.recommendation, color = if (bt.latencyMs < 80) GREEN else ORANGE, fontSize = 11.sp)
+                } else Text("אין BT מחובר", color = MUTED, fontSize = 12.sp)
             }
-        })
-        root.addView(tvSpeed)
+        }
+
+        GameCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Column(Modifier.padding(14.dp)) {
+                Text("⚡ ביצועים", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                val cpu = vm.resourceMgr.getCpuBoostManager()
+                HwRow("PerformanceHint", if (cpu.isHintManagerAvailable()) "✅" else "❌", if (cpu.isHintManagerAvailable()) GREEN else MUTED)
+                HwRow("Sustained Perf", if (cpu.isSustainedPerfSupported()) "✅" else "❌", if (cpu.isSustainedPerfSupported()) GREEN else MUTED)
+                HwRow("CPU Cores", "${PacketEngine.getNumCores()}", ACCENT)
+                HwRow("MPTCP", if (vm.multiPath.isMptcpAvailable()) "✅" else "❌", if (vm.multiPath.isMptcpAvailable()) GREEN else MUTED)
+            }
+        }
+
+        val ctx = LocalContext.current
+        Button(onClick = { val pkgs = vm.uiState.value.selectedGames.ifEmpty { setOf("com.activision.callofduty.shooter") }; vm.resourceMgr.activate(pkgs); vm.displayMgr.setMaxRefreshRate(ctx); Toast.makeText(ctx,"✅ הכל מנותב!", Toast.LENGTH_SHORT).show() }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = ACCENT, contentColor = BG)) {
+            Text("🚀 נתב כל המשאבים", fontSize = 13.sp)
+        }
+    }
+}
+
+// ── NET ───────────────────────────────────────────────────────────────────────
+@Composable
+fun NetScreen(state: GameViewModel.UiState, vm: GameViewModel) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var dohStatus by remember { mutableStateOf("") }
+    var leakStatus by remember { mutableStateOf("") }
+    var speedStatus by remember { mutableStateOf("") }
+    var traceLog by remember { mutableStateOf("") }
+
+    Column(Modifier.fillMaxSize().background(BG).verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Text("📡 רשת", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Spacer(Modifier.height(14.dp))
+
+        // Network info
+        val wifi = vm.networkMon.getWifiInfo()
+        val cell = vm.cell.getCellInfo()
+        GameCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Column(Modifier.padding(14.dp)) {
+                HwRow("📶 WiFi", WiFiBandHelper.getCurrent5GhzStatus(ctx), TEXT)
+                HwRow("📊 RSSI", WiFiBandHelper.getRssiQuality(wifi?.rssi ?: -100), TEXT)
+                HwRow("📦 MTU", "${vm.networkMon.getActiveMtu()}B", ACCENT)
+                HwRow("📱 Cell", "${cell.technology} · ${cell.operator}", ACCENT)
+                Text("RX: ${state.rxKbps.toInt()} Kbps  TX: ${state.txKbps.toInt()} Kbps", color = GREEN, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        // DoH
+        ActionCard("🔒 DoH Test", dohStatus, if (dohStatus.startsWith("✅")) GREEN else RED) {
+            dohStatus = "בודק..."
+            scope.launch { val r = DoHResolver.resolve("cloudflare.com"); dohStatus = if (r.ip != null) "✅ DoH: ${r.ip} (${r.latencyMs}ms)" else "❌ DoH נכשל" }
+        }
+
+        // Leak test
+        ActionCard("🔍 Leak Test", leakStatus, if (leakStatus.startsWith("✅")) GREEN else RED) {
+            leakStatus = "בודק..."
+            scope.launch { val r = LeakTester.run(GameModeVpnService.isRunning); leakStatus = r.summary }
+        }
+
+        // Speed test
+        ActionCard("⚡ Speed Test", speedStatus, if (speedStatus.startsWith("⬇")) GREEN else MUTED) {
+            speedStatus = "בודק..."
+            SpeedTestManager.runTest(object : SpeedTestManager.ProgressCallback {
+                override fun onDownloadProgress(p: Int, mbps: Float) { speedStatus = "⬇ $p%  ${String.format("%.1f", mbps)} Mbps" }
+                override fun onUploadProgress(p: Int, mbps: Float) { speedStatus = "⬆ $p%  ${String.format("%.1f", mbps)} Mbps" }
+                override fun onComplete(r: SpeedTestManager.SpeedResult) { speedStatus = "⬇ ${String.format("%.1f", r.downloadMbps)} Mbps  ⬆ ${String.format("%.1f", r.uploadMbps)} Mbps  📶 ${r.latencyMs}ms" }
+                override fun onError(msg: String) { speedStatus = "❌ $msg" }
+            })
+        }
 
         // Traceroute
-        root.addView(tv("🔍 Traceroute", 13f, TEXT, bold = true, mt = 12, mb = 6))
-        val tvTrace = tv("", 11f, MUTED, mono = true)
-        root.addView(Button(this).apply {
-            text = "🌐 Traceroute 1.1.1.1"; textSize = 11f; setTextColor(ACCENT)
-            setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt())
-            setPadding(0, 10, 0, 10)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }
-            setOnClickListener {
-                tvTrace.text = "מבצע traceroute..."; setEnabled(false)
-                val btn = this
-                TracerouteManager.trace("1.1.1.1", 443, object : TracerouteManager.TraceCallback {
-                    override fun onHop(hop: TracerouteManager.Hop) {
-                        val status = if (hop.reachable) "✅" else "  "
-                        tvTrace.append("$status ${hop.hopNumber}. ${hop.host}  ${hop.latencyMs}ms\n")
+        Spacer(Modifier.height(8.dp))
+        Text("🔍 Traceroute", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        Spacer(Modifier.height(6.dp))
+        Button(onClick = { traceLog = "מבצע traceroute...\n"; TracerouteManager.trace("1.1.1.1", 443, object : TracerouteManager.TraceCallback { override fun onHop(hop: TracerouteManager.Hop) { traceLog += "${if (hop.reachable) "✅" else "  "} ${hop.hopNumber}. ${hop.host}  ${hop.latencyMs}ms\n" }; override fun onComplete(hops: List<TracerouteManager.Hop>) {} }) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = CARD, contentColor = ACCENT)) {
+            Text("🌐 Traceroute 1.1.1.1", fontSize = 11.sp)
+        }
+        if (traceLog.isNotEmpty()) {
+            Text(traceLog, color = MUTED, fontSize = 10.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+// ── ANALYTICS ─────────────────────────────────────────────────────────────────
+@Composable
+fun AnalyticsScreen(vm: GameViewModel) {
+    val ctx = LocalContext.current
+    Column(Modifier.fillMaxSize().background(BG).verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Text("📈 אנליטיקה", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Spacer(Modifier.height(14.dp))
+
+        GameCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+            Column(Modifier.padding(14.dp)) {
+                Text("⏰ שעות הכי טובות", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                vm.analytics.getBestHours().take(4).forEach { h ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                        Text(String.format("%02d:00", h.hour), color = ACCENT, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(0.25f))
+                        Text("${h.avgPing.toInt()}ms", color = ORANGE, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.weight(0.25f))
+                        Text(h.rating, color = GREEN, fontSize = 11.sp, modifier = Modifier.weight(0.5f))
                     }
-                    override fun onComplete(hops: List<TracerouteManager.Hop>) { btn.isEnabled = true }
-                })
+                }
             }
-        })
-        root.addView(tvTrace)
-        return root
-    }
-
-    // ── ANALYTICS TAB ─────────────────────────────────────────────────────────
-    private fun analyticsTab(): View {
-        val root = col(pad = 20); root.addView(tv("📈 אנליטיקה", 14f, TEXT, bold = true, mb = 14))
-        analytics.getBestHours().take(4).forEach { h -> val r = hrow(g = Gravity.CENTER_VERTICAL, mb = 8); r.addView(tv(String.format("%02d:00", h.hour), 12f, ACCENT, mono = true, w = 0.25f)); r.addView(tv("${h.avgPing.toInt()}ms", 13f, ORANGE, bold = true, mono = true, w = 0.25f)); r.addView(tv(h.rating, 11f, GREEN, w = 0.5f)); root.addView(r) }
-        val heatmap = PingHeatmapCalendarView(this).apply { layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 200).also { it.bottomMargin = 12 }; setBackgroundColor(CARD); loadFromDb(this@MainActivity) }
-        root.addView(heatmap)
-        root.addView(Button(this).apply { text = "📁 CSV"; textSize = 11f; setTextColor(0xFF070C18.toInt()); setBackgroundColor(ACCENT); setPadding(0, 10, 0, 10); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }; setOnClickListener { BackupManager.shareBackup(this@MainActivity) } })
-        root.addView(Button(this).apply { text = "💾 גיבוי הגדרות"; textSize = 11f; setTextColor(ACCENT); setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt()); setPadding(0, 10, 0, 10); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 8 }; setOnClickListener { BackupManager.shareBackup(this@MainActivity) } })
-        db.getLast(5).forEach { s -> val sc = card(mb = 8); sc.gravity = Gravity.START; val d = java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(s.startTime)); sc.addView(tv("$d · ${s.durationSec / 60}min", 10f, MUTED2, mb = 4)); val sr = hrow(); listOf("${s.avgPing}ms" to ORANGE, "⚡${s.minPing}" to GREEN, "💀${String.format("%.1f", s.packetLoss)}%" to RED).forEach { (t, c) -> sr.addView(tv(t, 10f, c, mono = true, w = 1f)) }; sc.addView(sr); sc.addView(Button(this).apply { text = "📤"; textSize = 10f; setTextColor(ACCENT); setBackgroundColor(0); setPadding(0, 4, 0, 4); setOnClickListener { SessionShareManager.shareSession(this@MainActivity, s) } }); root.addView(sc) }
-        return root
-    }
-
-    // ── SETTINGS TAB ──────────────────────────────────────────────────────────
-    private fun settingsTab(): View {
-        val root = col(pad = 20); root.addView(tv("⚙️ הגדרות", 14f, TEXT, bold = true, mb = 14))
-        fun sw(icon: String, lbl: String, sub: String, key: String, def: Boolean = false, action: ((Boolean) -> Unit)? = null) {
-            val r = hrow(g = Gravity.CENTER_VERTICAL, mb = 12); val t = col(); t.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
-            t.addView(tv("$icon  $lbl", 12f, TEXT)); t.addView(tv(sub, 9f, MUTED, mt = 2))
-            val s = Switch(this).apply { isChecked = prefs.getBoolean(key, def); thumbTintList = android.content.res.ColorStateList.valueOf(ACCENT); setOnCheckedChangeListener { _, c -> prefs.edit().putBoolean(key, c).apply(); action?.invoke(c) } }
-            r.addView(t); r.addView(s); root.addView(r)
-        }
-        sw("⚡","Auto-Trigger","UsageEvents streaming","auto_trigger"){on->if(on)startService(Intent(this,AutoTriggerService::class.java)) else startService(Intent(this,AutoTriggerService::class.java).apply{action="STOP"})}
-        sw("🌐","MPTCP","WiFi + 5G במקביל","mptcp",true){on->if(on)multiPath.activateAll() else multiPath.deactivateAll()}
-        sw("🖥","CPU Boost","WakeLock + Hint + FIFO","cpu_boost",true)
-        sw("🔴","RST Burst","קוטע TCP ברקע","rst_burst",true)
-        sw("🔵","DSCP QoS","EF priority","qos_dscp",true)
-        sw("📺","120Hz","קצב רענון מקסימלי","hz_lock",true){on->if(on)displayMgr.setMaxRefreshRate(this) else displayMgr.clearMaxRefreshRate(this)}
-        sw("🔕","DND","שקט מוחלט","dnd",true){on->if(on&&!shield.isDndGranted())startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))}
-        sw("🎧","Audio FX","EQ + Loudness","audio_eq",true)
-        sw("🔔","Sound Alerts","צלילי Spike/הפעלה","sound_alerts",true)
-        sw("🌡","Thermal Monitor","overlay צף","thermal",true)
-        sw("📱","Gyro DND","גריפה הפוכה = שקט","gyro_dnd",true)
-        sw("💀","Kill BG","הורג תהליכי רקע","kill_bg")
-        sw("🔢","Anti-Lag","60s resource burst לפני משחק","anti_lag",true)
-        sw("📌","Floating Ping","overlay ping צף","floating_ping"){on->
-            val intent = Intent(this, FloatingPingService::class.java)
-            if (on) startService(intent) else stopService(intent)
-        }
-        sw("🔐","DNS-over-TLS","DoT port 853 (עדכון ידני)","use_dot"){on->DoHResolver.preferDoT=on}
-        sw("⌚","Wear OS Sync","שלח ping לשעון","wear_sync")
-        root.addView(Button(this).apply {
-            text = "⚙️ הגדרות מתקדמות"; textSize = 12f; setTextColor(ACCENT)
-            setBackgroundColor(if (darkMode) 0xFF0A1F3A.toInt() else 0xFFDCEEFF.toInt())
-            setPadding(0, 12, 0, 12)
-            layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = 12 }
-            setOnClickListener { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
-        })
-
-        root.addView(tv("⚠️ סף Spike", 13f, TEXT, mb = 6))
-        val sv = tv("${prefs.getInt("spike_threshold", 80)}ms", 13f, ORANGE, bold = true)
-        val sk = SeekBar(this).apply { max = 200; progress = prefs.getInt("spike_threshold", 80); setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener { override fun onProgressChanged(s: SeekBar?, p: Int, u: Boolean) { sv.text = "${p}ms"; prefs.edit().putInt("spike_threshold", p).apply() }; override fun onStartTrackingTouch(s: SeekBar?) {}; override fun onStopTrackingTouch(s: SeekBar?) {} }) }
-        val sr = hrow(g = Gravity.CENTER_VERTICAL); sr.addView(sk.also { it.layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) }); sr.addView(sv); root.addView(sr)
-        return root
-    }
-
-    // ── Actions ───────────────────────────────────────────────────────────────
-    private fun autoDetect() {
-        Toast.makeText(this, "🔍 מזהה...", Toast.LENGTH_SHORT).show()
-        CoroutineScope(Dispatchers.IO).launch { val games = GameAutoDetector.detect(this@MainActivity).take(5); withContext(Dispatchers.Main) { val pkgs = games.map { it.packageName }.toSet(); prefs.edit().putStringSet("selected_games", pkgs).apply(); updateGames(); ShortcutHelper.register(this@MainActivity, pkgs); Toast.makeText(this@MainActivity, "✅ ${games.size} משחקים", Toast.LENGTH_LONG).show() } }
-    }
-
-    private fun startGameMode() { val vi = VpnService.prepare(this); if (vi != null) startActivityForResult(vi, vpnReqCode) else launch() }
-    override fun onActivityResult(rq: Int, rc: Int, d: Intent?) { super.onActivityResult(rq, rc, d); when (rq) { vpnReqCode -> if (rc == RESULT_OK) launch(); APP_SEL -> if (rc == RESULT_OK) { updateGames(); ShortcutHelper.register(this, prefs.getStringSet("selected_games", emptySet()) ?: emptySet()) } } }
-
-    private fun launch() {
-        val pkgs = ArrayList(prefs.getStringSet("selected_games", null) ?: setOf("com.activision.callofduty.shooter"))
-        val firstPkg = pkgs.first()
-
-        // Apply per-game config
-        perGameMgr.applyToPrefs(firstPkg, prefs)
-
-        // DNS Prefetch
-        val gameName = if (firstPkg.contains("activision")) "CoD Mobile" else "PUBG Mobile"
-        DnsPrefetcher.prefetch(gameName)
-
-        // RST burst
-        if (prefs.getBoolean("rst_burst", true)) { startService(Intent(this, GameModeVpnService::class.java).apply { action = GameModeVpnService.ACTION_RESET_CONNECTIONS }); Thread.sleep(120) }
-
-        // VPN
-        startService(Intent(this, GameModeVpnService::class.java).apply { putStringArrayListExtra(GameModeVpnService.EXTRA_PACKAGES, pkgs) })
-
-        // All boosts
-        if (prefs.getBoolean("cpu_boost", true)) resourceMgr.activate(pkgs.toSet())
-        if (prefs.getBoolean("mptcp", true)) multiPath.activateAll()
-        if (prefs.getBoolean("dnd", true) || prefs.getBoolean("audio_focus", true)) shield.activateAll()
-        if (prefs.getBoolean("thermal", true)) thermal.start()
-        if (prefs.getBoolean("audio_eq", true)) audioFx.activate()
-        if (prefs.getBoolean("hz_lock", true)) displayMgr.setMaxRefreshRate(this)
-        gameApi.reportGameplayStarted(firstPkg)
-
-        // madvise for game process
-        CoroutineScope(Dispatchers.IO).launch {
-            Thread.sleep(2000)
-            val pid = resourceMgr.getProcessBoostManager().findGamePid(firstPkg)
-            if (pid != null) PacketEngine.adviseKeepInRam(pid)
         }
 
-        PacketEngine.resetCounters(); pingPredictor.reset(); framePacing.reset()
-        sessionStats = SessionStats(this, firstPkg); sessionStats.start()
-        sessionStats.onSpikeDetected = { ms -> handler.post { HapticManager.spike(this); SoundAlertManager.play(this, SoundAlertManager.AlertType.SPIKE); Toast.makeText(this, "⚠️ Spike: ${ms}ms!", Toast.LENGTH_SHORT).show() } }
+        // Heatmap
+        GameCard(Modifier.fillMaxWidth().height(200.dp).padding(bottom = 12.dp)) {
+            AndroidViewHeatmap(ctx)
+        }
 
-        SoundAlertManager.play(this, SoundAlertManager.AlertType.ACTIVATE)
-        setActive(true); HapticManager.activate(this)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { BackupManager.shareBackup(ctx) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = ACCENT, contentColor = BG)) { Text("📁 CSV", fontSize = 11.sp) }
+            Button(onClick = { BackupManager.shareBackup(ctx) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = CARD, contentColor = ACCENT)) { Text("💾 גיבוי", fontSize = 11.sp) }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        vm.db.getLast(5).forEach { s ->
+            GameCard(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+                Column(Modifier.padding(10.dp)) {
+                    val d = java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(s.startTime))
+                    Text("$d · ${s.durationSec / 60}min", color = MUTED, fontSize = 10.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Row(Modifier.fillMaxWidth()) {
+                        Text("${s.avgPing}ms", color = ORANGE, fontSize = 10.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                        Text("⚡${s.minPing}", color = GREEN, fontSize = 10.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                        Text("💀${String.format("%.1f", s.packetLoss)}%", color = RED, fontSize = 10.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { SessionShareManager.shareSession(ctx, s) }, modifier = Modifier.weight(0.5f)) { Text("📤", fontSize = 12.sp) }
+                    }
+                }
+            }
+        }
     }
+}
 
-    private fun stop() {
-        startService(Intent(this, GameModeVpnService::class.java).apply { action = GameModeVpnService.ACTION_STOP })
-        resourceMgr.deactivate(); shield.deactivateAll(); thermal.stop(); audioFx.deactivate()
-        displayMgr.clearMaxRefreshRate(this); multiPath.deactivateAll()
-        antiLag.reset()
-        gameApi.reportLoadingStarted(); overlay.hide(); liveNotif.cancel()
-        val rec = sessionStats.finish()
-        rec?.let { Toast.makeText(this, "📊 avg ${it.avgPing}ms · loss ${String.format("%.1f", it.packetLoss)}%", Toast.LENGTH_LONG).show() }
-        SoundAlertManager.play(this, SoundAlertManager.AlertType.DEACTIVATE)
-        setActive(false); GameBoostWidget.updateAllWidgets(this); HapticManager.deactivate(this)
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+@Composable
+fun SettingsScreen(state: GameViewModel.UiState, vm: GameViewModel) {
+    val ctx = LocalContext.current
+    Column(Modifier.fillMaxSize().background(BG).verticalScroll(rememberScrollState()).padding(16.dp)) {
+        Text("⚙️ הגדרות", color = TEXT, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Spacer(Modifier.height(14.dp))
+
+        @Composable
+        fun SettingSwitch(icon: String, label: String, sub: String, key: String, def: Boolean = false, action: ((Boolean) -> Unit)? = null) {
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("$icon  $label", color = TEXT, fontSize = 12.sp)
+                    Text(sub, color = MUTED, fontSize = 9.sp)
+                }
+                var checked by remember { mutableStateOf(vm.getPref(key, def)) }
+                Switch(checked = checked, onCheckedChange = { v -> checked = v; vm.setPref(key, v); action?.invoke(v) },
+                    colors = SwitchDefaults.colors(checkedThumbColor = BG, checkedTrackColor = ACCENT, uncheckedTrackColor = MUTED))
+            }
+            HorizontalDivider(color = CARD, thickness = 0.5.dp)
+        }
+
+        SettingSwitch("⚡","Auto-Trigger","UsageEvents streaming","auto_trigger") { on -> ctx.startService(Intent(ctx, AutoTriggerService::class.java).apply { if (!on) action = "STOP" }) }
+        SettingSwitch("🌐","MPTCP","WiFi + 5G במקביל","mptcp",true) { on -> if (on) vm.multiPath.activateAll() else vm.multiPath.deactivateAll() }
+        SettingSwitch("🖥","CPU Boost","WakeLock + Hint + FIFO","cpu_boost",true)
+        SettingSwitch("🔴","RST Burst","קוטע TCP ברקע","rst_burst",true)
+        SettingSwitch("🔵","DSCP QoS","EF priority","qos_dscp",true)
+        SettingSwitch("📺","120Hz","קצב רענון מקסימלי","hz_lock",true) { on -> if (on) vm.displayMgr.setMaxRefreshRate(ctx) else vm.displayMgr.clearMaxRefreshRate(ctx) }
+        SettingSwitch("🔕","DND","שקט מוחלט","dnd",true) { on -> if (on && !vm.shield.isDndGranted()) ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        SettingSwitch("🎧","Audio FX","EQ + Loudness","audio_eq",true)
+        SettingSwitch("🔔","Sound Alerts","צלילי Spike/הפעלה","sound_alerts",true)
+        SettingSwitch("🌡","Thermal Monitor","overlay צף","thermal",true)
+        SettingSwitch("📱","Gyro DND","גריפה הפוכה = שקט","gyro_dnd",true)
+        SettingSwitch("💀","Kill BG","הורג תהליכי רקע","kill_bg")
+        SettingSwitch("🔢","Anti-Lag","60s resource burst","anti_lag",true)
+        SettingSwitch("📌","Floating Ping","overlay ping צף","floating_ping") { on ->
+            val svc = Intent(ctx, FloatingPingService::class.java)
+            if (on) ctx.startService(svc) else ctx.stopService(svc)
+        }
+        SettingSwitch("🔐","DNS-over-TLS","DoT port 853","use_dot") { on -> DoHResolver.preferDoT = on }
+        SettingSwitch("⌚","Wear OS Sync","שלח ping לשעון","wear_sync")
+
+        Spacer(Modifier.height(16.dp))
+
+        // Spike threshold
+        Text("⚠️ סף Spike", color = TEXT, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(6.dp))
+        var spikeThreshold by remember { mutableIntStateOf(vm.getPrefInt("spike_threshold", 80)) }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Slider(value = spikeThreshold.toFloat(), onValueChange = { spikeThreshold = it.toInt(); vm.setPrefInt("spike_threshold", it.toInt()) }, valueRange = 20f..200f, modifier = Modifier.weight(1f), colors = SliderDefaults.colors(thumbColor = ACCENT, activeTrackColor = ACCENT))
+            Text("${spikeThreshold}ms", color = ORANGE, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Button(onClick = { ctx.startActivity(Intent(ctx, SettingsActivity::class.java)) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = CARD, contentColor = ACCENT)) {
+            Text("⚙️ הגדרות מתקדמות", fontSize = 12.sp)
+        }
     }
+}
 
-    private fun setActive(a: Boolean) {
-        isActive = a; powerBtn.setActive(a)
-        statusDot.setBackgroundColor(if (a) GREEN else MUTED)
-        statusLabel.text = if (a) "פעיל" else "כבוי"; statusLabel.setTextColor(if (a) GREEN else MUTED)
-        if (a) { handler.post(statsUpdater); startPingMeasurement() } else { stopPingMeasurement(); handler.removeCallbacks(statsUpdater); if (::statPing.isInitialized) { statPing.text = "—"; statLoss.text = "—"; statCpu.text = "—"; statRam.text = "—"; statScore.text = "—"; statFps.text = "—" } }
+// ── Composable helpers ────────────────────────────────────────────────────────
+@Composable
+fun GameCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Surface(modifier = modifier, color = CARD, shape = MaterialTheme.shapes.medium) { content() }
+}
+
+@Composable
+fun StatCard(label: String, value: String, valueColor: Color, modifier: Modifier = Modifier) {
+    GameCard(modifier) {
+        Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(value, color = valueColor, fontWeight = FontWeight.Bold, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+            Text(label, color = MUTED, fontSize = 9.sp)
+        }
     }
+}
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-    private fun LinearLayout.addRow(v: View) { v.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT); addView(v) }
-    private fun checkPerms() { if (!Settings.canDrawOverlays(this)) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)) }
-    override fun onResume() { super.onResume(); updateGames() }
-    private fun updateGames() { val sel = prefs.getStringSet("selected_games", emptySet()) ?: emptySet(); if (::tvGames.isInitialized) tvGames.text = if (sel.isEmpty()) "לא נבחרו" else sel.mapNotNull { try { packageManager.getApplicationLabel(packageManager.getApplicationInfo(it, 0)).toString() } catch (e: Exception) { it } }.joinToString(" · ") }
-    private fun col(pv: Int = 0, pad: Int = 0) = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; if (pad > 0) setPadding(pad, pad, pad, pad * 2) else if (pv > 0) setPadding(14, pv, 14, pv); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) }
-    private fun hrow(g: Int = Gravity.START, mb: Int = 0) = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; this.gravity = g; layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = mb } }
-    private fun card(mb: Int = 0, pv: Int = 14) = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setBackgroundColor(CARD); setPadding(16, pv, 16, pv); layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).also { it.bottomMargin = mb } }
-    private fun tv(t: String, sz: Float, col: Int, bold: Boolean = false, w: Float = -1f, g: Int = Gravity.END, mono: Boolean = false, mt: Int = 0, mb: Int = 0) = TextView(this).apply { text = t; textSize = sz; setTextColor(col); this.gravity = g; if (bold) typeface = android.graphics.Typeface.DEFAULT_BOLD; if (mono) typeface = android.graphics.Typeface.MONOSPACE; layoutParams = (if (w > 0) LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, w) else LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)).also { it.topMargin = mt; it.bottomMargin = mb } }
-    override fun onDestroy() { mainScope.cancel(); stopPingMeasurement(); handler.removeCallbacks(statsUpdater); networkMon.stop(); battery.stop(); gyro.stop(); gameApi.stopThermalMonitoring(); roamingGuard.stop(); voiceChat.stop(); framePacing.stop(); bandwidthMon.stop(); usageMonitor.stop(); antiLag.destroy(); if (isActive) { resourceMgr.deactivate(); shield.deactivateAll(); thermal.stop(); audioFx.deactivate(); multiPath.deactivateAll() }; super.onDestroy() }
+@Composable
+fun HwRow(label: String, value: String, valueColor: Color) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        Text(label, color = MUTED, fontSize = 12.sp, modifier = Modifier.weight(0.5f))
+        Text(value, color = valueColor, fontWeight = FontWeight.Bold, fontSize = 12.sp, modifier = Modifier.weight(0.5f))
+    }
+}
+
+@Composable
+fun StatusPill(isActive: Boolean) {
+    Surface(color = CARD, shape = MaterialTheme.shapes.small) {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(8.dp).background(if (isActive) GREEN else MUTED, shape = MaterialTheme.shapes.small))
+            Spacer(Modifier.width(6.dp))
+            Text(if (isActive) "פעיל" else "כבוי", color = if (isActive) GREEN else MUTED, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun AnimatedPowerBtn(isActive: Boolean, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.size(160.dp),
+        shape = MaterialTheme.shapes.extraLarge,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (isActive) GREEN.copy(alpha = 0.15f) else CARD,
+            contentColor   = if (isActive) GREEN else MUTED
+        )
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("⏻", fontSize = 48.sp)
+            Text(if (isActive) "ON" else "OFF", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+fun ActionCard(btnLabel: String, status: String, statusColor: Color, onAction: () -> Unit) {
+    GameCard(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        Column(Modifier.padding(12.dp)) {
+            Button(onClick = onAction, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = CARD, contentColor = ACCENT)) {
+                Text(btnLabel, fontSize = 11.sp)
+            }
+            if (status.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(status, color = statusColor, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+    }
+}
+
+// ── AndroidView wrappers for custom Views ─────────────────────────────────────
+@Composable
+fun AndroidViewPingGraph(pings: List<Int>, threshold: Int) {
+    androidx.compose.ui.viewinterop.AndroidView(
+        factory = { ctx -> PingGraphView(ctx) },
+        update  = { view -> view.update(pings, threshold) },
+        modifier = Modifier.fillMaxSize()
+    )
+}
+
+@Composable
+fun AndroidViewHeatmap(ctx: Context) {
+    androidx.compose.ui.viewinterop.AndroidView(
+        factory = { c -> PingHeatmapCalendarView(c).also { it.loadFromDb(c) } },
+        modifier = Modifier.fillMaxSize()
+    )
 }
