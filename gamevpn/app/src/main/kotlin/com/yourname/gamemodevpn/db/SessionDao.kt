@@ -12,8 +12,8 @@ interface SessionDao {
     fun getLast(n: Int): List<SessionEntity>
 
     @Query("""
-        SELECT COUNT(*), AVG(avg_ping), MIN(min_ping), MAX(max_ping),
-               AVG(packet_loss), SUM(duration_sec)
+        SELECT COUNT(*) AS count, AVG(avg_ping) AS avgPing, MIN(min_ping) AS minPing,
+               MAX(max_ping) AS maxPing, AVG(packet_loss) AS avgLoss, SUM(duration_sec) AS totalSec
         FROM sessions
     """)
     fun getOverallRaw(): OverallStatsRaw
