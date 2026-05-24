@@ -487,6 +487,12 @@ fun SettingsScreen(state: GameViewModel.UiState, vm: GameViewModel) {
         }
         SettingSwitch("🔐","DNS-over-TLS","DoT port 853","use_dot") { on -> DoHResolver.preferDoT = on }
         SettingSwitch("⌚","Wear OS Sync","שלח ping לשעון","wear_sync")
+        SettingSwitch("🔧","FEC","Forward Error Correction — שחזור packets אבודים","fec_enabled") { on ->
+            PacketEngine.enableFec(on)
+        }
+        SettingSwitch("🗑️","Payload Trim","זרוק packets של analytics","payload_trim") { on ->
+            // stored in prefs, read by GameModeVpnService
+        }
 
         Spacer(Modifier.height(16.dp))
 

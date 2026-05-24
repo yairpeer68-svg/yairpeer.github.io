@@ -368,6 +368,15 @@ Java_com_yourname_gamemodevpn_PacketEngine_processPacket(
                     result = 3;
                 }
             }
+        } else if (fec_enabled.load() && udp_plen > 0) {
+            // ── FEC outbound: store packet and emit parity every 4th packet ─
+            // Prepend FEC_NORMAL header byte in-place is not possible without
+            // rewriting the packet buffer, so we store the raw payload and let
+            // the Java layer call buildFecParity() after every 4th sendPacket.
+            if (fec_store_outbound(udp_payload, udp_plen)) {
+                // Signal caller with result=4 so Java knows to call buildFecParity
+                result = 4;
+            }
         }
     }
 
@@ -404,12 +413,75 @@ Java_com_yourname_gamemodevpn_PacketEngine_getPacketLoss(JNIEnv*, jobject) {
 extern "C" JNIEXPORT void JNICALL
 Java_com_yourname_gamemodevpn_PacketEngine_resetCounters(JNIEnv*, jobject) {
     pkt_total = 0; pkt_lost = 0; bytes_total = 0;
-    dns_redirected = 0; dns_blocked = 0;
+    dns_redirected = 0; dns_blocked = 0; analytics_dropped = 0;
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_yourname_gamemodevpn_PacketEngine_getVersion(JNIEnv* env, jobject) {
-    return env->NewStringUTF("PacketEngine v4.0 | DSCP-EF+DNS-CF+NXDOMAIN+RST+UDPchk+Counters");
+    return env->NewStringUTF("PacketEngine v5.0 | DSCP-EF+DNS-CF+NXDOMAIN+RST+UDPchk+FEC+AnalyticsDrop");
+}
+
+// ── FEC JNI ──────────────────────────────────────────────────────────────────
+
+// Enable or disable FEC processing.
+extern "C" JNIEXPORT void JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_enableFec(JNIEnv*, jobject, jboolean enable) {
+    bool was = fec_enabled.exchange((bool)enable);
+    if (!was && (bool)enable) {
+        // Reset state when enabling
+        memset(fec_buf,    0, sizeof(fec_buf));
+        memset(fec_rx_buf, 0, sizeof(fec_rx_buf));
+        for (int i = 0; i < FEC_GROUP; i++) fec_rx_have[i] = false;
+        fec_count    = 0;
+        fec_rx_count = 0;
+    }
+    LOGI("FEC %s", (bool)enable ? "enabled" : "disabled");
+}
+
+// Build and return the XOR parity packet for the current group.
+// Should be called by Java after processPacket returns 4.
+// The returned byte array has layout: [0xFE][xor_byte_0]...[xor_byte_N-1]
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_buildFecParity(JNIEnv* env, jobject) {
+    uint8_t parity[FEC_MAX_PKT + 1];
+    int plen = fec_build_parity(parity, sizeof(parity));
+    if (plen <= 0) return nullptr;
+    jbyteArray r = env->NewByteArray(plen);
+    env->SetByteArrayRegion(r, 0, plen, (jbyte*)parity);
+    return r;
+}
+
+// Process an inbound FEC-tagged UDP payload (first byte is FEC_HEADER or FEC_NORMAL).
+// Returns: 0=normal data, 1=parity consumed (check getFecReconstructed for recovered data),
+//         -1=error.
+extern "C" JNIEXPORT jint JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_processFecPacket(
+    JNIEnv* env, jobject, jbyteArray payload, jint plen) {
+    jbyte* p = env->GetByteArrayElements(payload, nullptr);
+    if (!p) return -1;
+    int r = fec_process_inbound((const uint8_t*)p, plen);
+    env->ReleaseByteArrayElements(payload, p, JNI_ABORT);
+    return r;
+}
+
+// After processFecPacket returns 1 and a slot was reconstructed, retrieve it.
+// Returns the reconstructed packet bytes, or null if nothing was reconstructed.
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_getFecReconstructed(JNIEnv* env, jobject, jint slot) {
+    if (slot < 0 || slot >= FEC_GROUP) return nullptr;
+    int l = fec_rx_buf[slot].len;
+    if (l <= 0) return nullptr;
+    jbyteArray r = env->NewByteArray(l);
+    env->SetByteArrayRegion(r, 0, l, (jbyte*)fec_rx_buf[slot].data);
+    return r;
+}
+
+// ── Analytics JNI ─────────────────────────────────────────────────────────────
+
+// Return the total number of analytics/telemetry packets that were dropped.
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_getAnalyticsDropped(JNIEnv*, jobject) {
+    return (jlong)analytics_dropped.load();
 }
 
 // ── Thread affinity ───────────────────────────────────────────────────────────

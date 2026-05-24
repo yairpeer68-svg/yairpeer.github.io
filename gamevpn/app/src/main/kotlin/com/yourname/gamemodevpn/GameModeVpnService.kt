@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.PowerManager
 import android.os.Process
 import android.util.Log
 import java.io.FileInputStream
@@ -24,6 +25,18 @@ class GameModeVpnService : VpnService() {
     private var packetThread: Thread? = null
     private val reconnectAttempts = AtomicInteger(0)
     private val mainHandler = Handler(Looper.getMainLooper())
+
+    // WakeLock held while the VPN tunnel is active; released on thermal SEVERE events.
+    @Volatile private var wakeLock: PowerManager.WakeLock? = null
+
+    // Thermal listener — registered on API 29+ (Android 10)
+    private val thermalListener: Any? by lazy {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            PowerManager.OnThermalStatusChangedListener { status ->
+                onThermalStatusChanged(status)
+            }
+        } else null
+    }
 
     @Volatile private var lastPackages: List<String> = listOf("com.activision.callofduty.shooter")
     @Volatile private var useCompression = false
@@ -100,6 +113,12 @@ class GameModeVpnService : VpnService() {
             running.set(true)
             instance = this
             reconnectAttempts.set(0)
+
+            // Acquire a partial WakeLock so the CPU stays awake during packet processing.
+            acquireWakeLock()
+
+            // Register thermal-status listener (Android 10 / API 29+).
+            registerThermalListener()
 
             packetThread = Thread {
                 val cores = PacketEngine.pinToBigCores()
@@ -212,6 +231,8 @@ class GameModeVpnService : VpnService() {
         isRunning = false
         instance = null
         mainHandler.removeCallbacksAndMessages(null)
+        unregisterThermalListener()
+        releaseWakeLock()
         packetThread?.interrupt()
         packetThread = null
         try { vpnInterface?.close() } catch (_: Exception) { }
@@ -219,6 +240,78 @@ class GameModeVpnService : VpnService() {
         stopForeground(true)
         stopSelf()
         Log.i(TAG, "VPN stopped")
+    }
+
+    // ── Thermal throttling ────────────────────────────────────────────────────
+
+    private fun onThermalStatusChanged(status: Int) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        if (status >= PowerManager.THERMAL_STATUS_SEVERE) {
+            Log.w(TAG, "Thermal status SEVERE ($status) — releasing WakeLock and broadcasting warning")
+            releaseWakeLock()
+            sendBroadcast(Intent("THERMAL_THROTTLE_WARNING").apply {
+                putExtra("thermal_status", status)
+            })
+        } else {
+            // Temperature has dropped below SEVERE — safe to hold WakeLock again
+            Log.i(TAG, "Thermal status recovered ($status) — re-acquiring WakeLock")
+            acquireWakeLock()
+        }
+    }
+
+    private fun registerThermalListener() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        try {
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            @Suppress("UNCHECKED_CAST")
+            val listener = thermalListener as? PowerManager.OnThermalStatusChangedListener ?: return
+            pm.addThermalStatusListener(listener)
+            Log.i(TAG, "Thermal status listener registered")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to register thermal listener: ${e.message}")
+        }
+    }
+
+    private fun unregisterThermalListener() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        try {
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            @Suppress("UNCHECKED_CAST")
+            val listener = thermalListener as? PowerManager.OnThermalStatusChangedListener ?: return
+            pm.removeThermalStatusListener(listener)
+            Log.i(TAG, "Thermal status listener unregistered")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister thermal listener: ${e.message}")
+        }
+    }
+
+    // ── WakeLock helpers ──────────────────────────────────────────────────────
+
+    private fun acquireWakeLock() {
+        if (wakeLock?.isHeld == true) return
+        try {
+            val pm = getSystemService(POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(
+                PowerManager.PARTIAL_WAKE_LOCK,
+                "GameModeVPN::PacketProcessing"
+            ).also { it.acquire(10 * 60 * 1000L /* 10 minutes max */) }
+            Log.i(TAG, "WakeLock acquired")
+        } catch (e: Exception) {
+            Log.w(TAG, "WakeLock acquire failed: ${e.message}")
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) {
+                wakeLock?.release()
+                Log.i(TAG, "WakeLock released")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "WakeLock release error: ${e.message}")
+        } finally {
+            wakeLock = null
+        }
     }
 
     private fun updateNotification(text: String) {
