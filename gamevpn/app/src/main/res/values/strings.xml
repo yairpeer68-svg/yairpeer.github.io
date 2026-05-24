@@ -133,4 +133,7 @@
     <!-- Kill switch -->
     <string name="kill_switch_vpn_down">🛡 VPN ירד — תעבורה חסומה!</string>
     <string name="kill_switch_reconnecting">🔄 מתחבר מחדש לVPN…</string>
+
+    <!-- Accessibility -->
+    <string name="accessibility_desc">Ping Booster accessibility service for game detection</string>
 </resources>
