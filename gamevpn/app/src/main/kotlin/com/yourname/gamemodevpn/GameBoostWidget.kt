@@ -42,8 +42,6 @@ class GameBoostWidget : AppWidgetProvider() {
             views.setTextViewText(R.id.widget_status, statusText)
             views.setTextViewText(R.id.widget_ping, pingText)
             views.setTextColor(R.id.widget_ping, pingColor)
-            // Show server name if widget_server view exists in layout
-            try { views.setTextViewText(R.id.widget_server, serverText) } catch (_: Exception) { }
             views.setInt(R.id.widget_bg, "setBackgroundColor",
                 if (isRunning) 0xFF0A1F2E.toInt() else 0xFF0C1422.toInt())
 
