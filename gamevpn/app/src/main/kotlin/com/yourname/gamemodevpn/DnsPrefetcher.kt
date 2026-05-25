@@ -35,19 +35,21 @@ object DnsPrefetcher {
     fun prefetch(game: String, onResult: (PrefetchResult) -> Unit = {}) {
         val hosts = GAME_SERVERS[game] ?: GAME_SERVERS.values.flatten()
         CoroutineScope(Dispatchers.IO).launch {
-            hosts.map { host ->
-                async {
-                    val t0 = System.currentTimeMillis()
-                    val ip = try {
-                        InetAddress.getByName(host).hostAddress
-                    } catch (e: Exception) { null }
-                    val result = PrefetchResult(host, ip, System.currentTimeMillis() - t0)
-                    cache[host] = result
-                    Log.i("DnsPrefetch", "$host → $ip (${result.latencyMs}ms)")
-                    withContext(Dispatchers.Main) { onResult(result) }
-                    result
-                }
-            }.awaitAll()
+            coroutineScope {
+                hosts.map { host ->
+                    async {
+                        val t0 = System.currentTimeMillis()
+                        val ip = try {
+                            InetAddress.getByName(host).hostAddress
+                        } catch (e: Exception) { null }
+                        val result = PrefetchResult(host, ip, System.currentTimeMillis() - t0)
+                        cache[host] = result
+                        Log.i("DnsPrefetch", "$host → $ip (${result.latencyMs}ms)")
+                        withContext(Dispatchers.Main) { onResult(result) }
+                        result
+                    }
+                }.awaitAll()
+            }
             Log.i("DnsPrefetch", "✅ Prefetched ${hosts.size} hosts for $game")
         }
     }

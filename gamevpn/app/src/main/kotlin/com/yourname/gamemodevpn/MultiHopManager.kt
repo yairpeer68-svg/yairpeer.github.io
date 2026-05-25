@@ -77,12 +77,14 @@ object MultiHopManager {
 
     /** Find the fastest multi-hop route by measuring all options. */
     suspend fun selectBestRoute(): MultiHopRoute? = withContext(Dispatchers.IO) {
-        val measured = ROUTES.map { route ->
-            async {
-                val latency = measureHopLatency(route)
-                route.copy(totalLatencyMs = latency)
-            }
-        }.awaitAll().filter { it.totalLatencyMs > 0 }
+        val measured = coroutineScope {
+            ROUTES.map { route ->
+                async {
+                    val latency = measureHopLatency(route)
+                    route.copy(totalLatencyMs = latency)
+                }
+            }.awaitAll()
+        }.filter { it.totalLatencyMs > 0 }
 
         measured.minByOrNull { it.totalLatencyMs }?.also { best ->
             activeRoute = best

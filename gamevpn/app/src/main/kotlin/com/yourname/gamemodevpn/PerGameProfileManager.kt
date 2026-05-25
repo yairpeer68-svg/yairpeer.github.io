@@ -126,7 +126,7 @@ class PerGameProfileManager(private val ctx: Context) {
     fun getAdaptiveThresholdForGame(packageName: String): Int {
         val learned = getLearnedPing(packageName)
         return if (learned > 0) (learned * 1.5f).toInt().coerceIn(40, 200)
-        else getConfig(packageName)?.spikeThreshold ?: 80
+        else getConfig(packageName).spikeThreshold
     }
 
     fun getAllLearnedPings(): Map<String, Int> {

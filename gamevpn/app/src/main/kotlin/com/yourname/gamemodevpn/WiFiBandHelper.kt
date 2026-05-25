@@ -14,6 +14,7 @@ object WiFiBandHelper {
         } catch (e: Exception) { emptyList() }
     }
 
+    @Suppress("DEPRECATION")
     fun getCurrent5GhzStatus(ctx: Context): String {
         val wm = ctx.getSystemService(Context.WIFI_SERVICE) as WifiManager
         val info = wm.connectionInfo ?: return "לא מחובר"

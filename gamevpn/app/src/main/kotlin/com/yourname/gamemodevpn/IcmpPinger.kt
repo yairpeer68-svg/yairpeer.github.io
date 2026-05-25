@@ -58,6 +58,6 @@ object IcmpPinger {
             "PUBG Mobile" -> listOf("prod-live-me.pubg.com", "prod-live-eu.pubg.com")
             else          -> listOf("8.8.8.8", "1.1.1.1")
         }
-        hosts.map { async { ping(it) } }.awaitAll()
+        coroutineScope { hosts.map { async { ping(it) } }.awaitAll() }
     }
 }

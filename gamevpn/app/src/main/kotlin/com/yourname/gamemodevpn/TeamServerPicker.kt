@@ -36,12 +36,14 @@ object TeamServerPicker {
                 "Asia"        to ("prod-live-as.pubg.com" to 443)
             )
         }
-        servers.map { (region, hostPort) ->
-            async {
-                val ping = tcpPing(hostPort.first, hostPort.second)
-                region to ping
-            }
-        }.awaitAll().forEach { (region, ping) ->
+        coroutineScope {
+            servers.map { (region, hostPort) ->
+                async {
+                    val ping = tcpPing(hostPort.first, hostPort.second)
+                    region to ping
+                }
+            }.awaitAll()
+        }.forEach { (region, ping) ->
             result[region] = ping
         }
         Log.i(TAG, "My pings: $result")

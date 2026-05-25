@@ -29,6 +29,7 @@ class DisplayBoostManager(private val ctx: Context) {
                     Log.i(TAG, "✅ Refresh rate → ${bestMode.refreshRate}Hz (mode ${bestMode.modeId})")
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                @Suppress("DEPRECATION")
                 val display = activity.windowManager.defaultDisplay
                 val modes = display.supportedModes
                 val best = modes.maxByOrNull { it.refreshRate }
@@ -79,6 +80,7 @@ class DisplayBoostManager(private val ctx: Context) {
         return try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+                @Suppress("DEPRECATION")
                 val display = wm.defaultDisplay
                 display.supportedModes.maxOfOrNull { it.refreshRate } ?: 60f
             } else 60f
