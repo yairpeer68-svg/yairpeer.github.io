@@ -1,0 +1,36 @@
+plugins {
+    id 'com.android.application'
+    id 'kotlin-android'
+}
+
+android {
+    namespace 'com.yourname.gamemodevpn.wear'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.yourname.gamemodevpn.wear"
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions { jvmTarget = '17' }
+}
+
+dependencies {
+    implementation 'androidx.wear:wear:1.3.0'
+    implementation 'com.google.android.gms:play-services-wearable:18.2.0'
+    implementation 'androidx.wear.watchface:watchface-complications-data:1.2.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+}
