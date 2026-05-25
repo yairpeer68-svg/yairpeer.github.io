@@ -30,7 +30,7 @@
 
     <application
         android:name=".GameBoostApp" android:allowBackup="true" android:largeHeap="true"
-        android:icon="@mipmap/ic_launcher" android:label="Ping Booster"
+        android:icon="@android:drawable/sym_def_app_icon" android:label="Ping Booster"
         android:theme="@style/AppTheme">
 
         <activity android:name=".OnboardingActivity" android:exported="true" android:screenOrientation="portrait">
@@ -51,7 +51,7 @@
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_config"/>
         </service>
         <service android:name=".AutoTriggerService" android:exported="false" android:foregroundServiceType="dataSync"/>
-        <service android:name=".GameTileService" android:icon="@mipmap/ic_launcher" android:label="Game Boost"
+        <service android:name=".GameTileService" android:icon="@android:drawable/sym_def_app_icon" android:label="Game Boost"
             android:exported="true" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter>
             <meta-data android:name="android.service.quicksettings.ACTIVE_TILE" android:value="true"/>
