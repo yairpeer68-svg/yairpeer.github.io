@@ -30,7 +30,6 @@ fun HomeScreen(
     onNavigateToPhoneSearch: () -> Unit,
     onNavigateToGoogleDork: () -> Unit,
     onNavigateToFaceCompare: () -> Unit,
-    onNavigateToBreachCheck: () -> Unit,
     onNavigateToExifViewer: () -> Unit,
     onNavigateToHistory: () -> Unit,
     onNavigateToFavorites: () -> Unit,
@@ -47,14 +46,11 @@ fun HomeScreen(
     onNavigateToNotes: () -> Unit = {},
     onNavigateToSearchTemplates: () -> Unit = {},
     onNavigateToQRGenerator: () -> Unit = {},
-    onNavigateToWayback: () -> Unit = {},
     onNavigateToIpGeolocation: () -> Unit = {},
     onNavigateToCustomSites: () -> Unit = {},
     onNavigateToTimeline: () -> Unit = {},
-    onNavigateToPasteSearch: () -> Unit = {},
     onNavigateToBatchScanner: () -> Unit = {},
     onNavigateToSideBySide: () -> Unit = {},
-    onNavigateToHashLookup: () -> Unit = {},
     onNavigateToSocialGraph: () -> Unit = {},
     onNavigateToPhoneInfo: () -> Unit = {},
     onNavigateToSubdomain: () -> Unit = {},
@@ -129,13 +125,6 @@ fun HomeScreen(
                 item { FeatureTile("ניתוח שם משתמש", "זיהוי תבניות", Icons.Default.Psychology, onNavigateToUsernameAnalysis) }
                 item { FeatureTile("גלאי פייק", "ציון אמינות", Icons.Default.Shield, onNavigateToFakeProfile) }
                 item { FeatureTile("תבניות אימייל", "ניחוש כתובות", Icons.Default.AlternateEmail, onNavigateToEmailPattern) }
-
-                // Security
-                item(span = { GridItemSpan(2) }) { SectionHeader("אבטחה וחקירה") }
-                item { FeatureTile("Breach Check", "בדיקת דליפות", Icons.Default.Security, onNavigateToBreachCheck) }
-                item { FeatureTile("Hash & פענוח", "MD5, SHA", Icons.Default.Tag, onNavigateToHashLookup) }
-                item { FeatureTile("חיפוש Paste", "Pastebin ועוד", Icons.Default.ContentPaste, onNavigateToPasteSearch) }
-                item { FeatureTile("Wayback Machine", "גרסאות ישנות", Icons.Default.History, onNavigateToWayback) }
 
                 // Network
                 item(span = { GridItemSpan(2) }) { SectionHeader("רשת ודומיינים") }

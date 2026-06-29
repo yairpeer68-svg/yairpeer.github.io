@@ -15,7 +15,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
 import com.sherlock.app.data.model.ProfileNote
-import com.sherlock.app.util.EncryptionHelper
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -73,10 +72,9 @@ fun NotesScreen(onNavigateBack: () -> Unit) {
     if (showAddDialog) {
         AddNoteDialog(
             onDismiss = { showAddDialog = false },
-            onAdd = { profileUrl, noteText, encrypt ->
+            onAdd = { profileUrl, noteText ->
                 scope.launch {
-                    val finalText = if (encrypt) EncryptionHelper.encrypt(noteText) else noteText
-                    db.noteDao().insert(ProfileNote(profileUrl = profileUrl, siteName = "", username = "", note = finalText, isEncrypted = encrypt, timestamp = System.currentTimeMillis()))
+                    db.noteDao().insert(ProfileNote(profileUrl = profileUrl, siteName = "", username = "", note = noteText, timestamp = System.currentTimeMillis()))
                 }
                 showAddDialog = false
             }
@@ -87,33 +85,24 @@ fun NotesScreen(onNavigateBack: () -> Unit) {
 @Composable
 private fun NoteCard(note: ProfileNote, onDelete: () -> Unit) {
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
-    var revealed by remember { mutableStateOf(false) }
-    val displayText = if (note.isEncrypted && !revealed) "•••••••• (מוצפן)" else if (note.isEncrypted) EncryptionHelper.decrypt(note.note) else note.note
-
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Link, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(4.dp))
                 Text(note.profileUrl, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f), maxLines = 1)
-                if (note.isEncrypted) {
-                    IconButton(onClick = { revealed = !revealed }) {
-                        Icon(if (revealed) Icons.Default.LockOpen else Icons.Default.Lock, "הצפנה", modifier = Modifier.size(18.dp))
-                    }
-                }
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "מחק", modifier = Modifier.size(18.dp)) }
             }
-            Text(displayText, fontSize = 14.sp, modifier = Modifier.padding(vertical = 4.dp))
+            Text(note.note, fontSize = 14.sp, modifier = Modifier.padding(vertical = 4.dp))
             Text(dateFormat.format(Date(note.timestamp)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun AddNoteDialog(onDismiss: () -> Unit, onAdd: (String, String, Boolean) -> Unit) {
+private fun AddNoteDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Unit) {
     var profileUrl by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
-    var encrypt by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -122,15 +111,9 @@ private fun AddNoteDialog(onDismiss: () -> Unit, onAdd: (String, String, Boolean
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = profileUrl, onValueChange = { profileUrl = it }, label = { Text("כתובת פרופיל") }, singleLine = true)
                 OutlinedTextField(value = noteText, onValueChange = { noteText = it }, label = { Text("תוכן ההערה") }, maxLines = 5, minLines = 3)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lock, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("הצפן הערה", modifier = Modifier.weight(1f), fontSize = 13.sp)
-                    Switch(checked = encrypt, onCheckedChange = { encrypt = it })
-                }
             }
         },
-        confirmButton = { TextButton(onClick = { onAdd(profileUrl, noteText, encrypt) }, enabled = noteText.isNotBlank()) { Text("שמור") } },
+        confirmButton = { TextButton(onClick = { onAdd(profileUrl, noteText) }, enabled = noteText.isNotBlank()) { Text("שמור") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("ביטול") } }
     )
 }

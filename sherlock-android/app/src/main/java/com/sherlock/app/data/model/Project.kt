@@ -28,7 +28,6 @@ data class ProfileNote(
     val siteName: String,
     val username: String,
     val note: String,
-    val isEncrypted: Boolean = false,
     val projectId: Long? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
@@ -43,14 +42,6 @@ data class SearchTemplate(
     val selectedCategories: String = "",
     val parallelThreads: Int = 10,
     val timeout: Int = 10
-)
-
-@Entity(tableName = "login_history")
-data class LoginRecord(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val timestamp: Long = System.currentTimeMillis(),
-    val method: String = "biometric",
-    val success: Boolean = true
 )
 
 @Entity(tableName = "custom_sites")

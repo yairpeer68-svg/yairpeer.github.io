@@ -21,7 +21,6 @@ object Routes {
     const val FACE_COMPARE = "face_compare"
     const val GOOGLE_DORK = "google_dork"
     const val EXIF_VIEWER = "exif_viewer"
-    const val BREACH_CHECK = "breach_check"
     const val DOMAIN_LOOKUP = "domain_lookup"
     const val HISTORY = "history"
     const val FAVORITES = "favorites"
@@ -37,16 +36,12 @@ object Routes {
     const val NOTES = "notes"
     const val SEARCH_TEMPLATES = "search_templates"
     const val QR_GENERATOR = "qr_generator"
-    const val WAYBACK = "wayback"
     const val IP_GEOLOCATION = "ip_geolocation"
     const val CUSTOM_SITES = "custom_sites"
     const val TIMELINE = "timeline"
-    const val PASTE_SEARCH = "paste_search"
     const val BATCH_SCANNER = "batch_scanner"
     const val BUILT_IN_BROWSER = "built_in_browser"
     const val SIDE_BY_SIDE = "side_by_side"
-    const val LOGIN_HISTORY = "login_history"
-    const val HASH_LOOKUP = "hash_lookup"
     const val SOCIAL_GRAPH = "social_graph"
     const val PHONE_INFO = "phone_info"
     const val SUBDOMAIN = "subdomain"
@@ -79,7 +74,6 @@ fun SherlockNavGraph(
                 onNavigateToPhoneSearch = { navController.navigate(Routes.PHONE_SEARCH) },
                 onNavigateToGoogleDork = { navController.navigate(Routes.GOOGLE_DORK) },
                 onNavigateToFaceCompare = { navController.navigate(Routes.FACE_COMPARE) },
-                onNavigateToBreachCheck = { navController.navigate(Routes.BREACH_CHECK) },
                 onNavigateToExifViewer = { navController.navigate(Routes.EXIF_VIEWER) },
                 onNavigateToHistory = { navController.navigate(Routes.HISTORY) },
                 onNavigateToFavorites = { navController.navigate(Routes.FAVORITES) },
@@ -96,14 +90,11 @@ fun SherlockNavGraph(
                 onNavigateToNotes = { navController.navigate(Routes.NOTES) },
                 onNavigateToSearchTemplates = { navController.navigate(Routes.SEARCH_TEMPLATES) },
                 onNavigateToQRGenerator = { navController.navigate(Routes.QR_GENERATOR) },
-                onNavigateToWayback = { navController.navigate(Routes.WAYBACK) },
                 onNavigateToIpGeolocation = { navController.navigate(Routes.IP_GEOLOCATION) },
                 onNavigateToCustomSites = { navController.navigate(Routes.CUSTOM_SITES) },
                 onNavigateToTimeline = { navController.navigate(Routes.TIMELINE) },
-                onNavigateToPasteSearch = { navController.navigate(Routes.PASTE_SEARCH) },
                 onNavigateToBatchScanner = { navController.navigate(Routes.BATCH_SCANNER) },
                 onNavigateToSideBySide = { navController.navigate(Routes.SIDE_BY_SIDE) },
-                onNavigateToHashLookup = { navController.navigate(Routes.HASH_LOOKUP) },
                 onNavigateToSocialGraph = { navController.navigate(Routes.SOCIAL_GRAPH) },
                 onNavigateToPhoneInfo = { navController.navigate(Routes.PHONE_INFO) },
                 onNavigateToSubdomain = { navController.navigate(Routes.SUBDOMAIN) },
@@ -138,10 +129,6 @@ fun SherlockNavGraph(
 
         composable(Routes.EXIF_VIEWER) {
             ExifViewerScreen(onNavigateBack = { navController.popBackStack() })
-        }
-
-        composable(Routes.BREACH_CHECK) {
-            BreachCheckScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(Routes.DOMAIN_LOOKUP) {
@@ -207,10 +194,6 @@ fun SherlockNavGraph(
             QRGeneratorScreen(onNavigateBack = { navController.popBackStack() })
         }
 
-        composable(Routes.WAYBACK) {
-            WaybackScreen(onNavigateBack = { navController.popBackStack() })
-        }
-
         composable(Routes.IP_GEOLOCATION) {
             IpGeolocationScreen(onNavigateBack = { navController.popBackStack() })
         }
@@ -223,10 +206,6 @@ fun SherlockNavGraph(
             TimelineScreen(onNavigateBack = { navController.popBackStack() })
         }
 
-        composable(Routes.PASTE_SEARCH) {
-            PasteSearchScreen(onNavigateBack = { navController.popBackStack() })
-        }
-
         composable(Routes.BATCH_SCANNER) {
             BatchScannerScreen(onNavigateBack = { navController.popBackStack() })
         }
@@ -237,14 +216,6 @@ fun SherlockNavGraph(
 
         composable(Routes.SIDE_BY_SIDE) {
             SideBySideScreen(onNavigateBack = { navController.popBackStack() })
-        }
-
-        composable(Routes.LOGIN_HISTORY) {
-            LoginHistoryScreen(onNavigateBack = { navController.popBackStack() })
-        }
-
-        composable(Routes.HASH_LOOKUP) {
-            HashLookupScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(Routes.SOCIAL_GRAPH) {

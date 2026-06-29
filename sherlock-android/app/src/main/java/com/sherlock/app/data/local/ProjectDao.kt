@@ -35,13 +35,6 @@ interface TemplateDao {
 }
 
 @Dao
-interface LoginDao {
-    @Insert suspend fun insert(record: LoginRecord)
-    @Query("SELECT * FROM login_history ORDER BY timestamp DESC LIMIT 50") fun getRecent(): Flow<List<LoginRecord>>
-    @Query("DELETE FROM login_history") suspend fun clearAll()
-}
-
-@Dao
 interface CustomSiteDao {
     @Insert suspend fun insert(site: CustomSite): Long
     @Update suspend fun update(site: CustomSite)

@@ -17,9 +17,6 @@ class SettingsManager(private val context: Context) {
     companion object {
         val THEME = stringPreferencesKey("theme")
         val LANGUAGE = stringPreferencesKey("language")
-        val BIOMETRIC_LOCK = booleanPreferencesKey("biometric_lock")
-        val INCOGNITO = booleanPreferencesKey("incognito")
-        val SCREENSHOT_PROTECTION = booleanPreferencesKey("screenshot_protection")
         val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
         val PARALLEL_THREADS = intPreferencesKey("parallel_threads")
         val SEARCH_TIMEOUT = intPreferencesKey("search_timeout")
@@ -40,9 +37,6 @@ class SettingsManager(private val context: Context) {
         try { AppLanguage.valueOf(it[LANGUAGE] ?: AppLanguage.HEBREW.name) } catch (_: Exception) { AppLanguage.HEBREW }
     }
 
-    val biometricLock: Flow<Boolean> = context.dataStore.data.map { it[BIOMETRIC_LOCK] ?: false }
-    val incognito: Flow<Boolean> = context.dataStore.data.map { it[INCOGNITO] ?: false }
-    val screenshotProtection: Flow<Boolean> = context.dataStore.data.map { it[SCREENSHOT_PROTECTION] ?: false }
     val hapticFeedback: Flow<Boolean> = context.dataStore.data.map { it[HAPTIC_FEEDBACK] ?: true }
     val parallelThreads: Flow<Int> = context.dataStore.data.map { it[PARALLEL_THREADS] ?: 10 }
     val searchTimeout: Flow<Int> = context.dataStore.data.map { it[SEARCH_TIMEOUT] ?: 10 }
@@ -54,9 +48,6 @@ class SettingsManager(private val context: Context) {
 
     suspend fun setTheme(theme: AppTheme) { context.dataStore.edit { it[THEME] = theme.name } }
     suspend fun setLanguage(lang: AppLanguage) { context.dataStore.edit { it[LANGUAGE] = lang.name } }
-    suspend fun setBiometricLock(enabled: Boolean) { context.dataStore.edit { it[BIOMETRIC_LOCK] = enabled } }
-    suspend fun setIncognito(enabled: Boolean) { context.dataStore.edit { it[INCOGNITO] = enabled } }
-    suspend fun setScreenshotProtection(enabled: Boolean) { context.dataStore.edit { it[SCREENSHOT_PROTECTION] = enabled } }
     suspend fun setHapticFeedback(enabled: Boolean) { context.dataStore.edit { it[HAPTIC_FEEDBACK] = enabled } }
     suspend fun setParallelThreads(threads: Int) { context.dataStore.edit { it[PARALLEL_THREADS] = threads } }
     suspend fun setSearchTimeout(seconds: Int) { context.dataStore.edit { it[SEARCH_TIMEOUT] = seconds } }

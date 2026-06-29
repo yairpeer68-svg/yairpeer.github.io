@@ -17,7 +17,6 @@ import com.sherlock.app.data.model.*
         Project::class,
         ProfileNote::class,
         SearchTemplate::class,
-        LoginRecord::class,
         CustomSite::class
     ],
     version = 2,
@@ -31,7 +30,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun projectDao(): ProjectDao
     abstract fun noteDao(): NoteDao
     abstract fun templateDao(): TemplateDao
-    abstract fun loginDao(): LoginDao
     abstract fun customSiteDao(): CustomSiteDao
 
     companion object {

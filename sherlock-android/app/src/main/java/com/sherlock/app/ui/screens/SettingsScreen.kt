@@ -33,9 +33,6 @@ fun SettingsScreen(
     val db = remember { AppDatabase.getInstance(context) }
 
     val currentTheme by settings.theme.collectAsState(initial = AppTheme.DARK_BLUE)
-    val biometric by settings.biometricLock.collectAsState(initial = false)
-    val incognito by settings.incognito.collectAsState(initial = false)
-    val screenshotProtection by settings.screenshotProtection.collectAsState(initial = false)
     val haptic by settings.hapticFeedback.collectAsState(initial = true)
     val parallelThreads by settings.parallelThreads.collectAsState(initial = 10)
     val timeout by settings.searchTimeout.collectAsState(initial = 10)
@@ -109,23 +106,6 @@ fun SettingsScreen(
             item { SectionHeader("מראה") }
             item {
                 SettingsClickItem("ערכת נושא", currentTheme.hebrewName, Icons.Default.Palette) { showThemeDialog = true }
-            }
-
-            item { SectionHeader("אבטחה") }
-            item {
-                SettingsToggle("נעילה ביומטרית", "טביעת אצבע / פנים", Icons.Default.Fingerprint, biometric) {
-                    scope.launch { settings.setBiometricLock(it) }
-                }
-            }
-            item {
-                SettingsToggle("מצב סמוי", "חיפושים לא נשמרים", Icons.Default.VisibilityOff, incognito) {
-                    scope.launch { settings.setIncognito(it) }
-                }
-            }
-            item {
-                SettingsToggle("הגנת צילום מסך", "מונע צילום מסך באפליקציה", Icons.Default.Screenshot, screenshotProtection) {
-                    scope.launch { settings.setScreenshotProtection(it) }
-                }
             }
 
             item { SectionHeader("חיפוש") }
