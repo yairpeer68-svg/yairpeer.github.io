@@ -37,6 +37,17 @@ from . import (  # noqa: F401
     osint_v2,
     # --- v3.6: AI/LLM recon ---
     ai_recon,
+    # --- v3.7: 80 more features ---
+    api_security,
+    auth_session,
+    privacy,
+    supply_chain,
+    iot,
+    web_v3,
+    crypto,
+    osint_v3,
+    cloud_v3,
+    network_v3,
 )
 
 __all__ = [
@@ -48,4 +59,6 @@ __all__ = [
     "dns_adv", "tls_v2", "web_v2", "network_v2",
     "email_v2", "cloud_v2", "osint_v2",
     "ai_recon",
+    "api_security", "auth_session", "privacy", "supply_chain",
+    "iot", "web_v3", "crypto", "osint_v3", "cloud_v3", "network_v3",
 ]

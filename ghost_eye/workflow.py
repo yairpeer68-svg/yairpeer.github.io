@@ -53,16 +53,23 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
             "rediradv", "corsadv", "cookieaudit", "clickjack", "methodenum",
             "apidisco", "ratelimit", "waffp", "cmsdetect", "wpscan",
             "sourcemap", "adminfinder", "smuggle", "favhash", "metatags",
-            "formaction", "exposedfiles"],
+            "formaction", "exposedfiles",
+            "wasmdetect", "swaudit", "pwacheck", "http3check", "permspolicy",
+            "referrerpol", "coopcoep", "cachpoison", "hostheader", "httpdesync",
+            "mimesniff"],
     "cloud": ["cloudprov", "k8s", "docker", "tfstate", "cicd", "buckets",
               "dangling", "serverless", "metadata", "s3enum", "azureblob",
-              "gcsbucket", "metassrf", "firebase", "gitrecon", "dnshost", "cdngeo"],
+              "gcsbucket", "metassrf", "firebase", "gitrecon", "dnshost", "cdngeo",
+              "cfdnmisconfig", "azureadtenant", "gcpenum", "tfcloud",
+              "vaultdetect", "consuldetect", "etcddetect"],
     "exposure": ["vcs", "backups", "buckets", "dirlisting", "admin", "dashboards",
                  "exposeddb", "rdpvnc", "snmp", "exposedfiles", "adminfinder",
                  "dockerapi", "k8sadv", "ldap", "smb", "ftpanon"],
     "osint": ["emails", "emailauth", "username", "dorks", "github",
               "whoispivot", "analytics", "related", "breachcheck", "social",
-              "waybackadv", "pastebin", "gdork", "techstack", "threatfeed", "jsdeps"],
+              "waybackadv", "pastebin", "gdork", "techstack", "threatfeed", "jsdeps",
+              "jobstech", "feedfind", "sitemapintel", "robotsdiff", "orgprofile",
+              "commitauthors", "whoistimeline", "favsimilar"],
     "passive": ["internetdb", "geoip", "proxytype", "torexit", "threatfeed",
                 "reputation", "urlscan", "breachcheck", "waybackadv", "pastebin"],
     "perimeter": ["dns", "subs", "nmap", "headers", "cert", "tlsgrade", "waf",
@@ -73,9 +80,21 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
             "domexpiry", "glue", "typosquat"],
     "network": ["nmap", "tcptrace", "fwinfer", "v4v6parity", "bgphijack",
                 "svcver", "sshaudit", "dohdot", "mqtt", "ntp", "grpc",
-                "dockerapi", "k8sadv", "ldap", "smb", "ftpanon"],
+                "dockerapi", "k8sadv", "ldap", "smb", "ftpanon",
+                "quicdetect", "wgdetect", "meshdetect", "ipv6only", "rebindguard"],
     "ai": ["deepseek", "aiapi", "dsapi", "aikeyleak", "aidash", "vectordb",
             "aiapp", "modelserve", "aiorch", "jupyter", "hfrecon", "promptleak"],
+    "api": ["gqlaudit", "restfuzz", "wsaudit", "ssedetect", "apiver",
+            "preflightcheck", "contentneg", "hateoas", "webhookfind", "idorsurface"],
+    "auth": ["oauthaudit", "jwtaudit", "samldetect", "sessionaudit",
+             "loginsurface", "pwresetaudit", "mfacheck", "captchacheck"],
+    "privacy": ["gdpraudit", "trackerinv", "privacypol", "piiscan",
+                "ccpacheck", "dataresidency", "consentlog"],
+    "supply_chain": ["npmscan", "pipscan", "dockertag", "actionleak",
+                     "cicdscan", "sbomextract", "depconfuse"],
+    "iot": ["upnpscan", "rtspscan", "coapscan", "icsscan",
+            "telnetscan", "snmpv3", "mdnsscan"],
+    "crypto": ["web3rpc", "cryptoaddr", "smartcontract", "ipfsgw", "ensscan"],
 }
 
 
@@ -340,3 +359,233 @@ def deep_plan(results, target="", scope=None, max_hosts: int = 25):
     plan = [(h, host_mods) for h in assets["hosts"]] + \
            [(ip, ip_mods) for ip in assets["ips"]]
     return plan, assets
+
+
+# --------------------------------------------------------------------------- #
+#  #76  Composite attack score (weighted risk across all findings)
+# --------------------------------------------------------------------------- #
+_CATEGORY_WEIGHTS = {
+    "CRITICAL": 10.0, "HIGH": 5.0, "MEDIUM": 2.0, "LOW": 0.5,
+    "informational": 0.0,
+}
+
+def attack_score(results) -> dict:
+    """Compute a composite attack-surface score from scan results."""
+    from .reporting_ext import score_findings
+    scored = score_findings(results)
+    counts = scored.get("counts", {})
+    raw = sum(counts.get(sev, 0) * w for sev, w in _CATEGORY_WEIGHTS.items())
+    # normalize to 0-100
+    total_findings = sum(counts.values()) or 1
+    normalized = min(100, int(raw / total_findings * 10))
+    grade = ("A+" if normalized < 5 else "A" if normalized < 15
+             else "B" if normalized < 30 else "C" if normalized < 50
+             else "D" if normalized < 70 else "F")
+    return {
+        "raw_score": round(raw, 1),
+        "normalized": normalized,
+        "grade": grade,
+        "finding_counts": counts,
+        "risk_level": scored.get("risk_level", "LOW"),
+    }
+
+
+# --------------------------------------------------------------------------- #
+#  #77  Executive summary report (text-based, PDF via reportlab if available)
+# --------------------------------------------------------------------------- #
+def exec_report(results, target: str = "", out_path: str = "") -> str:
+    """Generate an executive summary report. Returns the output path."""
+    from .reporting_ext import score_findings
+    scored = score_findings(results)
+    ascore = attack_score(results)
+    ts = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime())
+
+    lines = [
+        "=" * 60,
+        "GHOST EYE — Executive Summary Report",
+        "=" * 60,
+        f"Target:     {target}",
+        f"Date:       {ts}",
+        f"Modules:    {len(results)}",
+        f"Grade:      {ascore['grade']} (score: {ascore['normalized']}/100)",
+        f"Risk Level: {ascore['risk_level']}",
+        "",
+        "--- Finding Summary ---",
+        f"  Critical: {scored['counts'].get('critical', 0)}",
+        f"  High:     {scored['counts'].get('high', 0)}",
+        f"  Medium:   {scored['counts'].get('medium', 0)}",
+        f"  Low:      {scored['counts'].get('low', 0)}",
+        "",
+        "--- Top Findings ---",
+    ]
+    for f in scored.get("findings", [])[:15]:
+        lines.append(f"  [{f['severity'].upper():8s}] {f['module']:16s} {f['detail'][:60]}")
+    lines.append("")
+    lines.append("=" * 60)
+    text = "\n".join(lines)
+
+    if not out_path:
+        safe = "".join(c for c in target if c.isalnum() or c in ".-_") or "report"
+        out_path = f"ghosteye_exec_{safe}.txt"
+
+    # try PDF via reportlab
+    if out_path.endswith(".pdf"):
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas as _canvas
+            c = _canvas.Canvas(out_path, pagesize=A4)
+            c.setFont("Courier", 10)
+            y = 780
+            for line in lines:
+                if y < 40:
+                    c.showPage()
+                    c.setFont("Courier", 10)
+                    y = 780
+                c.drawString(40, y, line[:90])
+                y -= 14
+            c.save()
+            return out_path
+        except ImportError:
+            out_path = out_path.replace(".pdf", ".txt")
+
+    Path(out_path).write_text(text, encoding="utf-8")
+    return out_path
+
+
+# --------------------------------------------------------------------------- #
+#  #78  Compliance mapping (NIST CSF / ISO 27001 / OWASP)
+# --------------------------------------------------------------------------- #
+_COMPLIANCE_MAP = {
+    "nist_csf": {
+        "ID.AM": ["dns", "whois", "subs", "tech", "nmap", "portscan"],
+        "PR.AC": ["headers", "cors", "cookies", "oauthaudit", "jwtaudit",
+                   "sessionaudit", "loginsurface", "mfacheck"],
+        "PR.DS": ["cert", "tlsgrade", "ciphers", "mixedcontent", "weakdh"],
+        "PR.IP": ["securitytxt", "cspgrade", "sri", "clickjack", "permspolicy"],
+        "DE.CM": ["waf", "waffp", "ratelimit", "ids"],
+        "RS.AN": ["gdpraudit", "trackerinv", "piiscan", "ccpacheck"],
+    },
+    "iso27001": {
+        "A.8 Asset Management": ["dns", "whois", "subs", "tech", "nmap"],
+        "A.10 Cryptography": ["cert", "tlsgrade", "ciphers", "chain", "weakdh"],
+        "A.13 Communications": ["headers", "cors", "cookies", "httpversions"],
+        "A.14 System Security": ["cspgrade", "sri", "clickjack", "methods",
+                                  "ratelimit", "smuggle"],
+        "A.18 Compliance": ["gdpraudit", "privacypol", "ccpacheck", "consentlog"],
+    },
+    "owasp_top10": {
+        "A01 Broken Access Control": ["cors", "corsadv", "methods", "methodenum",
+                                       "idorsurface", "preflightcheck"],
+        "A02 Cryptographic Failures": ["cert", "tlsgrade", "ciphers", "weakdh",
+                                        "mixedcontent", "starttls"],
+        "A03 Injection": ["graphql", "gqlaudit", "smuggle", "hostheader"],
+        "A05 Security Misconfiguration": ["headers", "securitytxt", "cspgrade",
+                                           "cookies", "clickjack", "permspolicy"],
+        "A06 Vulnerable Components": ["tech", "npmscan", "pipscan", "sbomextract",
+                                       "depconfuse", "cmsdetect"],
+        "A07 Auth Failures": ["oauthaudit", "jwtaudit", "sessionaudit",
+                               "loginsurface", "pwresetaudit", "captchacheck"],
+        "A09 Logging & Monitoring": ["securitytxt", "ratelimit", "waf"],
+        "A10 SSRF": ["metassrf", "hostheader", "cachpoison"],
+    },
+}
+
+
+def compliance_check(results, framework: str = "owasp_top10") -> dict:
+    """Map scan results to a compliance framework and return coverage."""
+    mapping = _COMPLIANCE_MAP.get(framework, {})
+    if not mapping:
+        return {"error": f"unknown framework: {framework}",
+                "available": list(_COMPLIANCE_MAP.keys())}
+    ran = {r.module for r in results}
+    report = {}
+    for control, modules in mapping.items():
+        covered = [m for m in modules if m in ran]
+        missing = [m for m in modules if m not in ran]
+        pct = int(len(covered) / max(len(modules), 1) * 100)
+        report[control] = {
+            "coverage_pct": pct,
+            "covered": covered,
+            "missing": missing,
+        }
+    total_controls = len(mapping)
+    fully_covered = sum(1 for v in report.values() if v["coverage_pct"] == 100)
+    return {
+        "framework": framework,
+        "controls": report,
+        "total_controls": total_controls,
+        "fully_covered": fully_covered,
+        "overall_pct": int(fully_covered / max(total_controls, 1) * 100),
+    }
+
+
+# --------------------------------------------------------------------------- #
+#  #79  Scan template export / import
+# --------------------------------------------------------------------------- #
+def export_template(modules, options: dict, name: str = "",
+                    out_path: str = "") -> str:
+    """Export a scan configuration as a reusable JSON template."""
+    template = {
+        "name": name or "Ghost Eye Scan Template",
+        "version": "1.0",
+        "created": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "selection": {
+            "mode": "modules",
+            "value": [getattr(m, "id", str(m)) for m in modules],
+        },
+        "options": options,
+    }
+    if not out_path:
+        safe = name.replace(" ", "_").lower() or "template"
+        out_path = f"ghosteye_{safe}.json"
+    Path(out_path).write_text(json.dumps(template, indent=2), encoding="utf-8")
+    return out_path
+
+
+def import_template(path: str) -> dict:
+    """Load a scan template from JSON and return (selection, options)."""
+    text = Path(path).read_text(encoding="utf-8")
+    tmpl = json.loads(text)
+    return {
+        "name": tmpl.get("name", ""),
+        "selection": tmpl.get("selection", {"mode": "all"}),
+        "options": tmpl.get("options", {}),
+    }
+
+
+# --------------------------------------------------------------------------- #
+#  #80  Live alert / webhook on per-finding basis
+# --------------------------------------------------------------------------- #
+class LiveAlerts:
+    """Fire webhook calls when findings match severity thresholds."""
+
+    def __init__(self, webhook_url: str = "", min_severity: str = "high") -> None:
+        self.url = webhook_url
+        self.min_severity = min_severity.lower()
+        self._sev_order = {"critical": 0, "high": 1, "medium": 2,
+                           "low": 3, "info": 4}
+        self._threshold = self._sev_order.get(self.min_severity, 1)
+
+    def check(self, result, session=None) -> bool:
+        """Evaluate a single Result and fire webhook if above threshold."""
+        if not self.url:
+            return False
+        data = result.data if hasattr(result, "data") else {}
+        risk = str(data.get("risk", "")).lower()
+        sev = self._sev_order.get(risk, 4)
+        if sev > self._threshold:
+            return False
+        payload = {
+            "module": getattr(result, "module", ""),
+            "target": getattr(result, "target", ""),
+            "severity": risk,
+            "data": data,
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+        try:
+            import requests as _req
+            s = session or _req.Session()
+            s.post(self.url, json=payload, timeout=10)
+            return True
+        except Exception:
+            return False
