@@ -39,7 +39,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun UsernameSearchScreen(
     onNavigateBack: () -> Unit,
-    searchType: SearchType = SearchType.USERNAME
+    searchType: SearchType = SearchType.USERNAME,
+    initialQuery: String = ""
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -48,7 +49,7 @@ fun UsernameSearchScreen(
     val exportRepository = remember { ExportRepository(context) }
     val db = remember { AppDatabase.getInstance(context) }
 
-    var state by remember { mutableStateOf(UsernameSearchState(searchType = searchType)) }
+    var state by remember { mutableStateOf(UsernameSearchState(searchType = searchType, query = initialQuery)) }
     var showOnlyFound by remember { mutableStateOf(true) }
     var selectedCategory by remember { mutableStateOf<SiteCategory?>(null) }
     var favorites by remember { mutableStateOf(setOf<String>()) }

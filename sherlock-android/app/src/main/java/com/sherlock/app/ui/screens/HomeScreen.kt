@@ -58,7 +58,8 @@ fun HomeScreen(
     onNavigateToSocialGraph: () -> Unit = {},
     onNavigateToPhoneInfo: () -> Unit = {},
     onNavigateToSubdomain: () -> Unit = {},
-    onNavigateToMetadataStripper: () -> Unit = {}
+    onNavigateToMetadataStripper: () -> Unit = {},
+    onNavigateToVoiceSearch: () -> Unit = {}
 ) {
     var showContent by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(100); showContent = true }
@@ -117,6 +118,7 @@ fun HomeScreen(
                 item { FeatureTile("חיפוש אימייל", "מצא פרופילים", Icons.Default.Email, onNavigateToEmailSearch) }
                 item { FeatureTile("מספר טלפון", "WhatsApp, Truecaller", Icons.Default.Phone, onNavigateToPhoneSearch) }
                 item { FeatureTile("סריקה קבוצתית", "חיפוש מרובה", Icons.Default.PlaylistAddCheck, onNavigateToBatchScanner) }
+                item { FeatureTile("חיפוש קולי", "דיקטציה למיקרופון", Icons.Default.Mic, onNavigateToVoiceSearch) }
                 item { FeatureTile("Google Dorking", "חיפוש מתקדם", Icons.Default.ManageSearch, onNavigateToGoogleDork) }
 
                 // Analysis

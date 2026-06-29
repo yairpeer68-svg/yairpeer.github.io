@@ -2,8 +2,10 @@ package com.sherlock.app.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.sherlock.app.data.model.AppTheme
 import com.sherlock.app.data.model.SearchType
 import com.sherlock.app.ui.screens.*
@@ -49,6 +51,9 @@ object Routes {
     const val PHONE_INFO = "phone_info"
     const val SUBDOMAIN = "subdomain"
     const val METADATA_STRIPPER = "metadata_stripper"
+    const val VOICE_SEARCH = "voice_search"
+    const val VOICE_RESULT = "voice_result/{query}/{type}"
+    fun voiceResultRoute(query: String, type: String) = "voice_result/${android.net.Uri.encode(query)}/$type"
 }
 
 @Composable
@@ -102,7 +107,8 @@ fun SherlockNavGraph(
                 onNavigateToSocialGraph = { navController.navigate(Routes.SOCIAL_GRAPH) },
                 onNavigateToPhoneInfo = { navController.navigate(Routes.PHONE_INFO) },
                 onNavigateToSubdomain = { navController.navigate(Routes.SUBDOMAIN) },
-                onNavigateToMetadataStripper = { navController.navigate(Routes.METADATA_STRIPPER) }
+                onNavigateToMetadataStripper = { navController.navigate(Routes.METADATA_STRIPPER) },
+                onNavigateToVoiceSearch = { navController.navigate(Routes.VOICE_SEARCH) }
             )
         }
 
@@ -255,6 +261,31 @@ fun SherlockNavGraph(
 
         composable(Routes.METADATA_STRIPPER) {
             MetadataStripperScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.VOICE_SEARCH) {
+            VoiceSearchScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onSearch = { query, type ->
+                    navController.navigate(Routes.voiceResultRoute(query, type.name))
+                }
+            )
+        }
+
+        composable(
+            route = Routes.VOICE_RESULT,
+            arguments = listOf(
+                navArgument("query") { type = NavType.StringType; defaultValue = "" },
+                navArgument("type") { type = NavType.StringType; defaultValue = "USERNAME" }
+            )
+        ) { backStack ->
+            val query = backStack.arguments?.getString("query") ?: ""
+            val type = try { SearchType.valueOf(backStack.arguments?.getString("type") ?: "USERNAME") } catch (_: Exception) { SearchType.USERNAME }
+            UsernameSearchScreen(
+                onNavigateBack = { navController.popBackStack() },
+                searchType = type,
+                initialQuery = query
+            )
         }
     }
 }
