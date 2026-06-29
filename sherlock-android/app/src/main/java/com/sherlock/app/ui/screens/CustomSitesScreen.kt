@@ -61,7 +61,7 @@ fun CustomSitesScreen(onNavigateBack: () -> Unit) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(site.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                 Text(site.urlTemplate, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                                Text(site.category, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                Text(site.category.hebrewName, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
                             }
                             IconButton(onClick = { scope.launch { db.customSiteDao().delete(site) } }) {
                                 Icon(Icons.Default.Delete, "מחק", modifier = Modifier.size(20.dp))
@@ -76,8 +76,8 @@ fun CustomSitesScreen(onNavigateBack: () -> Unit) {
     if (showAddDialog) {
         AddCustomSiteDialog(
             onDismiss = { showAddDialog = false },
-            onAdd = { name, urlTemplate, category ->
-                scope.launch { db.customSiteDao().insert(CustomSite(name = name, urlTemplate = urlTemplate, category = category)) }
+            onAdd = { name, urlTemplate, siteCategory ->
+                scope.launch { db.customSiteDao().insert(CustomSite(name = name, urlTemplate = urlTemplate, category = siteCategory)) }
                 showAddDialog = false
             }
         )
@@ -85,7 +85,7 @@ fun CustomSitesScreen(onNavigateBack: () -> Unit) {
 }
 
 @Composable
-private fun AddCustomSiteDialog(onDismiss: () -> Unit, onAdd: (String, String, String) -> Unit) {
+private fun AddCustomSiteDialog(onDismiss: () -> Unit, onAdd: (String, String, SiteCategory) -> Unit) {
     var name by remember { mutableStateOf("") }
     var urlTemplate by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(SiteCategory.OTHER) }
@@ -122,7 +122,7 @@ private fun AddCustomSiteDialog(onDismiss: () -> Unit, onAdd: (String, String, S
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onAdd(name, urlTemplate, selectedCategory.name) }, enabled = name.isNotBlank() && urlTemplate.isNotBlank()) { Text("הוסף") } },
+        confirmButton = { TextButton(onClick = { onAdd(name, urlTemplate, selectedCategory) }, enabled = name.isNotBlank() && urlTemplate.isNotBlank()) { Text("הוסף") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("ביטול") } }
     )
 }

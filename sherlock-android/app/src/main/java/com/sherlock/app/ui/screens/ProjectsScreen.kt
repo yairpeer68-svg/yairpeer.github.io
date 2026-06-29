@@ -84,8 +84,9 @@ fun ProjectsScreen(onNavigateBack: () -> Unit) {
 private fun ProjectCard(project: Project, onDelete: () -> Unit) {
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
     val priorityColor = when (project.priority) {
+        Priority.URGENT -> MaterialTheme.colorScheme.error
         Priority.HIGH -> MaterialTheme.colorScheme.error
-        Priority.MEDIUM -> MaterialTheme.colorScheme.tertiary
+        Priority.NORMAL -> MaterialTheme.colorScheme.tertiary
         Priority.LOW -> MaterialTheme.colorScheme.primary
     }
 
@@ -114,7 +115,7 @@ private fun ProjectCard(project: Project, onDelete: () -> Unit) {
 private fun AddProjectDialog(onDismiss: () -> Unit, onAdd: (String, String, Priority) -> Unit) {
     var name by remember { mutableStateOf("") }
     var desc by remember { mutableStateOf("") }
-    var priority by remember { mutableStateOf(Priority.MEDIUM) }
+    var priority by remember { mutableStateOf(Priority.NORMAL) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
 import com.sherlock.app.data.model.SearchTemplate
+import com.sherlock.app.data.model.SearchType
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,7 +66,7 @@ fun SearchTemplatesScreen(onNavigateBack: () -> Unit) {
         AddTemplateDialog(
             onDismiss = { showAddDialog = false },
             onAdd = { name, query, sites ->
-                scope.launch { db.templateDao().insert(SearchTemplate(name = name, query = query, sites = sites)) }
+                scope.launch { db.templateDao().insert(SearchTemplate(name = name, searchType = SearchType.USERNAME, query = query, selectedCategories = sites)) }
                 showAddDialog = false
             }
         )
@@ -83,8 +84,8 @@ private fun TemplateCard(template: SearchTemplate, onDelete: () -> Unit) {
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "מחק", modifier = Modifier.size(18.dp)) }
             }
             Text("שאילתה: ${template.query}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (template.sites.isNotBlank()) {
-                Text("אתרים: ${template.sites}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            if (template.selectedCategories.isNotBlank()) {
+                Text("קטגוריות: ${template.selectedCategories}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
         }
     }

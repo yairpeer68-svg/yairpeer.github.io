@@ -91,7 +91,7 @@ fun HashLookupScreen(onNavigateBack: () -> Unit) {
                 }
             }
 
-            Divider()
+            HorizontalDivider()
 
             Text("פענוח Hash (שירותים חיצוניים)", fontWeight = FontWeight.Bold, fontSize = 18.sp)
 

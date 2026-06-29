@@ -72,9 +72,9 @@ fun NotesScreen(onNavigateBack: () -> Unit) {
     if (showAddDialog) {
         AddNoteDialog(
             onDismiss = { showAddDialog = false },
-            onAdd = { profileUrl, content ->
+            onAdd = { profileUrl, noteText ->
                 scope.launch {
-                    db.noteDao().insert(ProfileNote(profileUrl = profileUrl, content = content, timestamp = System.currentTimeMillis()))
+                    db.noteDao().insert(ProfileNote(profileUrl = profileUrl, siteName = "", username = "", note = noteText, timestamp = System.currentTimeMillis()))
                 }
                 showAddDialog = false
             }
@@ -93,7 +93,7 @@ private fun NoteCard(note: ProfileNote, onDelete: () -> Unit) {
                 Text(note.profileUrl, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f), maxLines = 1)
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "מחק", modifier = Modifier.size(18.dp)) }
             }
-            Text(note.content, fontSize = 14.sp, modifier = Modifier.padding(vertical = 4.dp))
+            Text(note.note, fontSize = 14.sp, modifier = Modifier.padding(vertical = 4.dp))
             Text(dateFormat.format(Date(note.timestamp)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -102,7 +102,7 @@ private fun NoteCard(note: ProfileNote, onDelete: () -> Unit) {
 @Composable
 private fun AddNoteDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Unit) {
     var profileUrl by remember { mutableStateOf("") }
-    var content by remember { mutableStateOf("") }
+    var noteText by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -110,10 +110,10 @@ private fun AddNoteDialog(onDismiss: () -> Unit, onAdd: (String, String) -> Unit
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = profileUrl, onValueChange = { profileUrl = it }, label = { Text("כתובת פרופיל") }, singleLine = true)
-                OutlinedTextField(value = content, onValueChange = { content = it }, label = { Text("תוכן ההערה") }, maxLines = 5, minLines = 3)
+                OutlinedTextField(value = noteText, onValueChange = { noteText = it }, label = { Text("תוכן ההערה") }, maxLines = 5, minLines = 3)
             }
         },
-        confirmButton = { TextButton(onClick = { onAdd(profileUrl, content) }, enabled = content.isNotBlank()) { Text("שמור") } },
+        confirmButton = { TextButton(onClick = { onAdd(profileUrl, noteText) }, enabled = noteText.isNotBlank()) { Text("שמור") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("ביטול") } }
     )
 }
