@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="face_search"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/app_name"
+        android:shortcutLongLabel="@string/app_name"
+        android:icon="@drawable/ic_launcher_foreground">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.sherlock.app"
+            android:targetClass="com.sherlock.app.MainActivity" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="username_search"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/app_name"
+        android:shortcutLongLabel="@string/app_name"
+        android:icon="@drawable/ic_launcher_foreground">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.sherlock.app"
+            android:targetClass="com.sherlock.app.MainActivity" />
+    </shortcut>
+
+</shortcuts>

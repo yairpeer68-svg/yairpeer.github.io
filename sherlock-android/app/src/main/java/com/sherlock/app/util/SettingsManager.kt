@@ -1,0 +1,73 @@
+package com.sherlock.app.util
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.*
+import androidx.datastore.preferences.preferencesDataStore
+import com.sherlock.app.data.model.AppLanguage
+import com.sherlock.app.data.model.AppTheme
+import com.sherlock.app.data.model.FakeAppIcon
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
+class SettingsManager(private val context: Context) {
+
+    companion object {
+        val THEME = stringPreferencesKey("theme")
+        val LANGUAGE = stringPreferencesKey("language")
+        val BIOMETRIC_LOCK = booleanPreferencesKey("biometric_lock")
+        val INCOGNITO = booleanPreferencesKey("incognito")
+        val SCREENSHOT_PROTECTION = booleanPreferencesKey("screenshot_protection")
+        val HAPTIC_FEEDBACK = booleanPreferencesKey("haptic_feedback")
+        val PARALLEL_THREADS = intPreferencesKey("parallel_threads")
+        val SEARCH_TIMEOUT = intPreferencesKey("search_timeout")
+        val SHOW_ADULT = booleanPreferencesKey("show_adult")
+        val AUTO_VARIATIONS = booleanPreferencesKey("auto_variations")
+        val FAKE_ICON = stringPreferencesKey("fake_icon")
+        val NOTIFICATIONS = booleanPreferencesKey("notifications")
+        val MONITOR_INTERVAL = intPreferencesKey("monitor_interval")
+        val FIRST_LAUNCH = booleanPreferencesKey("first_launch")
+        val TOTAL_SEARCHES = intPreferencesKey("total_searches_counter")
+    }
+
+    val theme: Flow<AppTheme> = context.dataStore.data.map {
+        try { AppTheme.valueOf(it[THEME] ?: AppTheme.DARK_BLUE.name) } catch (_: Exception) { AppTheme.DARK_BLUE }
+    }
+
+    val language: Flow<AppLanguage> = context.dataStore.data.map {
+        try { AppLanguage.valueOf(it[LANGUAGE] ?: AppLanguage.HEBREW.name) } catch (_: Exception) { AppLanguage.HEBREW }
+    }
+
+    val biometricLock: Flow<Boolean> = context.dataStore.data.map { it[BIOMETRIC_LOCK] ?: false }
+    val incognito: Flow<Boolean> = context.dataStore.data.map { it[INCOGNITO] ?: false }
+    val screenshotProtection: Flow<Boolean> = context.dataStore.data.map { it[SCREENSHOT_PROTECTION] ?: false }
+    val hapticFeedback: Flow<Boolean> = context.dataStore.data.map { it[HAPTIC_FEEDBACK] ?: true }
+    val parallelThreads: Flow<Int> = context.dataStore.data.map { it[PARALLEL_THREADS] ?: 10 }
+    val searchTimeout: Flow<Int> = context.dataStore.data.map { it[SEARCH_TIMEOUT] ?: 10 }
+    val showAdult: Flow<Boolean> = context.dataStore.data.map { it[SHOW_ADULT] ?: false }
+    val autoVariations: Flow<Boolean> = context.dataStore.data.map { it[AUTO_VARIATIONS] ?: true }
+    val notifications: Flow<Boolean> = context.dataStore.data.map { it[NOTIFICATIONS] ?: true }
+    val monitorInterval: Flow<Int> = context.dataStore.data.map { it[MONITOR_INTERVAL] ?: 60 }
+    val isFirstLaunch: Flow<Boolean> = context.dataStore.data.map { it[FIRST_LAUNCH] ?: true }
+
+    suspend fun setTheme(theme: AppTheme) { context.dataStore.edit { it[THEME] = theme.name } }
+    suspend fun setLanguage(lang: AppLanguage) { context.dataStore.edit { it[LANGUAGE] = lang.name } }
+    suspend fun setBiometricLock(enabled: Boolean) { context.dataStore.edit { it[BIOMETRIC_LOCK] = enabled } }
+    suspend fun setIncognito(enabled: Boolean) { context.dataStore.edit { it[INCOGNITO] = enabled } }
+    suspend fun setScreenshotProtection(enabled: Boolean) { context.dataStore.edit { it[SCREENSHOT_PROTECTION] = enabled } }
+    suspend fun setHapticFeedback(enabled: Boolean) { context.dataStore.edit { it[HAPTIC_FEEDBACK] = enabled } }
+    suspend fun setParallelThreads(threads: Int) { context.dataStore.edit { it[PARALLEL_THREADS] = threads } }
+    suspend fun setSearchTimeout(seconds: Int) { context.dataStore.edit { it[SEARCH_TIMEOUT] = seconds } }
+    suspend fun setShowAdult(show: Boolean) { context.dataStore.edit { it[SHOW_ADULT] = show } }
+    suspend fun setAutoVariations(enabled: Boolean) { context.dataStore.edit { it[AUTO_VARIATIONS] = enabled } }
+    suspend fun setNotifications(enabled: Boolean) { context.dataStore.edit { it[NOTIFICATIONS] = enabled } }
+    suspend fun setMonitorInterval(minutes: Int) { context.dataStore.edit { it[MONITOR_INTERVAL] = minutes } }
+    suspend fun setFirstLaunch(first: Boolean) { context.dataStore.edit { it[FIRST_LAUNCH] = first } }
+    suspend fun incrementSearchCount() { context.dataStore.edit { it[TOTAL_SEARCHES] = (it[TOTAL_SEARCHES] ?: 0) + 1 } }
+
+    suspend fun panicClear() {
+        context.dataStore.edit { it.clear() }
+    }
+}

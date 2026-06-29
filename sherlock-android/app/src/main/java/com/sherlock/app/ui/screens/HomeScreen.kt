@@ -1,15 +1,13 @@
 package com.sherlock.app.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,120 +24,116 @@ import kotlinx.coroutines.delay
 @Composable
 fun HomeScreen(
     onNavigateToFaceSearch: () -> Unit,
-    onNavigateToUsernameSearch: () -> Unit
+    onNavigateToUsernameSearch: () -> Unit,
+    onNavigateToEmailSearch: () -> Unit,
+    onNavigateToPhoneSearch: () -> Unit,
+    onNavigateToGoogleDork: () -> Unit,
+    onNavigateToFaceCompare: () -> Unit,
+    onNavigateToBreachCheck: () -> Unit,
+    onNavigateToExifViewer: () -> Unit,
+    onNavigateToHistory: () -> Unit,
+    onNavigateToFavorites: () -> Unit,
+    onNavigateToStatistics: () -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToMonitor: () -> Unit,
+    onNavigateToDomainLookup: () -> Unit
 ) {
     var showContent by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { delay(100); showContent = true }
 
-    LaunchedEffect(Unit) {
-        delay(100)
-        showContent = true
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(60.dp))
-
-            AnimatedVisibility(
-                visible = showContent,
-                enter = fadeIn() + slideInVertically { -40 }
+    Scaffold(
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = "🔍",
-                        fontSize = 64.sp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
+                Column {
                     Text(
                         text = "Sherlock",
-                        fontSize = 42.sp,
+                        fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "מצא כל אחד, בכל מקום",
-                        fontSize = 18.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                Row {
+                    IconButton(onClick = onNavigateToHistory) {
+                        Icon(Icons.Default.History, contentDescription = "היסטוריה", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "הגדרות", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
-
-            Spacer(modifier = Modifier.height(60.dp))
-
-            AnimatedVisibility(
-                visible = showContent,
-                enter = fadeIn() + slideInVertically { 60 }
+        }
+    ) { padding ->
+        AnimatedVisibility(
+            visible = showContent,
+            enter = fadeIn() + slideInVertically { 40 }
+        ) {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(20.dp)
-                ) {
-                    FeatureCard(
-                        icon = Icons.Default.CameraAlt,
-                        title = "חיפוש לפי תמונה",
-                        description = "צלם או בחר תמונת פנים וחפש ברשת",
-                        onClick = onNavigateToFaceSearch
-                    )
-
-                    FeatureCard(
-                        icon = Icons.Default.Person,
-                        title = "חיפוש שם משתמש",
-                        description = "חפש שם משתמש ב-80+ אתרים ורשתות",
-                        onClick = onNavigateToUsernameSearch
-                    )
-                }
+                item { FeatureTile("חיפוש תמונה", "זיהוי פנים וחיפוש", Icons.Default.CameraAlt, onNavigateToFaceSearch) }
+                item { FeatureTile("שם משתמש", "300+ אתרים", Icons.Default.Person, onNavigateToUsernameSearch) }
+                item { FeatureTile("חיפוש אימייל", "מצא פרופילים", Icons.Default.Email, onNavigateToEmailSearch) }
+                item { FeatureTile("מספר טלפון", "WhatsApp, Truecaller", Icons.Default.Phone, onNavigateToPhoneSearch) }
+                item { FeatureTile("השוואת פנים", "בדוק התאמה", Icons.Default.Compare, onNavigateToFaceCompare) }
+                item { FeatureTile("Google Dorking", "חיפוש מתקדם", Icons.Default.ManageSearch, onNavigateToGoogleDork) }
+                item { FeatureTile("EXIF Viewer", "מטא-דאטה של תמונה", Icons.Default.Info, onNavigateToExifViewer) }
+                item { FeatureTile("Breach Check", "בדיקת דליפות", Icons.Default.Security, onNavigateToBreachCheck) }
+                item { FeatureTile("בדיקת דומיין", "WHOIS & DNS", Icons.Default.Language, onNavigateToDomainLookup) }
+                item { FeatureTile("ניטור פרופילים", "התראות שינויים", Icons.Default.Notifications, onNavigateToMonitor) }
+                item { FeatureTile("מועדפים", "פרופילים שמורים", Icons.Default.Star, onNavigateToFavorites) }
+                item { FeatureTile("סטטיסטיקות", "דשבורד נתונים", Icons.Default.BarChart, onNavigateToStatistics) }
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Text(
-                text = "v1.0 • Sherlock for Android",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            )
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
-private fun FeatureCard(
-    icon: ImageVector,
+private fun FeatureTile(
     title: String,
-    description: String,
+    subtitle: String,
+    icon: ImageVector,
     onClick: () -> Unit
 ) {
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(120.dp),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(
                         Brush.linearGradient(
-                            colors = listOf(
+                            listOf(
                                 MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
                                 MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)
                             )
@@ -151,32 +145,22 @@ private fun FeatureCard(
                     imageVector = icon,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
+            Column {
                 Text(
                     text = title,
-                    fontSize = 18.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = description,
-                    fontSize = 14.sp,
+                    text = subtitle,
+                    fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-            )
         }
     }
 }
