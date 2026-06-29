@@ -1,0 +1,4 @@
+# One target per line. Lines starting with # are ignored.
+# Run:  ghost_eye.py -T targets.txt -p quick -o report.json
+example.com
+scanme.nmap.org
