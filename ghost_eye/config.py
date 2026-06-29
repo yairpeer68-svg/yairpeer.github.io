@@ -18,6 +18,7 @@ verify_tls = true
 # (The paid Shodan/Censys/HIBP/SecurityTrails integrations were removed in v3.3.)
 virustotal =
 abuseipdb =
+deepseek =
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from typing import Optional
 _ENV_MAP = {
     "virustotal": ("VT_API_KEY", "api_keys", "virustotal"),
     "abuseipdb": ("ABUSEIPDB_API_KEY", "api_keys", "abuseipdb"),
+    "deepseek": ("DEEPSEEK_API_KEY", "api_keys", "deepseek"),
 }
 
 _DEFAULTS = {
@@ -102,7 +104,7 @@ class Config:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         cp = configparser.ConfigParser()
         cp["settings"] = dict(_DEFAULTS)
-        cp["api_keys"] = {k: "" for k in ("virustotal", "abuseipdb")}
+        cp["api_keys"] = {k: "" for k in ("virustotal", "abuseipdb", "deepseek")}
         with open(self.path, "w", encoding="utf-8") as fh:
             cp.write(fh)
         return self.path
