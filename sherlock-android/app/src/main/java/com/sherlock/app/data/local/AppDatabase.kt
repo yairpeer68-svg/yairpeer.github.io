@@ -13,30 +13,34 @@ import com.sherlock.app.data.model.*
         SearchResult::class,
         Favorite::class,
         MonitoredProfile::class,
-        Tag::class
+        Tag::class,
+        Project::class,
+        ProfileNote::class,
+        SearchTemplate::class,
+        LoginRecord::class,
+        CustomSite::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
-
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun favoriteDao(): FavoriteDao
     abstract fun monitoredProfileDao(): MonitoredProfileDao
+    abstract fun projectDao(): ProjectDao
+    abstract fun noteDao(): NoteDao
+    abstract fun templateDao(): TemplateDao
+    abstract fun loginDao(): LoginDao
+    abstract fun customSiteDao(): CustomSiteDao
 
     companion object {
-        @Volatile
-        private var INSTANCE: AppDatabase? = null
-
-        fun getInstance(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "sherlock_db"
-                ).build().also { INSTANCE = it }
+        @Volatile private var INSTANCE: AppDatabase? = null
+        fun getInstance(context: Context): AppDatabase =
+            INSTANCE ?: synchronized(this) {
+                Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "sherlock_db")
+                    .fallbackToDestructiveMigration()
+                    .build().also { INSTANCE = it }
             }
-        }
     }
 }

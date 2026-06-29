@@ -10,6 +10,7 @@ import com.sherlock.app.ui.screens.*
 
 object Routes {
     const val SPLASH = "splash"
+    const val ONBOARDING = "onboarding"
     const val HOME = "home"
     const val FACE_SEARCH = "face_search"
     const val USERNAME_SEARCH = "username_search"
@@ -25,6 +26,29 @@ object Routes {
     const val STATISTICS = "statistics"
     const val SETTINGS = "settings"
     const val MONITOR = "monitor"
+    const val OCR = "ocr"
+    const val IMAGE_FORENSICS = "image_forensics"
+    const val USERNAME_ANALYSIS = "username_analysis"
+    const val EMAIL_PATTERN = "email_pattern"
+    const val FAKE_PROFILE = "fake_profile"
+    const val PROJECTS = "projects"
+    const val NOTES = "notes"
+    const val SEARCH_TEMPLATES = "search_templates"
+    const val QR_GENERATOR = "qr_generator"
+    const val WAYBACK = "wayback"
+    const val IP_GEOLOCATION = "ip_geolocation"
+    const val CUSTOM_SITES = "custom_sites"
+    const val TIMELINE = "timeline"
+    const val PASTE_SEARCH = "paste_search"
+    const val BATCH_SCANNER = "batch_scanner"
+    const val BUILT_IN_BROWSER = "built_in_browser"
+    const val SIDE_BY_SIDE = "side_by_side"
+    const val LOGIN_HISTORY = "login_history"
+    const val HASH_LOOKUP = "hash_lookup"
+    const val SOCIAL_GRAPH = "social_graph"
+    const val PHONE_INFO = "phone_info"
+    const val SUBDOMAIN = "subdomain"
+    const val METADATA_STRIPPER = "metadata_stripper"
 }
 
 @Composable
@@ -36,6 +60,10 @@ fun SherlockNavGraph(
 
         composable(Routes.SPLASH) {
             SplashScreen { navController.navigate(Routes.HOME) { popUpTo(Routes.SPLASH) { inclusive = true } } }
+        }
+
+        composable(Routes.ONBOARDING) {
+            OnboardingScreen { navController.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } } }
         }
 
         composable(Routes.HOME) {
@@ -53,7 +81,28 @@ fun SherlockNavGraph(
                 onNavigateToStatistics = { navController.navigate(Routes.STATISTICS) },
                 onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
                 onNavigateToMonitor = { navController.navigate(Routes.MONITOR) },
-                onNavigateToDomainLookup = { navController.navigate(Routes.DOMAIN_LOOKUP) }
+                onNavigateToDomainLookup = { navController.navigate(Routes.DOMAIN_LOOKUP) },
+                onNavigateToOCR = { navController.navigate(Routes.OCR) },
+                onNavigateToImageForensics = { navController.navigate(Routes.IMAGE_FORENSICS) },
+                onNavigateToUsernameAnalysis = { navController.navigate(Routes.USERNAME_ANALYSIS) },
+                onNavigateToEmailPattern = { navController.navigate(Routes.EMAIL_PATTERN) },
+                onNavigateToFakeProfile = { navController.navigate(Routes.FAKE_PROFILE) },
+                onNavigateToProjects = { navController.navigate(Routes.PROJECTS) },
+                onNavigateToNotes = { navController.navigate(Routes.NOTES) },
+                onNavigateToSearchTemplates = { navController.navigate(Routes.SEARCH_TEMPLATES) },
+                onNavigateToQRGenerator = { navController.navigate(Routes.QR_GENERATOR) },
+                onNavigateToWayback = { navController.navigate(Routes.WAYBACK) },
+                onNavigateToIpGeolocation = { navController.navigate(Routes.IP_GEOLOCATION) },
+                onNavigateToCustomSites = { navController.navigate(Routes.CUSTOM_SITES) },
+                onNavigateToTimeline = { navController.navigate(Routes.TIMELINE) },
+                onNavigateToPasteSearch = { navController.navigate(Routes.PASTE_SEARCH) },
+                onNavigateToBatchScanner = { navController.navigate(Routes.BATCH_SCANNER) },
+                onNavigateToSideBySide = { navController.navigate(Routes.SIDE_BY_SIDE) },
+                onNavigateToHashLookup = { navController.navigate(Routes.HASH_LOOKUP) },
+                onNavigateToSocialGraph = { navController.navigate(Routes.SOCIAL_GRAPH) },
+                onNavigateToPhoneInfo = { navController.navigate(Routes.PHONE_INFO) },
+                onNavigateToSubdomain = { navController.navigate(Routes.SUBDOMAIN) },
+                onNavigateToMetadataStripper = { navController.navigate(Routes.METADATA_STRIPPER) }
             )
         }
 
@@ -114,6 +163,98 @@ fun SherlockNavGraph(
 
         composable(Routes.MONITOR) {
             MonitorScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.OCR) {
+            OCRScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.IMAGE_FORENSICS) {
+            ImageForensicsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.USERNAME_ANALYSIS) {
+            UsernameAnalysisScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.EMAIL_PATTERN) {
+            EmailPatternScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.FAKE_PROFILE) {
+            FakeProfileScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PROJECTS) {
+            ProjectsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.NOTES) {
+            NotesScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SEARCH_TEMPLATES) {
+            SearchTemplatesScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.QR_GENERATOR) {
+            QRGeneratorScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.WAYBACK) {
+            WaybackScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.IP_GEOLOCATION) {
+            IpGeolocationScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.CUSTOM_SITES) {
+            CustomSitesScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.TIMELINE) {
+            TimelineScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PASTE_SEARCH) {
+            PasteSearchScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.BATCH_SCANNER) {
+            BatchScannerScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.BUILT_IN_BROWSER) {
+            BuiltInBrowserScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SIDE_BY_SIDE) {
+            SideBySideScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.LOGIN_HISTORY) {
+            LoginHistoryScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.HASH_LOOKUP) {
+            HashLookupScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SOCIAL_GRAPH) {
+            SocialGraphScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PHONE_INFO) {
+            PhoneInfoScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SUBDOMAIN) {
+            SubdomainScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.METADATA_STRIPPER) {
+            MetadataStripperScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }

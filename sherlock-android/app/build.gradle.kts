@@ -12,8 +12,8 @@ android {
         applicationId = "com.sherlock.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "2.0"
+        versionCode = 3
+        versionName = "3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -93,6 +93,7 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // CameraX
     implementation("androidx.camera:camera-core:1.3.1")
@@ -102,6 +103,12 @@ dependencies {
 
     // ML Kit
     implementation("com.google.mlkit:face-detection:16.1.6")
+    implementation("com.google.mlkit:text-recognition:16.0.0")
+    implementation("com.google.mlkit:object-detection:17.0.1")
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
+    // QR Code generation
+    implementation("com.google.zxing:core:3.5.2")
 
     // Biometric
     implementation("androidx.biometric:biometric:1.1.0")
