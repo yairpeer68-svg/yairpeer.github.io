@@ -74,6 +74,8 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
     "network": ["nmap", "tcptrace", "fwinfer", "v4v6parity", "bgphijack",
                 "svcver", "sshaudit", "dohdot", "mqtt", "ntp", "grpc",
                 "dockerapi", "k8sadv", "ldap", "smb", "ftpanon"],
+    "ai": ["deepseek", "aiapi", "dsapi", "aikeyleak", "aidash", "vectordb",
+            "aiapp", "modelserve", "aiorch", "jupyter", "hfrecon", "promptleak"],
 }
 
 
