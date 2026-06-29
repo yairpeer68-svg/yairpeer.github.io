@@ -35,6 +35,8 @@ from . import (  # noqa: F401
     email_v2,
     cloud_v2,
     osint_v2,
+    # --- v3.6: AI/LLM recon ---
+    ai_recon,
 )
 
 __all__ = [
@@ -45,4 +47,5 @@ __all__ = [
     "portscan", "doh", "cve", "freeintel",
     "dns_adv", "tls_v2", "web_v2", "network_v2",
     "email_v2", "cloud_v2", "osint_v2",
+    "ai_recon",
 ]
