@@ -1,0 +1,35 @@
+# Ghost Eye - Termux (Android) dependencies
+# ---------------------------------------------------------------------------
+# Pure-Python only: this set installs with
+#     pip install -r requirements-termux.txt
+# WITHOUT needing a C compiler, Rust, or system headers - so it just works
+# on a stock (non-root) Termux.
+#
+# Recommended first (binaries, via Termux's package manager):
+#     pkg install python nmap dnsutils whois openssl graphviz exiftool
+# ---------------------------------------------------------------------------
+
+requests>=2.31
+requests[socks]>=2.31      # --tor and SOCKS proxies
+urllib3>=2.0
+dnspython>=2.4             # every DNS / email-auth module
+beautifulsoup4>=4.12       # uses the stdlib html.parser (lxml NOT needed)
+python-whois>=0.9          # WHOIS (the `whois` binary works as a fallback)
+phonenumbers>=8.13         # phone-number validation
+PyYAML>=6.0                # scan recipes (a built-in fallback exists)
+tqdm>=4.66                 # progress bars (a plain fallback exists)
+cloudscraper>=1.2          # Cloudflare-protected page fetches
+webtech>=1.3               # richer technology fingerprinting
+
+# ---------------------------------------------------------------------------
+# Optional extras that need a compiler/Rust on Termux. Install only if you
+# want those specific modules - easiest via Termux's own packages:
+#     pkg install clang            &&  pip install mmh3   # favicon-hash pivot
+#     pkg install python-cryptography                     # key audit / OCSP
+#     pkg install python-pillow                           # EXIF on images
+#     pip install reportlab                               # PDF (HTML needs nothing)
+#     pip install pysnmp                                  # SNMP default-community
+# Each is imported lazily: if it's missing the module just prints "requires X"
+# and the other ~120 modules keep working. The web dashboard needs NONE of
+# them - only requests + dnspython + beautifulsoup4.
+# ---------------------------------------------------------------------------

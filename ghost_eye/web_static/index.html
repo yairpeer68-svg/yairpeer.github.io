@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ghost Eye — recon console</title>
+<style>
+:root{
+  --bg:#0b0e14; --bg2:#0e121a; --panel:#141a24; --panel2:#19202b;
+  --line:#232b39; --line2:#2e3848; --ink:#dbe2ec; --muted:#727e93; --faint:#4a5468;
+  --amber:#e9a23b; --amber-dim:#7a5a25; --cyan:#5fc6d4;
+  --crit:#e5484d; --high:#e8843d; --med:#e7c13d; --ok:#3d9f74; --info:#5a6b86;
+  --mono:ui-monospace,"SF Mono","JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:
+    radial-gradient(1200px 600px at 78% -10%, #11202b 0%, transparent 60%),
+    var(--bg);
+  color:var(--ink); font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:var(--mono)}
+.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--muted)}
+button{font-family:var(--sans);cursor:pointer;border:none;background:none;color:inherit}
+input,select{font-family:var(--mono);font-size:12.5px}
+a{color:var(--cyan);text-decoration:none}
+
+/* ---- top bar / HUD ---- */
+.bar{display:flex;align-items:center;gap:18px;padding:14px 20px;
+  border-bottom:1px solid var(--line);background:linear-gradient(#0e131c,#0b0e14)}
+.brand{display:flex;align-items:center;gap:12px;flex-shrink:0}
+.brand b{font-family:var(--mono);font-size:15px;letter-spacing:.16em;
+  text-transform:uppercase;font-weight:600}
+.brand .sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;
+  color:var(--faint);text-transform:uppercase}
+.iris{width:34px;height:34px;flex:0 0 34px}
+
+.hud{display:flex;align-items:center;gap:14px;margin-left:auto;flex-wrap:wrap;
+  justify-content:flex-end}
+.status{font-family:var(--mono);font-size:12px;color:var(--muted);
+  display:flex;align-items:center;gap:9px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.dot.run{background:var(--amber);box-shadow:0 0 0 0 var(--amber);animation:pulse 1.4s infinite}
+.dot.done{background:var(--ok)} .dot.err{background:var(--crit)} .dot.stop{background:var(--high)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(233,162,59,.5)}70%{box-shadow:0 0 0 7px rgba(233,162,59,0)}100%{box-shadow:0 0 0 0 rgba(233,162,59,0)}}
+
+.risk{display:flex;align-items:center;gap:7px}
+.riskpill{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.08em;
+  padding:4px 10px;border-radius:20px;border:1px solid var(--line2);text-transform:uppercase}
+.chips{display:flex;gap:5px}
+.chip{font-family:var(--mono);font-size:10.5px;padding:3px 8px;border-radius:6px;
+  border:1px solid var(--line2);color:var(--muted);cursor:pointer;user-select:none;
+  display:flex;gap:5px;align-items:center}
+.chip .n{color:var(--ink);font-weight:600}
+.chip[data-on="1"]{border-color:var(--amber);color:var(--amber)}
+.chip.s-critical .n{color:var(--crit)} .chip.s-high .n{color:var(--high)}
+.chip.s-medium .n{color:var(--med)} .chip.s-low .n{color:var(--ok)}
+
+/* ---- layout ---- */
+.wrap{display:grid;grid-template-columns:344px 1fr;height:calc(100vh - 63px)}
+.panel{border-right:1px solid var(--line);background:var(--bg2);overflow-y:auto;padding:18px}
+.feed{overflow-y:auto;padding:18px 22px}
+
+/* ---- config panel ---- */
+.field{margin-bottom:18px}
+.field > label{display:block;margin-bottom:7px}
+.target-row{display:flex;gap:8px}
+.target-row input{flex:1;background:var(--panel);border:1px solid var(--line2);
+  color:var(--ink);padding:11px 12px;border-radius:var(--r);outline:none}
+.target-row input:focus{border-color:var(--amber)}
+
+.tabs{display:flex;gap:4px;background:var(--panel);padding:3px;border-radius:var(--r);
+  border:1px solid var(--line)}
+.tab{flex:1;text-align:center;font-family:var(--mono);font-size:11px;
+  letter-spacing:.06em;text-transform:uppercase;padding:8px 4px;border-radius:7px;color:var(--muted)}
+.tab[data-on="1"]{background:var(--panel2);color:var(--amber);box-shadow:inset 0 0 0 1px var(--line2)}
+
+.sel-body select,.search input{width:100%;background:var(--panel);border:1px solid var(--line2);
+  color:var(--ink);padding:10px 11px;border-radius:var(--r);outline:none}
+.sel-body select:focus,.search input:focus{border-color:var(--amber)}
+.search{margin-bottom:9px}
+.modlist{border:1px solid var(--line);border-radius:var(--r);max-height:300px;overflow-y:auto;background:var(--panel)}
+.catgrp{border-bottom:1px solid var(--line)}
+.catgrp:last-child{border-bottom:none}
+.cathead{display:flex;align-items:center;gap:8px;padding:7px 11px;position:sticky;top:0;
+  background:var(--panel2);cursor:pointer}
+.cathead .eyebrow{flex:1}
+.cathead .ct{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.mod{display:flex;align-items:center;gap:9px;padding:6px 11px 6px 22px;font-size:12.5px}
+.mod:hover{background:var(--panel2)}
+.mod input{accent-color:var(--amber)}
+.mod .mid{font-family:var(--mono);font-size:10.5px;color:var(--faint);margin-left:auto}
+.allnote{font-family:var(--mono);font-size:11.5px;color:var(--muted);
+  padding:14px;border:1px dashed var(--line2);border-radius:var(--r);text-align:center;background:var(--panel)}
+
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;font-family:var(--mono);
+  letter-spacing:.04em;text-transform:uppercase}
+.opt input{width:100%;background:var(--panel);border:1px solid var(--line2);color:var(--ink);
+  padding:8px 10px;border-radius:8px;outline:none}
+.opt input:focus{border-color:var(--amber)}
+.toggles{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.toggle{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--ink);cursor:pointer}
+.toggle input{accent-color:var(--amber)}
+
+.run{width:100%;margin-top:6px;padding:13px;border-radius:var(--r);font-weight:600;
+  font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;font-size:12.5px;
+  background:var(--amber);color:#1a1206;transition:filter .15s}
+.run:hover{filter:brightness(1.08)}
+.run:disabled{background:var(--panel2);color:var(--faint);cursor:not-allowed}
+.run.stop{background:transparent;color:var(--high);box-shadow:inset 0 0 0 1px var(--high)}
+.selcount{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:center;margin-top:9px}
+
+/* ---- results feed ---- */
+.feedtop{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.feedtop .search-r{flex:1;min-width:160px;display:flex;gap:8px;align-items:center;
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:0 11px}
+.feedtop .search-r input{flex:1;background:none;border:none;color:var(--ink);padding:10px 0;outline:none}
+.feedtop select{background:var(--panel);border:1px solid var(--line);color:var(--ink);
+  padding:9px 10px;border-radius:var(--r);outline:none}
+.exportbar{display:flex;gap:5px;flex-wrap:wrap}
+.exp{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;
+  padding:8px 10px;border-radius:8px;border:1px solid var(--line2);color:var(--muted)}
+.exp:hover{border-color:var(--amber);color:var(--amber)}
+.exp:disabled{opacity:.4;cursor:not-allowed;border-color:var(--line)}
+
+.progress{height:3px;background:var(--line);border-radius:3px;overflow:hidden;margin-bottom:16px}
+.progress > i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--amber-dim),var(--amber));transition:width .4s}
+
+.card{border:1px solid var(--line);border-radius:var(--r);margin-bottom:11px;
+  background:var(--panel);overflow:hidden;animation:slidein .35s ease both}
+@keyframes slidein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.chead{display:flex;align-items:center;gap:11px;padding:11px 14px;cursor:pointer;border-left:3px solid transparent}
+.chead:hover{background:var(--panel2)}
+.chead.has-crit{border-left-color:var(--crit)} .chead.has-high{border-left-color:var(--high)}
+.chead.has-medium{border-left-color:var(--med)}
+.chead .nm{font-weight:600;font-size:13.5px}
+.chead .mid{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+.chead .cat{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin-left:auto}
+.st{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.06em;
+  padding:3px 8px;border-radius:5px;text-transform:uppercase}
+.st.ok{background:rgba(61,159,116,.16);color:var(--ok)}
+.st.empty{background:rgba(231,193,61,.14);color:var(--med)}
+.st.error{background:rgba(229,72,77,.16);color:var(--crit)}
+.cbody{border-top:1px solid var(--line)}
+.kv{display:grid;grid-template-columns:minmax(150px,260px) 1fr;border-bottom:1px solid var(--bg2)}
+.kv:last-child{border-bottom:none}
+.kv.sev{border-left:3px solid transparent;margin-left:-3px}
+.kv.sev-critical{border-left-color:var(--crit)} .kv.sev-high{border-left-color:var(--high)}
+.kv.sev-medium{border-left-color:var(--med)} .kv.sev-low{border-left-color:var(--ok)}
+.kv .k{font-family:var(--mono);font-size:11.5px;color:var(--muted);padding:7px 14px;word-break:break-word}
+.kv .v{font-family:var(--mono);font-size:12px;padding:7px 14px;white-space:pre-wrap;word-break:break-word;color:var(--ink)}
+.kv .sevtag{font-size:9px;margin-left:7px;padding:1px 6px;border-radius:4px;vertical-align:middle;letter-spacing:.05em;text-transform:uppercase}
+.sevtag.critical{background:var(--crit);color:#170808}.sevtag.high{background:var(--high);color:#1a0e04}
+.sevtag.medium{background:var(--med);color:#181302}.sevtag.low{background:var(--ok);color:#06150d}
+.err-line{padding:9px 14px;font-family:var(--mono);font-size:12px;color:var(--crit)}
+.hidden{display:none!important}
+
+/* ---- empty / error states ---- */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;height:100%;color:var(--muted);gap:18px;padding:40px}
+.empty-state .iris{width:84px;height:84px;opacity:.8}
+.empty-state h2{font-family:var(--mono);font-size:14px;letter-spacing:.08em;color:var(--ink);margin:0;font-weight:600;text-transform:uppercase}
+.empty-state p{max-width:340px;margin:0;font-size:13px}
+.banner{background:rgba(229,72,77,.12);border:1px solid rgba(229,72,77,.4);color:#f1a7a9;
+  padding:11px 14px;border-radius:var(--r);font-family:var(--mono);font-size:12.5px;margin-bottom:14px}
+
+/* ---- responsive ---- */
+.panel-toggle{display:none}
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr;height:auto}
+  .panel{border-right:none;border-bottom:1px solid var(--line);max-height:none}
+  .panel.collapsed{display:none}
+  .feed{height:auto}
+  .panel-toggle{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);
+    font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--amber);
+    border:1px solid var(--line2);padding:7px 11px;border-radius:8px}
+  .hud{order:3;width:100%}
+  .bar{flex-wrap:wrap}
+  .kv{grid-template-columns:1fr}
+  .kv .k{padding-bottom:0}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+}
+#intel{margin-top:14px}
+.intel-pane{background:#0e1320;border:1px solid #1d2738;border-radius:10px;padding:14px 16px}
+.intel-head{font-family:var(--mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--amber);margin-bottom:10px}
+.intel-head em,.intel-sec h4 em{font-style:normal;color:#5d6b80;margin-left:6px}
+.intel-sec{margin:10px 0;border-top:1px solid #161f2e;padding-top:8px}
+.intel-sec h4{font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:#9fb0c8;margin:0 0 6px}
+.intel-sec h4.up{color:#e9a23b}.intel-sec h4.ch{color:#6fb3ff}.intel-sec h4.dn{color:#5d6b80}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font-family:var(--mono);font-size:11px;background:#141c2b;border:1px solid #24304353;color:#c4d2e6;padding:2px 8px;border-radius:6px;word-break:break-all}
+.chip.muted{color:#5d6b80;background:transparent}
+.hist-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #161f2e;flex-wrap:wrap}
+.hist-row .hist-t{font-family:var(--mono);font-size:12px;color:#dfe8f4}
+.hist-row .hist-m{font-size:11px;color:#5d6b80;flex:1}
+.exp.small{padding:3px 8px;font-size:9.5px}
+.compare-form{display:flex;flex-direction:column;gap:4px}
+.compare-form select,.compare-form input{background:var(--panel);border:1px solid var(--line2);color:var(--ink);padding:8px 10px;border-radius:var(--r);font-family:var(--mono);font-size:12px;outline:none}
+.compare-form select:focus,.compare-form input:focus{border-color:var(--amber)}
+.roll-row{border-top:1px solid #161f2e;padding:8px 0}
+.roll-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.roll-host{font-family:var(--mono);font-size:12px;color:#dfe8f4;font-weight:600}
+.roll-n{font-size:11px;color:#5d6b80;margin-left:auto}
+.roll-d{display:flex;flex-wrap:wrap;gap:14px;margin-top:5px;font-size:11px;color:#9fb0c8}
+.roll-d em{font-style:normal;color:#5d6b80;margin-right:4px}
+.roll-cve{color:#e9a23b}
+.sevtag{font-family:var(--mono);font-size:9.5px;padding:1px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em}
+.sevtag.sev-crit{background:#3b1018;color:#ff6b81;border:1px solid #5e1622}
+.sevtag.sev-high{background:#3a2410;color:#e9a23b;border:1px solid #5e3c14}
+.sevtag.sev-med{background:#2a2a12;color:#d7d24a;border:1px solid #44441c}
+.sevtag.sev-low{background:#13202b;color:#6fb3ff;border:1px solid #1d3346}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <svg class="iris" id="iris" viewBox="0 0 100 100" aria-hidden="true"></svg>
+    <div>
+      <b>Ghost&nbsp;Eye</b><br>
+      <span class="sub">recon console · <span id="ver">v3</span></span>
+    </div>
+  </div>
+  <button class="panel-toggle" id="ptoggle">▤ Controls</button>
+  <div class="hud">
+    <div class="status"><span class="dot" id="dot"></span><span id="statustxt">Idle — configure a scan</span></div>
+    <div class="risk hidden" id="riskbox">
+      <span class="riskpill" id="riskpill">—</span>
+      <div class="chips">
+        <span class="chip s-critical" data-sev="critical">crit <span class="n" id="c-critical">0</span></span>
+        <span class="chip s-high" data-sev="high">high <span class="n" id="c-high">0</span></span>
+        <span class="chip s-medium" data-sev="medium">med <span class="n" id="c-medium">0</span></span>
+        <span class="chip s-low" data-sev="low">low <span class="n" id="c-low">0</span></span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- ============ config panel ============ -->
+  <aside class="panel" id="panel">
+    <div class="field">
+      <label class="eyebrow">Target</label>
+      <div class="target-row">
+        <input id="target" placeholder="example.com  /  192.0.2.10  /  one per line or comma-separated for a batch" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="eyebrow">Scope</label>
+      <div class="tabs" id="tabs">
+        <div class="tab" data-mode="profile" data-on="1">Profile</div>
+        <div class="tab" data-mode="category">Category</div>
+        <div class="tab" data-mode="modules">Modules</div>
+        <div class="tab" data-mode="all">All</div>
+      </div>
+      <div style="height:11px"></div>
+      <div class="sel-body">
+        <div id="sel-profile"><select id="profileSel"></select></div>
+        <div id="sel-category" class="hidden"><select id="categorySel"></select></div>
+        <div id="sel-modules" class="hidden">
+          <div class="search"><input id="modsearch" placeholder="filter modules…" autocomplete="off"></div>
+          <div class="modlist" id="modlist"></div>
+        </div>
+        <div id="sel-all" class="hidden"><div class="allnote" id="allnote">Run every registered module.</div></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="eyebrow">Options</label>
+      <div class="opts">
+        <div class="opt"><label>Timeout&nbsp;(s)</label><input id="o-timeout" type="number" value="15" min="1"></div>
+        <div class="opt"><label>Parallel</label><input id="o-parallel" type="number" value="3" min="1" max="16"></div>
+        <div class="opt"><label>Threads</label><input id="o-threads" type="number" value="10" min="1"></div>
+        <div class="opt"><label>Rate&nbsp;(req/s)</label><input id="o-rate" type="number" value="0" min="0" step="0.5"></div>
+        <div class="opt"><label>Per-host&nbsp;(req/s)</label><input id="o-rate-host" type="number" value="0" min="0" step="0.5"></div>
+      </div>
+      <div class="toggles">
+        <label class="toggle"><input type="checkbox" id="o-cache"> Cache HTTP responses</label>
+        <label class="toggle"><input type="checkbox" id="o-insecure"> Skip TLS verification</label>
+        <label class="toggle"><input type="checkbox" id="o-tor"> Route through Tor (127.0.0.1:9050)</label>
+        <label class="toggle"><input type="checkbox" id="o-deep"> Deep scan — fan out to discovered subdomains/IPs</label>
+        <div class="opt"><label>Deep&nbsp;max&nbsp;assets</label><input id="o-deep-max" type="number" value="25" min="1" max="200"></div>
+      </div>
+      <div style="margin-top:10px">
+        <label class="eyebrow" style="display:block;margin-bottom:6px">User-Agent header</label>
+        <input id="o-ua" placeholder="(default) — or paste a custom User-Agent"
+               autocomplete="off" spellcheck="false"
+               style="width:100%;background:var(--panel);border:1px solid var(--line2);color:var(--ink);padding:9px 10px;border-radius:8px;outline:none">
+      </div>
+    </div>
+
+    <button class="run" id="runbtn">Run scan</button>
+    <div class="selcount" id="selcount"></div>
+  </aside>
+
+  <!-- ============ results feed ============ -->
+  <main class="feed">
+    <div class="feedtop">
+      <div class="search-r">
+        <span class="eyebrow">find</span>
+        <input id="filter" placeholder="filter findings…" autocomplete="off">
+      </div>
+      <select id="statusFilter">
+        <option value="">all status</option>
+        <option value="ok">ok</option>
+        <option value="empty">empty</option>
+        <option value="error">error</option>
+      </select>
+      <div class="exportbar" id="exportbar">
+        <button class="exp" data-fmt="html" disabled>HTML</button>
+        <button class="exp" data-fmt="dashboard" disabled>Dashboard</button>
+        <button class="exp" data-fmt="json" disabled>JSON</button>
+        <button class="exp" data-fmt="md" disabled>Markdown</button>
+        <button class="exp" data-fmt="sarif" disabled>SARIF</button>
+        <button class="exp" data-fmt="csv" disabled>CSV</button>
+        <button class="exp" data-fmt="prometheus" disabled>Prom</button>
+        <span style="width:1px;height:18px;background:#26303f;margin:0 2px;display:inline-block"></span>
+        <button class="exp intelbtn" data-act="inventory" disabled>Inventory</button>
+        <button class="exp intelbtn" data-act="rollup" disabled>Rollup</button>
+        <button class="exp intelbtn" data-act="history" disabled>History / Diff</button>
+        <button class="exp intelbtn" data-act="compare" disabled>Compare</button>
+        <button class="exp intelbtn" data-act="schedules">Schedules</button>
+      </div>
+    </div>
+    <div class="progress"><i id="progbar"></i></div>
+    <div id="banner"></div>
+    <div id="results"></div>
+    <div id="intel"></div>
+    <div id="emptyState" class="empty-state">
+      <svg class="iris" viewBox="0 0 100 100" id="iris2" aria-hidden="true"></svg>
+      <h2>The eye is closed</h2>
+      <p>Set a target on the left, choose a scope, and run a scan. Findings stream in here as each module reports. Authorised testing only.</p>
+    </div>
+  </main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+/* ---------- iris signature: concentric rings + sweep, animates while scanning ---------- */
+function drawIris(svg){
+  const NS="http://www.w3.org/2000/svg";
+  svg.innerHTML="";
+  const g=document.createElementNS(NS,"g");
+  // outer ring
+  for(const [r,op,w] of [[46,.35,1.2],[37,.5,1],[20,.7,1.2]]){
+    const c=document.createElementNS(NS,"circle");
+    c.setAttribute("cx",50);c.setAttribute("cy",50);c.setAttribute("r",r);
+    c.setAttribute("fill","none");c.setAttribute("stroke","#e9a23b");
+    c.setAttribute("stroke-opacity",op);c.setAttribute("stroke-width",w);
+    g.appendChild(c);
+  }
+  // tick marks
+  for(let a=0;a<360;a+=30){
+    const rad=a*Math.PI/180, x1=50+44*Math.cos(rad), y1=50+44*Math.sin(rad);
+    const x2=50+40*Math.cos(rad), y2=50+40*Math.sin(rad);
+    const l=document.createElementNS(NS,"line");
+    l.setAttribute("x1",x1);l.setAttribute("y1",y1);l.setAttribute("x2",x2);l.setAttribute("y2",y2);
+    l.setAttribute("stroke","#e9a23b");l.setAttribute("stroke-opacity",.4);l.setAttribute("stroke-width",1);
+    g.appendChild(l);
+  }
+  // pupil
+  const p=document.createElementNS(NS,"circle");
+  p.setAttribute("cx",50);p.setAttribute("cy",50);p.setAttribute("r",8);
+  p.setAttribute("fill","#e9a23b");p.setAttribute("fill-opacity",.92);
+  g.appendChild(p);
+  // sweep arm
+  const sweep=document.createElementNS(NS,"g"); sweep.setAttribute("class","sweep");
+  const arm=document.createElementNS(NS,"line");
+  arm.setAttribute("x1",50);arm.setAttribute("y1",50);arm.setAttribute("x2",94);arm.setAttribute("y2",50);
+  arm.setAttribute("stroke","#e9a23b");arm.setAttribute("stroke-width",1.4);arm.setAttribute("stroke-opacity",.85);
+  sweep.appendChild(arm); sweep.style.transformOrigin="50px 50px";
+  g.appendChild(sweep);
+  svg.appendChild(g);
+  return {ring:g, sweep};
+}
+const irisMain=drawIris($("iris"));
+drawIris($("iris2"));
+
+let scanning=false, stopping=false;
+function setIrisScanning(on){
+  scanning=on;
+  for(const el of [irisMain.sweep, ...document.querySelectorAll('#iris2 .sweep')]){
+    el.style.animation = on ? "spin 2.2s linear infinite" : "none";
+  }
+}
+const styleSheet=document.styleSheets[0];
+styleSheet.insertRule("@keyframes spin{to{transform:rotate(360deg)}}", styleSheet.cssRules.length);
+
+/* ---------- API helpers ---------- */
+function hdrs(){ return {"Content-Type":"application/json"}; }
+async function api(path, opts={}){
+  const r=await fetch(path,{...opts,headers:{...hdrs(),...(opts.headers||{})}});
+  if(!r.ok) throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
+  return r.json();
+}
+
+/* ---------- state ---------- */
+let META=null, MODE="profile", expanded=new Set(), JOB=null, poll=null;
+let QUEUE=[], QI=0;                       // multi-target batch queue
+let MISSES=0;                             // consecutive poll failures (tolerated)
+
+/* ---------- load metadata ---------- */
+async function init(){
+  try{ META=await api("/api/meta"); }
+  catch(e){ showBanner("Can't reach the scanner backend: "+e.message+". Is ghost_eye_web.py running?"); return; }
+  META.byName={}; META.byId={};
+  META.modules.forEach(m=>{ META.byName[m.name]=m; META.byId[m.id]=m; });
+  $("ver").textContent="v"+META.version;
+  // profiles
+  $("profileSel").innerHTML=Object.keys(META.profiles).sort()
+    .map(p=>`<option value="${p}">${p}  ·  ${META.profiles[p].length} modules</option>`).join("");
+  // categories
+  $("categorySel").innerHTML=Object.keys(META.categories).sort()
+    .map(c=>`<option value="${c}">${c}  ·  ${META.categories[c].length} modules</option>`).join("");
+  // module list grouped by category
+  const byCat={};
+  META.modules.forEach(m=>{(byCat[m.category]=byCat[m.category]||[]).push(m)});
+  $("modlist").innerHTML=Object.keys(byCat).sort().map(cat=>`
+    <div class="catgrp" data-cat="${cat}">
+      <div class="cathead" data-cat="${cat}">
+        <input type="checkbox" class="catall" data-cat="${cat}">
+        <span class="eyebrow">${cat}</span><span class="ct">${byCat[cat].length}</span>
+      </div>
+      ${byCat[cat].map(m=>`<label class="mod" data-id="${m.id}" data-text="${(m.id+' '+m.name).toLowerCase()}">
+        <input type="checkbox" class="modchk" value="${m.id}">
+        <span>${m.name}</span><span class="mid">${m.id}</span></label>`).join("")}
+    </div>`).join("");
+  wireModlist();
+  updateSelCount();
+}
+
+/* ---------- selection UI ---------- */
+$("tabs").addEventListener("click",e=>{
+  const t=e.target.closest(".tab"); if(!t) return;
+  MODE=t.dataset.mode;
+  document.querySelectorAll(".tab").forEach(x=>x.dataset.on=x===t?"1":"0");
+  for(const s of ["profile","category","modules","all"]) $("sel-"+s).classList.toggle("hidden",s!==MODE);
+  updateSelCount();
+});
+$("profileSel").addEventListener("change",updateSelCount);
+$("categorySel").addEventListener("change",updateSelCount);
+$("modsearch").addEventListener("input",e=>{
+  const q=e.target.value.toLowerCase();
+  document.querySelectorAll("#modlist .mod").forEach(m=>m.classList.toggle("hidden",!m.dataset.text.includes(q)));
+  document.querySelectorAll(".catgrp").forEach(g=>{
+    const any=[...g.querySelectorAll(".mod")].some(m=>!m.classList.contains("hidden"));
+    g.classList.toggle("hidden",!any);
+  });
+});
+function wireModlist(){
+  document.querySelectorAll(".catall").forEach(cb=>cb.addEventListener("change",e=>{
+    const cat=e.target.dataset.cat;
+    document.querySelectorAll(`.catgrp[data-cat="${cat}"] .modchk`).forEach(c=>c.checked=e.target.checked);
+    updateSelCount();
+  }));
+  document.querySelectorAll(".modchk").forEach(cb=>cb.addEventListener("change",updateSelCount));
+}
+function selectedModules(){ return [...document.querySelectorAll(".modchk:checked")].map(c=>c.value); }
+function currentSelection(){
+  if(MODE==="all") return {mode:"all"};
+  if(MODE==="profile") return {mode:"profile",value:$("profileSel").value};
+  if(MODE==="category") return {mode:"category",value:$("categorySel").value};
+  return {mode:"modules",value:selectedModules()};
+}
+function selectionCount(){
+  if(!META) return 0;
+  if(MODE==="all") return META.modules.length;
+  if(MODE==="profile") return (META.profiles[$("profileSel").value]||[]).length;
+  if(MODE==="category") return (META.categories[$("categorySel").value]||[]).length;
+  return selectedModules().length;
+}
+function updateSelCount(){
+  const n=selectionCount();
+  $("selcount").textContent = n? `${n} module${n>1?"s":""} selected` : "no modules selected";
+  $("runbtn").disabled = (n===0 && !scanning);
+}
+
+/* ---------- run / poll ---------- */
+$("runbtn").addEventListener("click",()=>{ scanning ? stopScan() : startScan(); });
+
+async function startScan(){
+  const raw=$("target").value.trim();
+  if(!raw){ $("target").focus(); return; }
+  const targets=raw.split(/[\s,]+/).filter(Boolean);
+  if(targets.length>1){ QUEUE=targets; QI=0; return runNext(); }
+  QUEUE=[];
+  return startOne(raw);
+}
+async function runNext(){
+  if(QI>=QUEUE.length){ const n=QUEUE.length; QUEUE=[];
+    showBanner(`Batch complete — ${n} targets scanned. Open “History / Diff” to review each.`); return; }
+  return startOne(QUEUE[QI], `Batch ${QI+1}/${QUEUE.length}: ${QUEUE[QI]}`);
+}
+async function startOne(target, label){
+  const sel=currentSelection();
+  const options={
+    timeout:+$("o-timeout").value, parallel:+$("o-parallel").value,
+    threads:+$("o-threads").value, rate:+$("o-rate").value,
+    rate_per_host:+($("o-rate-host")?($("o-rate-host").value||0):0),
+    cache:$("o-cache").checked, insecure:$("o-insecure").checked, tor:$("o-tor").checked,
+    deep:($("o-deep")?$("o-deep").checked:false),
+    deep_max:+($("o-deep-max")?($("o-deep-max").value||25):25),
+    user_agent:($("o-ua").value||"").trim() || undefined,
+  };
+  stopping=false; MISSES=0;
+  clearBanner(); if(label) showBanner(label);
+  let res;
+  try{ res=await api("/api/scan",{method:"POST",body:JSON.stringify({target,selection:sel,options})}); }
+  catch(e){ showBanner("Scan rejected: "+e.message); QUEUE=[]; return; }
+  JOB=res.job_id; expanded=new Set();
+  $("emptyState").classList.add("hidden");
+  $("results").innerHTML=""; $("intel").innerHTML="";
+  setScanningUI(true,res.total);
+  if($("panel").classList.contains("collapsed")===false && window.innerWidth<=860) $("panel").classList.add("collapsed");
+  poll=setInterval(tick,1000); tick();
+}
+async function stopScan(){
+  if(!JOB) return;
+  stopping=true; QUEUE=[];                          // also abort any batch
+  $("runbtn").textContent="Stopping…"; $("runbtn").disabled=true;
+  $("dot").className="dot stop"; $("statustxt").textContent="Stopping scan…";
+  try{ await api(`/api/job/${JOB}/cancel`,{method:"POST"}); }catch(e){}
+  tick();   // poll right away so the UI flips without waiting for the interval
+}
+async function tick(){
+  if(!JOB) return;
+  let s;
+  try{ s=await api(`/api/job/${JOB}`); }
+  catch(e){
+    MISSES++;
+    if(MISSES>=5){ showBanner("Lost the job: "+e.message+" — backend unreachable. Is ghost_eye_web.py still running?"); stopPolling(); return; }
+    showBanner("Reconnecting to the scanner… ("+MISSES+"/5)");
+    return;   // keep the poll interval alive and retry next tick
+  }
+  if(MISSES){ MISSES=0; clearBanner(); }
+  render(s);
+  if(s.status!=="running"){
+    stopPolling(); finishUI(s);
+    if(QUEUE.length){ QI++; setTimeout(runNext,500); }   // next target in batch
+  }
+}
+function stopPolling(){ if(poll){clearInterval(poll);poll=null;} }
+
+function setScanningUI(on,total){
+  setIrisScanning(on);
+  $("dot").className="dot "+(on?"run":"");
+  $("runbtn").textContent=on?"Stop scan":"Run scan";
+  $("runbtn").classList.toggle("stop",on);
+  $("runbtn").disabled=false;
+  $("riskbox").classList.remove("hidden");
+  $("progbar").style.width=on?"2%":"0%";
+}
+function finishUI(s){
+  setIrisScanning(false); stopping=false;
+  $("runbtn").textContent="Run scan"; $("runbtn").classList.remove("stop"); updateSelCount();
+  const map={done:["done","Scan complete"],cancelled:["stop","Scan stopped"],error:["err","Scan error"]};
+  const [cls,txt]=map[s.status]||["done","Done"];
+  $("dot").className="dot "+cls;
+  $("statustxt").textContent=`${txt} — ${s.target}`;
+  if(s.status==="error" && s.error) showBanner("Backend error: "+s.error);
+  document.querySelectorAll(".exp").forEach(b=>b.disabled=false);
+}
+
+/* ---------- render ---------- */
+function flatten(obj,prefix,out){
+  if(obj===null||obj===undefined){ out[prefix]="—"; return; }
+  if(Array.isArray(obj)){
+    if(obj.length===0){ out[prefix]="[]"; return; }
+    if(obj.every(x=>typeof x!=="object")){ out[prefix]=obj.join("\n"); return; }
+    obj.forEach((v,i)=>flatten(v,prefix?`${prefix}[${i}]`:`[${i}]`,out));
+  }else if(typeof obj==="object"){
+    const keys=Object.keys(obj);
+    if(keys.length===0){ out[prefix]="{}"; return; }
+    keys.forEach(k=>flatten(obj[k],prefix?`${prefix}.${k}`:k,out));
+  }else{ out[prefix]=String(obj); }
+}
+function sevMap(risk){
+  const m={};
+  (risk&&risk.findings||[]).forEach(f=>{ m[f.module+"::"+f.field]=f.severity; });
+  return m;
+}
+function render(s){
+  // HUD
+  $("statustxt").textContent = stopping
+    ? "Stopping scan…"
+    : (s.status==="running" ? `Scanning ${s.target} · ${s.done}/${s.total}`
+                            : $("statustxt").textContent);
+  $("progbar").style.width=(s.total? Math.max(2,Math.round(s.done/s.total*100)):0)+"%";
+  const counts=(s.risk&&s.risk.counts)||{};
+  for(const sev of ["critical","high","medium","low"]) $("c-"+sev).textContent=counts[sev]||0;
+  if(s.risk){
+    const lvl=s.risk.risk_level||"LOW", col=({CRITICAL:"--crit",HIGH:"--high",MEDIUM:"--med",LOW:"--ok"})[lvl]||"--ok";
+    const pill=$("riskpill"); pill.textContent=`${lvl} · ${s.risk.risk_score}`;
+    pill.style.color=`var(${col})`; pill.style.borderColor=`var(${col})`;
+  }
+  // cards
+  const smap=sevMap(s.risk);
+  const fq=$("filter").value.toLowerCase(), stf=$("statusFilter").value;
+  const sevf=[...document.querySelectorAll(".chip[data-on='1']")].map(c=>c.dataset.sev);
+  const html=s.results.map(r=>cardHTML(r,smap,fq,stf,sevf)).filter(Boolean).join("");
+  $("results").innerHTML=html || (s.results.length? `<div class="allnote" style="margin-top:8px">No findings match the current filters.</div>`:"");
+}
+function cardHTML(r,smap,fq,stf,sevf){
+  if(stf && r.status!==stf) return "";
+  const flat={}; flatten(r.data||{},"",flat);
+  let worst=""; const order=["critical","high","medium","low"];
+  for(const k in flat){ const sv=smap[r.module+"::"+k]; if(sv && (worst==="" || order.indexOf(sv)<order.indexOf(worst))) worst=sv; }
+  if(sevf.length){ // severity chip filter active: require a matching finding
+    const has=Object.keys(flat).some(k=>sevf.includes(smap[r.module+"::"+k]));
+    if(!has) return "";
+  }
+  const open=expanded.has(r.module);
+  let rows;
+  if(r.status==="error"){ rows=`<div class="err-line">${esc(r.error||"module error")}</div>`; }
+  else if(Object.keys(flat).length===0){ rows=`<div class="kv"><div class="k">result</div><div class="v">no data returned</div></div>`; }
+  else {
+    rows=Object.entries(flat).map(([k,v])=>{
+      const txt=(k+" "+v).toLowerCase();
+      if(fq && !txt.includes(fq)) return "";
+      const sv=smap[r.module+"::"+k];
+      const tag=sv?`<span class="sevtag ${sv}">${sv}</span>`:"";
+      return `<div class="kv ${sv?"sev sev-"+sv:""}"><div class="k">${esc(k)}</div><div class="v">${esc(v)}${tag}</div></div>`;
+    }).join("");
+    if(!rows) return ""; // all rows filtered out
+  }
+  const meta=META.byName[r.module]||META.byId[r.module]||{};
+  const cat=meta.category||"";
+  return `<div class="card">
+    <div class="chead ${worst?"has-"+worst:""}" data-mod="${esc(r.module)}">
+      <span class="nm">${esc(meta.name||r.module)}</span>
+      <span class="mid">${esc(meta.id||"")}</span>
+      <span class="cat">${esc(cat)}</span>
+      <span class="st ${r.status}">${r.status}</span>
+    </div>
+    <div class="cbody ${open?"":"hidden"}">${rows}</div>
+  </div>`;
+}
+$("results").addEventListener("click",e=>{
+  const h=e.target.closest(".chead"); if(!h) return;
+  toggle(h.getAttribute("data-mod"));
+});
+function toggle(id){ expanded.has(id)?expanded.delete(id):expanded.add(id); refresh(); }
+
+/* re-render on filter changes (pull latest snapshot) */
+["filter","statusFilter"].forEach(id=>$(id).addEventListener("input",refresh));
+document.querySelectorAll(".chip[data-sev]").forEach(c=>c.addEventListener("click",()=>{
+  c.dataset.on=c.dataset.on==="1"?"0":"1"; refresh();
+}));
+function refresh(){ if(JOB) api(`/api/job/${JOB}`).then(render).catch(()=>{}); }
+
+/* ---------- export ---------- */
+$("exportbar").addEventListener("click",e=>{
+  const b=e.target.closest(".exp"); if(!b||b.disabled||!JOB) return;
+  if(b.classList.contains("intelbtn")){
+    if(b.dataset.act==="inventory") loadInventory();
+    else if(b.dataset.act==="rollup") loadRollup();
+    else if(b.dataset.act==="compare") loadCompare();
+    else if(b.dataset.act==="schedules") loadSchedules();
+    else loadHistory();
+    return;
+  }
+  window.open(`/api/job/${JOB}/report?format=${b.dataset.fmt}`,"_blank");
+});
+
+/* ---------- intelligence: inventory / history / diff ---------- */
+function renderIntel(html){ $("intel").innerHTML=`<div class="intel-pane">${html}</div>`; }
+function chips(arr){ return (arr&&arr.length)? arr.map(x=>`<span class="chip">${esc(x)}</span>`).join("") : `<span class="chip muted">none</span>`; }
+function isec(title,arr){ return (arr&&arr.length)? `<div class="intel-sec"><h4>${esc(title)} <em>${arr.length}</em></h4><div class="chips">${chips(arr)}</div></div>` : ""; }
+
+async function loadInventory(){
+  renderIntel("Building asset inventory…");
+  let d; try{ d=await api(`/api/job/${JOB}/inventory`); }
+  catch(e){ renderIntel("Inventory unavailable: "+esc(e.message)); return; }
+  renderIntel(`<div class="intel-head">Asset inventory — ${esc(d.target||"")}</div>
+    ${isec("Hosts",d.hosts)}${isec("IPs",d.ips)}${isec("Services",d.services)}
+    ${isec("Emails",d.emails)}${isec("URLs",d.urls)}${isec("Technologies",d.technologies)}`);
+}
+async function loadRollup(){
+  renderIntel("Building per-host rollup…");
+  let d; try{ d=await api(`/api/job/${JOB}/rollup`); }
+  catch(e){ renderIntel("Rollup unavailable: "+esc(e.message)); return; }
+  const hosts=d.hosts||{};
+  const keys=Object.keys(hosts);
+  if(!keys.length){ renderIntel(`<div class="intel-head">Per-host rollup</div><div class="chip muted">No hosts yet.</div>`); return; }
+  const sevCls={CRITICAL:"sev-crit",HIGH:"sev-high",MEDIUM:"sev-med",LOW:"sev-low"};
+  const rows=keys.map(h=>{
+    const i=hosts[h], sev=i.severity||"—";
+    const cls=sevCls[sev]||"sev-low";
+    const ports=(i.ports||[]).slice(0,14).join(", ")||"—";
+    const tech=(i.tech||[]).slice(0,8).join(", ")||"—";
+    const cves=(i.cves||[]);
+    return `<div class="roll-row">
+      <div class="roll-h"><span class="sevtag ${cls}">${esc(sev)}</span><span class="roll-host">${esc(h)}</span><span class="roll-n">${i.findings} findings</span></div>
+      <div class="roll-d"><span><em>ports</em> ${esc(ports)}</span><span><em>tech</em> ${esc(tech)}</span>${cves.length?`<span class="roll-cve"><em>CVEs</em> ${esc(cves.slice(0,8).join(", "))}${cves.length>8?` +${cves.length-8}`:""}</span>`:""}</div>
+    </div>`;
+  }).join("");
+  renderIntel(`<div class="intel-head">Per-host rollup <em>${keys.length}</em></div>${rows}`);
+}
+async function loadHistory(){
+  renderIntel("Loading history…");
+  let d; try{ d=await api(`/api/history`); }
+  catch(e){ renderIntel("History unavailable: "+esc(e.message)); return; }
+  const rows=(d.history||[]);
+  if(!rows.length){ renderIntel(`<div class="intel-head">Scan history</div><div class="chip muted">No saved scans yet.</div>`); return; }
+  const list=rows.map(r=>`<div class="hist-row">
+      <span class="hist-t">${esc(r.target||"?")}</span>
+      <span class="hist-m">${r.modules||0} modules${r.risk?` · ${esc(r.risk)}`:""}${r.ts?` · ${esc(String(r.ts).slice(0,16).replace("T"," "))}`:""}</span>
+      <a class="exp small" href="/api/scan/${esc(r.id)}" target="_blank" rel="noopener">View ↗</a>
+      <button class="exp small" data-diff="${esc(r.id)}">Diff vs current</button>
+    </div>`).join("");
+  renderIntel(`<div class="intel-head">Scan history <em>${rows.length}</em></div>${list}`);
+}
+async function runDiff(id){
+  renderIntel("Computing diff…");
+  let d; try{ d=await api(`/api/job/${JOB}/diff?against=${encodeURIComponent(id)}`); }
+  catch(e){ renderIntel("Diff failed: "+esc(e.message)); return; }
+  renderIntel(`<div class="intel-head">Change vs <code>${esc(id)}</code></div>
+    <div class="intel-sec"><h4 class="up">New modules <em>${(d.added_modules||[]).length}</em></h4><div class="chips">${chips(d.added_modules)}</div></div>
+    <div class="intel-sec"><h4 class="ch">Changed findings <em>${(d.changed_modules||[]).length}</em></h4><div class="chips">${chips(d.changed_modules)}</div></div>
+    <div class="intel-sec"><h4 class="dn">Gone <em>${(d.removed_modules||[]).length}</em></h4><div class="chips">${chips(d.removed_modules)}</div></div>`);
+}
+$("intel").addEventListener("click",e=>{ const b=e.target.closest("[data-diff]"); if(b) runDiff(b.dataset.diff); });
+
+/* ---------- compare two saved scans ---------- */
+async function loadCompare(){
+  renderIntel("Loading scan history for comparison…");
+  let d; try{ d=await api(`/api/history`); }
+  catch(e){ renderIntel("History unavailable: "+esc(e.message)); return; }
+  const rows=(d.history||[]);
+  if(rows.length<2){ renderIntel(`<div class="intel-head">Compare scans</div><div class="chip muted">Need at least two saved scans to compare.</div>`); return; }
+  const opts=rows.map(r=>`<option value="${esc(r.id)}">${esc(r.target||"?")} — ${esc(String(r.ts||"").slice(0,16).replace("T"," "))}</option>`).join("");
+  renderIntel(`<div class="intel-head">Compare two scans</div>
+    <div class="compare-form">
+      <label class="eyebrow">Scan A</label><select id="cmpA">${opts}</select>
+      <label class="eyebrow" style="margin-top:10px">Scan B</label><select id="cmpB">${opts}</select>
+      <button class="exp" id="cmpRun" style="margin-top:12px">Compare ▸</button>
+    </div>`);
+  if(rows.length>1) $("cmpB").selectedIndex=1;
+  $("cmpRun").addEventListener("click",async()=>{
+    const a=$("cmpA").value, b=$("cmpB").value;
+    if(a===b){ renderIntel(`<div class="intel-head">Compare</div><div class="chip muted">Select two different scans.</div>`); return; }
+    renderIntel("Comparing…");
+    let c; try{ c=await api(`/api/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`); }
+    catch(e){ renderIntel("Compare failed: "+esc(e.message)); return; }
+    const s=c.summary||{};
+    const changed=(c.changed||[]).map(m=>`<div class="roll-row"><div class="roll-h"><span class="roll-host">${esc(m.module)}</span></div></div>`).join("");
+    renderIntel(`<div class="intel-head">Comparison: <code>${esc((c.scan_a||{}).target||"A")}</code> vs <code>${esc((c.scan_b||{}).target||"B")}</code></div>
+      <div class="intel-sec"><h4 class="up">Added <em>${s.added_count||0}</em></h4><div class="chips">${chips(c.added)}</div></div>
+      <div class="intel-sec"><h4 class="dn">Removed <em>${s.removed_count||0}</em></h4><div class="chips">${chips(c.removed)}</div></div>
+      <div class="intel-sec"><h4 class="ch">Changed <em>${s.changed_count||0}</em></h4>${changed||'<div class="chip muted">none</div>'}</div>
+      <div class="intel-sec"><h4>Unchanged <em>${s.unchanged_count||0}</em></h4><div class="chips">${chips(c.unchanged)}</div></div>`);
+  });
+}
+
+/* ---------- scheduled recurring scans ---------- */
+async function loadSchedules(){
+  renderIntel("Loading schedules…");
+  let d; try{ d=await api(`/api/schedules`); }
+  catch(e){ renderIntel("Schedules unavailable: "+esc(e.message)); return; }
+  const scheds=(d.schedules||[]);
+  const rows=scheds.map(s=>`<div class="hist-row">
+    <span class="hist-t">${esc(s.target||"?")}</span>
+    <span class="hist-m">every ${s.interval_minutes||60}m${s.last_run?` · last: ${esc(String(s.last_run).slice(0,16).replace("T"," "))}`:""}</span>
+    <button class="exp small sched-del" data-sid="${esc(s.id)}">Delete</button>
+  </div>`).join("");
+  renderIntel(`<div class="intel-head">Scheduled scans <em>${scheds.length}</em></div>
+    <div class="compare-form" style="margin-bottom:16px">
+      <label class="eyebrow">Target</label><input id="schedTarget" placeholder="example.com">
+      <label class="eyebrow" style="margin-top:8px">Interval (minutes)</label><input id="schedInt" type="number" value="60" min="1">
+      <button class="exp" id="schedAdd" style="margin-top:12px">Add schedule ▸</button>
+    </div>
+    ${rows||'<div class="chip muted">No active schedules.</div>'}`);
+  $("schedAdd").addEventListener("click",async()=>{
+    const target=$("schedTarget").value.trim();
+    if(!target){ return; }
+    const interval=parseInt($("schedInt").value)||60;
+    try{ await api("/api/schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target,interval_minutes:interval})}); }
+    catch(e){ showBanner("Schedule failed: "+e.message); return; }
+    loadSchedules();
+  });
+  $("intel").querySelectorAll(".sched-del").forEach(b=>b.addEventListener("click",async()=>{
+    try{ await api(`/api/schedule/${encodeURIComponent(b.dataset.sid)}`,{method:"DELETE"}); }
+    catch(e){ showBanner("Delete failed: "+e.message); return; }
+    loadSchedules();
+  }));
+}
+
+/* ---------- misc ---------- */
+$("ptoggle").addEventListener("click",()=>$("panel").classList.toggle("collapsed"));
+$("target").addEventListener("keydown",e=>{ if(e.key==="Enter" && !scanning) startScan(); });
+function esc(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+function showBanner(msg){ $("banner").innerHTML=`<div class="banner">${esc(msg)}</div>`; }
+function clearBanner(){ $("banner").innerHTML=""; }
+
+init();
+</script>
+</body>
+</html>

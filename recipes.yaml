@@ -1,0 +1,25 @@
+# Ghost Eye scan recipes / profiles
+# Run one with:  ghost_eye.py -t example.com -p <name>
+# List them:     ghost_eye.py --list-profiles
+# Each profile is a name mapped to a list of module ids (see --list).
+
+quick: [dns, whois, headers, cert, subs]
+
+email: [emailauth, mtasts, tlsrpt, bimi, dkim, starttls, dmarcrua, disposable]
+
+tls: [cert, certexpiry, tlsversions, ciphers, chain, tlsgrade, ocspstaple,
+      keyaudit, weakdh, cipherorder, hstspreload, ja4]
+
+web: [headers, cors, cookies, methods, waf, cdn, tech, httpversions,
+      securitytxt, cspgrade, sri, graphql]
+
+cloud: [cloudprov, k8s, docker, tfstate, cicd, buckets, dangling, serverless, metadata]
+
+exposure: [vcs, backups, buckets, dirlisting, admin, dashboards, exposeddb, rdpvnc, snmp]
+
+osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, related]
+
+passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
+
+perimeter: [dns, subs, nmap, headers, cert, tlsgrade, waf, cdn, origin,
+            exposeddb, dashboards, vcs]

@@ -1,0 +1,62 @@
+# Ghost Eye v3 - dependencies
+# ---------------------------------------------------------------------------
+# The package LOADS with none of these installed (everything is imported
+# lazily); individual modules will tell you what they need when you run them.
+# Install all of them for full functionality:
+#     pip install -r requirements.txt
+# ---------------------------------------------------------------------------
+
+# --- core HTTP (needed by almost every web/OSINT module) ---
+requests>=2.31
+urllib3>=2.0
+
+# --- DNS modules (records, AXFR, DNSSEC, CAA, SPF/DKIM/DMARC, takeover) ---
+dnspython>=2.4
+
+# --- HTML parsing (crawler, forms, JS endpoints, tech fingerprint) ---
+beautifulsoup4>=4.12
+lxml>=4.9
+
+# --- network / port scanning (structured nmap output; raw fallback otherwise)
+python-nmap>=0.7.1
+
+# --- WHOIS (python-whois; the 'whois' system binary is used as a fallback) ---
+python-whois>=0.9
+
+# --- favicon hashing for the Shodan pivot ---
+mmh3>=4.0
+
+# --- EXIF / image metadata ---
+Pillow>=10.0
+
+# --- phone-number validation ---
+phonenumbers>=8.13
+
+# --- PDF report export (HTML export needs nothing extra) ---
+reportlab>=4.0
+
+# --- optional, only if you use those specific features ---
+cloudscraper>=1.2     # Cloudflare-protected page fetches
+webtech>=1.3          # richer technology fingerprinting
+
+# --- expansion pack (all optional / lazily imported) ---
+cryptography>=42.0    # key audit, OCSP, cert parsing (tls_adv)
+pysnmp>=4.4           # SNMP default-community check (network_adv)
+PyYAML>=6.0           # parse custom recipe files (a built-in fallback exists)
+tqdm>=4.66            # nicer progress bars (a plain fallback exists)
+
+# --- Tor / SOCKS support for --tor and socks proxies ---
+requests[socks]>=2.31
+
+# ---------------------------------------------------------------------------
+# External BINARIES some modules shell out to (install via your OS package
+# manager, not pip).  Modules degrade gracefully and tell you if missing:
+#   nmap        - Nmap port-scan profiles
+#   masscan     - fast full-range port sweep (needs root)
+#   mtr / traceroute - traceroute + per-hop geo
+#   dig         - DNS fallback when dnspython is absent
+#   whois       - WHOIS fallback when python-whois is absent
+#   exiftool    - metadata from PDFs/Office docs (Pillow covers images)
+#   dot (graphviz) - render the network-map DOT output to an image
+#   etherape    - the original tool's live graphical monitor (root, optional)
+# ---------------------------------------------------------------------------
