@@ -1,6 +1,9 @@
 package com.sherlock.app.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -9,6 +12,9 @@ import androidx.navigation.navArgument
 import com.sherlock.app.data.model.AppTheme
 import com.sherlock.app.data.model.SearchType
 import com.sherlock.app.ui.screens.*
+import com.sherlock.app.util.SettingsManager
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 object Routes {
     const val SPLASH = "splash"
@@ -108,11 +114,27 @@ fun SherlockNavGraph(
     NavHost(navController = navController, startDestination = Routes.SPLASH) {
 
         composable(Routes.SPLASH) {
-            SplashScreen { navController.navigate(Routes.HOME) { popUpTo(Routes.SPLASH) { inclusive = true } } }
+            val context = LocalContext.current
+            val settings = remember { SettingsManager(context) }
+            val scope = rememberCoroutineScope()
+            SplashScreen {
+                scope.launch {
+                    val destination = if (settings.isFirstLaunch.first()) Routes.ONBOARDING else Routes.HOME
+                    navController.navigate(destination) { popUpTo(Routes.SPLASH) { inclusive = true } }
+                }
+            }
         }
 
         composable(Routes.ONBOARDING) {
-            OnboardingScreen { navController.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } } }
+            val context = LocalContext.current
+            val settings = remember { SettingsManager(context) }
+            val scope = rememberCoroutineScope()
+            OnboardingScreen {
+                scope.launch {
+                    settings.setFirstLaunch(false)
+                    navController.navigate(Routes.HOME) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
+                }
+            }
         }
 
         composable(Routes.HOME) {

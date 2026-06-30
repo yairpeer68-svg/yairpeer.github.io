@@ -28,7 +28,7 @@ fun OnboardingScreen(onComplete: () -> Unit) {
     val pages = listOf(
         OnboardingPage(Icons.Default.Search, "חפש בכל מקום", "מצא פרופילים ב-300+ אתרים ורשתות חברתיות עם חיפוש מקבילי מהיר"),
         OnboardingPage(Icons.Default.CameraAlt, "זיהוי פנים", "סרוק תמונה וחפש התאמות ב-8 מנועי חיפוש תמונות שונים"),
-        OnboardingPage(Icons.Default.Security, "כלי אבטחה", "בדיקת דליפות מידע, ניתוח EXIF, גלאי פרופיל מזויף ועוד"),
+        OnboardingPage(Icons.Default.Security, "כלי אבטחה", "ניתוח EXIF לתמונות, גלאי פרופיל מזויף, ובדיקת בריאות קישורי פרופיל ועוד"),
         OnboardingPage(Icons.Default.Analytics, "ניתוח מתקדם", "ניתוח שמות משתמש, יצירת תבניות אימייל, ומעקב אחר שינויים בפרופילים")
     )
 
