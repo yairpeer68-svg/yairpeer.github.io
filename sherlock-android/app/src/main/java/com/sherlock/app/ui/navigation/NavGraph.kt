@@ -109,6 +109,12 @@ object Routes {
     const val PASTE_SEARCH = "paste_search"
     const val WAYBACK_MACHINE = "wayback_machine"
     const val EXPOSURE_REPORT = "exposure_report"
+    const val TEXT_EXTRACTOR = "text_extractor"
+    const val USERNAME_VARIANTS = "username_variants"
+    const val TEMP_EMAIL_DETECTOR = "temp_email_detector"
+    const val SHORT_URL_EXPANDER = "short_url_expander"
+    const val BULK_INPUT_PROCESSOR = "bulk_input_processor"
+    const val CLIPBOARD_SEARCH = "clipboard_search"
 }
 
 @Composable
@@ -227,7 +233,13 @@ fun SherlockNavGraph(
                 onNavigateToHashLookup = { navController.navigate(Routes.HASH_LOOKUP) },
                 onNavigateToPasteSearch = { navController.navigate(Routes.PASTE_SEARCH) },
                 onNavigateToWaybackMachine = { navController.navigate(Routes.WAYBACK_MACHINE) },
-                onNavigateToExposureReport = { navController.navigate(Routes.EXPOSURE_REPORT) }
+                onNavigateToExposureReport = { navController.navigate(Routes.EXPOSURE_REPORT) },
+                onNavigateToTextExtractor = { navController.navigate(Routes.TEXT_EXTRACTOR) },
+                onNavigateToUsernameVariants = { navController.navigate(Routes.USERNAME_VARIANTS) },
+                onNavigateToTempEmailDetector = { navController.navigate(Routes.TEMP_EMAIL_DETECTOR) },
+                onNavigateToShortUrlExpander = { navController.navigate(Routes.SHORT_URL_EXPANDER) },
+                onNavigateToBulkInputProcessor = { navController.navigate(Routes.BULK_INPUT_PROCESSOR) },
+                onNavigateToClipboardSearch = { navController.navigate(Routes.CLIPBOARD_SEARCH) }
             )
         }
 
@@ -618,6 +630,42 @@ fun SherlockNavGraph(
 
         composable(Routes.EXPOSURE_REPORT) {
             ExposureReportScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.TEXT_EXTRACTOR) {
+            TextExtractorScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.USERNAME_VARIANTS) {
+            UsernameVariantsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.TEMP_EMAIL_DETECTOR) {
+            TempEmailDetectorScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SHORT_URL_EXPANDER) {
+            ShortUrlExpanderScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.BULK_INPUT_PROCESSOR) {
+            BulkInputProcessorScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.CLIPBOARD_SEARCH) {
+            ClipboardSearchScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToUsernameSearch = { navController.navigate(Routes.USERNAME_SEARCH) },
+                onNavigateToEmailSearch = { navController.navigate(Routes.EMAIL_SEARCH) },
+                onNavigateToBreachCheck = { navController.navigate(Routes.BREACH_CHECK) },
+                onNavigateToDomainLookup = { navController.navigate(Routes.DOMAIN_LOOKUP) },
+                onNavigateToIpGeolocation = { navController.navigate(Routes.IP_GEOLOCATION) },
+                onNavigateToPhoneSearch = { navController.navigate(Routes.PHONE_SEARCH) },
+                onNavigateToHashLookup = { navController.navigate(Routes.HASH_LOOKUP) },
+                onNavigateToWaybackMachine = { navController.navigate(Routes.WAYBACK_MACHINE) },
+                onNavigateToTextExtractor = { navController.navigate(Routes.TEXT_EXTRACTOR) },
+                onNavigateToPasteSearch = { navController.navigate(Routes.PASTE_SEARCH) }
+            )
         }
     }
 }

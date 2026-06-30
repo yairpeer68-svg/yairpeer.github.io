@@ -115,7 +115,13 @@ fun HomeScreen(
     onNavigateToHashLookup: () -> Unit = {},
     onNavigateToPasteSearch: () -> Unit = {},
     onNavigateToWaybackMachine: () -> Unit = {},
-    onNavigateToExposureReport: () -> Unit = {}
+    onNavigateToExposureReport: () -> Unit = {},
+    onNavigateToTextExtractor: () -> Unit = {},
+    onNavigateToUsernameVariants: () -> Unit = {},
+    onNavigateToTempEmailDetector: () -> Unit = {},
+    onNavigateToShortUrlExpander: () -> Unit = {},
+    onNavigateToBulkInputProcessor: () -> Unit = {},
+    onNavigateToClipboardSearch: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -216,7 +222,13 @@ fun HomeScreen(
             HomeTile("זיהוי Hash", "סוג וחיפוש במאגר", Icons.Default.Tag, onNavigateToHashLookup),
             HomeTile("חיפוש Paste", "Pastebin ואתרים דומים", Icons.Default.Description, onNavigateToPasteSearch),
             HomeTile("Wayback Machine", "ארכיון גרסאות אתר", Icons.Default.History, onNavigateToWaybackMachine),
-            HomeTile("דוח חשיפה מאוחד", "דליפות ופייסטים יחד", Icons.Default.Assessment, onNavigateToExposureReport)
+            HomeTile("דוח חשיפה מאוחד", "דליפות ופייסטים יחד", Icons.Default.Assessment, onNavigateToExposureReport),
+            HomeTile("חילוץ נתונים מטקסט", "מייל, טלפון, URL, IP", Icons.Default.ManageSearch, onNavigateToTextExtractor),
+            HomeTile("וריאנטים שם משתמש", "צירופים נפוצים", Icons.Default.PersonSearch, onNavigateToUsernameVariants),
+            HomeTile("זיהוי מייל זמני", "ספקי מייל חד-פעמי", Icons.Default.Block, onNavigateToTempEmailDetector),
+            HomeTile("הרחבת קישורים", "גלה לאן מוביל bit.ly", Icons.Default.Link, onNavigateToShortUrlExpander),
+            HomeTile("עיבוד קלט מרוכז", "רשימת יוזרים/מיילים", Icons.Default.PlaylistAddCheck, onNavigateToBulkInputProcessor),
+            HomeTile("חיפוש מהיר מלוח", "זיהוי תוכן שהועתק", Icons.Default.ContentPaste, onNavigateToClipboardSearch)
         )
     }
 
@@ -468,6 +480,14 @@ fun HomeScreen(
                 item { FeatureTile("חיפוש Paste", "Pastebin ואתרים דומים", Icons.Default.Description, onNavigateToPasteSearch) }
                 item { FeatureTile("Wayback Machine", "ארכיון גרסאות אתר", Icons.Default.History, onNavigateToWaybackMachine) }
                 item { FeatureTile("דוח חשיפה מאוחד", "דליפות ופייסטים יחד", Icons.Default.Assessment, onNavigateToExposureReport) }
+
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("נוחות יומיומית") }
+                item { FeatureTile("חילוץ נתונים מטקסט", "מייל, טלפון, URL, IP", Icons.Default.ManageSearch, onNavigateToTextExtractor) }
+                item { FeatureTile("וריאנטים שם משתמש", "צירופים נפוצים", Icons.Default.PersonSearch, onNavigateToUsernameVariants) }
+                item { FeatureTile("זיהוי מייל זמני", "ספקי מייל חד-פעמי", Icons.Default.Block, onNavigateToTempEmailDetector) }
+                item { FeatureTile("הרחבת קישורים", "גלה לאן מוביל bit.ly", Icons.Default.Link, onNavigateToShortUrlExpander) }
+                item { FeatureTile("עיבוד קלט מרוכז", "רשימת יוזרים/מיילים", Icons.Default.PlaylistAddCheck, onNavigateToBulkInputProcessor) }
+                item { FeatureTile("חיפוש מהיר מלוח", "זיהוי תוכן שהועתק", Icons.Default.ContentPaste, onNavigateToClipboardSearch) }
                     }
                 }
             }

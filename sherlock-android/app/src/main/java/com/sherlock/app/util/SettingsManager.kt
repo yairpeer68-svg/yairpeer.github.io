@@ -46,6 +46,8 @@ class SettingsManager(private val context: Context) {
         val GLOBAL_INCOGNITO = booleanPreferencesKey("global_incognito")
         val LAST_BACKGROUND_TIME = longPreferencesKey("last_background_time")
         val HIBP_API_KEY = stringPreferencesKey("hibp_api_key")
+        val KEEP_SCREEN_ON = booleanPreferencesKey("keep_screen_on")
+        val CLIPBOARD_MONITOR = booleanPreferencesKey("clipboard_monitor")
     }
 
     val theme: Flow<AppTheme> = context.dataStore.data.map {
@@ -119,6 +121,10 @@ class SettingsManager(private val context: Context) {
     suspend fun setScreenshotProtection(enabled: Boolean) { context.dataStore.edit { it[SCREENSHOT_PROTECTION] = enabled } }
     suspend fun setGlobalIncognito(enabled: Boolean) { context.dataStore.edit { it[GLOBAL_INCOGNITO] = enabled } }
     suspend fun setHibpApiKey(key: String) { context.dataStore.edit { it[HIBP_API_KEY] = key } }
+    val keepScreenOn: Flow<Boolean> = context.dataStore.data.map { it[KEEP_SCREEN_ON] ?: false }
+    suspend fun setKeepScreenOn(enabled: Boolean) { context.dataStore.edit { it[KEEP_SCREEN_ON] = enabled } }
+    val clipboardMonitor: Flow<Boolean> = context.dataStore.data.map { it[CLIPBOARD_MONITOR] ?: false }
+    suspend fun setClipboardMonitor(enabled: Boolean) { context.dataStore.edit { it[CLIPBOARD_MONITOR] = enabled } }
 
     suspend fun setAppLockPin(pin: String) {
         val salt = PinHasher.generateSalt()

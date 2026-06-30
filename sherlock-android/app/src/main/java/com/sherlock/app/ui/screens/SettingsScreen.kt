@@ -56,6 +56,8 @@ fun SettingsScreen(
     val screenshotProtection by settings.screenshotProtection.collectAsState(initial = false)
     val globalIncognito by settings.globalIncognito.collectAsState(initial = false)
     val hibpApiKey by settings.hibpApiKey.collectAsState(initial = "")
+    val keepScreenOn by settings.keepScreenOn.collectAsState(initial = false)
+    val clipboardMonitor by settings.clipboardMonitor.collectAsState(initial = false)
 
     var showThemeDialog by remember { mutableStateOf(false) }
     var showPanicDialog by remember { mutableStateOf(false) }
@@ -447,6 +449,16 @@ fun SettingsScreen(
             item {
                 SettingsToggle("רטט (Haptic)", "רטט קל כשנמצאת תוצאה", Icons.Default.Vibration, haptic) {
                     scope.launch { settings.setHapticFeedback(it) }
+                }
+            }
+            item {
+                SettingsToggle("שמור מסך דלוק", "מנע כיבוי מסך בזמן חיפוש", Icons.Default.ScreenLockPortrait, keepScreenOn) {
+                    scope.launch { settings.setKeepScreenOn(it) }
+                }
+            }
+            item {
+                SettingsToggle("זיהוי לוח גזירות", "הצע חיפוש אוטומטי מתוכן שהועתק", Icons.Default.ContentPaste, clipboardMonitor) {
+                    scope.launch { settings.setClipboardMonitor(it) }
                 }
             }
 
