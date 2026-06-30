@@ -74,6 +74,13 @@ object Routes {
     const val MY_IP = "my_ip"
     const val REDIRECT_CHAIN = "redirect_chain"
     const val VPN_PROXY_CHECK = "vpn_proxy_check"
+    const val HISTORY_EXPORT = "history_export"
+    const val FAVORITES_EXPORT = "favorites_export"
+    const val NOTES_EXPORT = "notes_export"
+    const val PROJECT_REPORT = "project_report"
+    const val IDENTITY_REPORT = "identity_report"
+    const val FULL_BACKUP_EXPORT = "full_backup_export"
+    const val SUMMARY_CARD = "summary_card"
 }
 
 @Composable
@@ -146,7 +153,14 @@ fun SherlockNavGraph(
                 onNavigateToWebsiteSnapshot = { navController.navigate(Routes.WEBSITE_SNAPSHOT) },
                 onNavigateToMyIp = { navController.navigate(Routes.MY_IP) },
                 onNavigateToRedirectChain = { navController.navigate(Routes.REDIRECT_CHAIN) },
-                onNavigateToVpnProxyCheck = { navController.navigate(Routes.VPN_PROXY_CHECK) }
+                onNavigateToVpnProxyCheck = { navController.navigate(Routes.VPN_PROXY_CHECK) },
+                onNavigateToHistoryExport = { navController.navigate(Routes.HISTORY_EXPORT) },
+                onNavigateToFavoritesExport = { navController.navigate(Routes.FAVORITES_EXPORT) },
+                onNavigateToNotesExport = { navController.navigate(Routes.NOTES_EXPORT) },
+                onNavigateToProjectReport = { navController.navigate(Routes.PROJECT_REPORT) },
+                onNavigateToIdentityReport = { navController.navigate(Routes.IDENTITY_REPORT) },
+                onNavigateToFullBackupExport = { navController.navigate(Routes.FULL_BACKUP_EXPORT) },
+                onNavigateToSummaryCard = { navController.navigate(Routes.SUMMARY_CARD) }
             )
         }
 
@@ -408,6 +422,34 @@ fun SherlockNavGraph(
 
         composable(Routes.VPN_PROXY_CHECK) {
             VpnProxyCheckScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.HISTORY_EXPORT) {
+            HistoryExportScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.FAVORITES_EXPORT) {
+            FavoritesExportScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.NOTES_EXPORT) {
+            NotesExportScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PROJECT_REPORT) {
+            ProjectReportScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.IDENTITY_REPORT) {
+            DigitalIdentityReportScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.FULL_BACKUP_EXPORT) {
+            FullBackupExportScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SUMMARY_CARD) {
+            SummaryCardScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }

@@ -22,6 +22,7 @@ interface ProjectTaskDao {
     @Update suspend fun update(task: ProjectTask)
     @Delete suspend fun delete(task: ProjectTask)
     @Query("SELECT * FROM project_tasks WHERE projectId = :projectId ORDER BY isDone, createdAt DESC") fun getForProject(projectId: Long): Flow<List<ProjectTask>>
+    @Query("SELECT * FROM project_tasks ORDER BY createdAt DESC") fun getAll(): Flow<List<ProjectTask>>
 }
 
 @Dao

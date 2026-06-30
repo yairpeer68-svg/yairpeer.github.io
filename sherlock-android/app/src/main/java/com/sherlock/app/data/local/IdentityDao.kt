@@ -19,5 +19,6 @@ interface IdentityLinkDao {
     @Insert suspend fun insert(link: IdentityLink): Long
     @Delete suspend fun delete(link: IdentityLink)
     @Query("SELECT * FROM identity_links WHERE identityId = :identityId ORDER BY createdAt DESC") fun getForIdentity(identityId: Long): Flow<List<IdentityLink>>
+    @Query("SELECT * FROM identity_links ORDER BY createdAt DESC") fun getAll(): Flow<List<IdentityLink>>
     @Query("DELETE FROM identity_links WHERE identityId = :identityId") suspend fun deleteAllForIdentity(identityId: Long)
 }

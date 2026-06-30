@@ -77,7 +77,14 @@ fun HomeScreen(
     onNavigateToWebsiteSnapshot: () -> Unit = {},
     onNavigateToMyIp: () -> Unit = {},
     onNavigateToRedirectChain: () -> Unit = {},
-    onNavigateToVpnProxyCheck: () -> Unit = {}
+    onNavigateToVpnProxyCheck: () -> Unit = {},
+    onNavigateToHistoryExport: () -> Unit = {},
+    onNavigateToFavoritesExport: () -> Unit = {},
+    onNavigateToNotesExport: () -> Unit = {},
+    onNavigateToProjectReport: () -> Unit = {},
+    onNavigateToIdentityReport: () -> Unit = {},
+    onNavigateToFullBackupExport: () -> Unit = {},
+    onNavigateToSummaryCard: () -> Unit = {}
 ) {
     var showContent by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(100); showContent = true }
@@ -198,6 +205,16 @@ fun HomeScreen(
                 item { FeatureTile("ציר זמן", "היסטוריית פעולות", Icons.Default.Timeline, onNavigateToTimeline) }
                 item { FeatureTile("מועדפים", "פרופילים שמורים", Icons.Default.Star, onNavigateToFavorites) }
                 item { FeatureTile("סטטיסטיקות", "דשבורד נתונים", Icons.Default.BarChart, onNavigateToStatistics) }
+
+                // Export & Reporting
+                item(span = { GridItemSpan(2) }) { SectionHeader("ייצוא, שיתוף ודיווח") }
+                item { FeatureTile("ייצוא היסטוריה", "CSV / HTML", Icons.Default.History, onNavigateToHistoryExport) }
+                item { FeatureTile("ייצוא מועדפים", "CSV / HTML", Icons.Default.Star, onNavigateToFavoritesExport) }
+                item { FeatureTile("ייצוא הערות", "קובץ טקסט", Icons.Default.StickyNote2, onNavigateToNotesExport) }
+                item { FeatureTile("דוח פרויקט", "משימות והערות", Icons.Default.Description, onNavigateToProjectReport) }
+                item { FeatureTile("דוח כרטיס זהות", "ריכוז פרופילים", Icons.Default.Badge, onNavigateToIdentityReport) }
+                item { FeatureTile("גיבוי מלא", "כל הנתונים ב-ZIP", Icons.Default.Archive, onNavigateToFullBackupExport) }
+                item { FeatureTile("כרטיס סיכום", "תמונה לשיתוף", Icons.Default.Image, onNavigateToSummaryCard) }
             }
         }
     }
