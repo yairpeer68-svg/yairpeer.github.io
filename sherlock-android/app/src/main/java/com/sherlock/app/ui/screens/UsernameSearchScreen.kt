@@ -34,6 +34,7 @@ import com.sherlock.app.ui.components.ResultCard
 import com.sherlock.app.ui.components.SkeletonLoader
 import com.sherlock.app.ui.components.hapticFeedback
 import com.sherlock.app.ui.theme.SherlockSuccess
+import com.sherlock.app.util.SettingsManager
 import kotlinx.coroutines.launch
 
 enum class ResultSortOption(val hebrewName: String) {
@@ -54,6 +55,9 @@ fun UsernameSearchScreen(
     val repository = remember { UsernameSearchRepository() }
     val exportRepository = remember { ExportRepository(context) }
     val db = remember { AppDatabase.getInstance(context) }
+    val settings = remember { SettingsManager(context) }
+    val autoFavoriteOnFound by settings.autoFavoriteOnFound.collectAsState(initial = false)
+    val autoExportOnComplete by settings.autoExportOnComplete.collectAsState(initial = false)
 
     var state by remember { mutableStateOf(UsernameSearchState(searchType = searchType, query = initialQuery)) }
     var showOnlyFound by remember { mutableStateOf(true) }
@@ -114,6 +118,12 @@ fun UsernameSearchScreen(
                         checkedSites = state.checkedSites + 1,
                         progress = (state.checkedSites + 1).toFloat() / state.totalSites
                     )
+                    if (result.exists && autoFavoriteOnFound && db.favoriteDao().getFavoriteByUrl(result.url) == null) {
+                        favorites = favorites + result.url
+                        db.favoriteDao().insertFavorite(
+                            Favorite(siteName = result.siteName, url = result.url, username = result.username, category = result.category)
+                        )
+                    }
                 }
                 state = state.copy(isSearching = false, progress = 1f)
 
@@ -127,6 +137,10 @@ fun UsernameSearchScreen(
                         )
                     )
                     db.searchHistoryDao().insertResults(state.results.map { it.copy(historyId = historyId) })
+                }
+
+                if (autoExportOnComplete && state.results.isNotEmpty()) {
+                    exportRepository.exportToCsv(state.results, state.query)
                 }
             }
         }

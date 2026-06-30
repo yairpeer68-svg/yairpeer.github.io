@@ -44,11 +44,15 @@ fun SettingsScreen(
     val currentFontScale by settings.fontScale.collectAsState(initial = FontScale.MEDIUM)
     val reduceMotion by settings.reduceMotion.collectAsState(initial = false)
     val compactDensity by settings.compactDensity.collectAsState(initial = false)
+    val autoFavorite by settings.autoFavoriteOnFound.collectAsState(initial = false)
+    val autoExport by settings.autoExportOnComplete.collectAsState(initial = false)
+    val autoCleanDays by settings.autoCleanDays.collectAsState(initial = 0)
 
     var showThemeDialog by remember { mutableStateOf(false) }
     var showPanicDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showFontScaleDialog by remember { mutableStateOf(false) }
+    var showAutoCleanDialog by remember { mutableStateOf(false) }
 
     if (showThemeDialog) {
         AlertDialog(
@@ -135,6 +139,35 @@ fun SettingsScreen(
         )
     }
 
+    if (showAutoCleanDialog) {
+        val options = listOf(0, 30, 60, 90)
+        AlertDialog(
+            onDismissRequest = { showAutoCleanDialog = false },
+            title = { Text("ניקוי היסטוריה אוטומטי") },
+            text = {
+                Column {
+                    options.forEach { days ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = autoCleanDays == days,
+                                onClick = {
+                                    scope.launch { settings.setAutoCleanDays(days) }
+                                    showAutoCleanDialog = false
+                                }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (days == 0) "כבוי" else "מחק חיפושים מעל $days יום")
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAutoCleanDialog = false }) { Text("סגור") } }
+        )
+    }
+
     if (showPanicDialog) {
         AlertDialog(
             onDismissRequest = { showPanicDialog = false },
@@ -215,6 +248,25 @@ fun SettingsScreen(
                 SettingsToggle("רטט (Haptic)", "רטט קל כשנמצאת תוצאה", Icons.Default.Vibration, haptic) {
                     scope.launch { settings.setHapticFeedback(it) }
                 }
+            }
+
+            item { SectionHeader("אוטומציה") }
+            item {
+                SettingsToggle("הוספה אוטומטית למועדפים", "תוצאות שנמצאו יתווספו אוטומטית", Icons.Default.Star, autoFavorite) {
+                    scope.launch { settings.setAutoFavoriteOnFound(it) }
+                }
+            }
+            item {
+                SettingsToggle("ייצוא אוטומטי בסיום חיפוש", "שמירת CSV אוטומטית", Icons.Default.Download, autoExport) {
+                    scope.launch { settings.setAutoExportOnComplete(it) }
+                }
+            }
+            item {
+                SettingsClickItem(
+                    "ניקוי היסטוריה אוטומטי",
+                    if (autoCleanDays > 0) "מעל $autoCleanDays יום" else "כבוי",
+                    Icons.Default.AutoDelete
+                ) { showAutoCleanDialog = true }
             }
 
             item { SectionHeader("מתקדם") }

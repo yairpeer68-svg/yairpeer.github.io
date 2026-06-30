@@ -32,6 +32,10 @@ class SettingsManager(private val context: Context) {
         val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
         val COMPACT_DENSITY = booleanPreferencesKey("compact_density")
         val PINNED_TILES = stringSetPreferencesKey("pinned_home_tiles")
+        val AUTO_FAVORITE_ON_FOUND = booleanPreferencesKey("auto_favorite_on_found")
+        val AUTO_EXPORT_ON_COMPLETE = booleanPreferencesKey("auto_export_on_complete")
+        val AUTO_CLEAN_DAYS = intPreferencesKey("auto_clean_history_days")
+        val WORKFLOW_COMPLETED_STEPS = stringSetPreferencesKey("workflow_completed_steps")
     }
 
     val theme: Flow<AppTheme> = context.dataStore.data.map {
@@ -56,6 +60,10 @@ class SettingsManager(private val context: Context) {
     val reduceMotion: Flow<Boolean> = context.dataStore.data.map { it[REDUCE_MOTION] ?: false }
     val compactDensity: Flow<Boolean> = context.dataStore.data.map { it[COMPACT_DENSITY] ?: false }
     val pinnedTiles: Flow<Set<String>> = context.dataStore.data.map { it[PINNED_TILES] ?: emptySet() }
+    val autoFavoriteOnFound: Flow<Boolean> = context.dataStore.data.map { it[AUTO_FAVORITE_ON_FOUND] ?: false }
+    val autoExportOnComplete: Flow<Boolean> = context.dataStore.data.map { it[AUTO_EXPORT_ON_COMPLETE] ?: false }
+    val autoCleanDays: Flow<Int> = context.dataStore.data.map { it[AUTO_CLEAN_DAYS] ?: 0 }
+    val workflowCompletedSteps: Flow<Set<String>> = context.dataStore.data.map { it[WORKFLOW_COMPLETED_STEPS] ?: emptySet() }
 
     suspend fun setTheme(theme: AppTheme) { context.dataStore.edit { it[THEME] = theme.name } }
     suspend fun setLanguage(lang: AppLanguage) { context.dataStore.edit { it[LANGUAGE] = lang.name } }
@@ -77,6 +85,16 @@ class SettingsManager(private val context: Context) {
             prefs[PINNED_TILES] = if (key in current) current - key else current + key
         }
     }
+    suspend fun setAutoFavoriteOnFound(enabled: Boolean) { context.dataStore.edit { it[AUTO_FAVORITE_ON_FOUND] = enabled } }
+    suspend fun setAutoExportOnComplete(enabled: Boolean) { context.dataStore.edit { it[AUTO_EXPORT_ON_COMPLETE] = enabled } }
+    suspend fun setAutoCleanDays(days: Int) { context.dataStore.edit { it[AUTO_CLEAN_DAYS] = days } }
+    suspend fun toggleWorkflowStep(stepId: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[WORKFLOW_COMPLETED_STEPS] ?: emptySet()
+            prefs[WORKFLOW_COMPLETED_STEPS] = if (stepId in current) current - stepId else current + stepId
+        }
+    }
+    suspend fun resetWorkflowSteps() { context.dataStore.edit { it[WORKFLOW_COMPLETED_STEPS] = emptySet() } }
 
     suspend fun panicClear() {
         context.dataStore.edit { it.clear() }

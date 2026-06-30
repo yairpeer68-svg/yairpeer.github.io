@@ -93,7 +93,10 @@ fun HomeScreen(
     onNavigateToIdentityReport: () -> Unit = {},
     onNavigateToFullBackupExport: () -> Unit = {},
     onNavigateToSummaryCard: () -> Unit = {},
-    onNavigateToQuickSearch: (String, String) -> Unit = { _, _ -> }
+    onNavigateToQuickSearch: (String, String) -> Unit = { _, _ -> },
+    onNavigateToScheduledSearches: () -> Unit = {},
+    onNavigateToInvestigationWorkflow: () -> Unit = {},
+    onNavigateToAutomationHub: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -172,7 +175,10 @@ fun HomeScreen(
             HomeTile("דוח פרויקט", "משימות והערות", Icons.Default.Description, onNavigateToProjectReport),
             HomeTile("דוח כרטיס זהות", "ריכוז פרופילים", Icons.Default.Badge, onNavigateToIdentityReport),
             HomeTile("גיבוי מלא", "כל הנתונים ב-ZIP", Icons.Default.Archive, onNavigateToFullBackupExport),
-            HomeTile("כרטיס סיכום", "תמונה לשיתוף", Icons.Default.Image, onNavigateToSummaryCard)
+            HomeTile("כרטיס סיכום", "תמונה לשיתוף", Icons.Default.Image, onNavigateToSummaryCard),
+            HomeTile("חיפושים מתוזמנים", "ריצה אוטומטית חוזרת", Icons.Default.Schedule, onNavigateToScheduledSearches),
+            HomeTile("אשף חקירה מודרך", "שלב אחר שלב", Icons.Default.Checklist, onNavigateToInvestigationWorkflow),
+            HomeTile("מרכז אוטומציה", "כל הכללים במקום אחד", Icons.Default.AutoMode, onNavigateToAutomationHub)
         )
     }
 
@@ -397,6 +403,9 @@ fun HomeScreen(
                 item { FeatureTile("דוח כרטיס זהות", "ריכוז פרופילים", Icons.Default.Badge, onNavigateToIdentityReport) }
                 item { FeatureTile("גיבוי מלא", "כל הנתונים ב-ZIP", Icons.Default.Archive, onNavigateToFullBackupExport) }
                 item { FeatureTile("כרטיס סיכום", "תמונה לשיתוף", Icons.Default.Image, onNavigateToSummaryCard) }
+                item { FeatureTile("חיפושים מתוזמנים", "ריצה אוטומטית חוזרת", Icons.Default.Schedule, onNavigateToScheduledSearches) }
+                item { FeatureTile("אשף חקירה מודרך", "שלב אחר שלב", Icons.Default.Checklist, onNavigateToInvestigationWorkflow) }
+                item { FeatureTile("מרכז אוטומציה", "כל הכללים במקום אחד", Icons.Default.AutoMode, onNavigateToAutomationHub) }
                     }
                 }
             }

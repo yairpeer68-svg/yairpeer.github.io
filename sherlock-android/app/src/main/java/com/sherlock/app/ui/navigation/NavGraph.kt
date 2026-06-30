@@ -81,6 +81,9 @@ object Routes {
     const val IDENTITY_REPORT = "identity_report"
     const val FULL_BACKUP_EXPORT = "full_backup_export"
     const val SUMMARY_CARD = "summary_card"
+    const val SCHEDULED_SEARCHES = "scheduled_searches"
+    const val INVESTIGATION_WORKFLOW = "investigation_workflow"
+    const val AUTOMATION_HUB = "automation_hub"
 }
 
 @Composable
@@ -161,7 +164,10 @@ fun SherlockNavGraph(
                 onNavigateToIdentityReport = { navController.navigate(Routes.IDENTITY_REPORT) },
                 onNavigateToFullBackupExport = { navController.navigate(Routes.FULL_BACKUP_EXPORT) },
                 onNavigateToSummaryCard = { navController.navigate(Routes.SUMMARY_CARD) },
-                onNavigateToQuickSearch = { query, type -> navController.navigate(Routes.voiceResultRoute(query, type)) }
+                onNavigateToQuickSearch = { query, type -> navController.navigate(Routes.voiceResultRoute(query, type)) },
+                onNavigateToScheduledSearches = { navController.navigate(Routes.SCHEDULED_SEARCHES) },
+                onNavigateToInvestigationWorkflow = { navController.navigate(Routes.INVESTIGATION_WORKFLOW) },
+                onNavigateToAutomationHub = { navController.navigate(Routes.AUTOMATION_HUB) }
             )
         }
 
@@ -451,6 +457,31 @@ fun SherlockNavGraph(
 
         composable(Routes.SUMMARY_CARD) {
             SummaryCardScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SCHEDULED_SEARCHES) {
+            ScheduledSearchesScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.INVESTIGATION_WORKFLOW) {
+            InvestigationWorkflowScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToUsernameSearch = { navController.navigate(Routes.USERNAME_SEARCH) },
+                onNavigateToEmailSearch = { navController.navigate(Routes.EMAIL_SEARCH) },
+                onNavigateToFaceSearch = { navController.navigate(Routes.FACE_SEARCH) },
+                onNavigateToDomainLookup = { navController.navigate(Routes.DOMAIN_LOOKUP) },
+                onNavigateToSocialGraph = { navController.navigate(Routes.SOCIAL_GRAPH) },
+                onNavigateToIdentityReport = { navController.navigate(Routes.IDENTITY_REPORT) }
+            )
+        }
+
+        composable(Routes.AUTOMATION_HUB) {
+            AutomationHubScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToMonitor = { navController.navigate(Routes.MONITOR) },
+                onNavigateToScheduledSearches = { navController.navigate(Routes.SCHEDULED_SEARCHES) },
+                onNavigateToInvestigationWorkflow = { navController.navigate(Routes.INVESTIGATION_WORKFLOW) }
+            )
         }
     }
 }
