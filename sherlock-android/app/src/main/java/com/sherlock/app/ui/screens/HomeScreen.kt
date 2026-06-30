@@ -289,7 +289,7 @@ fun HomeScreen(
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, null) }
+                        IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, "נקה חיפוש") }
                     }
                 },
                 singleLine = true,
