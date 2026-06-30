@@ -35,6 +35,7 @@ import com.sherlock.app.ui.components.SkeletonLoader
 import com.sherlock.app.ui.components.hapticFeedback
 import com.sherlock.app.ui.theme.SherlockSuccess
 import com.sherlock.app.util.SettingsManager
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 enum class ResultSortOption(val hebrewName: String) {
@@ -60,6 +61,12 @@ fun UsernameSearchScreen(
     val autoExportOnComplete by settings.autoExportOnComplete.collectAsState(initial = false)
 
     var state by remember { mutableStateOf(UsernameSearchState(searchType = searchType, query = initialQuery)) }
+
+    LaunchedEffect(Unit) {
+        if (settings.globalIncognito.first()) {
+            state = state.copy(isIncognito = true)
+        }
+    }
     val results = remember { mutableStateListOf<SearchResult>() }
     var showOnlyFound by remember { mutableStateOf(true) }
     var selectedCategory by remember { mutableStateOf<SiteCategory?>(null) }

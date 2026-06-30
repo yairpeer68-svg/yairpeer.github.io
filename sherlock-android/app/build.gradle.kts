@@ -151,6 +151,10 @@ dependencies {
     // ExifInterface
     implementation("androidx.exifinterface:exifinterface:1.3.7")
 
+    // Security
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.lifecycle:lifecycle-process:2.7.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     // Unit testing

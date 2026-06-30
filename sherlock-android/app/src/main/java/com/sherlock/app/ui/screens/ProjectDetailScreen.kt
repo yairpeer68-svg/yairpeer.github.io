@@ -21,6 +21,7 @@ import com.sherlock.app.data.local.AppDatabase
 import com.sherlock.app.data.model.ProfileNote
 import com.sherlock.app.data.model.ProjectStatus
 import com.sherlock.app.data.model.ProjectTask
+import com.sherlock.app.util.EncryptionManager
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -171,7 +172,7 @@ private fun LinkedNoteCard(note: ProfileNote, dateFormat: SimpleDateFormat) {
             if (note.profileUrl.isNotBlank()) {
                 Text(note.profileUrl, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, maxLines = 1)
             }
-            Text(note.note, fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
+            Text(EncryptionManager.decrypt(note.note), fontSize = 13.sp, modifier = Modifier.padding(vertical = 4.dp))
             Text(dateFormat.format(Date(note.timestamp)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

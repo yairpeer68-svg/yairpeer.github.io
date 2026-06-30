@@ -13,4 +13,5 @@ interface ScheduledSearchDao {
     fun getAll(): Flow<List<ScheduledSearch>>
     @Query("SELECT * FROM scheduled_searches WHERE isActive = 1 AND (:now - lastRun) >= (intervalHours * 3600000)")
     suspend fun getDue(now: Long): List<ScheduledSearch>
+    @Query("DELETE FROM scheduled_searches") suspend fun clearAll()
 }

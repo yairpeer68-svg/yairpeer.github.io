@@ -14,6 +14,7 @@ interface ProjectDao {
     @Query("SELECT * FROM projects WHERE id = :id") fun getByIdFlow(id: Long): Flow<Project?>
     @Query("SELECT * FROM projects WHERE id = :id") suspend fun getById(id: Long): Project?
     @Query("SELECT COUNT(*) FROM projects") suspend fun getCount(): Int
+    @Query("DELETE FROM projects") suspend fun clearAll()
 }
 
 @Dao
@@ -23,6 +24,7 @@ interface ProjectTaskDao {
     @Delete suspend fun delete(task: ProjectTask)
     @Query("SELECT * FROM project_tasks WHERE projectId = :projectId ORDER BY isDone, createdAt DESC") fun getForProject(projectId: Long): Flow<List<ProjectTask>>
     @Query("SELECT * FROM project_tasks ORDER BY createdAt DESC") fun getAll(): Flow<List<ProjectTask>>
+    @Query("DELETE FROM project_tasks") suspend fun clearAll()
 }
 
 @Dao
@@ -43,6 +45,7 @@ interface TemplateDao {
     @Update suspend fun update(template: SearchTemplate)
     @Delete suspend fun delete(template: SearchTemplate)
     @Query("SELECT * FROM search_templates ORDER BY name") fun getAll(): Flow<List<SearchTemplate>>
+    @Query("DELETE FROM search_templates") suspend fun clearAll()
 }
 
 @Dao
@@ -52,6 +55,7 @@ interface CustomSiteDao {
     @Delete suspend fun delete(site: CustomSite)
     @Query("SELECT * FROM custom_sites ORDER BY name") fun getAll(): Flow<List<CustomSite>>
     @Query("SELECT COUNT(*) FROM custom_sites") suspend fun getCount(): Int
+    @Query("DELETE FROM custom_sites") suspend fun clearAll()
 }
 
 @Dao
@@ -60,4 +64,5 @@ interface ImageHashDao {
     @Delete suspend fun delete(hash: ImageHash)
     @Query("SELECT * FROM image_hashes ORDER BY createdAt DESC") fun getAll(): Flow<List<ImageHash>>
     @Query("SELECT * FROM image_hashes") suspend fun getAllOnce(): List<ImageHash>
+    @Query("DELETE FROM image_hashes") suspend fun clearAll()
 }

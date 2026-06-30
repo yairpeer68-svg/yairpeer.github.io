@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
 import com.sherlock.app.data.model.ProfileNote
 import com.sherlock.app.data.model.Project
+import com.sherlock.app.util.EncryptionManager
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -34,7 +35,7 @@ fun NotesScreen(onNavigateBack: () -> Unit) {
 
     val filtered = remember(notes, searchQuery) {
         notes.filter {
-            searchQuery.isBlank() || it.note.contains(searchQuery, ignoreCase = true) || it.profileUrl.contains(searchQuery, ignoreCase = true)
+            searchQuery.isBlank() || EncryptionManager.decrypt(it.note).contains(searchQuery, ignoreCase = true) || it.profileUrl.contains(searchQuery, ignoreCase = true)
         }
     }
     val projectsById = remember(projects) { projects.associateBy { it.id } }
@@ -101,7 +102,7 @@ fun NotesScreen(onNavigateBack: () -> Unit) {
             onDismiss = { showAddDialog = false },
             onAdd = { profileUrl, noteText, projectId ->
                 scope.launch {
-                    db.noteDao().insert(ProfileNote(profileUrl = profileUrl, siteName = "", username = "", note = noteText, projectId = projectId, timestamp = System.currentTimeMillis()))
+                    db.noteDao().insert(ProfileNote(profileUrl = profileUrl, siteName = "", username = "", note = EncryptionManager.encrypt(noteText), projectId = projectId, timestamp = System.currentTimeMillis()))
                 }
                 showAddDialog = false
             }
@@ -120,7 +121,7 @@ private fun NoteCard(note: ProfileNote, projectName: String?, onDelete: () -> Un
                 Text(note.profileUrl, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f), maxLines = 1)
                 IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "מחק", modifier = Modifier.size(18.dp)) }
             }
-            Text(note.note, fontSize = 14.sp, modifier = Modifier.padding(vertical = 4.dp))
+            Text(EncryptionManager.decrypt(note.note), fontSize = 14.sp, modifier = Modifier.padding(vertical = 4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(dateFormat.format(Date(note.timestamp)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (projectName != null) {

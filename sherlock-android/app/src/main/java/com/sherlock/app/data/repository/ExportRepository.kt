@@ -179,7 +179,7 @@ class ExportRepository(private val context: Context) {
             sb.appendLine("${n.siteName} - @${n.username}")
             sb.appendLine(n.profileUrl)
             sb.appendLine(dateFormat.format(Date(n.timestamp)))
-            sb.appendLine(n.note)
+            sb.appendLine(com.sherlock.app.util.EncryptionManager.decrypt(n.note))
             sb.appendLine("-".repeat(30))
         }
         val file = File(context.cacheDir, "sherlock_notes_${System.currentTimeMillis()}.txt")
@@ -200,7 +200,7 @@ class ExportRepository(private val context: Context) {
         }
         sb.appendLine("<h2>הערות (${notes.size})</h2>")
         for (n in notes) {
-            sb.appendLine("""<div class="card"><b>${n.siteName}</b> - @${n.username}<br>${n.note}</div>""")
+            sb.appendLine("""<div class="card"><b>${n.siteName}</b> - @${n.username}<br>${com.sherlock.app.util.EncryptionManager.decrypt(n.note)}</div>""")
         }
         sb.appendLine("</body></html>")
         val file = File(context.cacheDir, "sherlock_project_${project.id}_${System.currentTimeMillis()}.html")

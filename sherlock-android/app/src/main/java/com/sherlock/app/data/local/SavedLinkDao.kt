@@ -11,4 +11,6 @@ interface SavedLinkDao {
     @Delete suspend fun delete(link: SavedLink)
     @Query("SELECT * FROM saved_links ORDER BY timestamp DESC")
     fun getAll(): Flow<List<SavedLink>>
+    @Query("DELETE FROM saved_links")
+    suspend fun clearAll()
 }

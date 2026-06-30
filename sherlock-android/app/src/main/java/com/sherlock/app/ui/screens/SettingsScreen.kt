@@ -2,7 +2,9 @@ package com.sherlock.app.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -14,6 +16,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
@@ -47,12 +51,21 @@ fun SettingsScreen(
     val autoFavorite by settings.autoFavoriteOnFound.collectAsState(initial = false)
     val autoExport by settings.autoExportOnComplete.collectAsState(initial = false)
     val autoCleanDays by settings.autoCleanDays.collectAsState(initial = 0)
+    val appLockEnabled by settings.appLockEnabled.collectAsState(initial = false)
+    val autoLockTimeout by settings.autoLockTimeoutMinutes.collectAsState(initial = 0)
+    val screenshotProtection by settings.screenshotProtection.collectAsState(initial = false)
+    val globalIncognito by settings.globalIncognito.collectAsState(initial = false)
 
     var showThemeDialog by remember { mutableStateOf(false) }
     var showPanicDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showFontScaleDialog by remember { mutableStateOf(false) }
     var showAutoCleanDialog by remember { mutableStateOf(false) }
+    var showSetPinDialog by remember { mutableStateOf(false) }
+    var showAutoLockDialog by remember { mutableStateOf(false) }
+    var showAccessLogDialog by remember { mutableStateOf(false) }
+    var panicPin by remember { mutableStateOf("") }
+    var panicError by remember { mutableStateOf<String?>(null) }
 
     if (showThemeDialog) {
         AlertDialog(
@@ -168,22 +181,174 @@ fun SettingsScreen(
         )
     }
 
+    if (showSetPinDialog) {
+        var pin1 by remember { mutableStateOf("") }
+        var pin2 by remember { mutableStateOf("") }
+        var pinError by remember { mutableStateOf<String?>(null) }
+        AlertDialog(
+            onDismissRequest = { showSetPinDialog = false },
+            title = { Text("הגדרת קוד PIN") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("קוד ה-PIN ישמש כגיבוי לנעילה הביומטרית.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedTextField(
+                        value = pin1,
+                        onValueChange = { if (it.length <= 8) pin1 = it },
+                        label = { Text("קוד PIN חדש") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword)
+                    )
+                    OutlinedTextField(
+                        value = pin2,
+                        onValueChange = { if (it.length <= 8) pin2 = it },
+                        label = { Text("אימות קוד PIN") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                        isError = pinError != null,
+                        supportingText = { pinError?.let { Text(it) } }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (pin1.length < 4) {
+                        pinError = "הקוד חייב להכיל לפחות 4 ספרות"
+                    } else if (pin1 != pin2) {
+                        pinError = "הקודים אינם תואמים"
+                    } else {
+                        scope.launch {
+                            settings.setAppLockPin(pin1)
+                            settings.setAppLockEnabled(true)
+                        }
+                        showSetPinDialog = false
+                    }
+                }) { Text("שמור") }
+            },
+            dismissButton = { TextButton(onClick = { showSetPinDialog = false }) { Text("ביטול") } }
+        )
+    }
+
+    if (showAutoLockDialog) {
+        val options = listOf(0, 1, 5, 15, 30)
+        AlertDialog(
+            onDismissRequest = { showAutoLockDialog = false },
+            title = { Text("נעילה אוטומטית") },
+            text = {
+                Column {
+                    options.forEach { minutes ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = autoLockTimeout == minutes,
+                                onClick = {
+                                    scope.launch { settings.setAutoLockTimeoutMinutes(minutes) }
+                                    showAutoLockDialog = false
+                                }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (minutes == 0) "מיידי" else "אחרי $minutes דקות ברקע")
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAutoLockDialog = false }) { Text("סגור") } }
+        )
+    }
+
+    if (showAccessLogDialog) {
+        val accessLog by db.accessLogDao().getRecent().collectAsState(initial = emptyList())
+        val dateFormat = remember { java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss", java.util.Locale.getDefault()) }
+        AlertDialog(
+            onDismissRequest = { showAccessLogDialog = false },
+            title = { Text("יומן גישה") },
+            text = {
+                if (accessLog.isEmpty()) {
+                    Text("אין רישומי גישה")
+                } else {
+                    LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                        items(accessLog) { entry ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    if (entry.success) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                    null,
+                                    tint = if (entry.success) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(entry.method, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Text(dateFormat.format(java.util.Date(entry.timestamp)), fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showAccessLogDialog = false }) { Text("סגור") } },
+            dismissButton = {
+                TextButton(onClick = { scope.launch { db.accessLogDao().clearAll() } }) { Text("נקה יומן") }
+            }
+        )
+    }
+
     if (showPanicDialog) {
         AlertDialog(
-            onDismissRequest = { showPanicDialog = false },
+            onDismissRequest = { showPanicDialog = false; panicPin = ""; panicError = null },
             title = { Text("כפתור פאניקה", color = MaterialTheme.colorScheme.error) },
-            text = { Text("פעולה זו תמחק את כל הנתונים: היסטוריה, מועדפים, פרופילים מנוטרים והגדרות. פעולה זו בלתי הפיכה!") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("פעולה זו תמחק את כל הנתונים באפליקציה: היסטוריה, מועדפים, פרויקטים, הערות, זהויות דיגיטליות והגדרות. פעולה זו בלתי הפיכה!")
+                    if (appLockEnabled) {
+                        OutlinedTextField(
+                            value = panicPin,
+                            onValueChange = { panicPin = it; panicError = null },
+                            label = { Text("הזן קוד PIN לאישור") },
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            isError = panicError != null,
+                            supportingText = { panicError?.let { Text(it) } }
+                        )
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
+                        if (appLockEnabled && !settings.verifyAppLockPin(panicPin)) {
+                            panicError = "קוד שגוי"
+                            return@launch
+                        }
                         db.searchHistoryDao().clearAllHistory()
+                        db.searchHistoryDao().clearAllResults()
                         db.favoriteDao().clearAllFavorites()
+                        db.favoriteDao().clearAllTags()
+                        db.monitoredProfileDao().clearAll()
+                        db.projectDao().clearAll()
+                        db.noteDao().clearAll()
+                        db.templateDao().clearAll()
+                        db.customSiteDao().clearAll()
+                        db.imageHashDao().clearAll()
+                        db.projectTaskDao().clearAll()
+                        db.digitalIdentityDao().clearAll()
+                        db.identityLinkDao().clearAll()
+                        db.scheduledSearchDao().clearAll()
+                        db.savedLinkDao().clearAll()
+                        db.accessLogDao().clearAll()
                         settings.panicClear()
+                        panicPin = ""
+                        showPanicDialog = false
                     }
-                    showPanicDialog = false
                 }) { Text("מחק הכל", color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { showPanicDialog = false }) { Text("ביטול") } }
+            dismissButton = { TextButton(onClick = { showPanicDialog = false; panicPin = ""; panicError = null }) { Text("ביטול") } }
         )
     }
 
@@ -267,6 +432,43 @@ fun SettingsScreen(
                     if (autoCleanDays > 0) "מעל $autoCleanDays יום" else "כבוי",
                     Icons.Default.AutoDelete
                 ) { showAutoCleanDialog = true }
+            }
+
+            item { SectionHeader("אבטחה ופרטיות") }
+            item {
+                SettingsToggle("נעילת אפליקציה", "ביומטריה/PIN בכניסה לאפליקציה", Icons.Default.Fingerprint, appLockEnabled) { enabled ->
+                    if (enabled) {
+                        showSetPinDialog = true
+                    } else {
+                        scope.launch { settings.clearAppLockPin() }
+                    }
+                }
+            }
+            if (appLockEnabled) {
+                item {
+                    SettingsClickItem(
+                        "נעילה אוטומטית",
+                        if (autoLockTimeout == 0) "מיידי" else "אחרי $autoLockTimeout דקות",
+                        Icons.Default.LockClock
+                    ) { showAutoLockDialog = true }
+                }
+            }
+            item {
+                SettingsToggle("הגנת צילום מסך", "חסימת צילומי מסך והצגה ברשימת אפליקציות", Icons.Default.Shield, screenshotProtection) {
+                    scope.launch { settings.setScreenshotProtection(it) }
+                }
+            }
+            item {
+                SettingsToggle("מצב סמוי גלובלי", "ברירת מחדל: אל תשמור חיפושים חדשים בהיסטוריה", Icons.Default.VisibilityOff, globalIncognito) {
+                    scope.launch { settings.setGlobalIncognito(it) }
+                }
+            }
+            item {
+                SettingsClickItem(
+                    "יומן גישה",
+                    "היסטוריית ניסיונות כניסה לאפליקציה",
+                    Icons.Default.History
+                ) { showAccessLogDialog = true }
             }
 
             item { SectionHeader("מתקדם") }

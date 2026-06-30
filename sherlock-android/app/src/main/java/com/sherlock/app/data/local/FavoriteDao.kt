@@ -41,6 +41,9 @@ interface FavoriteDao {
 
     @Delete
     suspend fun deleteTag(tag: Tag)
+
+    @Query("DELETE FROM tags")
+    suspend fun clearAllTags()
 }
 
 @Dao
@@ -66,4 +69,7 @@ interface MonitoredProfileDao {
 
     @Query("SELECT COUNT(*) FROM monitored_profiles WHERE isActive = 1")
     suspend fun getActiveCount(): Int
+
+    @Query("DELETE FROM monitored_profiles")
+    suspend fun clearAll()
 }
