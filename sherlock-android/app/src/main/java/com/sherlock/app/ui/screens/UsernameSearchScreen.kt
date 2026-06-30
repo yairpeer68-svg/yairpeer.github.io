@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +36,11 @@ import com.sherlock.app.ui.components.hapticFeedback
 import com.sherlock.app.ui.theme.SherlockSuccess
 import kotlinx.coroutines.launch
 
+enum class ResultSortOption(val hebrewName: String) {
+    NAME("שם אתר"),
+    RESPONSE_TIME("זמן תגובה")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UsernameSearchScreen(
@@ -54,11 +60,19 @@ fun UsernameSearchScreen(
     var selectedCategory by remember { mutableStateOf<SiteCategory?>(null) }
     var favorites by remember { mutableStateOf(setOf<String>()) }
     var showExportMenu by remember { mutableStateOf(false) }
+    var sortOption by remember { mutableStateOf(ResultSortOption.NAME) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     val foundCount = state.results.count { it.exists }
     val filteredResults = state.results
         .filter { if (showOnlyFound) it.exists else true }
         .filter { selectedCategory == null || it.category == selectedCategory }
+        .let { list ->
+            when (sortOption) {
+                ResultSortOption.NAME -> list.sortedBy { it.siteName }
+                ResultSortOption.RESPONSE_TIME -> list.sortedBy { it.responseTimeMs }
+            }
+        }
 
     val title = when (searchType) {
         SearchType.USERNAME -> "חיפוש שם משתמש"
@@ -238,11 +252,29 @@ fun UsernameSearchScreen(
                             Spacer(Modifier.width(4.dp))
                             Text("$foundCount נמצאו מתוך ${state.results.size}", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         }
-                        FilterChip(
-                            selected = showOnlyFound,
-                            onClick = { showOnlyFound = !showOnlyFound },
-                            label = { Text("נמצאו", fontSize = 12.sp) }
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box {
+                                IconButton(onClick = { showSortMenu = true }) {
+                                    Icon(Icons.AutoMirrored.Filled.Sort, "מיון")
+                                }
+                                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                    ResultSortOption.entries.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = { Text(option.hebrewName) },
+                                            onClick = { sortOption = option; showSortMenu = false },
+                                            leadingIcon = {
+                                                if (sortOption == option) Icon(Icons.Default.Check, null)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            FilterChip(
+                                selected = showOnlyFound,
+                                onClick = { showOnlyFound = !showOnlyFound },
+                                label = { Text("נמצאו", fontSize = 12.sp) }
+                            )
+                        }
                     }
 
                     Spacer(Modifier.height(8.dp))

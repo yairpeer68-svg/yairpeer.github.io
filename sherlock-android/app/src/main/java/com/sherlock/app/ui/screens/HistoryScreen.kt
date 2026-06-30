@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
 import com.sherlock.app.data.model.SearchHistory
 import com.sherlock.app.ui.theme.SherlockSuccess
+import com.sherlock.app.util.SettingsManager
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -28,6 +29,8 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val db = remember { AppDatabase.getInstance(context) }
+    val settings = remember { SettingsManager(context) }
+    val compactDensity by settings.compactDensity.collectAsState(initial = false)
     val history by db.searchHistoryDao().getAllHistory().collectAsState(initial = emptyList())
     var showClearDialog by remember { mutableStateOf(false) }
 
@@ -74,10 +77,10 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(if (compactDensity) 4.dp else 8.dp)
             ) {
                 items(history, key = { it.id }) { item ->
-                    HistoryItem(item) {
+                    HistoryItem(item, compactDensity) {
                         scope.launch {
                             db.searchHistoryDao().deleteResultsForHistory(item.id)
                             db.searchHistoryDao().deleteHistory(item)
@@ -90,7 +93,7 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
 }
 
 @Composable
-private fun HistoryItem(item: SearchHistory, onDelete: () -> Unit) {
+private fun HistoryItem(item: SearchHistory, compactDensity: Boolean = false, onDelete: () -> Unit) {
     val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()) }
 
     Card(
@@ -99,7 +102,7 @@ private fun HistoryItem(item: SearchHistory, onDelete: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            modifier = Modifier.fillMaxWidth().padding(if (compactDensity) 8.dp else 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val icon = when (item.searchType.name) {

@@ -34,6 +34,12 @@ enum class AppLanguage(val displayName: String, val code: String) {
     RUSSIAN("Русский", "ru")
 }
 
+enum class FontScale(val scale: Float, val hebrewName: String) {
+    SMALL(0.85f, "קטן"),
+    MEDIUM(1.0f, "בינוני"),
+    LARGE(1.2f, "גדול")
+}
+
 enum class FakeAppIcon(val displayName: String) {
     SHERLOCK("Sherlock (ברירת מחדל)"),
     CALCULATOR("מחשבון"),

@@ -160,7 +160,8 @@ fun SherlockNavGraph(
                 onNavigateToProjectReport = { navController.navigate(Routes.PROJECT_REPORT) },
                 onNavigateToIdentityReport = { navController.navigate(Routes.IDENTITY_REPORT) },
                 onNavigateToFullBackupExport = { navController.navigate(Routes.FULL_BACKUP_EXPORT) },
-                onNavigateToSummaryCard = { navController.navigate(Routes.SUMMARY_CARD) }
+                onNavigateToSummaryCard = { navController.navigate(Routes.SUMMARY_CARD) },
+                onNavigateToQuickSearch = { query, type -> navController.navigate(Routes.voiceResultRoute(query, type)) }
             )
         }
 

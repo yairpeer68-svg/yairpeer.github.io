@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.sherlock.app.data.model.AppLanguage
 import com.sherlock.app.data.model.AppTheme
 import com.sherlock.app.data.model.FakeAppIcon
+import com.sherlock.app.data.model.FontScale
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -27,6 +28,10 @@ class SettingsManager(private val context: Context) {
         val MONITOR_INTERVAL = intPreferencesKey("monitor_interval")
         val FIRST_LAUNCH = booleanPreferencesKey("first_launch")
         val TOTAL_SEARCHES = intPreferencesKey("total_searches_counter")
+        val FONT_SCALE = stringPreferencesKey("font_scale")
+        val REDUCE_MOTION = booleanPreferencesKey("reduce_motion")
+        val COMPACT_DENSITY = booleanPreferencesKey("compact_density")
+        val PINNED_TILES = stringSetPreferencesKey("pinned_home_tiles")
     }
 
     val theme: Flow<AppTheme> = context.dataStore.data.map {
@@ -45,6 +50,12 @@ class SettingsManager(private val context: Context) {
     val notifications: Flow<Boolean> = context.dataStore.data.map { it[NOTIFICATIONS] ?: true }
     val monitorInterval: Flow<Int> = context.dataStore.data.map { it[MONITOR_INTERVAL] ?: 60 }
     val isFirstLaunch: Flow<Boolean> = context.dataStore.data.map { it[FIRST_LAUNCH] ?: true }
+    val fontScale: Flow<FontScale> = context.dataStore.data.map {
+        try { FontScale.valueOf(it[FONT_SCALE] ?: FontScale.MEDIUM.name) } catch (_: Exception) { FontScale.MEDIUM }
+    }
+    val reduceMotion: Flow<Boolean> = context.dataStore.data.map { it[REDUCE_MOTION] ?: false }
+    val compactDensity: Flow<Boolean> = context.dataStore.data.map { it[COMPACT_DENSITY] ?: false }
+    val pinnedTiles: Flow<Set<String>> = context.dataStore.data.map { it[PINNED_TILES] ?: emptySet() }
 
     suspend fun setTheme(theme: AppTheme) { context.dataStore.edit { it[THEME] = theme.name } }
     suspend fun setLanguage(lang: AppLanguage) { context.dataStore.edit { it[LANGUAGE] = lang.name } }
@@ -57,6 +68,15 @@ class SettingsManager(private val context: Context) {
     suspend fun setMonitorInterval(minutes: Int) { context.dataStore.edit { it[MONITOR_INTERVAL] = minutes } }
     suspend fun setFirstLaunch(first: Boolean) { context.dataStore.edit { it[FIRST_LAUNCH] = first } }
     suspend fun incrementSearchCount() { context.dataStore.edit { it[TOTAL_SEARCHES] = (it[TOTAL_SEARCHES] ?: 0) + 1 } }
+    suspend fun setFontScale(scale: FontScale) { context.dataStore.edit { it[FONT_SCALE] = scale.name } }
+    suspend fun setReduceMotion(enabled: Boolean) { context.dataStore.edit { it[REDUCE_MOTION] = enabled } }
+    suspend fun setCompactDensity(enabled: Boolean) { context.dataStore.edit { it[COMPACT_DENSITY] = enabled } }
+    suspend fun togglePinnedTile(key: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[PINNED_TILES] ?: emptySet()
+            prefs[PINNED_TILES] = if (key in current) current - key else current + key
+        }
+    }
 
     suspend fun panicClear() {
         context.dataStore.edit { it.clear() }

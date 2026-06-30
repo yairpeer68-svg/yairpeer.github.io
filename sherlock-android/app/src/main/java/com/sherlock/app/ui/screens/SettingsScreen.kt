@@ -17,7 +17,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
+import com.sherlock.app.data.model.AppLanguage
 import com.sherlock.app.data.model.AppTheme
+import com.sherlock.app.data.model.FontScale
 import com.sherlock.app.util.SettingsManager
 import kotlinx.coroutines.launch
 
@@ -38,9 +40,15 @@ fun SettingsScreen(
     val timeout by settings.searchTimeout.collectAsState(initial = 10)
     val autoVar by settings.autoVariations.collectAsState(initial = true)
     val notifications by settings.notifications.collectAsState(initial = true)
+    val currentLanguage by settings.language.collectAsState(initial = AppLanguage.HEBREW)
+    val currentFontScale by settings.fontScale.collectAsState(initial = FontScale.MEDIUM)
+    val reduceMotion by settings.reduceMotion.collectAsState(initial = false)
+    val compactDensity by settings.compactDensity.collectAsState(initial = false)
 
     var showThemeDialog by remember { mutableStateOf(false) }
     var showPanicDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var showFontScaleDialog by remember { mutableStateOf(false) }
 
     if (showThemeDialog) {
         AlertDialog(
@@ -68,6 +76,62 @@ fun SettingsScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { showThemeDialog = false }) { Text("סגור") } }
+        )
+    }
+
+    if (showLanguageDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text("שפה") },
+            text = {
+                Column {
+                    AppLanguage.entries.forEach { lang ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = currentLanguage == lang,
+                                onClick = {
+                                    scope.launch { settings.setLanguage(lang) }
+                                    showLanguageDialog = false
+                                }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(lang.displayName)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showLanguageDialog = false }) { Text("סגור") } }
+        )
+    }
+
+    if (showFontScaleDialog) {
+        AlertDialog(
+            onDismissRequest = { showFontScaleDialog = false },
+            title = { Text("גודל טקסט") },
+            text = {
+                Column {
+                    FontScale.entries.forEach { scale ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = currentFontScale == scale,
+                                onClick = {
+                                    scope.launch { settings.setFontScale(scale) }
+                                    showFontScaleDialog = false
+                                }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(scale.hebrewName)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showFontScaleDialog = false }) { Text("סגור") } }
         )
     }
 
@@ -106,6 +170,22 @@ fun SettingsScreen(
             item { SectionHeader("מראה") }
             item {
                 SettingsClickItem("ערכת נושא", currentTheme.hebrewName, Icons.Default.Palette) { showThemeDialog = true }
+            }
+            item {
+                SettingsClickItem("שפה", currentLanguage.displayName, Icons.Default.Language) { showLanguageDialog = true }
+            }
+            item {
+                SettingsClickItem("גודל טקסט", currentFontScale.hebrewName, Icons.Default.FormatSize) { showFontScaleDialog = true }
+            }
+            item {
+                SettingsToggle("הפחתת אנימציות", "ביטול אפקטי מעבר וגלילה", Icons.Default.MotionPhotosOff, reduceMotion) {
+                    scope.launch { settings.setReduceMotion(it) }
+                }
+            }
+            item {
+                SettingsToggle("תצוגה קומפקטית", "רשימות צפופות יותר", Icons.Default.ViewCompact, compactDensity) {
+                    scope.launch { settings.setCompactDensity(it) }
+                }
             }
 
             item { SectionHeader("חיפוש") }

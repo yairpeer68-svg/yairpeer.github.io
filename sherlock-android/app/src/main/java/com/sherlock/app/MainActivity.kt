@@ -8,8 +8,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.navigation.compose.rememberNavController
 import com.sherlock.app.data.model.AppTheme
+import com.sherlock.app.data.model.FontScale
 import com.sherlock.app.ui.navigation.SherlockNavGraph
 import com.sherlock.app.ui.theme.SherlockTheme
 import com.sherlock.app.util.NotificationHelper
@@ -29,10 +32,17 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             var currentTheme by remember { mutableStateOf(AppTheme.DARK_BLUE) }
+            var currentFontScale by remember { mutableStateOf(FontScale.MEDIUM) }
 
             LaunchedEffect(Unit) {
                 settings.theme.collect { theme ->
                     currentTheme = theme
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                settings.fontScale.collect { scale ->
+                    currentFontScale = scale
                 }
             }
 
@@ -41,13 +51,18 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val navController = rememberNavController()
-                    SherlockNavGraph(
-                        navController = navController,
-                        onThemeChange = { newTheme ->
-                            currentTheme = newTheme
-                        }
-                    )
+                    val baseDensity = LocalDensity.current
+                    CompositionLocalProvider(
+                        LocalDensity provides Density(baseDensity.density, currentFontScale.scale)
+                    ) {
+                        val navController = rememberNavController()
+                        SherlockNavGraph(
+                            navController = navController,
+                            onThemeChange = { newTheme ->
+                                currentTheme = newTheme
+                            }
+                        )
+                    }
                 }
             }
         }

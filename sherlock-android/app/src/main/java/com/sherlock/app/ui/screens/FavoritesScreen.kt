@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
 import com.sherlock.app.data.model.Favorite
+import com.sherlock.app.util.SettingsManager
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -29,6 +30,8 @@ fun FavoritesScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val db = remember { AppDatabase.getInstance(context) }
+    val settings = remember { SettingsManager(context) }
+    val compactDensity by settings.compactDensity.collectAsState(initial = false)
     val favorites by db.favoriteDao().getAllFavorites().collectAsState(initial = emptyList())
     val tags by db.favoriteDao().getAllTags().collectAsState(initial = emptyList())
     var selectedTag by remember { mutableStateOf<String?>(null) }
@@ -91,7 +94,7 @@ fun FavoritesScreen(onNavigateBack: () -> Unit) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(if (compactDensity) 4.dp else 8.dp)
             ) {
                 if (tags.isNotEmpty()) {
                     item {
@@ -121,7 +124,7 @@ fun FavoritesScreen(onNavigateBack: () -> Unit) {
                         shape = RoundedCornerShape(12.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                     ) {
-                        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().padding(if (compactDensity) 8.dp else 14.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Star, null, Modifier.size(24.dp), tint = Color(0xFFFFD700))
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
