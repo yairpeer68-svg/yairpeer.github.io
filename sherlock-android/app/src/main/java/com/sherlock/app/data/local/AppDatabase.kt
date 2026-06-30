@@ -19,9 +19,11 @@ import com.sherlock.app.data.model.*
         SearchTemplate::class,
         CustomSite::class,
         ImageHash::class,
-        ProjectTask::class
+        ProjectTask::class,
+        DigitalIdentity::class,
+        IdentityLink::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -35,6 +37,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun customSiteDao(): CustomSiteDao
     abstract fun imageHashDao(): ImageHashDao
     abstract fun projectTaskDao(): ProjectTaskDao
+    abstract fun digitalIdentityDao(): DigitalIdentityDao
+    abstract fun identityLinkDao(): IdentityLinkDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

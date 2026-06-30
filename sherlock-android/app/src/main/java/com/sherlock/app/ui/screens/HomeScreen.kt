@@ -63,7 +63,14 @@ fun HomeScreen(
     onNavigateToObjectDetection: () -> Unit = {},
     onNavigateToImageLabeling: () -> Unit = {},
     onNavigateToImageDiff: () -> Unit = {},
-    onNavigateToCollage: () -> Unit = {}
+    onNavigateToCollage: () -> Unit = {},
+    onNavigateToProfileLinkHealth: () -> Unit = {},
+    onNavigateToUsernameMatcher: () -> Unit = {},
+    onNavigateToPlatformFootprint: () -> Unit = {},
+    onNavigateToBioLinkExtractor: () -> Unit = {},
+    onNavigateToUsernameFormatValidator: () -> Unit = {},
+    onNavigateToPlatformGuide: () -> Unit = {},
+    onNavigateToDigitalIdentity: () -> Unit = {}
 ) {
     var showContent by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(100); showContent = true }
@@ -160,6 +167,13 @@ fun HomeScreen(
                 item { FeatureTile("מפת רשתות", "20 פלטפורמות", Icons.Default.AccountTree, onNavigateToSocialGraph) }
                 item { FeatureTile("השוואת פרופילים", "זה מול זה", Icons.Default.CompareArrows, onNavigateToSideBySide) }
                 item { FeatureTile("ניטור פרופילים", "התראות שינויים", Icons.Default.Notifications, onNavigateToMonitor) }
+                item { FeatureTile("בדיקת קישורים", "תקינות פרופילים", Icons.Default.NetworkCheck, onNavigateToProfileLinkHealth) }
+                item { FeatureTile("התאמת שמות משתמש", "דמיון בין פלטפורמות", Icons.Default.JoinInner, onNavigateToUsernameMatcher) }
+                item { FeatureTile("ציון נוכחות רשתית", "פילוח לפי קטגוריה", Icons.Default.Insights, onNavigateToPlatformFootprint) }
+                item { FeatureTile("חילוץ קישורים", "מתוך ביוגרפיה", Icons.Default.ContentPaste, onNavigateToBioLinkExtractor) }
+                item { FeatureTile("תקינות שם משתמש", "בדיקה לפי פלטפורמה", Icons.Default.Spellcheck, onNavigateToUsernameFormatValidator) }
+                item { FeatureTile("מדריך OSINT", "טיפים לפי פלטפורמה", Icons.Default.MenuBook, onNavigateToPlatformGuide) }
+                item { FeatureTile("כרטיסי זהות", "ריכוז פרופילים לאדם", Icons.Default.Badge, onNavigateToDigitalIdentity) }
 
                 // Management
                 item(span = { GridItemSpan(2) }) { SectionHeader("ניהול וארגון") }

@@ -60,6 +60,13 @@ object Routes {
     const val IMAGE_LABELING = "image_labeling"
     const val IMAGE_DIFF = "image_diff"
     const val COLLAGE = "collage"
+    const val PROFILE_LINK_HEALTH = "profile_link_health"
+    const val USERNAME_MATCHER = "username_matcher"
+    const val PLATFORM_FOOTPRINT = "platform_footprint"
+    const val BIO_LINK_EXTRACTOR = "bio_link_extractor"
+    const val USERNAME_FORMAT_VALIDATOR = "username_format_validator"
+    const val PLATFORM_GUIDE = "platform_guide"
+    const val DIGITAL_IDENTITY = "digital_identity"
 }
 
 @Composable
@@ -118,7 +125,14 @@ fun SherlockNavGraph(
                 onNavigateToObjectDetection = { navController.navigate(Routes.OBJECT_DETECTION) },
                 onNavigateToImageLabeling = { navController.navigate(Routes.IMAGE_LABELING) },
                 onNavigateToImageDiff = { navController.navigate(Routes.IMAGE_DIFF) },
-                onNavigateToCollage = { navController.navigate(Routes.COLLAGE) }
+                onNavigateToCollage = { navController.navigate(Routes.COLLAGE) },
+                onNavigateToProfileLinkHealth = { navController.navigate(Routes.PROFILE_LINK_HEALTH) },
+                onNavigateToUsernameMatcher = { navController.navigate(Routes.USERNAME_MATCHER) },
+                onNavigateToPlatformFootprint = { navController.navigate(Routes.PLATFORM_FOOTPRINT) },
+                onNavigateToBioLinkExtractor = { navController.navigate(Routes.BIO_LINK_EXTRACTOR) },
+                onNavigateToUsernameFormatValidator = { navController.navigate(Routes.USERNAME_FORMAT_VALIDATOR) },
+                onNavigateToPlatformGuide = { navController.navigate(Routes.PLATFORM_GUIDE) },
+                onNavigateToDigitalIdentity = { navController.navigate(Routes.DIGITAL_IDENTITY) }
             )
         }
 
@@ -324,6 +338,34 @@ fun SherlockNavGraph(
 
         composable(Routes.COLLAGE) {
             CollageScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PROFILE_LINK_HEALTH) {
+            ProfileLinkHealthScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.USERNAME_MATCHER) {
+            UsernameMatcherScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PLATFORM_FOOTPRINT) {
+            PlatformFootprintScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.BIO_LINK_EXTRACTOR) {
+            BioLinkExtractorScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.USERNAME_FORMAT_VALIDATOR) {
+            UsernameFormatValidatorScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PLATFORM_GUIDE) {
+            PlatformGuideScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.DIGITAL_IDENTITY) {
+            DigitalIdentityScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }
