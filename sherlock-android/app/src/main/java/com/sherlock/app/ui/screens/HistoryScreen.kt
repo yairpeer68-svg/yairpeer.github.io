@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
 import com.sherlock.app.data.model.SearchHistory
+import com.sherlock.app.ui.components.ResponsiveContent
 import com.sherlock.app.ui.theme.SherlockSuccess
 import com.sherlock.app.util.SettingsManager
 import kotlinx.coroutines.launch
@@ -74,8 +75,9 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
                 }
             }
         } else {
+            ResponsiveContent(modifier = Modifier.padding(padding)) {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
+                modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(if (compactDensity) 4.dp else 8.dp)
             ) {
@@ -87,6 +89,7 @@ fun HistoryScreen(onNavigateBack: () -> Unit) {
                         }
                     }
                 }
+            }
             }
         }
     }

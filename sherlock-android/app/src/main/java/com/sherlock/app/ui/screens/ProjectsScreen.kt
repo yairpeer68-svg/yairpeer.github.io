@@ -25,6 +25,7 @@ import com.sherlock.app.data.model.PROJECT_COLORS
 import com.sherlock.app.data.model.Priority
 import com.sherlock.app.data.model.Project
 import com.sherlock.app.data.model.ProjectStatus
+import com.sherlock.app.ui.components.ResponsiveContent
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -89,7 +90,8 @@ fun ProjectsScreen(
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        ResponsiveContent(modifier = Modifier.padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize()) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -147,6 +149,7 @@ fun ProjectsScreen(
                     }
                 }
             }
+        }
         }
     }
 

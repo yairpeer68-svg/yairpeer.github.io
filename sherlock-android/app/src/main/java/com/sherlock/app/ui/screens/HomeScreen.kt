@@ -344,7 +344,7 @@ fun HomeScreen(
                     enter = fadeIn() + slideInVertically { 40 }
                 ) {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
+                        columns = GridCells.Adaptive(minSize = 160.dp),
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
@@ -353,7 +353,7 @@ fun HomeScreen(
                         contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
                 // Search
-                item(span = { GridItemSpan(2) }) { SectionHeader("חיפוש ואיתור") }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("חיפוש ואיתור") }
                 item { FeatureTile("חיפוש תמונה", "זיהוי פנים וחיפוש", Icons.Default.CameraAlt, onNavigateToFaceSearch) }
                 item { FeatureTile("שם משתמש", "300+ אתרים", Icons.Default.Person, onNavigateToUsernameSearch) }
                 item { FeatureTile("חיפוש אימייל", "מצא פרופילים", Icons.Default.Email, onNavigateToEmailSearch) }
@@ -367,7 +367,7 @@ fun HomeScreen(
                 item { FeatureTile("חיפוש מאוחד", "כל הסוגים יחד", Icons.Default.JoinFull, onNavigateToUnifiedSearch) }
 
                 // Analysis
-                item(span = { GridItemSpan(2) }) { SectionHeader("ניתוח וזיהוי") }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("ניתוח וזיהוי") }
                 item { FeatureTile("השוואת פנים", "בדוק התאמה", Icons.Default.Compare, onNavigateToFaceCompare) }
                 item { FeatureTile("זיהוי טקסט OCR", "חלץ מתמונה", Icons.Default.DocumentScanner, onNavigateToOCR) }
                 item { FeatureTile("ניתוח פורנזי", "בדיקת עריכה", Icons.Default.ImageSearch, onNavigateToImageForensics) }
@@ -380,7 +380,7 @@ fun HomeScreen(
                 item { FeatureTile("יוצר קולאז'", "עד 9 תמונות", Icons.Default.GridView, onNavigateToCollage) }
 
                 // Network
-                item(span = { GridItemSpan(2) }) { SectionHeader("רשת ודומיינים") }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("רשת ודומיינים") }
                 item { FeatureTile("בדיקת דומיין", "WHOIS & DNS", Icons.Default.Language, onNavigateToDomainLookup) }
                 item { FeatureTile("מיקום IP", "Geolocation", Icons.Default.LocationOn, onNavigateToIpGeolocation) }
                 item { FeatureTile("תתי-דומיינים", "סריקת subdomain", Icons.Default.Dns, onNavigateToSubdomain) }
@@ -394,13 +394,13 @@ fun HomeScreen(
                 item { FeatureTile("זיהוי VPN/Proxy", "בדיקת מקור IP", Icons.Default.Shield, onNavigateToVpnProxyCheck) }
 
                 // Images & Media
-                item(span = { GridItemSpan(2) }) { SectionHeader("תמונות ומדיה") }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("תמונות ומדיה") }
                 item { FeatureTile("EXIF Viewer", "מטא-דאטה", Icons.Default.Info, onNavigateToExifViewer) }
                 item { FeatureTile("הסרת מטא-דאטה", "ניקוי EXIF", Icons.Default.CleaningServices, onNavigateToMetadataStripper) }
                 item { FeatureTile("יוצר QR", "URL, WiFi ועוד", Icons.Default.QrCode2, onNavigateToQRGenerator) }
 
                 // Social
-                item(span = { GridItemSpan(2) }) { SectionHeader("רשתות חברתיות") }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("רשתות חברתיות") }
                 item { FeatureTile("מפת רשתות", "20 פלטפורמות", Icons.Default.AccountTree, onNavigateToSocialGraph) }
                 item { FeatureTile("השוואת פרופילים", "זה מול זה", Icons.Default.CompareArrows, onNavigateToSideBySide) }
                 item { FeatureTile("ניטור פרופילים", "התראות שינויים", Icons.Default.Notifications, onNavigateToMonitor) }
@@ -413,7 +413,7 @@ fun HomeScreen(
                 item { FeatureTile("כרטיסי זהות", "ריכוז פרופילים לאדם", Icons.Default.Badge, onNavigateToDigitalIdentity) }
 
                 // Management
-                item(span = { GridItemSpan(2) }) { SectionHeader("ניהול וארגון") }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("ניהול וארגון") }
                 item { FeatureTile("פרויקטי חקירה", "ארגון מחקרים", Icons.Default.Folder, onNavigateToProjects) }
                 item { FeatureTile("הערות", "תיעוד ממצאים", Icons.Default.StickyNote2, onNavigateToNotes) }
                 item { FeatureTile("תבניות חיפוש", "חיפוש שמור", Icons.Default.SavedSearch, onNavigateToSearchTemplates) }
@@ -423,7 +423,7 @@ fun HomeScreen(
                 item { FeatureTile("סטטיסטיקות", "דשבורד נתונים", Icons.Default.BarChart, onNavigateToStatistics) }
 
                 // Export & Reporting
-                item(span = { GridItemSpan(2) }) { SectionHeader("ייצוא, שיתוף ודיווח") }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("ייצוא, שיתוף ודיווח") }
                 item { FeatureTile("ייצוא היסטוריה", "CSV / HTML", Icons.Default.History, onNavigateToHistoryExport) }
                 item { FeatureTile("ייצוא מועדפים", "CSV / HTML", Icons.Default.Star, onNavigateToFavoritesExport) }
                 item { FeatureTile("ייצוא הערות", "קובץ טקסט", Icons.Default.StickyNote2, onNavigateToNotesExport) }
@@ -441,7 +441,7 @@ fun HomeScreen(
                 item { FeatureTile("השוואת תקופות", "שבוע מול שבוע", Icons.Default.TrendingUp, onNavigateToPeriodComparison) }
 
                 // Companion tools
-                item(span = { GridItemSpan(2) }) { SectionHeader("כלים נלווים") }
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("כלים נלווים") }
                 item { FeatureTile("ממיר פורמטים", "JSON, CSV, XML", Icons.Default.Transform, onNavigateToFormatConverter) }
                 item { FeatureTile("מחשבון תאריכים", "גיל והפרשי זמן", Icons.Default.CalendarMonth, onNavigateToDateCalculator) }
                 item { FeatureTile("מילון סלנג", "קיצורים ברשתות", Icons.Default.MenuBook, onNavigateToSlangDictionary) }
