@@ -22,9 +22,10 @@ import com.sherlock.app.data.model.*
         ProjectTask::class,
         DigitalIdentity::class,
         IdentityLink::class,
-        ScheduledSearch::class
+        ScheduledSearch::class,
+        SavedLink::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -41,6 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun digitalIdentityDao(): DigitalIdentityDao
     abstract fun identityLinkDao(): IdentityLinkDao
     abstract fun scheduledSearchDao(): ScheduledSearchDao
+    abstract fun savedLinkDao(): SavedLinkDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

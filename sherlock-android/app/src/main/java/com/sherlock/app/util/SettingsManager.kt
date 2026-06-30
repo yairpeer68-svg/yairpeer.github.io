@@ -36,6 +36,7 @@ class SettingsManager(private val context: Context) {
         val AUTO_EXPORT_ON_COMPLETE = booleanPreferencesKey("auto_export_on_complete")
         val AUTO_CLEAN_DAYS = intPreferencesKey("auto_clean_history_days")
         val WORKFLOW_COMPLETED_STEPS = stringSetPreferencesKey("workflow_completed_steps")
+        val DEMO_MODE = booleanPreferencesKey("demo_mode")
     }
 
     val theme: Flow<AppTheme> = context.dataStore.data.map {
@@ -64,6 +65,7 @@ class SettingsManager(private val context: Context) {
     val autoExportOnComplete: Flow<Boolean> = context.dataStore.data.map { it[AUTO_EXPORT_ON_COMPLETE] ?: false }
     val autoCleanDays: Flow<Int> = context.dataStore.data.map { it[AUTO_CLEAN_DAYS] ?: 0 }
     val workflowCompletedSteps: Flow<Set<String>> = context.dataStore.data.map { it[WORKFLOW_COMPLETED_STEPS] ?: emptySet() }
+    val demoMode: Flow<Boolean> = context.dataStore.data.map { it[DEMO_MODE] ?: false }
 
     suspend fun setTheme(theme: AppTheme) { context.dataStore.edit { it[THEME] = theme.name } }
     suspend fun setLanguage(lang: AppLanguage) { context.dataStore.edit { it[LANGUAGE] = lang.name } }
@@ -95,6 +97,7 @@ class SettingsManager(private val context: Context) {
         }
     }
     suspend fun resetWorkflowSteps() { context.dataStore.edit { it[WORKFLOW_COMPLETED_STEPS] = emptySet() } }
+    suspend fun setDemoMode(enabled: Boolean) { context.dataStore.edit { it[DEMO_MODE] = enabled } }
 
     suspend fun panicClear() {
         context.dataStore.edit { it.clear() }

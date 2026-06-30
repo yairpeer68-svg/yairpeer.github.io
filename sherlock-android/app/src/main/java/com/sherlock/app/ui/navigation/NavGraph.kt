@@ -89,6 +89,15 @@ object Routes {
     const val ACTIVITY_TREND = "activity_trend"
     const val PERFORMANCE_ANALYTICS = "performance_analytics"
     const val PERIOD_COMPARISON = "period_comparison"
+    const val FORMAT_CONVERTER = "format_converter"
+    const val DATE_CALCULATOR = "date_calculator"
+    const val SLANG_DICTIONARY = "slang_dictionary"
+    const val DORKS_LIBRARY = "dorks_library"
+    const val URL_EMAIL_VALIDATOR = "url_email_validator"
+    const val SAVED_LINKS = "saved_links"
+    const val TRANSLATE_RESULTS = "translate_results"
+    const val SOURCE_RELIABILITY = "source_reliability"
+    const val DEMO_MODE = "demo_mode"
 }
 
 @Composable
@@ -177,7 +186,16 @@ fun SherlockNavGraph(
                 onNavigateToTopSites = { navController.navigate(Routes.TOP_SITES) },
                 onNavigateToActivityTrend = { navController.navigate(Routes.ACTIVITY_TREND) },
                 onNavigateToPerformanceAnalytics = { navController.navigate(Routes.PERFORMANCE_ANALYTICS) },
-                onNavigateToPeriodComparison = { navController.navigate(Routes.PERIOD_COMPARISON) }
+                onNavigateToPeriodComparison = { navController.navigate(Routes.PERIOD_COMPARISON) },
+                onNavigateToFormatConverter = { navController.navigate(Routes.FORMAT_CONVERTER) },
+                onNavigateToDateCalculator = { navController.navigate(Routes.DATE_CALCULATOR) },
+                onNavigateToSlangDictionary = { navController.navigate(Routes.SLANG_DICTIONARY) },
+                onNavigateToDorksLibrary = { navController.navigate(Routes.DORKS_LIBRARY) },
+                onNavigateToUrlEmailValidator = { navController.navigate(Routes.URL_EMAIL_VALIDATOR) },
+                onNavigateToSavedLinks = { navController.navigate(Routes.SAVED_LINKS) },
+                onNavigateToTranslateResults = { navController.navigate(Routes.TRANSLATE_RESULTS) },
+                onNavigateToSourceReliability = { navController.navigate(Routes.SOURCE_RELIABILITY) },
+                onNavigateToDemoMode = { navController.navigate(Routes.DEMO_MODE) }
             )
         }
 
@@ -512,6 +530,42 @@ fun SherlockNavGraph(
 
         composable(Routes.PERIOD_COMPARISON) {
             PeriodComparisonScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.FORMAT_CONVERTER) {
+            FormatConverterScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.DATE_CALCULATOR) {
+            DateCalculatorScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SLANG_DICTIONARY) {
+            SlangDictionaryScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.DORKS_LIBRARY) {
+            DorksLibraryScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.URL_EMAIL_VALIDATOR) {
+            UrlEmailValidatorScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SAVED_LINKS) {
+            SavedLinksScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.TRANSLATE_RESULTS) {
+            TranslateResultsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SOURCE_RELIABILITY) {
+            SourceReliabilityScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.DEMO_MODE) {
+            DemoModeScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }

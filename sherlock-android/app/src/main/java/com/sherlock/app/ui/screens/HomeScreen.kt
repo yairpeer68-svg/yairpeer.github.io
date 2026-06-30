@@ -101,7 +101,16 @@ fun HomeScreen(
     onNavigateToTopSites: () -> Unit = {},
     onNavigateToActivityTrend: () -> Unit = {},
     onNavigateToPerformanceAnalytics: () -> Unit = {},
-    onNavigateToPeriodComparison: () -> Unit = {}
+    onNavigateToPeriodComparison: () -> Unit = {},
+    onNavigateToFormatConverter: () -> Unit = {},
+    onNavigateToDateCalculator: () -> Unit = {},
+    onNavigateToSlangDictionary: () -> Unit = {},
+    onNavigateToDorksLibrary: () -> Unit = {},
+    onNavigateToUrlEmailValidator: () -> Unit = {},
+    onNavigateToSavedLinks: () -> Unit = {},
+    onNavigateToTranslateResults: () -> Unit = {},
+    onNavigateToSourceReliability: () -> Unit = {},
+    onNavigateToDemoMode: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -188,7 +197,16 @@ fun HomeScreen(
             HomeTile("האתרים הנפוצים ביותר", "דירוג אתרים", Icons.Default.EmojiEvents, onNavigateToTopSites),
             HomeTile("מגמת פעילות", "חיפושים לאורך זמן", Icons.Default.ShowChart, onNavigateToActivityTrend),
             HomeTile("ניתוח ביצועים", "זמני תגובה של אתרים", Icons.Default.Speed, onNavigateToPerformanceAnalytics),
-            HomeTile("השוואת תקופות", "שבוע מול שבוע", Icons.Default.TrendingUp, onNavigateToPeriodComparison)
+            HomeTile("השוואת תקופות", "שבוע מול שבוע", Icons.Default.TrendingUp, onNavigateToPeriodComparison),
+            HomeTile("ממיר פורמטים", "JSON, CSV, XML", Icons.Default.Transform, onNavigateToFormatConverter),
+            HomeTile("מחשבון תאריכים", "גיל והפרשי זמן", Icons.Default.CalendarMonth, onNavigateToDateCalculator),
+            HomeTile("מילון סלנג", "קיצורים ברשתות", Icons.Default.MenuBook, onNavigateToSlangDictionary),
+            HomeTile("ספריית Dorks", "תבניות לפי קטגוריה", Icons.Default.Storage, onNavigateToDorksLibrary),
+            HomeTile("בודק URL/אימייל", "תקינות פורמט", Icons.Default.FactCheck, onNavigateToUrlEmailValidator),
+            HomeTile("קישורים שמורים", "ארכיון לקריאה", Icons.Default.Bookmarks, onNavigateToSavedLinks),
+            HomeTile("תרגום תוצאות", "תרגום מקומי במכשיר", Icons.Default.Translate, onNavigateToTranslateResults),
+            HomeTile("ציון אמינות מקור", "בדיקת אתר", Icons.Default.VerifiedUser, onNavigateToSourceReliability),
+            HomeTile("מצב הדגמה", "נתוני דוגמה למצגת", Icons.Default.Theaters, onNavigateToDemoMode)
         )
     }
 
@@ -421,6 +439,18 @@ fun HomeScreen(
                 item { FeatureTile("מגמת פעילות", "חיפושים לאורך זמן", Icons.Default.ShowChart, onNavigateToActivityTrend) }
                 item { FeatureTile("ניתוח ביצועים", "זמני תגובה של אתרים", Icons.Default.Speed, onNavigateToPerformanceAnalytics) }
                 item { FeatureTile("השוואת תקופות", "שבוע מול שבוע", Icons.Default.TrendingUp, onNavigateToPeriodComparison) }
+
+                // Companion tools
+                item(span = { GridItemSpan(2) }) { SectionHeader("כלים נלווים") }
+                item { FeatureTile("ממיר פורמטים", "JSON, CSV, XML", Icons.Default.Transform, onNavigateToFormatConverter) }
+                item { FeatureTile("מחשבון תאריכים", "גיל והפרשי זמן", Icons.Default.CalendarMonth, onNavigateToDateCalculator) }
+                item { FeatureTile("מילון סלנג", "קיצורים ברשתות", Icons.Default.MenuBook, onNavigateToSlangDictionary) }
+                item { FeatureTile("ספריית Dorks", "תבניות לפי קטגוריה", Icons.Default.Storage, onNavigateToDorksLibrary) }
+                item { FeatureTile("בודק URL/אימייל", "תקינות פורמט", Icons.Default.FactCheck, onNavigateToUrlEmailValidator) }
+                item { FeatureTile("קישורים שמורים", "ארכיון לקריאה", Icons.Default.Bookmarks, onNavigateToSavedLinks) }
+                item { FeatureTile("תרגום תוצאות", "תרגום מקומי במכשיר", Icons.Default.Translate, onNavigateToTranslateResults) }
+                item { FeatureTile("ציון אמינות מקור", "בדיקת אתר", Icons.Default.VerifiedUser, onNavigateToSourceReliability) }
+                item { FeatureTile("מצב הדגמה", "נתוני דוגמה למצגת", Icons.Default.Theaters, onNavigateToDemoMode) }
                     }
                 }
             }
