@@ -89,126 +89,146 @@ class NetworkToolsRepository {
     }
 
     suspend fun getHttpHeaders(rawUrl: String): HttpHeaderResult = withContext(Dispatchers.IO) {
-        val request = Request.Builder().url(normalizeUrl(rawUrl)).build()
-        val response = client.newCall(request).execute()
-        val body = response.body?.string().orEmpty()
-        val headers = response.headers.toMultimap().flatMap { (name, values) -> values.map { name to it } }
-        val tech = mutableListOf<String>()
-        val serverHeader = response.header("Server").orEmpty()
-        val poweredBy = response.header("X-Powered-By").orEmpty()
-        if (serverHeader.contains("nginx", true)) tech.add("Nginx")
-        if (serverHeader.contains("Apache", true)) tech.add("Apache")
-        if (serverHeader.contains("cloudflare", true) || response.header("cf-ray") != null) tech.add("Cloudflare")
-        if (poweredBy.contains("PHP", true) || serverHeader.contains("PHP", true)) tech.add("PHP")
-        if (poweredBy.contains("ASP.NET", true)) tech.add("ASP.NET")
-        if (body.contains("wp-content") || body.contains("wp-includes")) tech.add("WordPress")
-        if (body.contains("cdn.shopify.com") || response.header("X-ShopId") != null) tech.add("Shopify")
-        if (body.contains("wixstatic") || body.contains("wix.com")) tech.add("Wix")
-        if (body.contains("squarespace")) tech.add("Squarespace")
-        if (body.contains("__NEXT_DATA__")) tech.add("Next.js")
-        if (body.contains("ng-version")) tech.add("Angular")
-        if (body.contains("react")) tech.add("React")
-        if (body.contains("google-analytics.com") || body.contains("gtag(")) tech.add("Google Analytics")
-        if (body.contains("jquery", true)) tech.add("jQuery")
-        HttpHeaderResult(
-            statusCode = response.code,
-            headers = headers,
-            detectedTech = tech.distinct()
-        )
+        try {
+            val request = Request.Builder().url(normalizeUrl(rawUrl)).build()
+            val response = client.newCall(request).execute()
+            val body = response.body?.string().orEmpty()
+            val headers = response.headers.toMultimap().flatMap { (name, values) -> values.map { name to it } }
+            val tech = mutableListOf<String>()
+            val serverHeader = response.header("Server").orEmpty()
+            val poweredBy = response.header("X-Powered-By").orEmpty()
+            if (serverHeader.contains("nginx", true)) tech.add("Nginx")
+            if (serverHeader.contains("Apache", true)) tech.add("Apache")
+            if (serverHeader.contains("cloudflare", true) || response.header("cf-ray") != null) tech.add("Cloudflare")
+            if (poweredBy.contains("PHP", true) || serverHeader.contains("PHP", true)) tech.add("PHP")
+            if (poweredBy.contains("ASP.NET", true)) tech.add("ASP.NET")
+            if (body.contains("wp-content") || body.contains("wp-includes")) tech.add("WordPress")
+            if (body.contains("cdn.shopify.com") || response.header("X-ShopId") != null) tech.add("Shopify")
+            if (body.contains("wixstatic") || body.contains("wix.com")) tech.add("Wix")
+            if (body.contains("squarespace")) tech.add("Squarespace")
+            if (body.contains("__NEXT_DATA__")) tech.add("Next.js")
+            if (body.contains("ng-version")) tech.add("Angular")
+            if (body.contains("react")) tech.add("React")
+            if (body.contains("google-analytics.com") || body.contains("gtag(")) tech.add("Google Analytics")
+            if (body.contains("jquery", true)) tech.add("jQuery")
+            HttpHeaderResult(
+                statusCode = response.code,
+                headers = headers,
+                detectedTech = tech.distinct()
+            )
+        } catch (e: Exception) {
+            throw Exception("שגיאה בבדיקת הכתובת: ${e.message ?: "שגיאת רשת"}")
+        }
     }
 
     suspend fun getWebsiteSnapshot(rawUrl: String): WebsiteSnapshot = withContext(Dispatchers.IO) {
-        val normalized = normalizeUrl(rawUrl)
-        val request = Request.Builder().url(normalized).build()
-        val response = client.newCall(request).execute()
-        val body = response.body?.string().orEmpty()
-        val title = Regex("<title[^>]*>(.*?)</title>", RegexOption.IGNORE_CASE)
-            .find(body)?.groupValues?.get(1)?.trim()
-        val description = Regex(
-            "<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']*)[\"']",
-            RegexOption.IGNORE_CASE
-        ).find(body)?.groupValues?.get(1)
-        val faviconHref = Regex(
-            "<link[^>]*rel=[\"'](?:shortcut )?icon[\"'][^>]*href=[\"']([^\"']*)[\"']",
-            RegexOption.IGNORE_CASE
-        ).find(body)?.groupValues?.get(1)
-        val finalUrl = response.request.url.toString()
-        val baseUrl = finalUrl.toHttpUrlOrNull()
-        val faviconUrl = when {
-            faviconHref == null -> baseUrl?.let { "${it.scheme}://${it.host}/favicon.ico" }
-            faviconHref.startsWith("http") -> faviconHref
-            baseUrl != null -> baseUrl.resolve(faviconHref)?.toString()
-            else -> null
+        try {
+            val normalized = normalizeUrl(rawUrl)
+            val request = Request.Builder().url(normalized).build()
+            val response = client.newCall(request).execute()
+            val body = response.body?.string().orEmpty()
+            val title = Regex("<title[^>]*>(.*?)</title>", RegexOption.IGNORE_CASE)
+                .find(body)?.groupValues?.get(1)?.trim()
+            val description = Regex(
+                "<meta[^>]*name=[\"']description[\"'][^>]*content=[\"']([^\"']*)[\"']",
+                RegexOption.IGNORE_CASE
+            ).find(body)?.groupValues?.get(1)
+            val faviconHref = Regex(
+                "<link[^>]*rel=[\"'](?:shortcut )?icon[\"'][^>]*href=[\"']([^\"']*)[\"']",
+                RegexOption.IGNORE_CASE
+            ).find(body)?.groupValues?.get(1)
+            val finalUrl = response.request.url.toString()
+            val baseUrl = finalUrl.toHttpUrlOrNull()
+            val faviconUrl = when {
+                faviconHref == null -> baseUrl?.let { "${it.scheme}://${it.host}/favicon.ico" }
+                faviconHref.startsWith("http") -> faviconHref
+                baseUrl != null -> baseUrl.resolve(faviconHref)?.toString()
+                else -> null
+            }
+            WebsiteSnapshot(
+                finalUrl = finalUrl,
+                title = title,
+                description = description,
+                faviconUrl = faviconUrl,
+                redirected = finalUrl.trimEnd('/') != normalized.trimEnd('/')
+            )
+        } catch (e: Exception) {
+            throw Exception("שגיאה בטעינת האתר: ${e.message ?: "שגיאת רשת"}")
         }
-        WebsiteSnapshot(
-            finalUrl = finalUrl,
-            title = title,
-            description = description,
-            faviconUrl = faviconUrl,
-            redirected = finalUrl.trimEnd('/') != normalized.trimEnd('/')
-        )
     }
 
     suspend fun getMyPublicIp(): IpGeoResult = withContext(Dispatchers.IO) {
-        val request = Request.Builder().url("http://ip-api.com/json/").build()
-        val response = client.newCall(request).execute()
-        val body = response.body?.string() ?: throw Exception("תגובה ריקה")
-        val json = Gson().fromJson(body, Map::class.java)
-        IpGeoResult(
-            ip = json["query"]?.toString() ?: "",
-            country = json["country"]?.toString() ?: "Unknown",
-            city = json["city"]?.toString() ?: "Unknown",
-            region = json["regionName"]?.toString() ?: "Unknown",
-            isp = json["isp"]?.toString() ?: "Unknown",
-            lat = (json["lat"] as? Double) ?: 0.0,
-            lon = (json["lon"] as? Double) ?: 0.0,
-            timezone = json["timezone"]?.toString() ?: "Unknown"
-        )
+        try {
+            val request = Request.Builder().url("http://ip-api.com/json/").build()
+            val response = client.newCall(request).execute()
+            val body = response.body?.string() ?: throw Exception("תגובה ריקה")
+            val json = Gson().fromJson(body, Map::class.java)
+            IpGeoResult(
+                ip = json["query"]?.toString() ?: "",
+                country = json["country"]?.toString() ?: "Unknown",
+                city = json["city"]?.toString() ?: "Unknown",
+                region = json["regionName"]?.toString() ?: "Unknown",
+                isp = json["isp"]?.toString() ?: "Unknown",
+                lat = (json["lat"] as? Double) ?: 0.0,
+                lon = (json["lon"] as? Double) ?: 0.0,
+                timezone = json["timezone"]?.toString() ?: "Unknown"
+            )
+        } catch (e: Exception) {
+            throw Exception("שגיאה באיתור כתובת ה-IP: ${e.message ?: "שגיאת רשת"}")
+        }
     }
 
     suspend fun expandRedirectChain(rawUrl: String): List<RedirectHop> = withContext(Dispatchers.IO) {
-        val noRedirectClient = client.newBuilder()
-            .followRedirects(false)
-            .followSslRedirects(false)
-            .build()
-        val hops = mutableListOf<RedirectHop>()
-        var currentUrl = normalizeUrl(rawUrl)
-        var hopCount = 0
-        while (hopCount < 10) {
-            val request = Request.Builder().url(currentUrl).build()
-            val response = noRedirectClient.newCall(request).execute()
-            hops.add(RedirectHop(currentUrl, response.code))
-            if (response.code in 300..399) {
-                val location = response.header("Location") ?: break
-                val resolved = currentUrl.toHttpUrlOrNull()?.resolve(location)?.toString() ?: location
-                response.close()
-                currentUrl = resolved
-                hopCount++
-            } else {
-                response.close()
-                break
+        try {
+            val noRedirectClient = client.newBuilder()
+                .followRedirects(false)
+                .followSslRedirects(false)
+                .build()
+            val hops = mutableListOf<RedirectHop>()
+            var currentUrl = normalizeUrl(rawUrl)
+            var hopCount = 0
+            while (hopCount < 10) {
+                val request = Request.Builder().url(currentUrl).build()
+                val response = noRedirectClient.newCall(request).execute()
+                hops.add(RedirectHop(currentUrl, response.code))
+                if (response.code in 300..399) {
+                    val location = response.header("Location") ?: break
+                    val resolved = currentUrl.toHttpUrlOrNull()?.resolve(location)?.toString() ?: location
+                    response.close()
+                    currentUrl = resolved
+                    hopCount++
+                } else {
+                    response.close()
+                    break
+                }
             }
+            hops
+        } catch (e: Exception) {
+            throw Exception("שגיאה במעקב הפניות: ${e.message ?: "שגיאת רשת"}")
         }
-        hops
     }
 
     suspend fun checkVpnProxyHosting(ip: String): VpnProxyResult = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
-            .url("http://ip-api.com/json/$ip?fields=status,message,org,as,proxy,hosting,mobile,query")
-            .build()
-        val response = client.newCall(request).execute()
-        val body = response.body?.string() ?: throw Exception("תגובה ריקה")
-        val json = Gson().fromJson(body, Map::class.java)
-        if (json["status"]?.toString() == "fail") {
-            throw Exception(json["message"]?.toString() ?: "כתובת IP לא תקינה")
+        try {
+            val request = Request.Builder()
+                .url("http://ip-api.com/json/$ip?fields=status,message,org,as,proxy,hosting,mobile,query")
+                .build()
+            val response = client.newCall(request).execute()
+            val body = response.body?.string() ?: throw Exception("תגובה ריקה")
+            val json = Gson().fromJson(body, Map::class.java)
+            if (json["status"]?.toString() == "fail") {
+                throw Exception(json["message"]?.toString() ?: "כתובת IP לא תקינה")
+            }
+            VpnProxyResult(
+                ip = json["query"]?.toString() ?: ip,
+                org = json["org"]?.toString().takeUnless { it.isNullOrBlank() } ?: "לא ידוע",
+                asn = json["as"]?.toString().takeUnless { it.isNullOrBlank() } ?: "לא ידוע",
+                isProxy = (json["proxy"] as? Boolean) ?: false,
+                isHosting = (json["hosting"] as? Boolean) ?: false,
+                isMobile = (json["mobile"] as? Boolean) ?: false
+            )
+        } catch (e: Exception) {
+            throw Exception(e.message ?: "שגיאה בבדיקת ה-IP")
         }
-        VpnProxyResult(
-            ip = json["query"]?.toString() ?: ip,
-            org = json["org"]?.toString().takeUnless { it.isNullOrBlank() } ?: "לא ידוע",
-            asn = json["as"]?.toString().takeUnless { it.isNullOrBlank() } ?: "לא ידוע",
-            isProxy = (json["proxy"] as? Boolean) ?: false,
-            isHosting = (json["hosting"] as? Boolean) ?: false,
-            isMobile = (json["mobile"] as? Boolean) ?: false
-        )
     }
 }

@@ -240,29 +240,33 @@ private fun compareFaces(context: Context, uri1: Uri, uri2: Uri, onResult: (Floa
                 return@addOnSuccessListener
             }
 
-            val image2 = InputImage.fromFilePath(context, uri2)
-            detector.process(image2).addOnSuccessListener { faces2 ->
-                if (faces2.isEmpty()) {
-                    onResult(-1f, toFaceDetails(faces1[0]), null, "לא זוהו פנים בתמונה 2", faces1.size, 0)
-                    return@addOnSuccessListener
-                }
+            try {
+                val image2 = InputImage.fromFilePath(context, uri2)
+                detector.process(image2).addOnSuccessListener { faces2 ->
+                    if (faces2.isEmpty()) {
+                        onResult(-1f, toFaceDetails(faces1[0]), null, "לא זוהו פנים בתמונה 2", faces1.size, 0)
+                        return@addOnSuccessListener
+                    }
 
-                var bestScore = -1f
-                var bestFace1 = faces1[0]
-                var bestFace2 = faces2[0]
-                for (f1 in faces1) {
-                    for (f2 in faces2) {
-                        val sim = faceSimilarity(f1, f2)
-                        if (sim > bestScore) {
-                            bestScore = sim
-                            bestFace1 = f1
-                            bestFace2 = f2
+                    var bestScore = -1f
+                    var bestFace1 = faces1[0]
+                    var bestFace2 = faces2[0]
+                    for (f1 in faces1) {
+                        for (f2 in faces2) {
+                            val sim = faceSimilarity(f1, f2)
+                            if (sim > bestScore) {
+                                bestScore = sim
+                                bestFace1 = f1
+                                bestFace2 = f2
+                            }
                         }
                     }
-                }
 
-                onResult(bestScore, toFaceDetails(bestFace1), toFaceDetails(bestFace2), null, faces1.size, faces2.size)
-            }.addOnFailureListener { onResult(-1f, toFaceDetails(faces1[0]), null, "שגיאה בניתוח תמונה 2: ${it.message}", faces1.size, 0) }
+                    onResult(bestScore, toFaceDetails(bestFace1), toFaceDetails(bestFace2), null, faces1.size, faces2.size)
+                }.addOnFailureListener { onResult(-1f, toFaceDetails(faces1[0]), null, "שגיאה בניתוח תמונה 2: ${it.message}", faces1.size, 0) }
+            } catch (e: Exception) {
+                onResult(-1f, toFaceDetails(faces1[0]), null, "שגיאה בטעינת תמונה 2: ${e.message}", faces1.size, 0)
+            }
         }.addOnFailureListener { onResult(-1f, null, null, "שגיאה בניתוח תמונה 1: ${it.message}", 0, 0) }
     } catch (e: Exception) {
         onResult(-1f, null, null, "שגיאה: ${e.message}", 0, 0)
