@@ -33,6 +33,9 @@ object Routes {
     const val EMAIL_PATTERN = "email_pattern"
     const val FAKE_PROFILE = "fake_profile"
     const val PROJECTS = "projects"
+    const val PROJECT_DETAIL = "project_detail/{projectId}"
+    fun projectDetailRoute(projectId: Long) = "project_detail/$projectId"
+    const val TRASH = "trash"
     const val NOTES = "notes"
     const val SEARCH_TEMPLATES = "search_templates"
     const val QR_GENERATOR = "qr_generator"
@@ -195,7 +198,23 @@ fun SherlockNavGraph(
         }
 
         composable(Routes.PROJECTS) {
-            ProjectsScreen(onNavigateBack = { navController.popBackStack() })
+            ProjectsScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToProjectDetail = { projectId -> navController.navigate(Routes.projectDetailRoute(projectId)) },
+                onNavigateToTrash = { navController.navigate(Routes.TRASH) }
+            )
+        }
+
+        composable(
+            route = Routes.PROJECT_DETAIL,
+            arguments = listOf(navArgument("projectId") { type = NavType.LongType })
+        ) { backStack ->
+            val projectId = backStack.arguments?.getLong("projectId") ?: 0L
+            ProjectDetailScreen(projectId = projectId, onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.TRASH) {
+            TrashScreen(onNavigateBack = { navController.popBackStack() })
         }
 
         composable(Routes.NOTES) {

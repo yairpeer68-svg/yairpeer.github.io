@@ -9,9 +9,19 @@ interface ProjectDao {
     @Insert suspend fun insert(project: Project): Long
     @Update suspend fun update(project: Project)
     @Delete suspend fun delete(project: Project)
-    @Query("SELECT * FROM projects ORDER BY updatedAt DESC") fun getAll(): Flow<List<Project>>
+    @Query("SELECT * FROM projects WHERE isDeleted = 0 ORDER BY isPinned DESC, updatedAt DESC") fun getAll(): Flow<List<Project>>
+    @Query("SELECT * FROM projects WHERE isDeleted = 1 ORDER BY deletedAt DESC") fun getDeleted(): Flow<List<Project>>
+    @Query("SELECT * FROM projects WHERE id = :id") fun getByIdFlow(id: Long): Flow<Project?>
     @Query("SELECT * FROM projects WHERE id = :id") suspend fun getById(id: Long): Project?
     @Query("SELECT COUNT(*) FROM projects") suspend fun getCount(): Int
+}
+
+@Dao
+interface ProjectTaskDao {
+    @Insert suspend fun insert(task: ProjectTask): Long
+    @Update suspend fun update(task: ProjectTask)
+    @Delete suspend fun delete(task: ProjectTask)
+    @Query("SELECT * FROM project_tasks WHERE projectId = :projectId ORDER BY isDone, createdAt DESC") fun getForProject(projectId: Long): Flow<List<ProjectTask>>
 }
 
 @Dao

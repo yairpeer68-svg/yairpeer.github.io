@@ -10,6 +10,10 @@ data class Project(
     val description: String = "",
     val color: Long = 0xFF58A6FF,
     val priority: Priority = Priority.NORMAL,
+    val status: ProjectStatus = ProjectStatus.ACTIVE,
+    val isPinned: Boolean = false,
+    val isDeleted: Boolean = false,
+    val deletedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -21,6 +25,17 @@ enum class Priority(val hebrewName: String, val color: Long) {
     LOW("נמוך", 0xFF8B949E)
 }
 
+enum class ProjectStatus(val hebrewName: String) {
+    ACTIVE("פעיל"),
+    CLOSED("סגור"),
+    ARCHIVED("בארכיון")
+}
+
+val PROJECT_COLORS: List<Long> = listOf(
+    0xFF58A6FF, 0xFFFF1744, 0xFFFF9100, 0xFF00C853,
+    0xFFAA00FF, 0xFF00BCD4, 0xFFFFD600, 0xFF8B949E
+)
+
 @Entity(tableName = "profile_notes")
 data class ProfileNote(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -30,6 +45,15 @@ data class ProfileNote(
     val note: String,
     val projectId: Long? = null,
     val timestamp: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "project_tasks")
+data class ProjectTask(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val projectId: Long,
+    val text: String,
+    val isDone: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "search_templates")
