@@ -104,6 +104,11 @@ object Routes {
     const val TRANSLATE_RESULTS = "translate_results"
     const val SOURCE_RELIABILITY = "source_reliability"
     const val DEMO_MODE = "demo_mode"
+    const val BREACH_CHECK = "breach_check"
+    const val HASH_LOOKUP = "hash_lookup"
+    const val PASTE_SEARCH = "paste_search"
+    const val WAYBACK_MACHINE = "wayback_machine"
+    const val EXPOSURE_REPORT = "exposure_report"
 }
 
 @Composable
@@ -217,7 +222,12 @@ fun SherlockNavGraph(
                 onNavigateToSavedLinks = { navController.navigate(Routes.SAVED_LINKS) },
                 onNavigateToTranslateResults = { navController.navigate(Routes.TRANSLATE_RESULTS) },
                 onNavigateToSourceReliability = { navController.navigate(Routes.SOURCE_RELIABILITY) },
-                onNavigateToDemoMode = { navController.navigate(Routes.DEMO_MODE) }
+                onNavigateToDemoMode = { navController.navigate(Routes.DEMO_MODE) },
+                onNavigateToBreachCheck = { navController.navigate(Routes.BREACH_CHECK) },
+                onNavigateToHashLookup = { navController.navigate(Routes.HASH_LOOKUP) },
+                onNavigateToPasteSearch = { navController.navigate(Routes.PASTE_SEARCH) },
+                onNavigateToWaybackMachine = { navController.navigate(Routes.WAYBACK_MACHINE) },
+                onNavigateToExposureReport = { navController.navigate(Routes.EXPOSURE_REPORT) }
             )
         }
 
@@ -588,6 +598,26 @@ fun SherlockNavGraph(
 
         composable(Routes.DEMO_MODE) {
             DemoModeScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.BREACH_CHECK) {
+            BreachCheckScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.HASH_LOOKUP) {
+            HashLookupScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PASTE_SEARCH) {
+            PasteSearchScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.WAYBACK_MACHINE) {
+            WaybackMachineScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.EXPOSURE_REPORT) {
+            ExposureReportScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }

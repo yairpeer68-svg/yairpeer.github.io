@@ -55,6 +55,7 @@ fun SettingsScreen(
     val autoLockTimeout by settings.autoLockTimeoutMinutes.collectAsState(initial = 0)
     val screenshotProtection by settings.screenshotProtection.collectAsState(initial = false)
     val globalIncognito by settings.globalIncognito.collectAsState(initial = false)
+    val hibpApiKey by settings.hibpApiKey.collectAsState(initial = "")
 
     var showThemeDialog by remember { mutableStateOf(false) }
     var showPanicDialog by remember { mutableStateOf(false) }
@@ -64,6 +65,8 @@ fun SettingsScreen(
     var showSetPinDialog by remember { mutableStateOf(false) }
     var showAutoLockDialog by remember { mutableStateOf(false) }
     var showAccessLogDialog by remember { mutableStateOf(false) }
+    var showHibpKeyDialog by remember { mutableStateOf(false) }
+    var hibpKeyInput by remember { mutableStateOf("") }
     var panicPin by remember { mutableStateOf("") }
     var panicError by remember { mutableStateOf<String?>(null) }
 
@@ -298,6 +301,38 @@ fun SettingsScreen(
         )
     }
 
+    if (showHibpKeyDialog) {
+        AlertDialog(
+            onDismissRequest = { showHibpKeyDialog = false },
+            title = { Text("מפתח API - HaveIBeenPwned") },
+            text = {
+                Column {
+                    Text(
+                        "בדיקת דליפות מידע דורשת מפתח API אישי מ-haveibeenpwned.com (בתשלום סמלי). המפתח נשמר מקומית במכשיר בלבד.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = hibpKeyInput,
+                        onValueChange = { hibpKeyInput = it },
+                        label = { Text("מפתח API") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch { settings.setHibpApiKey(hibpKeyInput.trim()) }
+                    showHibpKeyDialog = false
+                }) { Text("שמור") }
+            },
+            dismissButton = { TextButton(onClick = { showHibpKeyDialog = false }) { Text("ביטול") } }
+        )
+    }
+
     if (showPanicDialog) {
         AlertDialog(
             onDismissRequest = { showPanicDialog = false; panicPin = ""; panicError = null },
@@ -469,6 +504,13 @@ fun SettingsScreen(
                     "היסטוריית ניסיונות כניסה לאפליקציה",
                     Icons.Default.History
                 ) { showAccessLogDialog = true }
+            }
+            item {
+                SettingsClickItem(
+                    "מפתח API - HaveIBeenPwned",
+                    if (hibpApiKey.isNotBlank()) "מוגדר" else "לא מוגדר - נדרש לבדיקת דליפות",
+                    Icons.Default.Key
+                ) { hibpKeyInput = hibpApiKey; showHibpKeyDialog = true }
             }
 
             item { SectionHeader("מתקדם") }

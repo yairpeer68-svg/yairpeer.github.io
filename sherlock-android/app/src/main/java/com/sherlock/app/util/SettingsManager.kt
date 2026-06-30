@@ -45,6 +45,7 @@ class SettingsManager(private val context: Context) {
         val SCREENSHOT_PROTECTION = booleanPreferencesKey("screenshot_protection")
         val GLOBAL_INCOGNITO = booleanPreferencesKey("global_incognito")
         val LAST_BACKGROUND_TIME = longPreferencesKey("last_background_time")
+        val HIBP_API_KEY = stringPreferencesKey("hibp_api_key")
     }
 
     val theme: Flow<AppTheme> = context.dataStore.data.map {
@@ -79,6 +80,7 @@ class SettingsManager(private val context: Context) {
     val autoLockTimeoutMinutes: Flow<Int> = context.dataStore.data.map { it[AUTO_LOCK_TIMEOUT_MINUTES] ?: 0 }
     val screenshotProtection: Flow<Boolean> = context.dataStore.data.map { it[SCREENSHOT_PROTECTION] ?: false }
     val globalIncognito: Flow<Boolean> = context.dataStore.data.map { it[GLOBAL_INCOGNITO] ?: false }
+    val hibpApiKey: Flow<String> = context.dataStore.data.map { it[HIBP_API_KEY] ?: "" }
 
     suspend fun setTheme(theme: AppTheme) { context.dataStore.edit { it[THEME] = theme.name } }
     suspend fun setLanguage(lang: AppLanguage) { context.dataStore.edit { it[LANGUAGE] = lang.name } }
@@ -116,6 +118,7 @@ class SettingsManager(private val context: Context) {
     suspend fun setAutoLockTimeoutMinutes(minutes: Int) { context.dataStore.edit { it[AUTO_LOCK_TIMEOUT_MINUTES] = minutes } }
     suspend fun setScreenshotProtection(enabled: Boolean) { context.dataStore.edit { it[SCREENSHOT_PROTECTION] = enabled } }
     suspend fun setGlobalIncognito(enabled: Boolean) { context.dataStore.edit { it[GLOBAL_INCOGNITO] = enabled } }
+    suspend fun setHibpApiKey(key: String) { context.dataStore.edit { it[HIBP_API_KEY] = key } }
 
     suspend fun setAppLockPin(pin: String) {
         val salt = PinHasher.generateSalt()

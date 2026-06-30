@@ -110,7 +110,12 @@ fun HomeScreen(
     onNavigateToSavedLinks: () -> Unit = {},
     onNavigateToTranslateResults: () -> Unit = {},
     onNavigateToSourceReliability: () -> Unit = {},
-    onNavigateToDemoMode: () -> Unit = {}
+    onNavigateToDemoMode: () -> Unit = {},
+    onNavigateToBreachCheck: () -> Unit = {},
+    onNavigateToHashLookup: () -> Unit = {},
+    onNavigateToPasteSearch: () -> Unit = {},
+    onNavigateToWaybackMachine: () -> Unit = {},
+    onNavigateToExposureReport: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -206,7 +211,12 @@ fun HomeScreen(
             HomeTile("קישורים שמורים", "ארכיון לקריאה", Icons.Default.Bookmarks, onNavigateToSavedLinks),
             HomeTile("תרגום תוצאות", "תרגום מקומי במכשיר", Icons.Default.Translate, onNavigateToTranslateResults),
             HomeTile("ציון אמינות מקור", "בדיקת אתר", Icons.Default.VerifiedUser, onNavigateToSourceReliability),
-            HomeTile("מצב הדגמה", "נתוני דוגמה למצגת", Icons.Default.Theaters, onNavigateToDemoMode)
+            HomeTile("מצב הדגמה", "נתוני דוגמה למצגת", Icons.Default.Theaters, onNavigateToDemoMode),
+            HomeTile("בדיקת דליפות מידע", "HaveIBeenPwned", Icons.Default.Warning, onNavigateToBreachCheck),
+            HomeTile("זיהוי Hash", "סוג וחיפוש במאגר", Icons.Default.Tag, onNavigateToHashLookup),
+            HomeTile("חיפוש Paste", "Pastebin ואתרים דומים", Icons.Default.Description, onNavigateToPasteSearch),
+            HomeTile("Wayback Machine", "ארכיון גרסאות אתר", Icons.Default.History, onNavigateToWaybackMachine),
+            HomeTile("דוח חשיפה מאוחד", "דליפות ופייסטים יחד", Icons.Default.Assessment, onNavigateToExposureReport)
         )
     }
 
@@ -451,6 +461,13 @@ fun HomeScreen(
                 item { FeatureTile("תרגום תוצאות", "תרגום מקומי במכשיר", Icons.Default.Translate, onNavigateToTranslateResults) }
                 item { FeatureTile("ציון אמינות מקור", "בדיקת אתר", Icons.Default.VerifiedUser, onNavigateToSourceReliability) }
                 item { FeatureTile("מצב הדגמה", "נתוני דוגמה למצגת", Icons.Default.Theaters, onNavigateToDemoMode) }
+
+                item(span = { GridItemSpan(maxLineSpan) }) { SectionHeader("בדיקת חשיפה ואבטחה") }
+                item { FeatureTile("בדיקת דליפות מידע", "HaveIBeenPwned", Icons.Default.Warning, onNavigateToBreachCheck) }
+                item { FeatureTile("זיהוי Hash", "סוג וחיפוש במאגר", Icons.Default.Tag, onNavigateToHashLookup) }
+                item { FeatureTile("חיפוש Paste", "Pastebin ואתרים דומים", Icons.Default.Description, onNavigateToPasteSearch) }
+                item { FeatureTile("Wayback Machine", "ארכיון גרסאות אתר", Icons.Default.History, onNavigateToWaybackMachine) }
+                item { FeatureTile("דוח חשיפה מאוחד", "דליפות ופייסטים יחד", Icons.Default.Assessment, onNavigateToExposureReport) }
                     }
                 }
             }
