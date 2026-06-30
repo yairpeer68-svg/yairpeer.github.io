@@ -60,6 +60,7 @@ fun UsernameSearchScreen(
     val autoExportOnComplete by settings.autoExportOnComplete.collectAsState(initial = false)
 
     var state by remember { mutableStateOf(UsernameSearchState(searchType = searchType, query = initialQuery)) }
+    val results = remember { mutableStateListOf<SearchResult>() }
     var showOnlyFound by remember { mutableStateOf(true) }
     var selectedCategory by remember { mutableStateOf<SiteCategory?>(null) }
     var favorites by remember { mutableStateOf(setOf<String>()) }
@@ -67,16 +68,20 @@ fun UsernameSearchScreen(
     var sortOption by remember { mutableStateOf(ResultSortOption.NAME) }
     var showSortMenu by remember { mutableStateOf(false) }
 
-    val foundCount = state.results.count { it.exists }
-    val filteredResults = state.results
-        .filter { if (showOnlyFound) it.exists else true }
-        .filter { selectedCategory == null || it.category == selectedCategory }
-        .let { list ->
-            when (sortOption) {
-                ResultSortOption.NAME -> list.sortedBy { it.siteName }
-                ResultSortOption.RESPONSE_TIME -> list.sortedBy { it.responseTimeMs }
-            }
+    val foundCount = results.count { it.exists }
+    val filteredResults by remember {
+        derivedStateOf {
+            results
+                .filter { if (showOnlyFound) it.exists else true }
+                .filter { selectedCategory == null || it.category == selectedCategory }
+                .let { list ->
+                    when (sortOption) {
+                        ResultSortOption.NAME -> list.sortedBy { it.siteName }
+                        ResultSortOption.RESPONSE_TIME -> list.sortedBy { it.responseTimeMs }
+                    }
+                }
         }
+    }
 
     val title = when (searchType) {
         SearchType.USERNAME -> "חיפוש שם משתמש"
@@ -109,12 +114,13 @@ fun UsernameSearchScreen(
                 SearchType.PHONE -> SitesDatabase.phoneSites.size
                 else -> SitesDatabase.sites.size
             }
-            state = state.copy(isSearching = true, results = emptyList(), progress = 0f, totalSites = totalSites, checkedSites = 0)
+            results.clear()
+            state = state.copy(isSearching = true, progress = 0f, totalSites = totalSites, checkedSites = 0)
             scope.launch {
                 repository.search(state.query, searchType).collect { result ->
                     if (result.exists) hapticFeedback(context)
+                    results.add(result)
                     state = state.copy(
-                        results = state.results + result,
                         checkedSites = state.checkedSites + 1,
                         progress = (state.checkedSites + 1).toFloat() / state.totalSites
                     )
@@ -132,15 +138,15 @@ fun UsernameSearchScreen(
                         SearchHistory(
                             query = state.query,
                             searchType = searchType,
-                            totalFound = state.results.count { it.exists },
-                            totalChecked = state.results.size
+                            totalFound = results.count { it.exists },
+                            totalChecked = results.size
                         )
                     )
-                    db.searchHistoryDao().insertResults(state.results.map { it.copy(historyId = historyId) })
+                    db.searchHistoryDao().insertResults(results.map { it.copy(historyId = historyId) })
                 }
 
-                if (autoExportOnComplete && state.results.isNotEmpty()) {
-                    exportRepository.exportToCsv(state.results, state.query)
+                if (autoExportOnComplete && results.isNotEmpty()) {
+                    exportRepository.exportToCsv(results, state.query)
                 }
             }
         }
@@ -154,8 +160,8 @@ fun UsernameSearchScreen(
                     IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "חזרה") }
                 },
                 actions = {
-                    if (state.results.isNotEmpty()) {
-                        IconButton(onClick = { exportRepository.shareResults(state.results, state.query) }) {
+                    if (results.isNotEmpty()) {
+                        IconButton(onClick = { exportRepository.shareResults(results, state.query) }) {
                             Icon(Icons.Default.Share, "שתף")
                         }
                         Box {
@@ -167,7 +173,7 @@ fun UsernameSearchScreen(
                                     text = { Text("ייצוא CSV") },
                                     onClick = {
                                         showExportMenu = false
-                                        val uri = exportRepository.exportToCsv(state.results, state.query)
+                                        val uri = exportRepository.exportToCsv(results, state.query)
                                         val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "text/csv").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         context.startActivity(intent)
                                     },
@@ -177,7 +183,7 @@ fun UsernameSearchScreen(
                                     text = { Text("ייצוא HTML") },
                                     onClick = {
                                         showExportMenu = false
-                                        val uri = exportRepository.exportToHtml(state.results, state.query)
+                                        val uri = exportRepository.exportToHtml(results, state.query)
                                         val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "text/html").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                         context.startActivity(intent)
                                     },
@@ -258,13 +264,13 @@ fun UsernameSearchScreen(
                     )
                 }
 
-                if (state.results.isNotEmpty()) {
+                if (results.isNotEmpty()) {
                     Spacer(Modifier.height(12.dp))
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.CheckCircle, null, Modifier.size(16.dp), tint = SherlockSuccess)
                             Spacer(Modifier.width(4.dp))
-                            Text("$foundCount נמצאו מתוך ${state.results.size}", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text("$foundCount נמצאו מתוך ${results.size}", fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box {
@@ -301,9 +307,9 @@ fun UsernameSearchScreen(
                                 label = { Text("הכל", fontSize = 11.sp) }
                             )
                         }
-                        val cats = state.results.filter { it.exists }.map { it.category }.distinct()
+                        val cats = results.filter { it.exists }.map { it.category }.distinct()
                         items(cats) { cat ->
-                            val count = state.results.count { it.exists && it.category == cat }
+                            val count = results.count { it.exists && it.category == cat }
                             FilterChip(
                                 selected = selectedCategory == cat,
                                 onClick = { selectedCategory = if (selectedCategory == cat) null else cat },
@@ -321,7 +327,7 @@ fun UsernameSearchScreen(
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (state.isSearching && state.results.isEmpty()) {
+                if (state.isSearching && results.isEmpty()) {
                     items(5) { SkeletonLoader() }
                 }
 
@@ -350,7 +356,7 @@ fun UsernameSearchScreen(
                     )
                 }
 
-                if (!state.isSearching && filteredResults.isEmpty() && state.results.isNotEmpty()) {
+                if (!state.isSearching && filteredResults.isEmpty() && results.isNotEmpty()) {
                     item {
                         Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                             Text("אין תוצאות לסינון הנבחר", color = MaterialTheme.colorScheme.onSurfaceVariant)

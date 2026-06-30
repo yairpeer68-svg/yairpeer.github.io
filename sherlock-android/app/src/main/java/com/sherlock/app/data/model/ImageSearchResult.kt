@@ -52,7 +52,6 @@ data class UsernameSearchState(
     val query: String = "",
     val searchType: SearchType = SearchType.USERNAME,
     val isSearching: Boolean = false,
-    val results: List<SearchResult> = emptyList(),
     val progress: Float = 0f,
     val totalSites: Int = 0,
     val checkedSites: Int = 0,
