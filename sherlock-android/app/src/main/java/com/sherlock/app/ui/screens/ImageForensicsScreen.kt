@@ -131,6 +131,35 @@ fun ImageForensicsScreen(onNavigateBack: () -> Unit) {
                         }
                     }
                 }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (r.aiGeneratedLikelihood > 0.4f) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.AutoAwesome, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("חשד לתמונה שנוצרה ב-AI", fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        LinearProgressIndicator(
+                            progress = { r.aiGeneratedLikelihood },
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        )
+                        Text("${(r.aiGeneratedLikelihood * 100).toInt()}% סבירות (הערכה ניסיונית בלבד)", fontSize = 12.sp)
+                        if (r.aiGeneratedSignals.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            r.aiGeneratedSignals.forEach { s ->
+                                Text("• $s", fontSize = 13.sp, modifier = Modifier.padding(vertical = 2.dp))
+                            }
+                        } else {
+                            Text("לא נמצאו סימנים לייצור באמצעות AI", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
         }
     }

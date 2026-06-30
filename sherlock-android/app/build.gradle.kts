@@ -104,7 +104,12 @@ dependencies {
     // ML Kit
     implementation("com.google.mlkit:face-detection:16.1.6")
     implementation("com.google.mlkit:text-recognition:16.0.0")
+    implementation("com.google.mlkit:text-recognition-chinese:16.0.0")
+    implementation("com.google.mlkit:text-recognition-devanagari:16.0.0")
+    implementation("com.google.mlkit:text-recognition-japanese:16.0.0")
+    implementation("com.google.mlkit:text-recognition-korean:16.0.0")
     implementation("com.google.mlkit:object-detection:17.0.1")
+    implementation("com.google.mlkit:image-labeling:17.0.8")
     implementation("com.google.mlkit:barcode-scanning:17.2.0")
 
     // QR Code generation

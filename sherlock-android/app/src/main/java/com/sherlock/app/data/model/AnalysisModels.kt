@@ -14,7 +14,9 @@ data class ImageForensicsResult(
     val editConfidence: Float,
     val detectedManipulations: List<String>,
     val metadataConsistency: Boolean,
-    val qualityScore: Float
+    val qualityScore: Float,
+    val aiGeneratedLikelihood: Float = 0f,
+    val aiGeneratedSignals: List<String> = emptyList()
 )
 
 data class FakeProfileScore(

@@ -59,7 +59,11 @@ fun HomeScreen(
     onNavigateToPeopleFinder: () -> Unit = {},
     onNavigateToLicensePlate: () -> Unit = {},
     onNavigateToImageHash: () -> Unit = {},
-    onNavigateToUnifiedSearch: () -> Unit = {}
+    onNavigateToUnifiedSearch: () -> Unit = {},
+    onNavigateToObjectDetection: () -> Unit = {},
+    onNavigateToImageLabeling: () -> Unit = {},
+    onNavigateToImageDiff: () -> Unit = {},
+    onNavigateToCollage: () -> Unit = {}
 ) {
     var showContent by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(100); showContent = true }
@@ -133,6 +137,10 @@ fun HomeScreen(
                 item { FeatureTile("ניתוח שם משתמש", "זיהוי תבניות", Icons.Default.Psychology, onNavigateToUsernameAnalysis) }
                 item { FeatureTile("גלאי פייק", "ציון אמינות", Icons.Default.Shield, onNavigateToFakeProfile) }
                 item { FeatureTile("תבניות אימייל", "ניחוש כתובות", Icons.Default.AlternateEmail, onNavigateToEmailPattern) }
+                item { FeatureTile("זיהוי אובייקטים", "רמזים מהרקע", Icons.Default.Category, onNavigateToObjectDetection) }
+                item { FeatureTile("זיהוי תוויות", "תיוג תמונה כללי", Icons.Default.Label, onNavigateToImageLabeling) }
+                item { FeatureTile("השוואת תמונות", "מפת הבדלים", Icons.Default.Difference, onNavigateToImageDiff) }
+                item { FeatureTile("יוצר קולאז'", "עד 9 תמונות", Icons.Default.GridView, onNavigateToCollage) }
 
                 // Network
                 item(span = { GridItemSpan(2) }) { SectionHeader("רשת ודומיינים") }

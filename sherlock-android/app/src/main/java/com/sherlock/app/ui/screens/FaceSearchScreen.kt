@@ -39,6 +39,7 @@ import com.sherlock.app.ui.components.ScanningAnimation
 import com.sherlock.app.ui.components.openUrl
 import com.sherlock.app.ui.theme.SherlockSuccess
 import com.sherlock.app.util.ExifHelper
+import com.sherlock.app.util.FaceHeuristics
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -185,14 +186,22 @@ fun FaceSearchScreen(onNavigateBack: () -> Unit) {
                                 if (face.smilingProbability >= 0) {
                                     Text("  חיוך: ${"%.0f".format(face.smilingProbability * 100)}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
+                                if (face.expressionLabel.isNotEmpty()) {
+                                    Text("  הבעה: ${face.expressionLabel}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                                 if (face.leftEyeOpenProbability >= 0) {
                                     Text("  עין שמאל פקוחה: ${"%.0f".format(face.leftEyeOpenProbability * 100)}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if (face.rightEyeOpenProbability >= 0) {
                                     Text("  עין ימין פקוחה: ${"%.0f".format(face.rightEyeOpenProbability * 100)}%", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
+                                if (face.estimatedAge.isNotEmpty()) {
+                                    Text("  טווח גיל משוער: ${face.estimatedAge}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                                 Text("  סיבוב ראש: Y=${"%.1f".format(face.headRotationY)}° Z=${"%.1f".format(face.headRotationZ)}°", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                            Spacer(Modifier.height(6.dp))
+                            Text("* טווח הגיל הוא הערכה ניסיונית גסה בלבד ואינה מדויקת", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                         }
                     }
                 }
@@ -305,6 +314,8 @@ private fun processImage(context: Context, uri: Uri, onState: (FaceSearchState) 
                             smilingProbability = face.smilingProbability ?: -1f,
                             leftEyeOpenProbability = face.leftEyeOpenProbability ?: -1f,
                             rightEyeOpenProbability = face.rightEyeOpenProbability ?: -1f,
+                            estimatedAge = FaceHeuristics.estimateAgeRange(face),
+                            expressionLabel = FaceHeuristics.estimateExpression(face),
                             headRotationY = face.headEulerAngleY,
                             headRotationZ = face.headEulerAngleZ,
                             boundingBoxLeft = face.boundingBox.left,

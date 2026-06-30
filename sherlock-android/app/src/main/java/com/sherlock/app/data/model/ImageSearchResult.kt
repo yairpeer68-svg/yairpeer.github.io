@@ -26,6 +26,7 @@ data class FaceDetails(
     val leftEyeOpenProbability: Float = -1f,
     val rightEyeOpenProbability: Float = -1f,
     val estimatedAge: String = "",
+    val expressionLabel: String = "",
     val hasGlasses: Boolean = false,
     val headRotationY: Float = 0f,
     val headRotationZ: Float = 0f,
@@ -42,6 +43,8 @@ data class FaceCompareState(
     val similarityScore: Float = -1f,
     val face1Details: FaceDetails? = null,
     val face2Details: FaceDetails? = null,
+    val facesInImage1: Int = 0,
+    val facesInImage2: Int = 0,
     val errorMessage: String? = null
 )
 

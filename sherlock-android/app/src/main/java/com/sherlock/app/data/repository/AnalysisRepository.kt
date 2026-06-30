@@ -127,6 +127,8 @@ class AnalysisRepository(private val context: Context) {
         val manipulations = mutableListOf<String>()
         var editConfidence = 0f
         var qualityScore = 100f
+        var bitmapWidth = 0
+        var bitmapHeight = 0
 
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
@@ -134,6 +136,9 @@ class AnalysisRepository(private val context: Context) {
             inputStream?.close()
 
             if (bitmap != null) {
+                bitmapWidth = bitmap.width
+                bitmapHeight = bitmap.height
+
                 if (bitmap.width % 16 != 0 || bitmap.height % 16 != 0) {
                     manipulations.add("גודל תמונה לא סטנדרטי - ייתכן חיתוך")
                     editConfidence += 0.1f
@@ -174,20 +179,62 @@ class AnalysisRepository(private val context: Context) {
             manipulations.add("חסר מטא-דאטה - ייתכן שהתמונה עברה עיבוד")
             editConfidence += 0.15f
         }
-        if (exifData.containsKey("תוכנה")) {
-            val sw = exifData["תוכנה"] ?: ""
-            if (sw.contains("Photoshop", true) || sw.contains("GIMP", true) || sw.contains("Lightroom", true)) {
-                manipulations.add("נערכה בתוכנת עריכה: $sw")
+        val softwareTag = exifData["תוכנה"] ?: ""
+        if (softwareTag.isNotEmpty()) {
+            if (softwareTag.contains("Photoshop", true) || softwareTag.contains("GIMP", true) || softwareTag.contains("Lightroom", true)) {
+                manipulations.add("נערכה בתוכנת עריכה: $softwareTag")
                 editConfidence += 0.3f
             }
         }
+
+        val (aiLikelihood, aiSignals) = detectAiGenerationSignals(bitmapWidth, bitmapHeight, exifData, softwareTag)
 
         return ImageForensicsResult(
             isLikelyEdited = editConfidence > 0.3f,
             editConfidence = editConfidence.coerceAtMost(1f),
             detectedManipulations = manipulations,
             metadataConsistency = metadataConsistency,
-            qualityScore = qualityScore
+            qualityScore = qualityScore,
+            aiGeneratedLikelihood = aiLikelihood,
+            aiGeneratedSignals = aiSignals
         )
+    }
+
+    private fun detectAiGenerationSignals(
+        width: Int,
+        height: Int,
+        exifData: Map<String, String>,
+        softwareTag: String
+    ): Pair<Float, List<String>> {
+        val signals = mutableListOf<String>()
+        var score = 0f
+
+        val aiToolKeywords = listOf(
+            "Stable Diffusion", "Midjourney", "DALL-E", "DALL·E", "DALLE",
+            "NightCafe", "Leonardo.Ai", "Adobe Firefly", "RunwayML", "DreamStudio", "ComfyUI"
+        )
+        val matchedTool = aiToolKeywords.firstOrNull { softwareTag.contains(it, ignoreCase = true) }
+        if (matchedTool != null) {
+            signals.add("תגית תוכנה מצביעה על כלי ייצור תמונה: $matchedTool")
+            score += 0.6f
+        }
+
+        if (width > 0 && height > 0) {
+            val isPowerOfTwo = { n: Int -> n >= 256 && (n and (n - 1)) == 0 }
+            val commonGenSizes = setOf(512, 576, 640, 768, 896, 1024, 1152, 1280, 1536, 2048)
+            if ((isPowerOfTwo(width) && isPowerOfTwo(height)) || (width in commonGenSizes && height in commonGenSizes)) {
+                signals.add("רזולוציה אופיינית לכלי ייצור תמונה (${width}x${height})")
+                score += 0.2f
+            }
+        }
+
+        val hasCameraInfo = exifData.containsKey("יצרן מצלמה") || exifData.containsKey("דגם מצלמה")
+        val hasShootingInfo = exifData.containsKey("ISO") || exifData.containsKey("צמצם") || exifData.containsKey("חשיפה") || exifData.containsKey("אורך מוקד")
+        if (!hasCameraInfo && !hasShootingInfo && exifData.isEmpty()) {
+            signals.add("היעדר מוחלט של מטא-דאטת מצלמה (ייצור/צילום מסך)")
+            score += 0.1f
+        }
+
+        return score.coerceAtMost(1f) to signals
     }
 }

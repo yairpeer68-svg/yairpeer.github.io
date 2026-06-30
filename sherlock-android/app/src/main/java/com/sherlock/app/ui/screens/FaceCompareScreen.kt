@@ -27,12 +27,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.Face
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.sherlock.app.data.model.FaceCompareState
 import com.sherlock.app.data.model.FaceDetails
 import com.sherlock.app.ui.theme.SherlockError
 import com.sherlock.app.ui.theme.SherlockSuccess
+import com.sherlock.app.util.FaceHeuristics
 import kotlin.math.abs
 import kotlin.math.sqrt
 
@@ -78,8 +80,11 @@ fun FaceCompareScreen(onNavigateBack: () -> Unit) {
                 onClick = {
                     if (state.image1Uri != null && state.image2Uri != null) {
                         state = state.copy(isComparing = true, errorMessage = null)
-                        compareFaces(context, state.image1Uri!!, state.image2Uri!!) { score, face1, face2, error ->
-                            state = state.copy(isComparing = false, similarityScore = score, face1Details = face1, face2Details = face2, errorMessage = error)
+                        compareFaces(context, state.image1Uri!!, state.image2Uri!!) { score, face1, face2, error, count1, count2 ->
+                            state = state.copy(
+                                isComparing = false, similarityScore = score, face1Details = face1, face2Details = face2,
+                                facesInImage1 = count1, facesInImage2 = count2, errorMessage = error
+                            )
                         }
                     }
                 },
@@ -95,6 +100,24 @@ fun FaceCompareScreen(onNavigateBack: () -> Unit) {
             }
 
             Spacer(Modifier.height(24.dp))
+
+            if (state.facesInImage1 > 1 || state.facesInImage2 > 1) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Groups, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "זוהו ${state.facesInImage1} פנים בתמונה 1 ו-${state.facesInImage2} פנים בתמונה 2 - מוצגת ההתאמה הטובה ביותר מבין כל הזוגות",
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
 
             if (state.similarityScore >= 0) {
                 val scorePercent = (state.similarityScore * 100).toInt()
@@ -134,12 +157,12 @@ fun FaceCompareScreen(onNavigateBack: () -> Unit) {
 
                 state.face1Details?.let { face ->
                     Text("פרטי תמונה 1:", fontWeight = FontWeight.Medium)
-                    Text("חיוך: ${"%.0f".format((face.smilingProbability.coerceAtLeast(0f)) * 100)}%", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("חיוך: ${"%.0f".format((face.smilingProbability.coerceAtLeast(0f)) * 100)}% · הבעה: ${face.expressionLabel}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 state.face2Details?.let { face ->
                     Spacer(Modifier.height(8.dp))
                     Text("פרטי תמונה 2:", fontWeight = FontWeight.Medium)
-                    Text("חיוך: ${"%.0f".format((face.smilingProbability.coerceAtLeast(0f)) * 100)}%", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("חיוך: ${"%.0f".format((face.smilingProbability.coerceAtLeast(0f)) * 100)}% · הבעה: ${face.expressionLabel}", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -177,7 +200,30 @@ private fun ImageSelector(label: String, uri: Uri?, onClick: () -> Unit) {
     }
 }
 
-private fun compareFaces(context: Context, uri1: Uri, uri2: Uri, onResult: (Float, FaceDetails?, FaceDetails?, String?) -> Unit) {
+private fun faceSimilarity(face1: Face, face2: Face): Float {
+    val bb1 = face1.boundingBox
+    val bb2 = face2.boundingBox
+    val ratio1 = bb1.width().toFloat() / bb1.height()
+    val ratio2 = bb2.width().toFloat() / bb2.height()
+    val ratioSim = 1f - abs(ratio1 - ratio2).coerceAtMost(1f)
+
+    val angleSim = 1f - (abs(face1.headEulerAngleY - face2.headEulerAngleY) / 90f).coerceAtMost(1f)
+    val zAngleSim = 1f - (abs(face1.headEulerAngleZ - face2.headEulerAngleZ) / 90f).coerceAtMost(1f)
+
+    return (ratioSim * 0.4f + angleSim * 0.3f + zAngleSim * 0.3f).coerceIn(0f, 1f)
+}
+
+private fun toFaceDetails(face: Face): FaceDetails = FaceDetails(
+    index = 0,
+    confidence = 0f,
+    smilingProbability = face.smilingProbability ?: -1f,
+    leftEyeOpenProbability = face.leftEyeOpenProbability ?: -1f,
+    rightEyeOpenProbability = face.rightEyeOpenProbability ?: -1f,
+    estimatedAge = FaceHeuristics.estimateAgeRange(face),
+    expressionLabel = FaceHeuristics.estimateExpression(face)
+)
+
+private fun compareFaces(context: Context, uri1: Uri, uri2: Uri, onResult: (Float, FaceDetails?, FaceDetails?, String?, Int, Int) -> Unit) {
     val options = FaceDetectorOptions.Builder()
         .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
         .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
@@ -190,36 +236,35 @@ private fun compareFaces(context: Context, uri1: Uri, uri2: Uri, onResult: (Floa
         val image1 = InputImage.fromFilePath(context, uri1)
         detector.process(image1).addOnSuccessListener { faces1 ->
             if (faces1.isEmpty()) {
-                onResult(-1f, null, null, "לא זוהו פנים בתמונה 1")
+                onResult(-1f, null, null, "לא זוהו פנים בתמונה 1", 0, 0)
                 return@addOnSuccessListener
             }
-            val face1 = faces1[0]
-            val f1 = FaceDetails(0, 0f, face1.smilingProbability ?: -1f, face1.leftEyeOpenProbability ?: -1f, face1.rightEyeOpenProbability ?: -1f)
 
             val image2 = InputImage.fromFilePath(context, uri2)
             detector.process(image2).addOnSuccessListener { faces2 ->
                 if (faces2.isEmpty()) {
-                    onResult(-1f, f1, null, "לא זוהו פנים בתמונה 2")
+                    onResult(-1f, toFaceDetails(faces1[0]), null, "לא זוהו פנים בתמונה 2", faces1.size, 0)
                     return@addOnSuccessListener
                 }
-                val face2 = faces2[0]
-                val f2 = FaceDetails(0, 0f, face2.smilingProbability ?: -1f, face2.leftEyeOpenProbability ?: -1f, face2.rightEyeOpenProbability ?: -1f)
 
-                val bb1 = face1.boundingBox
-                val bb2 = face2.boundingBox
-                val ratio1 = bb1.width().toFloat() / bb1.height()
-                val ratio2 = bb2.width().toFloat() / bb2.height()
-                val ratioSim = 1f - abs(ratio1 - ratio2).coerceAtMost(1f)
+                var bestScore = -1f
+                var bestFace1 = faces1[0]
+                var bestFace2 = faces2[0]
+                for (f1 in faces1) {
+                    for (f2 in faces2) {
+                        val sim = faceSimilarity(f1, f2)
+                        if (sim > bestScore) {
+                            bestScore = sim
+                            bestFace1 = f1
+                            bestFace2 = f2
+                        }
+                    }
+                }
 
-                val angleSim = 1f - (abs(face1.headEulerAngleY - face2.headEulerAngleY) / 90f).coerceAtMost(1f)
-                val zAngleSim = 1f - (abs(face1.headEulerAngleZ - face2.headEulerAngleZ) / 90f).coerceAtMost(1f)
-
-                val similarity = (ratioSim * 0.4f + angleSim * 0.3f + zAngleSim * 0.3f).coerceIn(0f, 1f)
-
-                onResult(similarity, f1, f2, null)
-            }.addOnFailureListener { onResult(-1f, f1, null, "שגיאה בניתוח תמונה 2: ${it.message}") }
-        }.addOnFailureListener { onResult(-1f, null, null, "שגיאה בניתוח תמונה 1: ${it.message}") }
+                onResult(bestScore, toFaceDetails(bestFace1), toFaceDetails(bestFace2), null, faces1.size, faces2.size)
+            }.addOnFailureListener { onResult(-1f, toFaceDetails(faces1[0]), null, "שגיאה בניתוח תמונה 2: ${it.message}", faces1.size, 0) }
+        }.addOnFailureListener { onResult(-1f, null, null, "שגיאה בניתוח תמונה 1: ${it.message}", 0, 0) }
     } catch (e: Exception) {
-        onResult(-1f, null, null, "שגיאה: ${e.message}")
+        onResult(-1f, null, null, "שגיאה: ${e.message}", 0, 0)
     }
 }

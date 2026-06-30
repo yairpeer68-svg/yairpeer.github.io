@@ -3,6 +3,7 @@ package com.sherlock.app.ui.screens
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,10 +21,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
+import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions
+import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions
+import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.sherlock.app.data.model.OcrResult
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+
+private enum class OcrLanguage(val label: String) {
+    LATIN("לטינית / עברית"), CHINESE("סינית"), JAPANESE("יפנית"), KOREAN("קוריאנית"), DEVANAGARI("הינדי")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,6 +44,7 @@ fun OCRScreen(onNavigateBack: () -> Unit) {
     var ocrResult by remember { mutableStateOf<OcrResult?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var language by remember { mutableStateOf(OcrLanguage.LATIN) }
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -44,7 +54,13 @@ fun OCRScreen(onNavigateBack: () -> Unit) {
             scope.launch {
                 try {
                     val image = InputImage.fromFilePath(context, it)
-                    val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                    val recognizer = when (language) {
+                        OcrLanguage.LATIN -> TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                        OcrLanguage.CHINESE -> TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+                        OcrLanguage.JAPANESE -> TextRecognition.getClient(JapaneseTextRecognizerOptions.Builder().build())
+                        OcrLanguage.KOREAN -> TextRecognition.getClient(KoreanTextRecognizerOptions.Builder().build())
+                        OcrLanguage.DEVANAGARI -> TextRecognition.getClient(DevanagariTextRecognizerOptions.Builder().build())
+                    }
                     val result = recognizer.process(image).await()
                     val fullText = result.text
                     val usernames = Regex("@[a-zA-Z0-9_.]+").findAll(fullText).map { m -> m.value }.toList()
@@ -74,6 +90,16 @@ fun OCRScreen(onNavigateBack: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            Text("שפת הטקסט בתמונה:", fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.fillMaxWidth())
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OcrLanguage.values().forEach { lang ->
+                    FilterChip(selected = language == lang, onClick = { language = lang }, label = { Text(lang.label, fontSize = 12.sp) })
+                }
+            }
+
             Button(onClick = { launcher.launch("image/*") }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Default.Image, null)
                 Spacer(Modifier.width(8.dp))

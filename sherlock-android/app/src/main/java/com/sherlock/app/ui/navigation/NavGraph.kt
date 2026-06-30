@@ -53,6 +53,10 @@ object Routes {
     const val LICENSE_PLATE = "license_plate"
     const val IMAGE_HASH = "image_hash"
     const val UNIFIED_SEARCH = "unified_search"
+    const val OBJECT_DETECTION = "object_detection"
+    const val IMAGE_LABELING = "image_labeling"
+    const val IMAGE_DIFF = "image_diff"
+    const val COLLAGE = "collage"
 }
 
 @Composable
@@ -107,7 +111,11 @@ fun SherlockNavGraph(
                 onNavigateToPeopleFinder = { navController.navigate(Routes.PEOPLE_FINDER) },
                 onNavigateToLicensePlate = { navController.navigate(Routes.LICENSE_PLATE) },
                 onNavigateToImageHash = { navController.navigate(Routes.IMAGE_HASH) },
-                onNavigateToUnifiedSearch = { navController.navigate(Routes.UNIFIED_SEARCH) }
+                onNavigateToUnifiedSearch = { navController.navigate(Routes.UNIFIED_SEARCH) },
+                onNavigateToObjectDetection = { navController.navigate(Routes.OBJECT_DETECTION) },
+                onNavigateToImageLabeling = { navController.navigate(Routes.IMAGE_LABELING) },
+                onNavigateToImageDiff = { navController.navigate(Routes.IMAGE_DIFF) },
+                onNavigateToCollage = { navController.navigate(Routes.COLLAGE) }
             )
         }
 
@@ -281,6 +289,22 @@ fun SherlockNavGraph(
 
         composable(Routes.UNIFIED_SEARCH) {
             UnifiedSearchScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.OBJECT_DETECTION) {
+            ObjectDetectionScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.IMAGE_LABELING) {
+            ImageLabelingScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.IMAGE_DIFF) {
+            ImageDiffScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.COLLAGE) {
+            CollageScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }
