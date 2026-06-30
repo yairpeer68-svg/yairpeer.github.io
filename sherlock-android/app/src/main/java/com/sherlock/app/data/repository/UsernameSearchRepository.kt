@@ -76,7 +76,7 @@ class UsernameSearchRepository(
         }
     }.flowOn(Dispatchers.IO)
 
-    private fun checkSite(site: SiteConfig, query: String): SearchResult {
+    internal fun checkSite(site: SiteConfig, query: String): SearchResult {
         val url = site.urlTemplate.replace("{}", query)
         val startTime = System.currentTimeMillis()
 
