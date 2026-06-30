@@ -84,6 +84,11 @@ object Routes {
     const val SCHEDULED_SEARCHES = "scheduled_searches"
     const val INVESTIGATION_WORKFLOW = "investigation_workflow"
     const val AUTOMATION_HUB = "automation_hub"
+    const val CATEGORY_BREAKDOWN = "category_breakdown"
+    const val TOP_SITES = "top_sites"
+    const val ACTIVITY_TREND = "activity_trend"
+    const val PERFORMANCE_ANALYTICS = "performance_analytics"
+    const val PERIOD_COMPARISON = "period_comparison"
 }
 
 @Composable
@@ -167,7 +172,12 @@ fun SherlockNavGraph(
                 onNavigateToQuickSearch = { query, type -> navController.navigate(Routes.voiceResultRoute(query, type)) },
                 onNavigateToScheduledSearches = { navController.navigate(Routes.SCHEDULED_SEARCHES) },
                 onNavigateToInvestigationWorkflow = { navController.navigate(Routes.INVESTIGATION_WORKFLOW) },
-                onNavigateToAutomationHub = { navController.navigate(Routes.AUTOMATION_HUB) }
+                onNavigateToAutomationHub = { navController.navigate(Routes.AUTOMATION_HUB) },
+                onNavigateToCategoryBreakdown = { navController.navigate(Routes.CATEGORY_BREAKDOWN) },
+                onNavigateToTopSites = { navController.navigate(Routes.TOP_SITES) },
+                onNavigateToActivityTrend = { navController.navigate(Routes.ACTIVITY_TREND) },
+                onNavigateToPerformanceAnalytics = { navController.navigate(Routes.PERFORMANCE_ANALYTICS) },
+                onNavigateToPeriodComparison = { navController.navigate(Routes.PERIOD_COMPARISON) }
             )
         }
 
@@ -482,6 +492,26 @@ fun SherlockNavGraph(
                 onNavigateToScheduledSearches = { navController.navigate(Routes.SCHEDULED_SEARCHES) },
                 onNavigateToInvestigationWorkflow = { navController.navigate(Routes.INVESTIGATION_WORKFLOW) }
             )
+        }
+
+        composable(Routes.CATEGORY_BREAKDOWN) {
+            CategoryBreakdownScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.TOP_SITES) {
+            TopSitesScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.ACTIVITY_TREND) {
+            ActivityTrendScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PERFORMANCE_ANALYTICS) {
+            PerformanceAnalyticsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PERIOD_COMPARISON) {
+            PeriodComparisonScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }

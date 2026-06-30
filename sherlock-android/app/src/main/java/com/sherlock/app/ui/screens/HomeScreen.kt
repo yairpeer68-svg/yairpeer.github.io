@@ -96,7 +96,12 @@ fun HomeScreen(
     onNavigateToQuickSearch: (String, String) -> Unit = { _, _ -> },
     onNavigateToScheduledSearches: () -> Unit = {},
     onNavigateToInvestigationWorkflow: () -> Unit = {},
-    onNavigateToAutomationHub: () -> Unit = {}
+    onNavigateToAutomationHub: () -> Unit = {},
+    onNavigateToCategoryBreakdown: () -> Unit = {},
+    onNavigateToTopSites: () -> Unit = {},
+    onNavigateToActivityTrend: () -> Unit = {},
+    onNavigateToPerformanceAnalytics: () -> Unit = {},
+    onNavigateToPeriodComparison: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -178,7 +183,12 @@ fun HomeScreen(
             HomeTile("כרטיס סיכום", "תמונה לשיתוף", Icons.Default.Image, onNavigateToSummaryCard),
             HomeTile("חיפושים מתוזמנים", "ריצה אוטומטית חוזרת", Icons.Default.Schedule, onNavigateToScheduledSearches),
             HomeTile("אשף חקירה מודרך", "שלב אחר שלב", Icons.Default.Checklist, onNavigateToInvestigationWorkflow),
-            HomeTile("מרכז אוטומציה", "כל הכללים במקום אחד", Icons.Default.AutoMode, onNavigateToAutomationHub)
+            HomeTile("מרכז אוטומציה", "כל הכללים במקום אחד", Icons.Default.AutoMode, onNavigateToAutomationHub),
+            HomeTile("פילוח לפי קטגוריה", "אילו אתרים נמצאים הכי הרבה", Icons.Default.PieChart, onNavigateToCategoryBreakdown),
+            HomeTile("האתרים הנפוצים ביותר", "דירוג אתרים", Icons.Default.EmojiEvents, onNavigateToTopSites),
+            HomeTile("מגמת פעילות", "חיפושים לאורך זמן", Icons.Default.ShowChart, onNavigateToActivityTrend),
+            HomeTile("ניתוח ביצועים", "זמני תגובה של אתרים", Icons.Default.Speed, onNavigateToPerformanceAnalytics),
+            HomeTile("השוואת תקופות", "שבוע מול שבוע", Icons.Default.TrendingUp, onNavigateToPeriodComparison)
         )
     }
 
@@ -406,6 +416,11 @@ fun HomeScreen(
                 item { FeatureTile("חיפושים מתוזמנים", "ריצה אוטומטית חוזרת", Icons.Default.Schedule, onNavigateToScheduledSearches) }
                 item { FeatureTile("אשף חקירה מודרך", "שלב אחר שלב", Icons.Default.Checklist, onNavigateToInvestigationWorkflow) }
                 item { FeatureTile("מרכז אוטומציה", "כל הכללים במקום אחד", Icons.Default.AutoMode, onNavigateToAutomationHub) }
+                item { FeatureTile("פילוח לפי קטגוריה", "אילו אתרים נמצאים הכי הרבה", Icons.Default.PieChart, onNavigateToCategoryBreakdown) }
+                item { FeatureTile("האתרים הנפוצים ביותר", "דירוג אתרים", Icons.Default.EmojiEvents, onNavigateToTopSites) }
+                item { FeatureTile("מגמת פעילות", "חיפושים לאורך זמן", Icons.Default.ShowChart, onNavigateToActivityTrend) }
+                item { FeatureTile("ניתוח ביצועים", "זמני תגובה של אתרים", Icons.Default.Speed, onNavigateToPerformanceAnalytics) }
+                item { FeatureTile("השוואת תקופות", "שבוע מול שבוע", Icons.Default.TrendingUp, onNavigateToPeriodComparison) }
                     }
                 }
             }
