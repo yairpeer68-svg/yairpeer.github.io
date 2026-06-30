@@ -70,7 +70,14 @@ fun HomeScreen(
     onNavigateToBioLinkExtractor: () -> Unit = {},
     onNavigateToUsernameFormatValidator: () -> Unit = {},
     onNavigateToPlatformGuide: () -> Unit = {},
-    onNavigateToDigitalIdentity: () -> Unit = {}
+    onNavigateToDigitalIdentity: () -> Unit = {},
+    onNavigateToSslCertificate: () -> Unit = {},
+    onNavigateToDnsRecords: () -> Unit = {},
+    onNavigateToHttpHeaders: () -> Unit = {},
+    onNavigateToWebsiteSnapshot: () -> Unit = {},
+    onNavigateToMyIp: () -> Unit = {},
+    onNavigateToRedirectChain: () -> Unit = {},
+    onNavigateToVpnProxyCheck: () -> Unit = {}
 ) {
     var showContent by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(100); showContent = true }
@@ -155,6 +162,13 @@ fun HomeScreen(
                 item { FeatureTile("מיקום IP", "Geolocation", Icons.Default.LocationOn, onNavigateToIpGeolocation) }
                 item { FeatureTile("תתי-דומיינים", "סריקת subdomain", Icons.Default.Dns, onNavigateToSubdomain) }
                 item { FeatureTile("מידע טלפון", "ניתוח מספר", Icons.Default.PhoneAndroid, onNavigateToPhoneInfo) }
+                item { FeatureTile("אישור SSL", "תוקף ומנפיק", Icons.Default.Lock, onNavigateToSslCertificate) }
+                item { FeatureTile("רשומות DNS", "MX, TXT, NS ועוד", Icons.Default.Dns, onNavigateToDnsRecords) }
+                item { FeatureTile("HTTP Headers", "זיהוי טכנולוגיות", Icons.Default.Http, onNavigateToHttpHeaders) }
+                item { FeatureTile("תקציר אתר", "כותרת, תיאור ואייקון", Icons.Default.Language, onNavigateToWebsiteSnapshot) }
+                item { FeatureTile("ה-IP שלי", "מיקום ורשת נוכחית", Icons.Default.Public, onNavigateToMyIp) }
+                item { FeatureTile("מעקב הפניות", "שרשרת redirects", Icons.Default.AltRoute, onNavigateToRedirectChain) }
+                item { FeatureTile("זיהוי VPN/Proxy", "בדיקת מקור IP", Icons.Default.Shield, onNavigateToVpnProxyCheck) }
 
                 // Images & Media
                 item(span = { GridItemSpan(2) }) { SectionHeader("תמונות ומדיה") }

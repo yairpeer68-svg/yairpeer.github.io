@@ -67,6 +67,13 @@ object Routes {
     const val USERNAME_FORMAT_VALIDATOR = "username_format_validator"
     const val PLATFORM_GUIDE = "platform_guide"
     const val DIGITAL_IDENTITY = "digital_identity"
+    const val SSL_CERTIFICATE = "ssl_certificate"
+    const val DNS_RECORDS = "dns_records"
+    const val HTTP_HEADERS = "http_headers"
+    const val WEBSITE_SNAPSHOT = "website_snapshot"
+    const val MY_IP = "my_ip"
+    const val REDIRECT_CHAIN = "redirect_chain"
+    const val VPN_PROXY_CHECK = "vpn_proxy_check"
 }
 
 @Composable
@@ -132,7 +139,14 @@ fun SherlockNavGraph(
                 onNavigateToBioLinkExtractor = { navController.navigate(Routes.BIO_LINK_EXTRACTOR) },
                 onNavigateToUsernameFormatValidator = { navController.navigate(Routes.USERNAME_FORMAT_VALIDATOR) },
                 onNavigateToPlatformGuide = { navController.navigate(Routes.PLATFORM_GUIDE) },
-                onNavigateToDigitalIdentity = { navController.navigate(Routes.DIGITAL_IDENTITY) }
+                onNavigateToDigitalIdentity = { navController.navigate(Routes.DIGITAL_IDENTITY) },
+                onNavigateToSslCertificate = { navController.navigate(Routes.SSL_CERTIFICATE) },
+                onNavigateToDnsRecords = { navController.navigate(Routes.DNS_RECORDS) },
+                onNavigateToHttpHeaders = { navController.navigate(Routes.HTTP_HEADERS) },
+                onNavigateToWebsiteSnapshot = { navController.navigate(Routes.WEBSITE_SNAPSHOT) },
+                onNavigateToMyIp = { navController.navigate(Routes.MY_IP) },
+                onNavigateToRedirectChain = { navController.navigate(Routes.REDIRECT_CHAIN) },
+                onNavigateToVpnProxyCheck = { navController.navigate(Routes.VPN_PROXY_CHECK) }
             )
         }
 
@@ -366,6 +380,34 @@ fun SherlockNavGraph(
 
         composable(Routes.DIGITAL_IDENTITY) {
             DigitalIdentityScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.SSL_CERTIFICATE) {
+            SslCertificateScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.DNS_RECORDS) {
+            DnsRecordsScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.HTTP_HEADERS) {
+            HttpHeadersScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.WEBSITE_SNAPSHOT) {
+            WebsiteSnapshotScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.MY_IP) {
+            MyIpScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.REDIRECT_CHAIN) {
+            RedirectChainScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.VPN_PROXY_CHECK) {
+            VpnProxyCheckScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }
