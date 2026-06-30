@@ -1,6 +1,8 @@
 package com.sherlock.app.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -15,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.model.UsernameAnalysis
 import com.sherlock.app.data.repository.AnalysisRepository
+import com.sherlock.app.data.repository.SitesDatabase
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -22,6 +25,7 @@ fun UsernameAnalysisScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     var username by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<UsernameAnalysis?>(null) }
+    var suggestions by remember { mutableStateOf<List<String>>(emptyList()) }
 
     Scaffold(
         topBar = {
@@ -43,13 +47,34 @@ fun UsernameAnalysisScreen(onNavigateBack: () -> Unit) {
             )
 
             Button(
-                onClick = { if (username.isNotBlank()) result = AnalysisRepository(context).analyzeUsername(username) },
+                onClick = {
+                    if (username.isNotBlank()) {
+                        result = AnalysisRepository(context).analyzeUsername(username)
+                        suggestions = SitesDatabase.generateSmartVariations(username).take(30)
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = username.isNotBlank()
             ) {
                 Icon(Icons.Default.Analytics, null)
                 Spacer(Modifier.width(8.dp))
                 Text("נתח שם משתמש")
+            }
+
+            if (suggestions.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("הצעות וריאציות חכמות (${suggestions.size})", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text("וריאציות אפשריות לחיפוש - leetspeak, סיומות שנה, מפרידים", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(suggestions) { s ->
+                                AssistChip(onClick = {}, label = { Text(s, fontSize = 12.sp) })
+                            }
+                        }
+                    }
+                }
             }
 
             result?.let { r ->

@@ -1,5 +1,7 @@
 package com.sherlock.app.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,6 +33,22 @@ fun BatchScannerScreen(onNavigateBack: () -> Unit) {
     var currentIndex by remember { mutableIntStateOf(0) }
     var totalItems by remember { mutableIntStateOf(0) }
 
+    val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            try {
+                val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+                val names = text.lines()
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .map { it.split(",", ";", "\t").first().trim() }
+                    .filter { it.isNotBlank() && !it.equals("username", ignoreCase = true) }
+                if (names.isNotEmpty()) {
+                    inputText = (inputText.lines().filter { it.isNotBlank() } + names).joinToString("\n")
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -47,7 +65,18 @@ fun BatchScannerScreen(onNavigateBack: () -> Unit) {
                 minLines = 4, maxLines = 8
             )
             Spacer(Modifier.height(8.dp))
-            Text("טיפ: הכנס שם משתמש אחד בכל שורה", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("טיפ: הכנס שם משתמש אחד בכל שורה, או ייבא קובץ CSV/TXT", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = { filePickerLauncher.launch("text/*") },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isRunning
+            ) {
+                Icon(Icons.Default.UploadFile, null)
+                Spacer(Modifier.width(8.dp))
+                Text("ייבא רשימה מקובץ CSV / TXT")
+            }
             Spacer(Modifier.height(12.dp))
 
             Button(

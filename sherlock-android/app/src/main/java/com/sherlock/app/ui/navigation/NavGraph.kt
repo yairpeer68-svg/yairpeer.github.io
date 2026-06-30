@@ -49,6 +49,10 @@ object Routes {
     const val VOICE_SEARCH = "voice_search"
     const val VOICE_RESULT = "voice_result/{query}/{type}"
     fun voiceResultRoute(query: String, type: String) = "voice_result/${android.net.Uri.encode(query)}/$type"
+    const val PEOPLE_FINDER = "people_finder"
+    const val LICENSE_PLATE = "license_plate"
+    const val IMAGE_HASH = "image_hash"
+    const val UNIFIED_SEARCH = "unified_search"
 }
 
 @Composable
@@ -99,7 +103,11 @@ fun SherlockNavGraph(
                 onNavigateToPhoneInfo = { navController.navigate(Routes.PHONE_INFO) },
                 onNavigateToSubdomain = { navController.navigate(Routes.SUBDOMAIN) },
                 onNavigateToMetadataStripper = { navController.navigate(Routes.METADATA_STRIPPER) },
-                onNavigateToVoiceSearch = { navController.navigate(Routes.VOICE_SEARCH) }
+                onNavigateToVoiceSearch = { navController.navigate(Routes.VOICE_SEARCH) },
+                onNavigateToPeopleFinder = { navController.navigate(Routes.PEOPLE_FINDER) },
+                onNavigateToLicensePlate = { navController.navigate(Routes.LICENSE_PLATE) },
+                onNavigateToImageHash = { navController.navigate(Routes.IMAGE_HASH) },
+                onNavigateToUnifiedSearch = { navController.navigate(Routes.UNIFIED_SEARCH) }
             )
         }
 
@@ -257,6 +265,22 @@ fun SherlockNavGraph(
                 searchType = type,
                 initialQuery = query
             )
+        }
+
+        composable(Routes.PEOPLE_FINDER) {
+            PeopleFinderScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.LICENSE_PLATE) {
+            LicensePlateScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.IMAGE_HASH) {
+            ImageHashScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.UNIFIED_SEARCH) {
+            UnifiedSearchScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }

@@ -55,7 +55,11 @@ fun HomeScreen(
     onNavigateToPhoneInfo: () -> Unit = {},
     onNavigateToSubdomain: () -> Unit = {},
     onNavigateToMetadataStripper: () -> Unit = {},
-    onNavigateToVoiceSearch: () -> Unit = {}
+    onNavigateToVoiceSearch: () -> Unit = {},
+    onNavigateToPeopleFinder: () -> Unit = {},
+    onNavigateToLicensePlate: () -> Unit = {},
+    onNavigateToImageHash: () -> Unit = {},
+    onNavigateToUnifiedSearch: () -> Unit = {}
 ) {
     var showContent by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(100); showContent = true }
@@ -116,6 +120,10 @@ fun HomeScreen(
                 item { FeatureTile("סריקה קבוצתית", "חיפוש מרובה", Icons.Default.PlaylistAddCheck, onNavigateToBatchScanner) }
                 item { FeatureTile("חיפוש קולי", "דיקטציה למיקרופון", Icons.Default.Mic, onNavigateToVoiceSearch) }
                 item { FeatureTile("Google Dorking", "חיפוש מתקדם", Icons.Default.ManageSearch, onNavigateToGoogleDork) }
+                item { FeatureTile("איתור אנשים", "שם+עיר, כתובת, עבודה", Icons.Default.PersonPin, onNavigateToPeopleFinder) }
+                item { FeatureTile("לוחית רישוי", "מאגר רכב ממשלתי", Icons.Default.DirectionsCar, onNavigateToLicensePlate) }
+                item { FeatureTile("התאמת תמונות", "השוואה מקומית", Icons.Default.ImageSearch, onNavigateToImageHash) }
+                item { FeatureTile("חיפוש מאוחד", "כל הסוגים יחד", Icons.Default.JoinFull, onNavigateToUnifiedSearch) }
 
                 // Analysis
                 item(span = { GridItemSpan(2) }) { SectionHeader("ניתוח וזיהוי") }

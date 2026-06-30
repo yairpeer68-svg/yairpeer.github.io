@@ -42,3 +42,11 @@ interface CustomSiteDao {
     @Query("SELECT * FROM custom_sites ORDER BY name") fun getAll(): Flow<List<CustomSite>>
     @Query("SELECT COUNT(*) FROM custom_sites") suspend fun getCount(): Int
 }
+
+@Dao
+interface ImageHashDao {
+    @Insert suspend fun insert(hash: ImageHash): Long
+    @Delete suspend fun delete(hash: ImageHash)
+    @Query("SELECT * FROM image_hashes ORDER BY createdAt DESC") fun getAll(): Flow<List<ImageHash>>
+    @Query("SELECT * FROM image_hashes") suspend fun getAllOnce(): List<ImageHash>
+}

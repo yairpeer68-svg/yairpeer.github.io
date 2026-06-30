@@ -404,6 +404,75 @@ object SitesDatabase {
         return variations.toList()
     }
 
+    private val leetMap = mapOf('a' to '4', 'e' to '3', 'i' to '1', 'o' to '0', 's' to '5', 't' to '7', 'g' to '9', 'b' to '8')
+
+    fun generateSmartVariations(username: String): List<String> {
+        val base = username.trim()
+        val variations = mutableSetOf<String>()
+        variations.addAll(generateVariations(base))
+
+        // Leetspeak substitution (full + single-letter swaps)
+        val fullLeet = base.lowercase().map { leetMap[it] ?: it }.joinToString("")
+        variations.add(fullLeet)
+        base.lowercase().forEachIndexed { index, c ->
+            val sub = leetMap[c]
+            if (sub != null) {
+                variations.add(base.lowercase().substring(0, index) + sub + base.lowercase().substring(index + 1))
+            }
+        }
+
+        // Common separators
+        listOf("-", ".", "_", "").forEach { sep ->
+            variations.add("${base}${sep}gaming")
+            variations.add("${base}${sep}official")
+            variations.add("${base}${sep}il")
+        }
+
+        // Birth-year style suffixes (common ranges)
+        (1985..2010 step 5).forEach { year -> variations.add("${base}$year") }
+        (0..99 step 11).forEach { yy -> variations.add("${base}${yy.toString().padStart(2, '0')}") }
+
+        // Country / locale tags
+        listOf("il", "isr", "tlv", "official", "real", "1", "2", "x", "xo", "yt").forEach { suffix ->
+            variations.add("$base$suffix")
+            variations.add("${base}_$suffix")
+        }
+
+        // Reversed and doubled forms
+        variations.add(base.reversed().lowercase())
+        variations.add("$base$base".lowercase())
+
+        return variations.filter { it.isNotBlank() }.distinct()
+    }
+
+    fun buildNameCityDorks(name: String, city: String): List<Pair<String, String>> {
+        return listOf(
+            "פרופילים ברשתות חברתיות" to "\"$name\" \"$city\" site:facebook.com OR site:linkedin.com OR site:instagram.com",
+            "מאגרי טלפונים ישראליים" to "\"$name\" \"$city\" site:d.co.il OR site:b144.co.il OR site:144.co.il",
+            "חדשות מקומיות" to "\"$name\" \"$city\" site:ynet.co.il OR site:walla.co.il OR site:mako.co.il",
+            "פורומים ורשת" to "\"$name\" \"$city\" forum OR פורום",
+            "מסמכים ציבוריים" to "\"$name\" \"$city\" filetype:pdf",
+        )
+    }
+
+    fun buildAddressDorks(address: String): List<Pair<String, String>> {
+        return listOf(
+            "נדל\"ן ורישומי טאבו" to "\"$address\" site:nadlan.gov.il OR site:gov.il",
+            "מודעות נדל\"ן" to "\"$address\" site:yad2.co.il OR site:homeless.co.il OR site:madlan.co.il",
+            "חיפוש כללי בכתובת" to "\"$address\"",
+            "עסקים בכתובת" to "\"$address\" site:google.com/maps OR עסק",
+        )
+    }
+
+    fun buildWorkplaceDorks(name: String, company: String): List<Pair<String, String>> {
+        return listOf(
+            "LinkedIn" to "\"$name\" \"$company\" site:linkedin.com",
+            "אתר החברה" to "\"$name\" \"$company\"",
+            "חדשות ועדכוני חברה" to "\"$name\" \"$company\" site:globes.co.il OR site:calcalist.co.il OR site:themarker.com",
+            "פרופיל מקצועי" to "\"$name\" \"$company\" resume OR CV OR קורות חיים",
+        )
+    }
+
     fun buildGoogleDorks(query: String): List<Pair<String, String>> {
         return listOf(
             "שם מלא" to "\"${query}\"",
