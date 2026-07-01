@@ -266,7 +266,7 @@ fun UsernameSearchScreen(
                 if (state.isSearching) {
                     Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
-                        progress = { state.progress },
+                        progress = state.progress,
                         modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
                     )
                 }

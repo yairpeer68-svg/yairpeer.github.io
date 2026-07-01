@@ -255,7 +255,7 @@ fun SettingsScreen(
                                 }
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text(if (minutes == 0) "מיידי" else "אחרי $minutes דקות ברקע")
+                            Text(if (minutes == 0) "מידי" else "אחרי $minutes דקות ברקע")
                         }
                     }
                 }
@@ -272,7 +272,7 @@ fun SettingsScreen(
             title = { Text("יומן גישה") },
             text = {
                 if (accessLog.isEmpty()) {
-                    Text("אין רישומי גישה")
+                    Text("אין רשומי גישה")
                 } else {
                     LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
                         items(accessLog) { entry ->
@@ -495,7 +495,7 @@ fun SettingsScreen(
                 item {
                     SettingsClickItem(
                         "נעילה אוטומטית",
-                        if (autoLockTimeout == 0) "מיידי" else "אחרי $autoLockTimeout דקות",
+                        if (autoLockTimeout == 0) "מידי" else "אחרי $autoLockTimeout דקות",
                         Icons.Default.LockClock
                     ) { showAutoLockDialog = true }
                 }
@@ -538,7 +538,7 @@ fun SettingsScreen(
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text("כפתור פאניקה", fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.error)
-                            Text("מחיקת כל הנתונים מיידית", fontSize = 12.sp, color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
+                            Text("מחיקת כל הנתונים מידית", fontSize = 12.sp, color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f))
                         }
                     }
                 }
@@ -595,7 +595,7 @@ private fun SettingsClickItem(title: String, value: String, icon: ImageVector, o
         Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(12.dp))
-            Text(title, fontWeight = FontWeight.Medium, Modifier.weight(1f))
+            Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
             Text(value, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
         }
     }
@@ -612,7 +612,7 @@ private fun SettingsSlider(title: String, value: Int, min: Int, max: Int, icon: 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(12.dp))
-                Text(title, fontWeight = FontWeight.Medium, Modifier.weight(1f))
+                Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
                 Text("$value", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
             Slider(
