@@ -14,11 +14,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.model.HashIdentification
 import com.sherlock.app.data.repository.OsintToolsRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HashLookupScreen(onNavigateBack: () -> Unit) {
     val repository = remember { OsintToolsRepository() }
+    val scope = rememberCoroutineScope()
     var hash by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<HashIdentification?>(null) }
 
@@ -38,7 +42,12 @@ fun HashLookupScreen(onNavigateBack: () -> Unit) {
             )
             OutlinedTextField(
                 value = hash,
-                onValueChange = { hash = it.trim(); result = if (hash.isNotBlank()) repository.identifyHash(hash) else null },
+                onValueChange = { newValue ->
+                    hash = newValue.trim()
+                    scope.launch {
+                        result = if (hash.isNotBlank()) withContext(Dispatchers.IO) { repository.identifyHash(hash) } else null
+                    }
+                },
                 label = { Text("ערך Hash") },
                 leadingIcon = { Icon(Icons.Default.Tag, null) },
                 singleLine = true,

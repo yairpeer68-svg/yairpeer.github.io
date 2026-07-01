@@ -75,6 +75,7 @@ fun MetadataStripperScreen(onNavigateBack: () -> Unit) {
                                 withContext(Dispatchers.IO) {
                                     val inputStream = context.contentResolver.openInputStream(uri)
                                     val bitmap = BitmapFactory.decodeStream(inputStream)
+                                        ?: throw Exception("לא ניתן לפרסר את התמונה")
                                     inputStream?.close()
 
                                     val outputDir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES)

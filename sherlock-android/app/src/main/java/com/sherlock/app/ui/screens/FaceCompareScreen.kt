@@ -35,13 +35,20 @@ import com.sherlock.app.data.model.FaceDetails
 import com.sherlock.app.ui.theme.SherlockError
 import com.sherlock.app.ui.theme.SherlockSuccess
 import com.sherlock.app.util.FaceHeuristics
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
 import kotlin.math.sqrt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FaceCompareScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf(FaceCompareState()) }
 
     val launcher1 = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -80,11 +87,17 @@ fun FaceCompareScreen(onNavigateBack: () -> Unit) {
                 onClick = {
                     if (state.image1Uri != null && state.image2Uri != null) {
                         state = state.copy(isComparing = true, errorMessage = null)
-                        compareFaces(context, state.image1Uri!!, state.image2Uri!!) { score, face1, face2, error, count1, count2 ->
-                            state = state.copy(
-                                isComparing = false, similarityScore = score, face1Details = face1, face2Details = face2,
-                                facesInImage1 = count1, facesInImage2 = count2, errorMessage = error
-                            )
+                        scope.launch {
+                            try {
+                                val r = compareFaces(context, state.image1Uri!!, state.image2Uri!!)
+                                state = state.copy(
+                                    isComparing = false, similarityScore = r.score, face1Details = r.face1,
+                                    face2Details = r.face2, facesInImage1 = r.count1, facesInImage2 = r.count2,
+                                    errorMessage = r.error
+                                )
+                            } catch (e: Exception) {
+                                state = state.copy(isComparing = false, errorMessage = "שגיאה: ${e.message}")
+                            }
                         }
                     }
                 },
@@ -223,52 +236,43 @@ private fun toFaceDetails(face: Face): FaceDetails = FaceDetails(
     expressionLabel = FaceHeuristics.estimateExpression(face)
 )
 
-private fun compareFaces(context: Context, uri1: Uri, uri2: Uri, onResult: (Float, FaceDetails?, FaceDetails?, String?, Int, Int) -> Unit) {
+private data class FaceCompareResult(
+    val score: Float, val face1: FaceDetails?, val face2: FaceDetails?,
+    val error: String?, val count1: Int, val count2: Int
+)
+
+private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T = suspendCancellableCoroutine { cont ->
+    addOnSuccessListener { cont.resume(it) }
+    addOnFailureListener { cont.resumeWithException(it) }
+}
+
+private suspend fun compareFaces(context: Context, uri1: Uri, uri2: Uri): FaceCompareResult {
     val options = FaceDetectorOptions.Builder()
         .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
         .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
         .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
         .build()
-
     val detector = FaceDetection.getClient(options)
+    return try {
+        val image1 = withContext(Dispatchers.IO) { InputImage.fromFilePath(context, uri1) }
+        val faces1 = detector.process(image1).await()
+        if (faces1.isEmpty()) return FaceCompareResult(-1f, null, null, "לא זוהו פנים בתמונה 1", 0, 0)
 
-    try {
-        val image1 = InputImage.fromFilePath(context, uri1)
-        detector.process(image1).addOnSuccessListener { faces1 ->
-            if (faces1.isEmpty()) {
-                onResult(-1f, null, null, "לא זוהו פנים בתמונה 1", 0, 0)
-                return@addOnSuccessListener
+        val image2 = withContext(Dispatchers.IO) { InputImage.fromFilePath(context, uri2) }
+        val faces2 = detector.process(image2).await()
+        if (faces2.isEmpty()) return FaceCompareResult(-1f, toFaceDetails(faces1[0]), null, "לא זוהו פנים בתמונה 2", faces1.size, 0)
+
+        var bestScore = -1f
+        var bestFace1 = faces1[0]
+        var bestFace2 = faces2[0]
+        for (f1 in faces1) {
+            for (f2 in faces2) {
+                val sim = faceSimilarity(f1, f2)
+                if (sim > bestScore) { bestScore = sim; bestFace1 = f1; bestFace2 = f2 }
             }
-
-            try {
-                val image2 = InputImage.fromFilePath(context, uri2)
-                detector.process(image2).addOnSuccessListener { faces2 ->
-                    if (faces2.isEmpty()) {
-                        onResult(-1f, toFaceDetails(faces1[0]), null, "לא זוהו פנים בתמונה 2", faces1.size, 0)
-                        return@addOnSuccessListener
-                    }
-
-                    var bestScore = -1f
-                    var bestFace1 = faces1[0]
-                    var bestFace2 = faces2[0]
-                    for (f1 in faces1) {
-                        for (f2 in faces2) {
-                            val sim = faceSimilarity(f1, f2)
-                            if (sim > bestScore) {
-                                bestScore = sim
-                                bestFace1 = f1
-                                bestFace2 = f2
-                            }
-                        }
-                    }
-
-                    onResult(bestScore, toFaceDetails(bestFace1), toFaceDetails(bestFace2), null, faces1.size, faces2.size)
-                }.addOnFailureListener { onResult(-1f, toFaceDetails(faces1[0]), null, "שגיאה בניתוח תמונה 2: ${it.message}", faces1.size, 0) }
-            } catch (e: Exception) {
-                onResult(-1f, toFaceDetails(faces1[0]), null, "שגיאה בטעינת תמונה 2: ${e.message}", faces1.size, 0)
-            }
-        }.addOnFailureListener { onResult(-1f, null, null, "שגיאה בניתוח תמונה 1: ${it.message}", 0, 0) }
-    } catch (e: Exception) {
-        onResult(-1f, null, null, "שגיאה: ${e.message}", 0, 0)
+        }
+        FaceCompareResult(bestScore, toFaceDetails(bestFace1), toFaceDetails(bestFace2), null, faces1.size, faces2.size)
+    } finally {
+        detector.close()
     }
 }

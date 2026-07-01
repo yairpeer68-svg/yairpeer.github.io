@@ -170,8 +170,12 @@ private fun computeDiff(context: Context, uri1: Uri, uri2: Uri): Pair<Bitmap, Fl
 
 private fun decodeScaled(context: Context, uri: Uri): Bitmap {
     val input = context.contentResolver.openInputStream(uri)
-    val original = BitmapFactory.decodeStream(input)
-    input?.close()
+        ?: throw Exception("לא ניתן לפתוח תמונה")
+    val original = try {
+        BitmapFactory.decodeStream(input) ?: throw Exception("לא ניתן לפרסר תמונה")
+    } finally {
+        input.close()
+    }
     val scaled = Bitmap.createScaledBitmap(original, DIFF_SIZE, DIFF_SIZE, true)
     if (original != scaled) original.recycle()
     return scaled

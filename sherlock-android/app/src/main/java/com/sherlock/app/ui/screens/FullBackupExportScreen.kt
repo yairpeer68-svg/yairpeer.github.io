@@ -12,11 +12,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
 import com.sherlock.app.data.repository.ExportRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FullBackupExportScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val db = remember { AppDatabase.getInstance(context) }
     val repository = remember { ExportRepository(context) }
 
@@ -54,8 +58,12 @@ fun FullBackupExportScreen(onNavigateBack: () -> Unit) {
             }
             Button(
                 onClick = {
-                    val uri = repository.exportFullBackupZip(history, favorites, notes, projects, tasks, identities, links)
-                    repository.shareFile(uri, "application/zip", "Sherlock Full Backup")
+                    scope.launch {
+                        val uri = withContext(Dispatchers.IO) {
+                            repository.exportFullBackupZip(history, favorites, notes, projects, tasks, identities, links)
+                        }
+                        repository.shareFile(uri, "application/zip", "Sherlock Full Backup")
+                    }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {

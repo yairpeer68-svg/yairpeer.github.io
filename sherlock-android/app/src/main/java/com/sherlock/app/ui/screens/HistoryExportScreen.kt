@@ -12,11 +12,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.local.AppDatabase
 import com.sherlock.app.data.repository.ExportRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryExportScreen(onNavigateBack: () -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val db = remember { AppDatabase.getInstance(context) }
     val repository = remember { ExportRepository(context) }
     val history by db.searchHistoryDao().getAllHistory().collectAsState(initial = emptyList())
@@ -41,8 +45,10 @@ fun HistoryExportScreen(onNavigateBack: () -> Unit) {
             }
             Button(
                 onClick = {
-                    val uri = repository.exportHistoryToCsv(history)
-                    repository.shareFile(uri, "text/csv", "Sherlock History CSV")
+                    scope.launch {
+                        val uri = withContext(Dispatchers.IO) { repository.exportHistoryToCsv(history) }
+                        repository.shareFile(uri, "text/csv", "Sherlock History CSV")
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = history.isNotEmpty()
@@ -51,8 +57,10 @@ fun HistoryExportScreen(onNavigateBack: () -> Unit) {
             }
             Button(
                 onClick = {
-                    val uri = repository.exportHistoryToHtml(history)
-                    repository.shareFile(uri, "text/html", "Sherlock History Report")
+                    scope.launch {
+                        val uri = withContext(Dispatchers.IO) { repository.exportHistoryToHtml(history) }
+                        repository.shareFile(uri, "text/html", "Sherlock History Report")
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = history.isNotEmpty()

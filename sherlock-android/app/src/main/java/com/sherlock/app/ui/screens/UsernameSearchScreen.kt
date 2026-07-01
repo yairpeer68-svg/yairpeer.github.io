@@ -89,14 +89,18 @@ fun UsernameSearchScreen(
             progress = 0f
             isSearching = true
             scope.launch {
-                repository.search(query, searchType).collect { result ->
-                    if (result.exists) hapticFeedback(context)
-                    results.add(result)
-                    checkedSites++
-                    progress = checkedSites.toFloat() / totalSites.coerceAtLeast(1)
+                try {
+                    repository.search(query, searchType).collect { result ->
+                        if (result.exists) hapticFeedback(context)
+                        results.add(result)
+                        checkedSites++
+                        progress = checkedSites.toFloat() / totalSites.coerceAtLeast(1)
+                    }
+                } catch (_: Exception) {
+                } finally {
+                    isSearching = false
+                    progress = 1f
                 }
-                isSearching = false
-                progress = 1f
             }
         }
     }

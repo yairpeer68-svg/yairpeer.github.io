@@ -77,8 +77,7 @@ class NetworkToolsRepository {
                 val request = Request.Builder()
                     .url("https://dns.google/resolve?name=$cleanDomain&type=$type")
                     .build()
-                val response = client.newCall(request).execute()
-                val body = response.body?.string() ?: continue
+                val body = client.newCall(request).execute().use { it.body?.string() } ?: continue
                 val json = Gson().fromJson(body, Map::class.java)
                 val answers = json["Answer"] as? List<Map<String, Any>> ?: continue
                 answers.forEach { answer ->
