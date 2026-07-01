@@ -1,252 +1,276 @@
 package com.sherlock.app.ui.screens
 
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.sherlock.app.data.model.SearchResult
-import com.sherlock.app.data.model.SearchType
-import com.sherlock.app.data.repository.SitesDatabase
-import com.sherlock.app.data.repository.UsernameSearchRepository
-import com.sherlock.app.ui.components.ResultCard
-import com.sherlock.app.ui.components.SkeletonLoader
-import com.sherlock.app.ui.components.hapticFeedback
-import com.sherlock.app.ui.theme.SherlockSuccess
+import com.sherlock.app.data.SearchRepository
+import com.sherlock.app.data.SearchResult
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UsernameSearchScreen(
-    onNavigateBack: () -> Unit,
-    searchType: SearchType = SearchType.USERNAME,
-    initialQuery: String = ""
+    repository: SearchRepository,
+    modifier: Modifier = Modifier
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val repository = remember { UsernameSearchRepository() }
+    val uriHandler = LocalUriHandler.current
 
-    var query by remember { mutableStateOf(initialQuery) }
-    var isSearching by remember { mutableStateOf(false) }
-    var progress by remember { mutableStateOf(0f) }
-    var checkedSites by remember { mutableStateOf(0) }
-    var totalSites by remember { mutableStateOf(0) }
+    var username by remember { mutableStateOf("") }
     val results = remember { mutableStateListOf<SearchResult>() }
-    var showOnlyFound by remember { mutableStateOf(true) }
+    var isSearching by remember { mutableStateOf(false) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    var showFoundOnly by remember { mutableStateOf(false) }
+    var searchJob by remember { mutableStateOf<Job?>(null) }
 
-    val foundCount = results.count { it.exists }
-    val filteredResults by remember {
-        derivedStateOf {
-            results
-                .filter { if (showOnlyFound) it.exists else true }
-                .sortedBy { it.siteName }
-        }
-    }
-
-    val title = when (searchType) {
-        SearchType.EMAIL -> "חיפוש אימייל"
-        else -> "חיפוש שם משתמש"
-    }
-
-    val placeholder = when (searchType) {
-        SearchType.EMAIL -> "הכנס כתובת אימייל..."
-        else -> "הכנס שם משתמש..."
-    }
-
-    val leadingIcon = when (searchType) {
-        SearchType.EMAIL -> Icons.Default.Email
-        else -> Icons.Default.AlternateEmail
-    }
+    val siteCount = remember { repository.getSiteCount() }
+    val filteredResults = if (showFoundOnly) results.filter { it.found } else results.toList()
+    val foundCount = results.count { it.found }
 
     fun startSearch() {
-        if (query.isNotEmpty() && !isSearching) {
-            keyboardController?.hide()
-            val sites = when (searchType) {
-                SearchType.EMAIL -> SitesDatabase.emailSites
-                else -> SitesDatabase.sites
-            }
-            results.clear()
-            totalSites = sites.size
-            checkedSites = 0
-            progress = 0f
-            isSearching = true
-            scope.launch {
-                try {
-                    repository.search(query, searchType).collect { result ->
-                        if (result.exists) hapticFeedback(context)
-                        results.add(result)
-                        checkedSites++
-                        progress = checkedSites.toFloat() / totalSites.coerceAtLeast(1)
-                    }
-                } catch (_: Exception) {
-                } finally {
-                    isSearching = false
-                    progress = 1f
+        if (username.isBlank()) return
+        searchJob?.cancel()
+        results.clear()
+        isSearching = true
+        progress = 0f
+
+        searchJob = scope.launch {
+            try {
+                repository.searchUsername(username).collect { result ->
+                    results.add(result)
+                    progress = results.size.toFloat() / siteCount
                 }
+            } catch (_: Exception) {
+            } finally {
+                isSearching = false
+                progress = 1f
             }
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(title, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "חזרה")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
-        }
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it.trim() },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(placeholder) },
-                    leadingIcon = { Icon(leadingIcon, null) },
-                    trailingIcon = {
-                        if (query.isNotEmpty() && !isSearching) {
-                            IconButton(onClick = { query = "" }) {
-                                Icon(Icons.Default.Clear, "נקה")
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { startSearch() }),
-                    enabled = !isSearching
+    Column(modifier = modifier.fillMaxSize()) {
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 4.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "SHERLOCK",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Hunt usernames across $siteCount platforms",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Spacer(Modifier.height(12.dp))
 
-                Button(
-                    onClick = { startSearch() },
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { username = it },
+                    placeholder = {
+                        Text("Enter username...", fontFamily = FontFamily.Monospace)
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = query.isNotEmpty() && !isSearching
-                ) {
-                    if (isSearching) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("מחפש... ($checkedSites/$totalSites)")
-                    } else {
-                        Icon(Icons.Default.Search, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("חפש")
-                    }
-                }
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { startSearch() }),
+                    trailingIcon = {
+                        if (isSearching) {
+                            IconButton(onClick = {
+                                searchJob?.cancel()
+                                isSearching = false
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "Stop")
+                            }
+                        } else {
+                            IconButton(onClick = { startSearch() }) {
+                                Icon(Icons.Default.Search, contentDescription = "Search")
+                            }
+                        }
+                    },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary
+                    )
+                )
 
-                if (isSearching) {
+                if (isSearching || results.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
-                        progress = progress,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
+                        progress = { progress },
+                        modifier = Modifier.fillMaxWidth()
                     )
-                }
-
-                if (results.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(4.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                null,
-                                Modifier.size(16.dp),
-                                tint = SherlockSuccess
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                "$foundCount נמצאו מתוך ${results.size}",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                        FilterChip(
-                            selected = showOnlyFound,
-                            onClick = { showOnlyFound = !showOnlyFound },
-                            label = { Text("נמצאו בלבד", fontSize = 12.sp) }
+                        Text(
+                            text = if (isSearching) "Checking... ${(progress * 100).toInt()}%" else "Done",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "Found: $foundCount / ${results.size}",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
                 }
             }
+        }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+        if (results.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.End
             ) {
-                if (isSearching && results.isEmpty()) {
-                    items(5) { SkeletonLoader() }
-                }
+                FilterChip(
+                    selected = showFoundOnly,
+                    onClick = { showFoundOnly = !showFoundOnly },
+                    label = { Text("Found only") },
+                    leadingIcon = if (showFoundOnly) {
+                        { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
+                    } else null
+                )
+            }
 
-                items(
-                    items = filteredResults,
-                    key = { "${it.siteName}_${it.username}" }
-                ) { result ->
-                    ResultCard(
-                        result = result,
-                        isFavorite = false,
-                        onFavoriteToggle = {},
-                        onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(result.url))
-                            context.startActivity(intent)
+            LazyColumn {
+                items(filteredResults, key = { it.site.name }) { result ->
+                    ResultRow(result = result, onClick = {
+                        if (result.found) {
+                            try { uriHandler.openUri(result.profileUrl) } catch (_: Exception) {}
                         }
+                    })
+                }
+            }
+        } else if (!isSearching) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = "Enter a username to search",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        fontFamily = FontFamily.Monospace
                     )
                 }
-
-                if (!isSearching && filteredResults.isEmpty() && results.isNotEmpty()) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(40.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "אין תוצאות לסינון הנבחר",
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-
-                item { Spacer(Modifier.height(16.dp)) }
             }
         }
     }
+}
+
+@Composable
+private fun ResultRow(result: SearchResult, onClick: () -> Unit) {
+    val bgColor = if (result.found) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+    } else {
+        Color.Transparent
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(bgColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (result.found) Icons.Default.CheckCircle else Icons.Default.Cancel,
+            contentDescription = null,
+            tint = if (result.found) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = result.site.name,
+                fontWeight = if (result.found) FontWeight.Bold else FontWeight.Normal,
+                fontSize = 14.sp
+            )
+            if (result.found) {
+                Text(
+                    text = result.profileUrl,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = result.site.category,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        )
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 }
