@@ -2,8 +2,10 @@ package com.sherlock.app.data
 
 import android.content.Context
 import android.net.Uri
+import com.sherlock.app.util.BrowserHeaders
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionSpec
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
@@ -18,6 +20,7 @@ class ImageSearchRepository(private val context: Context) {
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
             .followRedirects(true)
+            .connectionSpecs(listOf(BrowserHeaders.tlsSpec, ConnectionSpec.MODERN_TLS))
             .build()
     }
 
@@ -25,6 +28,9 @@ class ImageSearchRepository(private val context: Context) {
         try {
             val bytes = context.contentResolver.openInputStream(imageUri)?.use { it.readBytes() }
                 ?: return@withContext null
+
+            val profile = BrowserHeaders.randomProfile()
+            val headers = BrowserHeaders.headersFor(profile)
 
             val requestBody = MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
@@ -34,13 +40,12 @@ class ImageSearchRepository(private val context: Context) {
                 )
                 .build()
 
-            val request = Request.Builder()
+            val reqBuilder = Request.Builder()
                 .url("https://yandex.com/images/search?rpt=imageview&format=json")
                 .post(requestBody)
-                .addHeader("User-Agent", "Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
-                .build()
+            headers.forEach { (k, v) -> reqBuilder.addHeader(k, v) }
 
-            client.newCall(request).execute().use { response ->
+            client.newCall(reqBuilder.build()).execute().use { response ->
                 response.request.url.toString().takeIf { response.code in 200..399 }
             }
         } catch (_: Exception) {
