@@ -144,7 +144,7 @@ fun FaceCompareScreen(onNavigateBack: () -> Unit) {
                         Text("$scorePercent%", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = color)
                         Spacer(Modifier.height(4.dp))
                         LinearProgressIndicator(
-                            progress = { state.similarityScore },
+                            progress = state.similarityScore,
                             modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
                             color = color
                         )

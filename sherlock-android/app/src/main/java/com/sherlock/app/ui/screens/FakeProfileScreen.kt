@@ -113,7 +113,7 @@ fun FakeProfileScreen(onNavigateBack: () -> Unit) {
                         Text(r.riskLevel, fontWeight = FontWeight.SemiBold, color = color)
                         Spacer(Modifier.height(4.dp))
                         LinearProgressIndicator(
-                            progress = { r.score / 100f },
+                            progress = r.score / 100f,
                             modifier = Modifier.fillMaxWidth(),
                             color = color
                         )

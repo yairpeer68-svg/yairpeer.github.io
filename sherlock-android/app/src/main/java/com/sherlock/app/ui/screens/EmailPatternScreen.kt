@@ -79,7 +79,7 @@ fun EmailPatternScreen(onNavigateBack: () -> Unit) {
                                     Text("תבנית: ${pattern.pattern}", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Spacer(Modifier.width(8.dp))
                                     LinearProgressIndicator(
-                                        progress = { pattern.confidence },
+                                        progress = pattern.confidence,
                                         modifier = Modifier.width(60.dp).height(4.dp)
                                     )
                                     Spacer(Modifier.width(4.dp))

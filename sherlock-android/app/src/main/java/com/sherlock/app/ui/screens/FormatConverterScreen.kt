@@ -109,13 +109,14 @@ fun FormatConverterScreen(onNavigateBack: () -> Unit) {
                 .padding(20.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                DataFormat.entries.forEachIndexed { index, format ->
-                    SegmentedButton(
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DataFormat.entries.forEach { format ->
+                    FilterChip(
                         selected = selectedFormat == format,
                         onClick = { selectedFormat = format; output = null; error = null },
-                        shape = SegmentedButtonDefaults.itemShape(index = index, count = DataFormat.entries.size)
-                    ) { Text(format.label) }
+                        label = { Text(format.label) },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
             Spacer(Modifier.height(16.dp))

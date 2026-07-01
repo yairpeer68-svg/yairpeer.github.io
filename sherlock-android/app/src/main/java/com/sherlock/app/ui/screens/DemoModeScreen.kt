@@ -19,6 +19,7 @@ import com.sherlock.app.data.model.SearchResult
 import com.sherlock.app.data.model.SearchType
 import com.sherlock.app.data.model.SiteCategory
 import com.sherlock.app.util.SettingsManager
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private const val DEMO_PREFIX = "DEMO::"
@@ -71,8 +72,9 @@ private suspend fun generateDemoData(db: AppDatabase) {
 
 private suspend fun clearDemoData(db: AppDatabase) {
     val all = db.searchHistoryDao().getAllHistory()
-    val snapshot = kotlinx.coroutines.flow.first(all)
-    snapshot.filter { it.query.startsWith(DEMO_PREFIX) }.forEach { history ->
+    val snapshot = all.first()
+    val toDelete = snapshot.filter { it.query.startsWith(DEMO_PREFIX) }
+    for (history in toDelete) {
         db.searchHistoryDao().deleteResultsForHistory(history.id)
         db.searchHistoryDao().deleteHistory(history)
     }

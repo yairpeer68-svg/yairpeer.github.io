@@ -90,7 +90,7 @@ fun BatchScannerScreen(onNavigateBack: () -> Unit) {
                     results = usernames.map { BatchResult(it, 0, 0, false) }
 
                     scope.launch {
-                        val repo = UsernameSearchRepository(context)
+                        val repo = UsernameSearchRepository()
                         usernames.forEachIndexed { index, username ->
                             currentIndex = index + 1
                             var found = 0
@@ -117,7 +117,7 @@ fun BatchScannerScreen(onNavigateBack: () -> Unit) {
             if (isRunning) {
                 Spacer(Modifier.height(8.dp))
                 LinearProgressIndicator(
-                    progress = { currentIndex.toFloat() / totalItems.coerceAtLeast(1) },
+                    progress = currentIndex.toFloat() / totalItems.coerceAtLeast(1),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text("סורק $currentIndex / $totalItems...", fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))

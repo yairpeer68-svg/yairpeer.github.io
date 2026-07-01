@@ -88,7 +88,7 @@ fun ImageForensicsScreen(onNavigateBack: () -> Unit) {
                         Spacer(Modifier.height(8.dp))
                         Text("רמת ביטחון: ${(r.editConfidence * 100).toInt()}%", fontSize = 14.sp)
                         LinearProgressIndicator(
-                            progress = { r.editConfidence },
+                            progress = r.editConfidence,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
                         )
                     }
@@ -99,7 +99,7 @@ fun ImageForensicsScreen(onNavigateBack: () -> Unit) {
                         Text("איכות תמונה", fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(4.dp))
                         LinearProgressIndicator(
-                            progress = { r.qualityScore / 100f },
+                            progress = r.qualityScore / 100f,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         )
                         Text("${r.qualityScore.toInt()}/100", fontSize = 12.sp)
@@ -147,7 +147,7 @@ fun ImageForensicsScreen(onNavigateBack: () -> Unit) {
                         }
                         Spacer(Modifier.height(8.dp))
                         LinearProgressIndicator(
-                            progress = { r.aiGeneratedLikelihood },
+                            progress = r.aiGeneratedLikelihood,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         )
                         Text("${(r.aiGeneratedLikelihood * 100).toInt()}% סבירות (הערכה ניסיונית בלבד)", fontSize = 12.sp)

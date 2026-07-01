@@ -76,7 +76,7 @@ fun InvestigationWorkflowScreen(
                 Text("התקדמות: ${completedSteps.size}/${steps.size} שלבים", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(
-                    progress = { progress },
+                    progress = progress,
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
                 )
             }
