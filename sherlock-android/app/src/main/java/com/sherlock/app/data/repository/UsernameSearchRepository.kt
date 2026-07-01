@@ -22,11 +22,13 @@ class UsernameSearchRepository(
     private val timeoutSeconds: Long = 10
 ) {
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
-        .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
-        .followRedirects(false)
-        .build()
+    private val client by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(timeoutSeconds, TimeUnit.SECONDS)
+            .readTimeout(timeoutSeconds, TimeUnit.SECONDS)
+            .followRedirects(false)
+            .build()
+    }
 
     fun search(query: String, searchType: SearchType): Flow<SearchResult> = channelFlow {
         val sites = when (searchType) {

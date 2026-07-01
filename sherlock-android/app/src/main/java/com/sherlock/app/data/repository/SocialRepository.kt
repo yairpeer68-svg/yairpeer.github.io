@@ -14,10 +14,12 @@ import kotlin.math.max
 
 class SocialRepository {
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(8, TimeUnit.SECONDS)
-        .readTimeout(8, TimeUnit.SECONDS)
-        .build()
+    private val client by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(8, TimeUnit.SECONDS)
+            .build()
+    }
 
     suspend fun checkLinkHealth(url: String): LinkHealthResult = withContext(Dispatchers.IO) {
         try {

@@ -22,10 +22,12 @@ import javax.net.ssl.HttpsURLConnection
 
 class NetworkToolsRepository {
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
+    private val client by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
 
     private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.US)
 

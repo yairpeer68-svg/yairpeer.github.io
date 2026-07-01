@@ -18,10 +18,12 @@ import java.util.concurrent.TimeUnit
 
 class OsintToolsRepository {
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .build()
+    private val client by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
 
     suspend fun checkBreaches(email: String, apiKey: String): List<BreachInfo> = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) {
