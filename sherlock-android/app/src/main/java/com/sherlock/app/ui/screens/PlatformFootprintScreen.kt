@@ -38,7 +38,7 @@ fun PlatformFootprintScreen(onNavigateBack: () -> Unit) {
                     Text("$selectedCount / $totalPlatforms", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
-                        progress = { if (totalPlatforms > 0) selectedCount.toFloat() / totalPlatforms else 0f },
+                        progress = if (totalPlatforms > 0) selectedCount.toFloat() / totalPlatforms else 0f,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }

@@ -68,7 +68,7 @@ fun UsernameMatcherScreen(onNavigateBack: () -> Unit) {
                         Text(r.verdict, fontWeight = FontWeight.SemiBold, color = color)
                         Spacer(Modifier.height(8.dp))
                         LinearProgressIndicator(
-                            progress = { r.similarityPercent / 100f },
+                            progress = r.similarityPercent / 100f,
                             modifier = Modifier.fillMaxWidth(),
                             color = color
                         )

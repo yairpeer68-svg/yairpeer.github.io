@@ -90,7 +90,7 @@ fun SubdomainScreen(onNavigateBack: () -> Unit) {
 
             if (isScanning) {
                 Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                LinearProgressIndicator(progress = progress, modifier = Modifier.fillMaxWidth())
                 Text("סורק... ${(progress * 100).toInt()}%", fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
             }
 

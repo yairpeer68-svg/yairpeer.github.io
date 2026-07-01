@@ -45,14 +45,6 @@ data class ProfileAnalysis(
     val relatedUsernames: List<String>
 )
 
-data class PasteResult(
-    val source: String,
-    val title: String,
-    val url: String,
-    val snippet: String,
-    val date: String
-)
-
 data class WaybackResult(
     val url: String,
     val timestamp: String,

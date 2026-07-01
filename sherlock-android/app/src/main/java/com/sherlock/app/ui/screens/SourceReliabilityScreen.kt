@@ -113,7 +113,7 @@ fun SourceReliabilityScreen(onNavigateBack: () -> Unit) {
                         Text(res.label, fontWeight = FontWeight.Medium, color = color)
                         Spacer(Modifier.height(8.dp))
                         LinearProgressIndicator(
-                            progress = { res.score / 100f },
+                            progress = res.score / 100f,
                             modifier = Modifier.fillMaxWidth().height(6.dp),
                             color = color,
                             trackColor = MaterialTheme.colorScheme.surfaceVariant
