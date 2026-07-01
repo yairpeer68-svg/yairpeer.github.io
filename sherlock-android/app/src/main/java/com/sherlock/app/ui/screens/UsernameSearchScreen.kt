@@ -24,8 +24,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -56,6 +57,7 @@ import com.sherlock.app.data.SearchResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UsernameSearchScreen(
     repository: SearchRepository,
@@ -149,7 +151,7 @@ fun UsernameSearchScreen(
                 if (isSearching || results.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     LinearProgressIndicator(
-                        progress = { progress },
+                        progress = progress,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(4.dp))
@@ -272,5 +274,5 @@ private fun ResultRow(result: SearchResult, onClick: () -> Unit) {
                 .padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+    Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 }
