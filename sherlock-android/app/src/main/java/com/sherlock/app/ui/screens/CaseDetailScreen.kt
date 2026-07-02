@@ -46,6 +46,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -101,6 +103,7 @@ fun CaseDetailScreen(
     val findingsBySubject = findings.groupBy { it.subjectId }
 
     val progress = remember { mutableStateMapOf<Long, Float>() }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var addType by remember { mutableStateOf(SubjectType.USERNAME) }
     var addValue by remember { mutableStateOf("") }
@@ -111,6 +114,8 @@ fun CaseDetailScreen(
         scope.launch {
             try {
                 repository.investigate(subject) { p -> progress[subject.id] = p }
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Investigation failed: ${t.message ?: t.javaClass.simpleName}")
             } finally {
                 progress.remove(subject.id)
             }
@@ -119,6 +124,7 @@ fun CaseDetailScreen(
 
     Scaffold(
         modifier = modifier,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(case?.name ?: "Case", maxLines = 1) },
@@ -129,9 +135,13 @@ fun CaseDetailScreen(
                     IconButton(onClick = {
                         val c = case ?: return@IconButton
                         scope.launch {
-                            val fs = repository.getFindings(caseId)
-                            val html = ReportExporter.buildHtml(c, subjects, fs)
-                            ReportExporter.share(context, c, html)
+                            try {
+                                val fs = repository.getFindings(caseId)
+                                val html = ReportExporter.buildHtml(c, subjects, fs)
+                                ReportExporter.share(context, c, html)
+                            } catch (t: Throwable) {
+                                snackbarHostState.showSnackbar("Report failed: ${t.message ?: t.javaClass.simpleName}")
+                            }
                         }
                     }) { Icon(Icons.Default.Description, "Export report") }
                 },
@@ -188,9 +198,13 @@ fun CaseDetailScreen(
                         val t = addType
                         addValue = ""
                         scope.launch {
-                            val id = repository.addSubject(caseId, t, v)
-                            if (id > 0) {
-                                runInvestigation(SubjectEntity(id = id, caseId = caseId, type = t.name, value = v))
+                            try {
+                                val id = repository.addSubject(caseId, t, v)
+                                if (id > 0) {
+                                    repository.getSubject(id)?.let { runInvestigation(it) }
+                                }
+                            } catch (thr: Throwable) {
+                                snackbarHostState.showSnackbar("Add failed: ${thr.message ?: thr.javaClass.simpleName}")
                             }
                         }
                     },

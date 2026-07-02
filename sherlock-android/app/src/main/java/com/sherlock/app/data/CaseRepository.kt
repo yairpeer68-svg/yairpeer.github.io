@@ -43,7 +43,7 @@ class CaseRepository(context: Context) {
         origin: String = "manual",
         derivedFromFindingId: Long? = null
     ): Long {
-        val v = value.trim()
+        val v = normalize(type, value)
         if (v.isBlank()) return -1
         if (subjectDao.exists(caseId, type.name, v) > 0) return -1
         val id = subjectDao.insert(
@@ -56,9 +56,24 @@ class CaseRepository(context: Context) {
         return id
     }
 
+    suspend fun getSubject(id: Long): SubjectEntity? = subjectDao.get(id)
+
     suspend fun deleteSubject(id: Long) {
         findingDao.deleteForSubject(id)
         subjectDao.delete(id)
+    }
+
+    /** Cleans a raw value per type (e.g. a full URL entered as a domain → bare host). */
+    private fun normalize(type: SubjectType, raw: String): String {
+        val v = raw.trim()
+        return when (type) {
+            SubjectType.DOMAIN -> v.lowercase()
+                .removePrefix("http://").removePrefix("https://")
+                .removePrefix("www.")
+                .substringBefore('/').substringBefore('?').trim().trimEnd('.')
+            SubjectType.EMAIL -> v.lowercase()
+            else -> v
+        }
     }
 
     // ---- findings ----
