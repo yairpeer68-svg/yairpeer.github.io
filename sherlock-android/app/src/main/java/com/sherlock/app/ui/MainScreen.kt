@@ -1,9 +1,10 @@
 package com.sherlock.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -16,44 +17,76 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import com.sherlock.app.data.CaseRepository
 import com.sherlock.app.data.ImageSearchRepository
 import com.sherlock.app.data.SearchRepository
-import com.sherlock.app.ui.screens.ImageSearchScreen
-import com.sherlock.app.ui.screens.UsernameSearchScreen
+import com.sherlock.app.ui.nav.Navigator
+import com.sherlock.app.ui.nav.Screen
+import com.sherlock.app.ui.screens.CaseDetailScreen
+import com.sherlock.app.ui.screens.CasesScreen
+import com.sherlock.app.ui.screens.QuickToolsScreen
 
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
+    val caseRepo = remember { CaseRepository(context) }
     val searchRepo = remember { SearchRepository(context) }
     val imageRepo = remember { ImageSearchRepository(context) }
-    var selectedTab by remember { mutableIntStateOf(0) }
+    val navigator = remember { Navigator() }
 
+    BackHandler(enabled = navigator.canGoBack) { navigator.pop() }
+
+    when (val screen = navigator.current) {
+        is Screen.Home -> HomeScaffold(
+            caseRepo = caseRepo,
+            searchRepo = searchRepo,
+            imageRepo = imageRepo,
+            onOpenCase = { navigator.push(Screen.CaseDetail(it)) }
+        )
+        is Screen.CaseDetail -> CaseDetailScreen(
+            caseId = screen.caseId,
+            repository = caseRepo,
+            onBack = { navigator.pop() }
+        )
+    }
+}
+
+@Composable
+private fun HomeScaffold(
+    caseRepo: CaseRepository,
+    searchRepo: SearchRepository,
+    imageRepo: ImageSearchRepository,
+    onOpenCase: (Long) -> Unit
+) {
+    var tab by remember { mutableIntStateOf(0) }
     Scaffold(
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    label = { Text("Username") }
+                    selected = tab == 0,
+                    onClick = { tab = 0 },
+                    icon = { Icon(Icons.Default.Folder, null) },
+                    label = { Text("Cases") }
                 )
                 NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Image, contentDescription = null) },
-                    label = { Text("Image") }
+                    selected = tab == 1,
+                    onClick = { tab = 1 },
+                    icon = { Icon(Icons.Default.Build, null) },
+                    label = { Text("Quick tools") }
                 )
             }
         }
-    ) { padding ->
-        when (selectedTab) {
-            0 -> UsernameSearchScreen(
-                repository = searchRepo,
-                modifier = Modifier.padding(padding)
+    ) { pad ->
+        when (tab) {
+            0 -> CasesScreen(
+                repository = caseRepo,
+                onOpenCase = onOpenCase,
+                modifier = Modifier.padding(pad)
             )
-            1 -> ImageSearchScreen(
-                repository = imageRepo,
-                modifier = Modifier.padding(padding)
+            1 -> QuickToolsScreen(
+                searchRepository = searchRepo,
+                imageRepository = imageRepo,
+                modifier = Modifier.padding(pad)
             )
         }
     }
