@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -147,6 +148,27 @@ fun UsernameSearchScreen(
                         focusedBorderColor = MaterialTheme.colorScheme.primary
                     )
                 )
+
+                Spacer(Modifier.height(10.dp))
+
+                Button(
+                    onClick = { if (isSearching) { searchJob?.cancel(); isSearching = false } else startSearch() },
+                    enabled = isSearching || username.isNotBlank(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                ) {
+                    Icon(
+                        if (isSearching) Icons.Default.Close else Icons.Default.Search,
+                        contentDescription = null
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (isSearching) "STOP" else "START — scan $siteCount networks",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
 
                 if (isSearching || results.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))

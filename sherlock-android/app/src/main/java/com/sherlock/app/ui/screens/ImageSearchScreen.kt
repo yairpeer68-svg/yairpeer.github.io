@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.ImageSearch
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -204,6 +205,24 @@ fun ImageSearchScreen(
                     Spacer(Modifier.width(4.dp))
                     Text("Camera")
                 }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Button(
+                onClick = { engines.firstOrNull { it.name == "Yandex" }?.let { searchWith(it) } },
+                enabled = selectedImageUri != null && !isUploading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp)
+            ) {
+                Icon(Icons.Default.ImageSearch, null)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = if (isUploading) "SEARCHING..." else "START — search this photo",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp
+                )
             }
 
             if (statusMessage.isNotBlank()) {
