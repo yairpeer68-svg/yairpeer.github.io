@@ -3,9 +3,12 @@ package com.sherlock.app.data
 data class SiteConfig(
     val name: String,
     val url: String,
-    val errorType: String,
-    val errorMsg: String,
-    val category: String
+    val errorType: String,            // "status_code" | "message" | "response_url"
+    val category: String = "",
+    val errorMsg: List<String>? = null,
+    val errorUrl: String? = null,
+    val regexCheck: String? = null,
+    val urlProbe: String? = null
 )
 
 data class SearchResult(

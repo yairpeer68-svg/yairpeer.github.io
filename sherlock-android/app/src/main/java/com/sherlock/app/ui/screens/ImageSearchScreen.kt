@@ -91,10 +91,14 @@ fun ImageSearchScreen(
     }
 
     fun launchCamera() {
-        val file = File(context.cacheDir, "camera_capture.jpg")
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-        cameraImageUri = uri
-        cameraLauncher.launch(uri)
+        try {
+            val file = File(context.cacheDir, "camera_capture.jpg")
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            cameraImageUri = uri
+            cameraLauncher.launch(uri)
+        } catch (e: Exception) {
+            statusMessage = "Camera unavailable: ${e.message ?: "no camera app"}"
+        }
     }
 
     fun searchWith(engine: Engine) {
