@@ -1,22 +1,30 @@
 package com.sherlock.app.ui
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.sp
 import com.sherlock.app.data.CaseRepository
 import com.sherlock.app.data.ImageSearchRepository
 import com.sherlock.app.data.SearchRepository
@@ -25,6 +33,7 @@ import com.sherlock.app.ui.nav.Screen
 import com.sherlock.app.ui.screens.CaseDetailScreen
 import com.sherlock.app.ui.screens.CasesScreen
 import com.sherlock.app.ui.screens.QuickToolsScreen
+import com.sherlock.app.util.CrashLog
 
 @Composable
 fun MainScreen() {
@@ -33,6 +42,41 @@ fun MainScreen() {
     val searchRepo = remember { SearchRepository(context) }
     val imageRepo = remember { ImageSearchRepository(context) }
     val navigator = remember { Navigator() }
+
+    var crash by remember { mutableStateOf(CrashLog.read(context)) }
+    crash?.let { text ->
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("App crashed last time") },
+            text = {
+                Text(
+                    text = text,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.verticalScroll(rememberScrollState())
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    runCatching {
+                        context.startActivity(
+                            Intent.createChooser(
+                                Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "Sherlock crash log")
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                },
+                                "Share crash log"
+                            )
+                        )
+                    }
+                }) { Text("Share") }
+            },
+            dismissButton = {
+                TextButton(onClick = { CrashLog.clear(context); crash = null }) { Text("Dismiss") }
+            }
+        )
+    }
 
     BackHandler(enabled = navigator.canGoBack) { navigator.pop() }
 
