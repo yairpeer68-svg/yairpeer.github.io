@@ -297,7 +297,11 @@ private fun SubjectCard(
                     }
                 }
                 if (progress != null) {
-                    CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(
+                        progress = progress.coerceIn(0f, 1f),
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp
+                    )
                 } else {
                     IconButton(onClick = onInvestigate) {
                         Icon(Icons.Default.PlayArrow, "Investigate", tint = MaterialTheme.colorScheme.primary)
