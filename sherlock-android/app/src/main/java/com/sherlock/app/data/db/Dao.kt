@@ -19,10 +19,10 @@ interface CaseDao {
     suspend fun get(id: Long): CaseEntity?
 
     @Insert
-    suspend fun insert(case: CaseEntity): Long
+    suspend fun insert(entity: CaseEntity): Long
 
     @Update
-    suspend fun update(case: CaseEntity)
+    suspend fun update(entity: CaseEntity)
 
     @Query("UPDATE cases SET updatedAt = :ts WHERE id = :id")
     suspend fun touch(id: Long, ts: Long)
