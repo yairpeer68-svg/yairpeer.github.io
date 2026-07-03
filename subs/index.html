@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מנוימטר — כל המנויים שלך במקום אחד</title>
+<meta name="description" content="מעקב מנויים בעברית: גלה כמה אתה משלם כל חודש על נטפליקס, ספוטיפיי, חדר כושר וכל שאר המנויים — וקבל תזכורת לפני כל חידוש.">
+<meta property="og:title" content="מנוימטר — כמה המנויים שלך באמת עולים לך?">
+<meta property="og:description" content="מעקב מנויים חינמי בעברית. הנתונים נשמרים אצלך במכשיר.">
+<style>
+  :root {
+    --bg: #f2f5f7;
+    --card: #ffffff;
+    --text: #0f1c2e;
+    --muted: #64748b;
+    --accent: #059669;
+    --accent-soft: #d1fae5;
+    --danger: #dc2626;
+    --warn-bg: #fef3c7;
+    --warn-text: #92400e;
+    --border: #e2e8f0;
+    --shadow: 0 1px 3px rgba(15, 28, 46, .08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1220;
+      --card: #16213a;
+      --text: #eef2f7;
+      --muted: #94a3b8;
+      --accent: #34d399;
+      --accent-soft: #064e3b;
+      --danger: #f87171;
+      --warn-bg: #453308;
+      --warn-text: #fcd34d;
+      --border: #26324d;
+      --shadow: 0 1px 3px rgba(0, 0, 0, .4);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans Hebrew", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px 120px; }
+
+  /* ---- header ---- */
+  header { text-align: center; padding: 12px 0 4px; }
+  header .logo { font-size: 15px; font-weight: 700; color: var(--muted); letter-spacing: .3px; }
+  .hero {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 22px 16px;
+    text-align: center;
+    margin-top: 14px;
+  }
+  .hero .label { font-size: 14px; color: var(--muted); }
+  .hero .amount { font-size: 42px; font-weight: 800; letter-spacing: -1px; margin: 4px 0; }
+  .hero .amount small { font-size: 20px; font-weight: 600; color: var(--muted); }
+  .hero .sub { font-size: 14px; color: var(--muted); }
+  .hero .sub b { color: var(--text); }
+
+  /* ---- sections ---- */
+  h2 { font-size: 15px; color: var(--muted); font-weight: 700; margin: 22px 4px 10px; }
+
+  .renewal {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--warn-bg); color: var(--warn-text);
+    border-radius: 14px; padding: 10px 14px; margin-bottom: 8px;
+    font-size: 14px; font-weight: 600;
+  }
+  .renewal .emoji { font-size: 20px; }
+
+  .sub-card {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sub-card:active { transform: scale(.99); }
+  .sub-card .emoji {
+    font-size: 24px; width: 46px; height: 46px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--bg); border-radius: 12px;
+  }
+  .sub-card .info { flex: 1; min-width: 0; }
+  .sub-card .name { font-weight: 700; font-size: 16px; }
+  .sub-card .meta { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .sub-card .price { text-align: left; }
+  .sub-card .price .v { font-weight: 800; font-size: 17px; }
+  .sub-card .price .c { font-size: 12px; color: var(--muted); }
+
+  .empty {
+    text-align: center; padding: 40px 20px; color: var(--muted);
+  }
+  .empty .big { font-size: 44px; margin-bottom: 10px; }
+  .empty p { font-size: 15px; line-height: 1.6; }
+
+  /* ---- fab ---- */
+  .fab {
+    position: fixed; bottom: 24px; inset-inline-start: 50%;
+    transform: translateX(50%);
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 999px;
+    font-size: 17px; font-weight: 700;
+    font-family: inherit;
+    padding: 15px 30px;
+    box-shadow: 0 6px 20px rgba(5, 150, 105, .4);
+    cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .fab:active { transform: translateX(50%) scale(.97); }
+
+  /* ---- dialogs ---- */
+  dialog {
+    border: none; border-radius: 20px 20px 0 0;
+    background: var(--card); color: var(--text);
+    width: 100%; max-width: 560px;
+    max-height: 85vh;
+    padding: 0;
+    margin: auto auto 0;
+    box-shadow: 0 -10px 40px rgba(0,0,0,.25);
+  }
+  dialog::backdrop { background: rgba(10, 15, 30, .55); }
+  .dlg-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 18px 10px;
+    position: sticky; top: 0; background: var(--card); z-index: 2;
+  }
+  .dlg-head h3 { font-size: 18px; }
+  .dlg-close {
+    background: var(--bg); border: none; border-radius: 999px;
+    width: 32px; height: 32px; font-size: 15px; cursor: pointer;
+    color: var(--muted); font-family: inherit;
+  }
+  .dlg-body { padding: 0 18px 24px; overflow-y: auto; }
+
+  .search {
+    width: 100%; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--bg); color: var(--text);
+    font-size: 16px; font-family: inherit;
+    margin-bottom: 14px;
+  }
+  .search:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+  .cat-title { font-size: 13px; font-weight: 700; color: var(--muted); margin: 14px 2px 8px; }
+  .cat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .cat-item {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 6px; text-align: center; cursor: pointer;
+    font-family: inherit; color: var(--text);
+  }
+  .cat-item:active { background: var(--accent-soft); }
+  .cat-item .e { font-size: 26px; display: block; margin-bottom: 4px; }
+  .cat-item .n { font-size: 13px; font-weight: 600; display: block; }
+  .cat-item .p { font-size: 11px; color: var(--muted); display: block; margin-top: 2px; }
+  .custom-btn {
+    width: 100%; margin-top: 16px;
+    background: none; border: 2px dashed var(--border); border-radius: 14px;
+    padding: 14px; font-size: 15px; font-weight: 600; color: var(--muted);
+    cursor: pointer; font-family: inherit;
+  }
+
+  /* ---- form ---- */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--bg); color: var(--text);
+    font-size: 16px; font-family: inherit;
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .seg {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+  }
+  .seg button {
+    padding: 11px; border: none; background: var(--bg); color: var(--muted);
+    font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .seg button.on { background: var(--accent); color: #fff; }
+  .btn-primary {
+    width: 100%; padding: 15px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: 14px;
+    font-size: 17px; font-weight: 700; font-family: inherit;
+    cursor: pointer; margin-top: 6px;
+  }
+  .btn-danger {
+    width: 100%; padding: 13px;
+    background: none; color: var(--danger);
+    border: none; font-size: 15px; font-weight: 600; font-family: inherit;
+    cursor: pointer; margin-top: 8px;
+  }
+
+  /* ---- toast ---- */
+  .toast {
+    position: fixed; bottom: 92px; inset-inline-start: 50%;
+    transform: translateX(50%);
+    background: var(--text); color: var(--bg);
+    padding: 10px 20px; border-radius: 999px;
+    font-size: 14px; font-weight: 600;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s;
+    z-index: 50;
+  }
+  .toast.show { opacity: 1; }
+
+  footer { text-align: center; margin-top: 30px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">💸 מנוימטר</div>
+  </header>
+
+  <div class="hero">
+    <div class="label">המנויים שלך עולים לך</div>
+    <div class="amount"><span id="totalMonthly">₪0</span> <small>בחודש</small></div>
+    <div class="sub">שזה <b id="totalYearly">₪0</b> בשנה · <span id="subCount">0 מנויים</span></div>
+  </div>
+
+  <div id="renewals"></div>
+
+  <h2 id="listTitle" hidden>המנויים שלי</h2>
+  <div id="list"></div>
+
+  <div class="empty" id="empty">
+    <div class="big">🕵️</div>
+    <p>עוד לא הוספת מנויים.<br>לחץ על הכפתור למטה וגלה כמה אתה באמת משלם כל חודש.</p>
+  </div>
+
+  <footer>
+    הנתונים נשמרים רק אצלך במכשיר — לא נשלחים לשום שרת.<br>
+    המחירים בקטלוג משוערים וניתנים לעריכה.
+  </footer>
+</div>
+
+<button class="fab" id="fabAdd">➕ הוסף מנוי</button>
+
+<!-- catalog picker -->
+<dialog id="dlgCatalog">
+  <div class="dlg-head">
+    <h3>איזה מנוי להוסיף?</h3>
+    <button class="dlg-close" data-close="dlgCatalog">✕</button>
+  </div>
+  <div class="dlg-body">
+    <input class="search" id="catSearch" type="search" placeholder="חיפוש… (נטפליקס, ספוטיפיי, חדר כושר)">
+    <div id="catList"></div>
+    <button class="custom-btn" id="btnCustom">➕ מנוי אחר שלא ברשימה</button>
+  </div>
+</dialog>
+
+<!-- add / edit form -->
+<dialog id="dlgForm">
+  <div class="dlg-head">
+    <h3 id="formTitle">הוספת מנוי</h3>
+    <button class="dlg-close" data-close="dlgForm">✕</button>
+  </div>
+  <div class="dlg-body">
+    <div class="field">
+      <label for="fName">שם המנוי</label>
+      <input id="fName" type="text" maxlength="40" placeholder="למשל: נטפליקס">
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="fPrice">מחיר (₪)</label>
+        <input id="fPrice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="0.00">
+      </div>
+      <div class="field">
+        <label>תדירות חיוב</label>
+        <div class="seg">
+          <button type="button" id="segMonthly" class="on">חודשי</button>
+          <button type="button" id="segYearly">שנתי</button>
+        </div>
+      </div>
+    </div>
+    <div class="field" id="fieldDay">
+      <label for="fDay">יום החיוב בחודש</label>
+      <select id="fDay"></select>
+    </div>
+    <div class="field" id="fieldDate" hidden>
+      <label for="fDate">תאריך החידוש הבא</label>
+      <input id="fDate" type="date">
+    </div>
+    <button class="btn-primary" id="btnSave">שמירה</button>
+    <button class="btn-danger" id="btnDelete" hidden>🗑️ מחיקת המנוי</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ---------- catalog: common Israeli subscriptions (estimated prices, ₪/month) ---------- */
+const CATALOG = [
+  { cat: "סטרימינג וטלוויזיה", items: [
+    { name: "נטפליקס", emoji: "🎬", price: 54.90 },
+    { name: "דיסני+", emoji: "🏰", price: 34.90 },
+    { name: "יוטיוב פרימיום", emoji: "▶️", price: 24.90 },
+    { name: "Apple TV+", emoji: "🍎", price: 34.90 },
+    { name: "אמזון פריים", emoji: "📦", price: 14.90 },
+    { name: "HOT", emoji: "📺", price: 199 },
+    { name: "yes", emoji: "📡", price: 149 },
+    { name: "סלקום TV", emoji: "📺", price: 89 },
+    { name: "פרטנר TV", emoji: "📺", price: 89 },
+    { name: "STING TV", emoji: "📺", price: 69 },
+  ]},
+  { cat: "מוזיקה", items: [
+    { name: "ספוטיפיי", emoji: "🎵", price: 23.90 },
+    { name: "Apple Music", emoji: "🎧", price: 19.90 },
+    { name: "YouTube Music", emoji: "🎶", price: 19.90 },
+  ]},
+  { cat: "ענן ובינה מלאכותית", items: [
+    { name: "iCloud+", emoji: "☁️", price: 11.90 },
+    { name: "Google One", emoji: "☁️", price: 9.90 },
+    { name: "ChatGPT Plus", emoji: "🤖", price: 75 },
+    { name: "Claude Pro", emoji: "🤖", price: 65 },
+    { name: "Dropbox", emoji: "📁", price: 42 },
+  ]},
+  { cat: "גיימינג", items: [
+    { name: "PlayStation Plus", emoji: "🎮", price: 33.90 },
+    { name: "Xbox Game Pass", emoji: "🎮", price: 39.90 },
+    { name: "Nintendo Online", emoji: "🕹️", price: 12 },
+  ]},
+  { cat: "ספורט ובריאות", items: [
+    { name: "חדר כושר", emoji: "🏋️", price: 199 },
+    { name: "הולמס פלייס", emoji: "🏊", price: 249 },
+    { name: "ביטוח בריאות משלים", emoji: "🩺", price: 45 },
+  ]},
+  { cat: "תקשורת", items: [
+    { name: "סלולר", emoji: "📱", price: 29.90 },
+    { name: "אינטרנט ביתי", emoji: "🌐", price: 99 },
+  ]},
+  { cat: "חדשות ותוכן", items: [
+    { name: "ynet+", emoji: "📰", price: 19.90 },
+    { name: "הארץ", emoji: "📰", price: 39.90 },
+    { name: "גלובס", emoji: "📰", price: 34.90 },
+  ]},
+  { cat: "שונות", items: [
+    { name: "Wolt+", emoji: "🛵", price: 19.90 },
+    { name: "פנגו / חניה", emoji: "🅿️", price: 20 },
+    { name: "מנוי עיתון / מגזין", emoji: "📖", price: 30 },
+  ]},
+];
+
+/* ---------- state ---------- */
+const STORE_KEY = "minuymeter.subs.v1";
+let subs = load();
+let editId = null;      // id of sub being edited, or null when adding
+let formCycle = "monthly";
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch { return []; }
+}
+function save() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(subs));
+}
+
+/* ---------- date helpers ---------- */
+function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+
+function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+
+// next charge date (>= today) for a subscription
+function nextCharge(sub) {
+  const today = startOfDay(new Date());
+  const anchor = new Date(sub.anchor + "T00:00:00");
+  if (sub.cycle === "monthly") {
+    const day = anchor.getDate();
+    let y = today.getFullYear(), m = today.getMonth();
+    let cand = new Date(y, m, Math.min(day, daysInMonth(y, m)));
+    if (cand < today) {
+      m += 1; if (m > 11) { m = 0; y += 1; }
+      cand = new Date(y, m, Math.min(day, daysInMonth(y, m)));
+    }
+    return cand;
+  }
+  // yearly
+  let y = today.getFullYear();
+  let cand = new Date(y, anchor.getMonth(), Math.min(anchor.getDate(), daysInMonth(y, anchor.getMonth())));
+  if (cand < today) {
+    y += 1;
+    cand = new Date(y, anchor.getMonth(), Math.min(anchor.getDate(), daysInMonth(y, anchor.getMonth())));
+  }
+  return cand;
+}
+
+function daysUntil(date) {
+  const today = startOfDay(new Date());
+  return Math.round((date - today) / 86400000);
+}
+
+/* ---------- formatting ---------- */
+const ils = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 });
+const ilsExact = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", minimumFractionDigits: 2 });
+const dateFmt = new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "long" });
+
+function monthlyOf(sub) { return sub.cycle === "yearly" ? sub.price / 12 : sub.price; }
+
+/* ---------- rendering ---------- */
+const $ = id => document.getElementById(id);
+
+function render() {
+  const totalM = subs.reduce((s, x) => s + monthlyOf(x), 0);
+  $("totalMonthly").textContent = ils.format(totalM);
+  $("totalYearly").textContent = ils.format(totalM * 12);
+  $("subCount").textContent = subs.length === 1 ? "מנוי אחד" : subs.length + " מנויים";
+
+  // upcoming renewals within 7 days
+  const soon = subs
+    .map(s => ({ s, d: nextCharge(s) }))
+    .filter(x => daysUntil(x.d) <= 7)
+    .sort((a, b) => a.d - b.d);
+  $("renewals").innerHTML = soon.map(({ s, d }) => {
+    const n = daysUntil(d);
+    const when = n === 0 ? "היום" : n === 1 ? "מחר" : "בעוד " + n + " ימים";
+    return `<div class="renewal"><span class="emoji">⏰</span><span>${esc(s.emoji)} ${esc(s.name)} מתחדש ${when} — ${ilsExact.format(s.price)}</span></div>`;
+  }).join("");
+
+  // list sorted by next charge
+  const sorted = [...subs].sort((a, b) => nextCharge(a) - nextCharge(b));
+  $("list").innerHTML = sorted.map(s => {
+    const d = nextCharge(s);
+    const cyc = s.cycle === "yearly" ? "לשנה" : "לחודש";
+    return `<div class="sub-card" data-id="${s.id}">
+      <div class="emoji">${esc(s.emoji)}</div>
+      <div class="info">
+        <div class="name">${esc(s.name)}</div>
+        <div class="meta">חיוב הבא: ${dateFmt.format(d)}</div>
+      </div>
+      <div class="price"><div class="v">${ilsExact.format(s.price)}</div><div class="c">${cyc}</div></div>
+    </div>`;
+  }).join("");
+
+  $("listTitle").hidden = subs.length === 0;
+  $("empty").style.display = subs.length === 0 ? "" : "none";
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ---------- catalog dialog ---------- */
+function renderCatalog(filter) {
+  const q = (filter || "").trim();
+  $("catList").innerHTML = CATALOG.map(group => {
+    const items = group.items.filter(i => !q || i.name.includes(q));
+    if (!items.length) return "";
+    return `<div class="cat-title">${esc(group.cat)}</div>
+      <div class="cat-grid">${items.map(i =>
+        `<button class="cat-item" data-name="${esc(i.name)}" data-emoji="${esc(i.emoji)}" data-price="${i.price}">
+          <span class="e">${esc(i.emoji)}</span><span class="n">${esc(i.name)}</span><span class="p">~${ils.format(i.price)}</span>
+        </button>`).join("")}</div>`;
+  }).join("") || `<p style="color:var(--muted);text-align:center;padding:20px 0">לא נמצא… נסה "מנוי אחר" למטה</p>`;
+}
+
+/* ---------- form dialog ---------- */
+function openForm(preset) {
+  editId = preset.id || null;
+  $("formTitle").textContent = editId ? "עריכת מנוי" : "הוספת מנוי";
+  $("fName").value = preset.name || "";
+  $("fPrice").value = preset.price != null ? preset.price : "";
+  setCycle(preset.cycle || "monthly");
+
+  const anchor = preset.anchor ? new Date(preset.anchor + "T00:00:00") : new Date();
+  $("fDay").value = String(anchor.getDate());
+  $("fDate").value = toISO(preset.cycle === "yearly" ? nextCharge(preset) : anchor);
+
+  $("btnDelete").hidden = !editId;
+  $("dlgForm")._emoji = preset.emoji || "💳";
+  $("dlgForm").showModal();
+  if (!editId && !preset.name) $("fName").focus();
+}
+
+function setCycle(c) {
+  formCycle = c;
+  $("segMonthly").classList.toggle("on", c === "monthly");
+  $("segYearly").classList.toggle("on", c === "yearly");
+  $("fieldDay").hidden = c !== "monthly";
+  $("fieldDate").hidden = c !== "yearly";
+}
+
+function toISO(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function saveForm() {
+  const name = $("fName").value.trim();
+  const price = parseFloat($("fPrice").value);
+  if (!name) { toast("צריך לתת שם למנוי"); $("fName").focus(); return; }
+  if (!(price > 0)) { toast("צריך להזין מחיר"); $("fPrice").focus(); return; }
+
+  let anchorISO;
+  if (formCycle === "monthly") {
+    const day = parseInt($("fDay").value, 10) || 1;
+    const now = new Date();
+    anchorISO = toISO(new Date(now.getFullYear(), now.getMonth(), Math.min(day, daysInMonth(now.getFullYear(), now.getMonth()))));
+    // preserve requested day even in short months by anchoring to a 31-day month when needed
+    if (day > new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()) {
+      anchorISO = toISO(new Date(now.getFullYear(), 0, day)); // January always has 31 days
+    }
+  } else {
+    anchorISO = $("fDate").value || toISO(new Date());
+  }
+
+  if (editId) {
+    const s = subs.find(x => x.id === editId);
+    if (s) Object.assign(s, { name, price, cycle: formCycle, anchor: anchorISO });
+  } else {
+    subs.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name, price, cycle: formCycle, anchor: anchorISO,
+      emoji: $("dlgForm")._emoji || "💳",
+    });
+  }
+  save(); render();
+  $("dlgForm").close();
+  toast(editId ? "נשמר ✓" : "המנוי נוסף ✓");
+  editId = null;
+}
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* ---------- wiring ---------- */
+// day-of-month select 1..31
+$("fDay").innerHTML = Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">${i + 1} בחודש</option>`).join("");
+
+$("fabAdd").addEventListener("click", () => {
+  $("catSearch").value = "";
+  renderCatalog("");
+  $("dlgCatalog").showModal();
+});
+
+$("catSearch").addEventListener("input", e => renderCatalog(e.target.value));
+
+$("catList").addEventListener("click", e => {
+  const btn = e.target.closest(".cat-item");
+  if (!btn) return;
+  $("dlgCatalog").close();
+  openForm({ name: btn.dataset.name, emoji: btn.dataset.emoji, price: parseFloat(btn.dataset.price) });
+});
+
+$("btnCustom").addEventListener("click", () => {
+  $("dlgCatalog").close();
+  openForm({});
+});
+
+$("list").addEventListener("click", e => {
+  const card = e.target.closest(".sub-card");
+  if (!card) return;
+  const s = subs.find(x => x.id === card.dataset.id);
+  if (s) openForm(s);
+});
+
+$("segMonthly").addEventListener("click", () => setCycle("monthly"));
+$("segYearly").addEventListener("click", () => setCycle("yearly"));
+$("btnSave").addEventListener("click", saveForm);
+
+$("btnDelete").addEventListener("click", () => {
+  if (!editId) return;
+  const s = subs.find(x => x.id === editId);
+  if (s && !confirm(`למחוק את "${s.name}"?`)) return;
+  subs = subs.filter(x => x.id !== editId);
+  editId = null;
+  save(); render();
+  $("dlgForm").close();
+  toast("המנוי נמחק");
+});
+
+document.querySelectorAll("[data-close]").forEach(b =>
+  b.addEventListener("click", () => $(b.dataset.close).close()));
+
+render();
+</script>
+</body>
+</html>
