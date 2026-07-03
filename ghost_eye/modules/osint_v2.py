@@ -318,7 +318,7 @@ class TechStackProfile(Module):
 
 @register
 class ThreatFeedCheck(Module):
-    id, name, category = "threatfeed", "Threat feed cross-reference", "OSINT"
+    id, name, category = "threatagg", "Threat feed cross-reference (aggregated)", "OSINT"
     target_kind = "host"
 
     def run(self, target, ctx):

@@ -80,8 +80,9 @@ def export_markdown(results: List[Result], path: str, target: str = "") -> str:
         lines += ["## Prioritised findings", "",
                   "| Severity | Module | Field | Detail |", "|---|---|---|---|"]
         for f in score["findings"]:
+            detail_escaped = f['detail'].replace('|', r'\|')
             lines.append(f"| {f['severity'].upper()} | {f['module']} | "
-                         f"`{f['field']}` | {f['detail'].replace('|', '\\|')} |")
+                         f"`{f['field']}` | {detail_escaped} |")
         lines.append("")
     lines.append("## Full results")
     for r in results:

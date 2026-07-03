@@ -276,7 +276,7 @@ class DnsPropagation(Module):
 
 @register
 class DmarcDkimSpfAudit(Module):
-    id, name, category = "emailauth", "DMARC/DKIM/SPF alignment audit", "DNS"
+    id, name, category = "dmarcalign", "DMARC/DKIM/SPF alignment audit", "DNS"
     target_kind = "domain"
 
     def run(self, target, ctx):
@@ -435,7 +435,7 @@ class DnsRebinding(Module):
 
 @register
 class TyposquatFinder(Module):
-    id, name, category = "typosquat", "Homoglyph / typosquat domain finder", "DNS"
+    id, name, category = "homoglyph", "Homoglyph / typosquat domain finder", "DNS"
     target_kind = "domain"
 
     _HOMOGLYPHS = {

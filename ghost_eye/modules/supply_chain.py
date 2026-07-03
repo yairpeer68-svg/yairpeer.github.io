@@ -97,7 +97,7 @@ class PipAudit(Module):
                         }
                     elif path == "/Pipfile.lock":
                         try:
-                            j = r.json() if r.json else {}
+                            j = r.json()
                             pkgs = list((j.get("default", {})).keys())[:15]
                             findings[path] = {"exposed": True,
                                               "packages": pkgs, "risk": "HIGH"}
