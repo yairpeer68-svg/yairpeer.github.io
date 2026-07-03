@@ -17,3 +17,16 @@ data class SearchResult(
     val profileUrl: String,
     val error: String? = null
 )
+
+/** A face match returned by the FaceCheck.ID API. */
+data class FaceMatch(
+    val url: String,
+    val score: Int,       // 0-100 confidence
+    val thumb: String     // data: URI base64 thumbnail
+)
+
+/** Outcome of a face search — either matches or a human-readable error. */
+data class FaceSearchResult(
+    val matches: List<FaceMatch> = emptyList(),
+    val error: String? = null
+)
