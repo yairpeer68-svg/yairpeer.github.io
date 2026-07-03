@@ -30,6 +30,7 @@
     --violet: #6d28d9;
     --fuchsia: #d926a9;
     --pink: #ff2e88;
+    --gold: #fbbf24;
     --border: #2c2350;
     --radius: 18px;
   }
@@ -65,6 +66,7 @@
     font-family: inherit;
   }
   .icon-btn.on { border-color: var(--lime); box-shadow: 0 0 10px rgba(212, 245, 55, .25); }
+  .icon-btn.gold { border-color: var(--gold); box-shadow: 0 0 10px rgba(251, 191, 36, .3); }
   #btnInstall { display: none; }
 
   /* ---- hero ---- */
@@ -85,27 +87,93 @@
   .hero .label { font-size: 14px; color: rgba(255,255,255,.85); font-weight: 600; }
   .hero .amount { font-size: 52px; font-weight: 900; letter-spacing: -2px; line-height: 1.15; color: #fff; margin: 2px 0; }
   .hero .amount small { font-size: 20px; font-weight: 600; color: rgba(255,255,255,.8); letter-spacing: 0; }
-  .hero .chips { display: flex; justify-content: center; gap: 8px; margin-top: 10px; position: relative; }
+  .hero .chips { display: flex; justify-content: center; gap: 8px; margin-top: 10px; position: relative; flex-wrap: wrap; }
   .chip {
     background: rgba(14, 10, 31, .45); backdrop-filter: blur(4px);
     border-radius: 999px; padding: 6px 14px;
     font-size: 13px; font-weight: 600; color: #fff;
   }
   .chip b { color: var(--lime); font-weight: 800; }
+  .hero .share-row { position: relative; margin-top: 12px; }
+  .share-btn {
+    background: rgba(14, 10, 31, .55); border: 1px solid rgba(255,255,255,.25);
+    color: #fff; border-radius: 999px; padding: 8px 18px;
+    font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+  }
+
+  /* ---- budget bar ---- */
+  .budget {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 14px; margin-top: 10px;
+  }
+  .budget .row { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .budget .row .over { color: var(--pink); }
+  .budget .track { height: 8px; background: var(--bg); border-radius: 999px; overflow: hidden; }
+  .budget .fill { height: 100%; border-radius: 999px; background: var(--lime); transition: width .4s; }
+  .budget .fill.over { background: var(--pink); }
 
   /* ---- sections ---- */
   h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 24px 4px 10px; letter-spacing: .3px; }
+  .sec-head { display: flex; align-items: center; justify-content: space-between; margin: 24px 4px 10px; }
+  .sec-head h2 { margin: 0; }
+  .sort-sel {
+    background: var(--card); color: var(--muted); border: 1px solid var(--border);
+    border-radius: 10px; padding: 5px 8px; font-size: 12px; font-family: inherit;
+  }
 
-  .renewal {
+  .banner {
     display: flex; align-items: center; gap: 10px;
-    background: linear-gradient(90deg, rgba(255, 46, 136, .18), rgba(255, 46, 136, .07));
-    border: 1px solid rgba(255, 46, 136, .4);
-    color: #ffb8d6;
     border-radius: 14px; padding: 11px 14px; margin-bottom: 8px;
     font-size: 14px; font-weight: 600;
   }
-  .renewal .emoji { font-size: 18px; }
+  .banner .emoji { font-size: 18px; }
+  .banner.warn {
+    background: linear-gradient(90deg, rgba(255, 46, 136, .18), rgba(255, 46, 136, .07));
+    border: 1px solid rgba(255, 46, 136, .4);
+    color: #ffb8d6;
+  }
+  .banner.info {
+    background: linear-gradient(90deg, rgba(56, 189, 248, .14), rgba(56, 189, 248, .05));
+    border: 1px solid rgba(56, 189, 248, .35);
+    color: #a5dff8;
+  }
 
+  /* ---- insights ---- */
+  .insights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 10px; text-align: center;
+  }
+  .stat .v { font-size: 17px; font-weight: 900; color: var(--lime); }
+  .stat .l { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .donut-card {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px; margin-top: 8px;
+  }
+  .donut { width: 110px; height: 110px; border-radius: 50%; flex-shrink: 0; position: relative; }
+  .donut::after {
+    content: ""; position: absolute; inset: 26px; border-radius: 50%;
+    background: var(--card);
+  }
+  .legend { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .legend .li { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .legend .dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+  .legend .n { flex: 1; color: var(--text); font-weight: 600; }
+  .legend .a { color: var(--muted); }
+
+  /* ---- filter chips ---- */
+  .filters { display: flex; gap: 6px; overflow-x: auto; padding: 2px; margin-bottom: 10px; scrollbar-width: none; }
+  .filters::-webkit-scrollbar { display: none; }
+  .fchip {
+    border: 1px solid var(--border); background: var(--card); color: var(--muted);
+    border-radius: 999px; padding: 6px 13px; font-size: 13px; font-weight: 600;
+    font-family: inherit; cursor: pointer; white-space: nowrap; display: flex; align-items: center; gap: 6px;
+  }
+  .fchip .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .fchip.on { border-color: var(--lime); color: var(--text); }
+
+  /* ---- sub cards ---- */
   .sub-card {
     display: flex; align-items: center; gap: 12px;
     background: var(--card);
@@ -116,15 +184,29 @@
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     transition: transform .08s;
+    position: relative;
   }
   .sub-card:active { transform: scale(.985); }
+  .sub-card.paused { opacity: .55; }
   .sub-card .emoji {
     font-size: 24px; width: 48px; height: 48px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     background: var(--card-2); border: 1px solid var(--border); border-radius: 14px;
+    position: relative;
+  }
+  .sub-card .catdot {
+    position: absolute; bottom: -2px; inset-inline-start: -2px;
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid var(--card);
   }
   .sub-card .info { flex: 1; min-width: 0; }
-  .sub-card .name { font-weight: 800; font-size: 16px; }
+  .sub-card .name { font-weight: 800; font-size: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .badge {
+    font-size: 10px; font-weight: 800; border-radius: 6px; padding: 2px 6px;
+  }
+  .badge.trial { background: rgba(56, 189, 248, .2); color: #7dd3fc; }
+  .badge.paused { background: rgba(157, 148, 192, .2); color: var(--muted); }
+  .badge.up { background: rgba(255, 46, 136, .18); color: #ff8fc0; }
   .sub-card .meta { font-size: 13px; color: var(--muted); margin-top: 3px; }
   .sub-card .price { text-align: left; }
   .sub-card .price .v { font-weight: 900; font-size: 17px; color: var(--lime); }
@@ -133,6 +215,25 @@
   .empty { text-align: center; padding: 44px 20px; color: var(--muted); }
   .empty .big { font-size: 46px; margin-bottom: 12px; }
   .empty p { font-size: 15px; line-height: 1.7; }
+
+  /* ---- saved / archive ---- */
+  .saved-card {
+    display: flex; align-items: center; gap: 12px;
+    background: linear-gradient(135deg, rgba(212, 245, 55, .12), rgba(212, 245, 55, .03));
+    border: 1px solid rgba(212, 245, 55, .35);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 10px;
+  }
+  .saved-card .t { font-size: 26px; }
+  .saved-card .info { flex: 1; }
+  .saved-card .v { font-weight: 900; font-size: 18px; color: var(--lime); }
+  .saved-card .l { font-size: 13px; color: var(--muted); }
+  .arch-item {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--muted); font-size: 13px; padding: 7px 6px;
+    border-bottom: 1px dashed var(--border);
+  }
+  .arch-item .n { flex: 1; }
+  .arch-item .restore { background: none; border: none; color: var(--lime); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 
   /* ---- fab ---- */
   .fab {
@@ -155,7 +256,7 @@
     border-radius: 22px 22px 0 0;
     background: var(--card); color: var(--text);
     width: 100%; max-width: 560px;
-    max-height: 85vh;
+    max-height: 88vh;
     padding: 0;
     margin: auto auto 0;
     box-shadow: 0 -10px 50px rgba(0, 0, 0, .5);
@@ -205,13 +306,14 @@
   /* ---- form ---- */
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-  .field input, .field select {
+  .field input, .field select, .field textarea {
     width: 100%; padding: 12px 14px;
     border: 1px solid var(--border); border-radius: 12px;
     background: var(--bg); color: var(--text);
     font-size: 16px; font-family: inherit;
   }
-  .field input:focus, .field select:focus { outline: 2px solid var(--lime); border-color: transparent; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--lime); border-color: transparent; }
+  .field textarea { resize: vertical; min-height: 44px; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .seg {
     display: grid; grid-template-columns: 1fr 1fr;
@@ -222,12 +324,27 @@
     font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
   }
   .seg button.on { background: var(--lime); color: var(--lime-dark); font-weight: 800; }
+  .check-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 11px 14px; margin-bottom: 14px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+  }
+  .check-row input { width: 18px; height: 18px; accent-color: var(--lime); }
+  .pro-tag { font-size: 10px; font-weight: 800; background: rgba(251, 191, 36, .18); color: var(--gold); border-radius: 6px; padding: 2px 6px; }
   .btn-primary {
     width: 100%; padding: 15px;
     background: var(--lime); color: var(--lime-dark);
     border: none; border-radius: 14px;
     font-size: 17px; font-weight: 800; font-family: inherit;
     cursor: pointer; margin-top: 6px;
+  }
+  .btn-secondary {
+    width: 100%; padding: 13px;
+    background: var(--card-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 14px;
+    font-size: 15px; font-weight: 600; font-family: inherit;
+    cursor: pointer; margin-top: 8px;
   }
   .btn-danger {
     width: 100%; padding: 13px;
@@ -236,19 +353,39 @@
     cursor: pointer; margin-top: 8px;
   }
 
+  /* ---- premium dialog ---- */
+  .prem-hero {
+    background: linear-gradient(135deg, rgba(251, 191, 36, .18), rgba(217, 38, 169, .14));
+    border: 1px solid rgba(251, 191, 36, .4);
+    border-radius: 16px; padding: 18px; text-align: center; margin-bottom: 14px;
+  }
+  .prem-hero .crown { font-size: 36px; }
+  .prem-hero h4 { font-size: 20px; font-weight: 900; margin: 6px 0 2px; }
+  .prem-hero p { font-size: 13px; color: var(--muted); }
+  .feat-list { list-style: none; margin: 4px 0 14px; }
+  .feat-list li { display: flex; gap: 9px; align-items: flex-start; font-size: 14px; padding: 6px 2px; }
+  .feat-list li::before { content: "✓"; color: var(--lime); font-weight: 900; }
+  .prem-note { font-size: 12px; color: var(--muted); text-align: center; margin: 10px 0; line-height: 1.6; }
+
   /* ---- toast ---- */
   .toast {
     position: fixed; bottom: 96px; inset-inline-start: 50%;
     transform: translateX(50%);
     background: var(--lime); color: var(--lime-dark);
-    padding: 10px 22px; border-radius: 999px;
+    padding: 10px 18px; border-radius: 999px;
     font-size: 14px; font-weight: 800;
     opacity: 0; pointer-events: none;
     transition: opacity .25s;
     z-index: 50;
     box-shadow: 0 6px 20px rgba(212, 245, 55, .3);
+    display: flex; align-items: center; gap: 10px;
   }
-  .toast.show { opacity: 1; }
+  .toast.show { opacity: 1; pointer-events: auto; }
+  .toast button {
+    background: var(--lime-dark); color: var(--lime); border: none;
+    border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 800;
+    font-family: inherit; cursor: pointer;
+  }
 
   footer { text-align: center; margin-top: 32px; font-size: 12px; color: var(--muted); line-height: 1.8; opacity: .8; }
 </style>
@@ -258,6 +395,7 @@
   <div class="topbar">
     <div class="brand"><span class="coin">₪</span> מנוימטר</div>
     <div class="actions">
+      <button class="icon-btn" id="btnCrown" title="מנוימטר פרימיום">👑</button>
       <button class="icon-btn" id="btnInstall" title="התקנה על מסך הבית">⬇️</button>
       <button class="icon-btn" id="btnBell" title="תזכורות לפני חידוש">🔔</button>
     </div>
@@ -270,16 +408,53 @@
       <span class="chip"><b id="totalYearly">₪0</b> בשנה</span>
       <span class="chip" id="subCount">0 מנויים</span>
     </div>
+    <div class="share-row">
+      <button class="share-btn" id="btnShare">📤 שתף כמה אני משלם</button>
+    </div>
   </div>
 
-  <div id="renewals"></div>
+  <div class="budget" id="budgetBox" hidden>
+    <div class="row"><span>🎯 תקציב חודשי</span><span id="budgetText"></span></div>
+    <div class="track"><div class="fill" id="budgetFill"></div></div>
+  </div>
 
-  <h2 id="listTitle" hidden>המנויים שלי</h2>
+  <div id="banners"></div>
+
+  <div id="insightsSec" hidden>
+    <h2>תובנות 👑</h2>
+    <div class="insights" id="statRow"></div>
+    <div class="donut-card">
+      <div class="donut" id="donut"></div>
+      <div class="legend" id="legend"></div>
+    </div>
+  </div>
+
+  <div class="sec-head" id="listHead" hidden>
+    <h2>המנויים שלי</h2>
+    <select class="sort-sel" id="sortSel">
+      <option value="next">לפי חיוב קרוב</option>
+      <option value="price">לפי מחיר</option>
+      <option value="name">לפי שם</option>
+    </select>
+  </div>
+  <div class="filters" id="filters" hidden></div>
   <div id="list"></div>
 
   <div class="empty" id="empty">
     <div class="big">🕵️</div>
     <p>עוד לא הוספת מנויים.<br>לחץ על הכפתור למטה וגלה כמה אתה באמת משלם כל חודש.</p>
+  </div>
+
+  <div id="savedSec" hidden>
+    <h2>הכסף שחסכתי 🏆</h2>
+    <div class="saved-card">
+      <div class="t">💰</div>
+      <div class="info">
+        <div class="v" id="savedTotal">₪0</div>
+        <div class="l" id="savedLabel">מביטול מנויים</div>
+      </div>
+    </div>
+    <div id="archList"></div>
   </div>
 
   <footer>
@@ -316,15 +491,28 @@
     </div>
     <div class="row2">
       <div class="field">
-        <label for="fPrice">מחיר (₪)</label>
+        <label for="fPrice">מחיר</label>
         <input id="fPrice" type="number" inputmode="decimal" min="0" step="0.1" placeholder="0.00">
       </div>
+      <div class="field">
+        <label>מטבע</label>
+        <div class="seg">
+          <button type="button" id="segIls" class="on">₪ שקל</button>
+          <button type="button" id="segUsd">$ דולר</button>
+        </div>
+      </div>
+    </div>
+    <div class="row2">
       <div class="field">
         <label>תדירות חיוב</label>
         <div class="seg">
           <button type="button" id="segMonthly" class="on">חודשי</button>
           <button type="button" id="segYearly">שנתי</button>
         </div>
+      </div>
+      <div class="field">
+        <label for="fCat">קטגוריה</label>
+        <select id="fCat"></select>
       </div>
     </div>
     <div class="field" id="fieldDay">
@@ -335,15 +523,60 @@
       <label for="fDate">תאריך החידוש הבא</label>
       <input id="fDate" type="date">
     </div>
+    <label class="check-row"><input type="checkbox" id="fTrial"> תקופת ניסיון <span class="pro-tag">👑</span></label>
+    <div class="field" id="fieldTrialEnd" hidden>
+      <label for="fTrialEnd">הניסיון מסתיים בתאריך</label>
+      <input id="fTrialEnd" type="date">
+    </div>
+    <label class="check-row" id="rowPaused" hidden><input type="checkbox" id="fPaused"> מנוי מוקפא (לא נספר בסכום) <span class="pro-tag">👑</span></label>
+    <div class="field">
+      <label for="fNote">הערה (אופציונלי) <span class="pro-tag">👑</span></label>
+      <textarea id="fNote" maxlength="200" placeholder="למשל: לבטל אחרי המונדיאל"></textarea>
+    </div>
     <button class="btn-primary" id="btnSave">שמירה</button>
-    <button class="btn-danger" id="btnDelete" hidden>🗑️ מחיקת המנוי</button>
+    <button class="btn-danger" id="btnDelete" hidden>🗑️ מחיקה או ביטול</button>
   </div>
 </dialog>
 
-<div class="toast" id="toast"></div>
+<!-- delete choice -->
+<dialog id="dlgDelete">
+  <div class="dlg-head">
+    <h3 id="delTitle">מה קרה עם המנוי?</h3>
+    <button class="dlg-close" data-close="dlgDelete">✕</button>
+  </div>
+  <div class="dlg-body">
+    <button class="btn-primary" id="btnCancelled">🎉 ביטלתי את המנוי — תרשום לי חיסכון</button>
+    <button class="btn-secondary" id="btnJustDelete">סתם למחוק (נוסף בטעות)</button>
+    <button class="btn-danger" data-close="dlgDelete">חזרה</button>
+  </div>
+</dialog>
+
+<!-- premium -->
+<dialog id="dlgPremium">
+  <div class="dlg-head">
+    <h3>מנוימטר פרימיום</h3>
+    <button class="dlg-close" data-close="dlgPremium">✕</button>
+  </div>
+  <div class="dlg-body" id="premBody"></div>
+</dialog>
+
+<div class="toast" id="toast"><span id="toastMsg"></span></div>
 
 <script>
 "use strict";
+
+/* ---------- categories ---------- */
+const CATS = [
+  { name: "סטרימינג וטלוויזיה", color: "#ff2e88" },
+  { name: "מוזיקה",             color: "#d4f537" },
+  { name: "ענן ובינה מלאכותית", color: "#38bdf8" },
+  { name: "גיימינג",            color: "#a78bfa" },
+  { name: "ספורט ובריאות",      color: "#34d399" },
+  { name: "תקשורת",             color: "#fb923c" },
+  { name: "חדשות ותוכן",        color: "#facc15" },
+  { name: "שונות",              color: "#94a3b8" },
+];
+const catColor = name => (CATS.find(c => c.name === name) || CATS[CATS.length - 1]).color;
 
 /* ---------- catalog: common Israeli subscriptions (estimated prices, ₪/month) ---------- */
 const CATALOG = [
@@ -397,21 +630,64 @@ const CATALOG = [
   ]},
 ];
 
+/* חפיפות נפוצות — לזיהוי כפילויות */
+const OVERLAPS = [
+  { label: "שירותי מוזיקה", names: ["ספוטיפיי", "Apple Music", "YouTube Music"] },
+  { label: "חבילות טלוויזיה", names: ["HOT", "yes", "סלקום TV", "פרטנר TV", "STING TV"] },
+  { label: "אחסון בענן", names: ["iCloud+", "Google One", "Dropbox"] },
+];
+
+/* ---------- premium ---------- */
+const FREE_LIMIT = 7;
+const UNLOCK_CODES = ["YAIR-VIP", "MINUY2026"];
+const PREMIUM_FEATURES = [
+  "מנויים ללא הגבלה (בחינם: עד 7)",
+  "תובנות: עלות ליום, תחזית שנתית והמנוי הכי יקר",
+  "גרף חלוקת הוצאות לפי קטגוריות",
+  "קטגוריות צבעוניות וסינון מנויים",
+  "תקציב חודשי עם התראת חריגה",
+  "מעקב תקופות ניסיון והתראה לפני שמתחיל חיוב",
+  "הקפאת מנוי בלי למחוק אותו",
+  "ארכיון ביטולים ומונה \"כמה חסכתי\"",
+  "זיהוי מנויים כפולים (שני שירותי מוזיקה וכו')",
+  "הערות אישיות לכל מנוי",
+  "מנויים בדולרים עם שער מותאם",
+  "מעקב התייקרויות — סימון מנוי שעלה במחיר",
+  "ייצוא כל הנתונים לאקסל (CSV)",
+  "מיון מתקדם של הרשימה",
+  "וכל פיצ'ר פרימיום עתידי — כלול",
+];
+
 /* ---------- state ---------- */
-const STORE_KEY = "minuymeter.subs.v1";
-let subs = load();
+const K_SUBS = "minuymeter.subs.v1";
+const K_SET  = "minuymeter.settings.v1";
+const K_ARCH = "minuymeter.archive.v1";
+
+let subs = loadJSON(K_SUBS, []);
+let settings = Object.assign({ premium: false, budget: 0, usdRate: 3.7 }, loadJSON(K_SET, {}));
+let archive = loadJSON(K_ARCH, []);
 let editId = null;
 let formCycle = "monthly";
+let formCurrency = "ILS";
+let activeFilter = "";
+let pendingDelete = null;
 
-function load() {
+// מיגרציה לרשומות ישנות
+for (const s of subs) {
+  if (!s.cat) s.cat = "שונות";
+  if (!s.currency) s.currency = "ILS";
+}
+
+function loadJSON(key, fallback) {
   try {
-    const raw = localStorage.getItem(STORE_KEY);
-    const arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr : [];
-  } catch { return []; }
+    const v = JSON.parse(localStorage.getItem(key));
+    return v == null ? fallback : v;
+  } catch { return fallback; }
 }
 function save() {
-  localStorage.setItem(STORE_KEY, JSON.stringify(subs));
+  localStorage.setItem(K_SUBS, JSON.stringify(subs));
+  localStorage.setItem(K_SET, JSON.stringify(settings));
+  localStorage.setItem(K_ARCH, JSON.stringify(archive));
   idbSet("subs", subs).catch(() => {});
 }
 
@@ -458,58 +734,186 @@ function nextCharge(sub) {
   }
   return cand;
 }
-
 function daysUntil(date) {
-  const today = startOfDay(new Date());
-  return Math.round((date - today) / 86400000);
+  return Math.round((date - startOfDay(new Date())) / 86400000);
+}
+function toISO(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 
-/* ---------- formatting ---------- */
+/* ---------- money ---------- */
 const ils = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 });
 const ilsExact = new Intl.NumberFormat("he-IL", { style: "currency", currency: "ILS", minimumFractionDigits: 2 });
+const usdExact = new Intl.NumberFormat("he-IL", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 const dateFmt = new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "long" });
 
-function monthlyOf(sub) { return sub.cycle === "yearly" ? sub.price / 12 : sub.price; }
+function toIls(sub) { return sub.currency === "USD" ? sub.price * (settings.usdRate || 3.7) : sub.price; }
+function monthlyOf(sub) {
+  if (sub.paused) return 0;
+  const p = toIls(sub);
+  return sub.cycle === "yearly" ? p / 12 : p;
+}
+function priceLabel(sub) { return sub.currency === "USD" ? usdExact.format(sub.price) : ilsExact.format(sub.price); }
+
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 
 /* ---------- rendering ---------- */
-const $ = id => document.getElementById(id);
-
 function render() {
+  const active = subs.filter(s => !s.paused);
   const totalM = subs.reduce((s, x) => s + monthlyOf(x), 0);
   $("totalMonthly").textContent = ils.format(totalM);
   $("totalYearly").textContent = ils.format(totalM * 12);
   $("subCount").textContent = subs.length === 1 ? "מנוי אחד" : subs.length + " מנויים";
+  $("btnCrown").classList.toggle("gold", settings.premium);
 
-  const soon = subs
-    .map(s => ({ s, d: nextCharge(s) }))
-    .filter(x => daysUntil(x.d) <= 7)
-    .sort((a, b) => a.d - b.d);
-  $("renewals").innerHTML = soon.map(({ s, d }) => {
-    const n = daysUntil(d);
-    const when = n === 0 ? "היום" : n === 1 ? "מחר" : "בעוד " + n + " ימים";
-    return `<div class="renewal"><span class="emoji">⏰</span><span>${esc(s.emoji)} ${esc(s.name)} מתחדש ${when} — ${ilsExact.format(s.price)}</span></div>`;
-  }).join("");
+  renderBudget(totalM);
+  renderBanners();
+  renderInsights(totalM, active);
+  renderFilters();
+  renderList();
+  renderArchive();
 
-  const sorted = [...subs].sort((a, b) => nextCharge(a) - nextCharge(b));
-  $("list").innerHTML = sorted.map(s => {
-    const d = nextCharge(s);
-    const cyc = s.cycle === "yearly" ? "לשנה" : "לחודש";
-    return `<div class="sub-card" data-id="${s.id}">
-      <div class="emoji">${esc(s.emoji)}</div>
-      <div class="info">
-        <div class="name">${esc(s.name)}</div>
-        <div class="meta">חיוב הבא: ${dateFmt.format(d)}</div>
-      </div>
-      <div class="price"><div class="v">${ilsExact.format(s.price)}</div><div class="c">${cyc}</div></div>
-    </div>`;
-  }).join("");
-
-  $("listTitle").hidden = subs.length === 0;
+  $("listHead").hidden = subs.length === 0;
   $("empty").style.display = subs.length === 0 ? "" : "none";
 }
 
-function esc(s) {
-  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function renderBudget(totalM) {
+  const show = settings.premium && settings.budget > 0;
+  $("budgetBox").hidden = !show;
+  if (!show) return;
+  const pct = Math.min(100, (totalM / settings.budget) * 100);
+  const over = totalM > settings.budget;
+  $("budgetText").innerHTML = over
+    ? `<span class="over">חריגה של ${ils.format(totalM - settings.budget)} ⚠️</span>`
+    : `${ils.format(totalM)} מתוך ${ils.format(settings.budget)}`;
+  $("budgetFill").style.width = pct + "%";
+  $("budgetFill").classList.toggle("over", over);
+}
+
+function renderBanners() {
+  const out = [];
+  // חידושים קרובים
+  subs.filter(s => !s.paused && !s.trial)
+    .map(s => ({ s, d: nextCharge(s) }))
+    .filter(x => daysUntil(x.d) <= 7)
+    .sort((a, b) => a.d - b.d)
+    .forEach(({ s, d }) => {
+      const n = daysUntil(d);
+      const when = n === 0 ? "היום" : n === 1 ? "מחר" : "בעוד " + n + " ימים";
+      out.push(`<div class="banner warn"><span class="emoji">⏰</span><span>${esc(s.emoji)} ${esc(s.name)} מתחדש ${when} — ${priceLabel(s)}</span></div>`);
+    });
+  // סיום תקופות ניסיון
+  subs.filter(s => s.trial && s.trialEnd).forEach(s => {
+    const n = daysUntil(new Date(s.trialEnd + "T00:00:00"));
+    if (n < 0 || n > 7) return;
+    const when = n === 0 ? "היום" : n === 1 ? "מחר" : "בעוד " + n + " ימים";
+    out.push(`<div class="banner warn"><span class="emoji">⏳</span><span>תקופת הניסיון של ${esc(s.name)} מסתיימת ${when} — אם לא תבטל, יתחיל חיוב!</span></div>`);
+  });
+  // כפילויות (פרימיום)
+  if (settings.premium) {
+    for (const g of OVERLAPS) {
+      const found = subs.filter(s => !s.paused && g.names.includes(s.name));
+      if (found.length >= 2) {
+        out.push(`<div class="banner info"><span class="emoji">🤔</span><span>יש לך ${found.length} ${g.label} (${found.map(f => esc(f.name)).join(", ")}) — בטוח שצריך את כולם?</span></div>`);
+      }
+    }
+  }
+  $("banners").innerHTML = out.join("");
+}
+
+function renderInsights(totalM, active) {
+  const show = settings.premium && subs.length > 0;
+  $("insightsSec").hidden = !show;
+  if (!show) return;
+
+  const now = new Date();
+  const monthsLeft = 12 - now.getMonth();
+  const most = [...active].sort((a, b) => monthlyOf(b) - monthlyOf(a))[0];
+  $("statRow").innerHTML = `
+    <div class="stat"><div class="v">${ils.format(totalM / 30)}</div><div class="l">עלות ליום</div></div>
+    <div class="stat"><div class="v">${ils.format(totalM * monthsLeft)}</div><div class="l">עד סוף השנה</div></div>
+    <div class="stat"><div class="v">${most ? esc(most.emoji) : "—"}</div><div class="l">${most ? esc(most.name) + " הכי יקר" : "אין נתונים"}</div></div>`;
+
+  // עוגת קטגוריות
+  const byCat = {};
+  for (const s of active) byCat[s.cat] = (byCat[s.cat] || 0) + monthlyOf(s);
+  const entries = Object.entries(byCat).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const sum = entries.reduce((s, [, v]) => s + v, 0) || 1;
+  let acc = 0;
+  const stops = entries.map(([cat, v]) => {
+    const from = (acc / sum) * 360; acc += v;
+    const to = (acc / sum) * 360;
+    return `${catColor(cat)} ${from}deg ${to}deg`;
+  });
+  $("donut").style.background = entries.length ? `conic-gradient(${stops.join(",")})` : "var(--card-2)";
+  $("legend").innerHTML = entries.map(([cat, v]) =>
+    `<div class="li"><span class="dot" style="background:${catColor(cat)}"></span><span class="n">${esc(cat)}</span><span class="a">${ils.format(v)} · ${Math.round((v / sum) * 100)}%</span></div>`
+  ).join("") || `<div class="li"><span class="n" style="color:var(--muted)">אין מנויים פעילים</span></div>`;
+}
+
+function renderFilters() {
+  const show = settings.premium && subs.length > 1;
+  $("filters").hidden = !show;
+  if (!show) { activeFilter = ""; return; }
+  const present = [...new Set(subs.map(s => s.cat))];
+  if (activeFilter && !present.includes(activeFilter)) activeFilter = "";
+  $("filters").innerHTML =
+    `<button class="fchip ${!activeFilter ? "on" : ""}" data-f="">הכל</button>` +
+    present.map(c =>
+      `<button class="fchip ${activeFilter === c ? "on" : ""}" data-f="${esc(c)}"><span class="dot" style="background:${catColor(c)}"></span>${esc(c)}</button>`
+    ).join("");
+}
+
+function renderList() {
+  let shown = activeFilter ? subs.filter(s => s.cat === activeFilter) : [...subs];
+  const mode = $("sortSel").value;
+  if (mode === "price") shown.sort((a, b) => monthlyOf(b) - monthlyOf(a));
+  else if (mode === "name") shown.sort((a, b) => a.name.localeCompare(b.name, "he"));
+  else shown.sort((a, b) => nextCharge(a) - nextCharge(b));
+
+  $("list").innerHTML = shown.map(s => {
+    const d = nextCharge(s);
+    const cyc = s.cycle === "yearly" ? "לשנה" : "לחודש";
+    const badges =
+      (s.trial ? `<span class="badge trial">ניסיון</span>` : "") +
+      (s.paused ? `<span class="badge paused">מוקפא</span>` : "") +
+      (settings.premium && priceWentUp(s) ? `<span class="badge up">▲ התייקר</span>` : "");
+    const meta = s.paused ? "לא נספר בסכום החודשי"
+      : s.trial && s.trialEnd ? "הניסיון מסתיים: " + dateFmt.format(new Date(s.trialEnd + "T00:00:00"))
+      : "חיוב הבא: " + dateFmt.format(d);
+    const usdNote = s.currency === "USD" ? ` · ≈ ${ils.format(toIls(s))}` : "";
+    return `<div class="sub-card ${s.paused ? "paused" : ""}" data-id="${s.id}">
+      <div class="emoji">${esc(s.emoji)}<span class="catdot" style="background:${catColor(s.cat)}"></span></div>
+      <div class="info">
+        <div class="name">${esc(s.name)} ${badges}</div>
+        <div class="meta">${meta}${usdNote}${s.note ? " · 📝" : ""}</div>
+      </div>
+      <div class="price"><div class="v">${priceLabel(s)}</div><div class="c">${cyc}</div></div>
+    </div>`;
+  }).join("");
+}
+
+function priceWentUp(s) {
+  return Array.isArray(s.hist) && s.hist.length > 0 && s.hist[s.hist.length - 1].p < s.price;
+}
+
+function renderArchive() {
+  $("savedSec").hidden = archive.length === 0;
+  if (!archive.length) return;
+  const today = startOfDay(new Date());
+  let total = 0;
+  for (const a of archive) {
+    const months = Math.max(1, Math.floor((today - new Date(a.cancelledAt + "T00:00:00")) / (30.44 * 86400000)) + 1);
+    total += a.monthly * months;
+  }
+  $("savedTotal").textContent = ils.format(total);
+  $("savedLabel").textContent = `מ-${archive.length} מנויים שביטלת (${ils.format(archive.reduce((s, a) => s + a.monthly, 0))} בחודש)`;
+  $("archList").innerHTML = archive.map((a, i) =>
+    `<div class="arch-item"><span>${esc(a.emoji)}</span><span class="n">${esc(a.name)} — בוטל ב-${dateFmt.format(new Date(a.cancelledAt + "T00:00:00"))}</span><button class="restore" data-restore="${i}">שחזור</button></div>`
+  ).join("");
 }
 
 /* ---------- catalog dialog ---------- */
@@ -520,7 +924,7 @@ function renderCatalog(filter) {
     if (!items.length) return "";
     return `<div class="cat-title">${esc(group.cat)}</div>
       <div class="cat-grid">${items.map(i =>
-        `<button class="cat-item" data-name="${esc(i.name)}" data-emoji="${esc(i.emoji)}" data-price="${i.price}">
+        `<button class="cat-item" data-name="${esc(i.name)}" data-emoji="${esc(i.emoji)}" data-price="${i.price}" data-cat="${esc(group.cat)}">
           <span class="e">${esc(i.emoji)}</span><span class="n">${esc(i.name)}</span><span class="p">~${ils.format(i.price)}</span>
         </button>`).join("")}</div>`;
   }).join("") || `<p style="color:var(--muted);text-align:center;padding:20px 0">לא נמצא… נסה "מנוי אחר" למטה</p>`;
@@ -533,10 +937,18 @@ function openForm(preset) {
   $("fName").value = preset.name || "";
   $("fPrice").value = preset.price != null ? preset.price : "";
   setCycle(preset.cycle || "monthly");
+  setCurrency(preset.currency || "ILS");
+  $("fCat").value = preset.cat || "שונות";
+  $("fNote").value = preset.note || "";
+  $("fTrial").checked = !!preset.trial;
+  $("fieldTrialEnd").hidden = !preset.trial;
+  $("fTrialEnd").value = preset.trialEnd || toISO(new Date(Date.now() + 14 * 86400000));
+  $("rowPaused").hidden = !editId;
+  $("fPaused").checked = !!preset.paused;
 
   const anchor = preset.anchor ? new Date(preset.anchor + "T00:00:00") : new Date();
   $("fDay").value = String(anchor.getDate());
-  $("fDate").value = toISO(preset.cycle === "yearly" ? nextCharge(preset) : anchor);
+  $("fDate").value = preset.anchor && preset.cycle === "yearly" ? toISO(nextCharge(preset)) : toISO(anchor);
 
   $("btnDelete").hidden = !editId;
   $("dlgForm")._emoji = preset.emoji || "💳";
@@ -551,16 +963,27 @@ function setCycle(c) {
   $("fieldDay").hidden = c !== "monthly";
   $("fieldDate").hidden = c !== "yearly";
 }
-
-function toISO(d) {
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+function setCurrency(c) {
+  formCurrency = c;
+  $("segIls").classList.toggle("on", c === "ILS");
+  $("segUsd").classList.toggle("on", c === "USD");
 }
 
 function saveForm() {
   const name = $("fName").value.trim();
   const price = parseFloat($("fPrice").value);
+  const trial = $("fTrial").checked;
   if (!name) { toast("צריך לתת שם למנוי"); $("fName").focus(); return; }
-  if (!(price > 0)) { toast("צריך להזין מחיר"); $("fPrice").focus(); return; }
+  if (!(price > 0) && !trial) { toast("צריך להזין מחיר"); $("fPrice").focus(); return; }
+
+  // פיצ'רים של פרימיום בטופס
+  if (!settings.premium) {
+    if (trial) { openPremium("תקופות ניסיון"); return; }
+    if ($("fNote").value.trim()) { openPremium("הערות למנוי"); return; }
+    if (formCurrency === "USD") { openPremium("מנויים בדולרים"); return; }
+    if (!editId && subs.length >= FREE_LIMIT) { openPremium("יותר מ-" + FREE_LIMIT + " מנויים"); return; }
+    if (editId && $("fPaused").checked) { openPremium("הקפאת מנוי"); return; }
+  }
 
   let anchorISO;
   if (formCycle === "monthly") {
@@ -574,31 +997,183 @@ function saveForm() {
     anchorISO = $("fDate").value || toISO(new Date());
   }
 
+  const data = {
+    name, price: price > 0 ? price : 0, cycle: formCycle, anchor: anchorISO,
+    cat: $("fCat").value, currency: formCurrency,
+    note: $("fNote").value.trim(),
+    trial, trialEnd: trial ? ($("fTrialEnd").value || null) : null,
+    paused: editId ? $("fPaused").checked : false,
+  };
+
   const wasEdit = !!editId;
   if (editId) {
     const s = subs.find(x => x.id === editId);
-    if (s) Object.assign(s, { name, price, cycle: formCycle, anchor: anchorISO });
+    if (s) {
+      if (s.price !== data.price && s.price > 0) {
+        s.hist = (s.hist || []).concat({ d: toISO(new Date()), p: s.price });
+      }
+      Object.assign(s, data);
+    }
   } else {
-    subs.push({
+    subs.push(Object.assign({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      name, price, cycle: formCycle, anchor: anchorISO,
       emoji: $("dlgForm")._emoji || "💳",
-    });
+      hist: [],
+    }, data));
   }
   save(); render();
   $("dlgForm").close();
   toast(wasEdit ? "נשמר ✓" : "המנוי נוסף ✓");
   editId = null;
+  checkRenewalsNow();
 }
 
-/* ---------- toast ---------- */
+/* ---------- delete / cancel flow ---------- */
+function removeSub(id, toArchive) {
+  const s = subs.find(x => x.id === id);
+  if (!s) return;
+  subs = subs.filter(x => x.id !== id);
+  if (toArchive) {
+    archive.unshift({ name: s.name, emoji: s.emoji, monthly: monthlyOf({ ...s, paused: false }), cancelledAt: toISO(new Date()) });
+    save(); render();
+    toast("🎉 כל הכבוד! החיסכון נרשם");
+  } else {
+    const backup = s;
+    save(); render();
+    toast("המנוי נמחק", "ביטול", () => {
+      subs.push(backup);
+      save(); render();
+    });
+  }
+}
+
+/* ---------- premium ---------- */
+function openPremium(reason) {
+  const b = $("premBody");
+  if (settings.premium) {
+    b.innerHTML = `
+      <div class="prem-hero"><div class="crown">👑</div><h4>פרימיום פעיל</h4><p>תודה שאתה חלק ממנוימטר!</p></div>
+      <div class="field"><label for="setBudget">🎯 תקציב מנויים חודשי (₪, 0 = כבוי)</label>
+        <input id="setBudget" type="number" min="0" step="10" value="${settings.budget || 0}"></div>
+      <div class="field"><label for="setRate">💵 שער דולר לחישוב (₪ לדולר)</label>
+        <input id="setRate" type="number" min="1" step="0.01" value="${settings.usdRate || 3.7}"></div>
+      <button class="btn-primary" id="btnSaveSet">שמירת הגדרות</button>
+      <button class="btn-secondary" id="btnCsv">📊 ייצוא הכל לאקסל (CSV)</button>`;
+    $("btnSaveSet").addEventListener("click", () => {
+      settings.budget = Math.max(0, parseFloat($("setBudget").value) || 0);
+      settings.usdRate = Math.max(1, parseFloat($("setRate").value) || 3.7);
+      save(); render();
+      $("dlgPremium").close();
+      toast("ההגדרות נשמרו ✓");
+    });
+    $("btnCsv").addEventListener("click", exportCsv);
+  } else {
+    b.innerHTML = `
+      <div class="prem-hero"><div class="crown">👑</div><h4>מנוימטר פרימיום</h4>
+        <p>${reason ? "כדי להשתמש ב<b>" + esc(reason) + "</b> צריך פרימיום" : "כל הכלים כדי לשלוט במנויים ולחסוך כסף"}</p></div>
+      <ul class="feat-list">${PREMIUM_FEATURES.map(f => `<li>${esc(f)}</li>`).join("")}</ul>
+      <p class="prem-note">🚧 הרכישה בתשלום תיפתח בקרוב.<br>יש לך קוד גישה מוקדמת? הכנס אותו כאן:</p>
+      <div class="field"><input id="unlockCode" type="text" placeholder="קוד גישה" style="text-align:center"></div>
+      <button class="btn-primary" id="btnUnlock">הפעלת פרימיום</button>`;
+    $("btnUnlock").addEventListener("click", () => {
+      const code = ($("unlockCode").value || "").trim().toUpperCase();
+      if (UNLOCK_CODES.includes(code)) {
+        settings.premium = true;
+        save(); render();
+        $("dlgPremium").close();
+        toast("👑 פרימיום הופעל! תהנה");
+      } else {
+        toast("קוד לא מוכר — נסה שוב");
+      }
+    });
+  }
+  $("dlgPremium").showModal();
+}
+
+function exportCsv() {
+  const rows = [["שם", "קטגוריה", "מחיר", "מטבע", "תדירות", "עלות חודשית בשקלים", "חיוב הבא", "מוקפא", "הערה"]];
+  for (const s of subs) {
+    rows.push([s.name, s.cat, s.price, s.currency === "USD" ? "USD" : "ILS",
+      s.cycle === "yearly" ? "שנתי" : "חודשי", monthlyOf(s).toFixed(2),
+      toISO(nextCharge(s)), s.paused ? "כן" : "לא", s.note || ""]);
+  }
+  const csv = "﻿" + rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = "minuymeter.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("הקובץ ירד ✓");
+}
+
+/* ---------- share ---------- */
+async function shareImage() {
+  const totalM = subs.reduce((s, x) => s + monthlyOf(x), 0);
+  const c = document.createElement("canvas");
+  c.width = 1080; c.height = 1080;
+  const x = c.getContext("2d");
+
+  x.fillStyle = "#0e0a1f"; x.fillRect(0, 0, 1080, 1080);
+  const g1 = x.createRadialGradient(900, 100, 0, 900, 100, 700);
+  g1.addColorStop(0, "rgba(109,40,217,.55)"); g1.addColorStop(1, "transparent");
+  x.fillStyle = g1; x.fillRect(0, 0, 1080, 1080);
+  const g2 = x.createRadialGradient(100, 900, 0, 100, 900, 700);
+  g2.addColorStop(0, "rgba(217,38,169,.4)"); g2.addColorStop(1, "transparent");
+  x.fillStyle = g2; x.fillRect(0, 0, 1080, 1080);
+
+  x.textAlign = "center";
+  x.fillStyle = "rgba(255,255,255,.85)";
+  x.font = "600 52px Rubik, Arial";
+  x.fillText("אני משלם על מנויים", 540, 330);
+  x.fillStyle = "#d4f537";
+  x.font = "900 170px Rubik, Arial";
+  x.fillText(ils.format(totalM), 540, 520);
+  x.fillStyle = "rgba(255,255,255,.85)";
+  x.font = "600 52px Rubik, Arial";
+  x.fillText("בחודש 😱", 540, 610);
+  x.fillStyle = "rgba(255,255,255,.6)";
+  x.font = "600 40px Rubik, Arial";
+  x.fillText(ils.format(totalM * 12) + " בשנה · " + subs.length + " מנויים", 540, 700);
+  x.fillStyle = "#d4f537";
+  x.font = "800 44px Rubik, Arial";
+  x.fillText("💸 מנוימטר", 540, 900);
+  x.fillStyle = "rgba(255,255,255,.5)";
+  x.font = "500 30px Rubik, Arial";
+  x.fillText("כמה אתה משלם? בדוק בחינם", 540, 955);
+
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  const file = new File([blob], "minuymeter.png", { type: "image/png" });
+  const text = "בדקתי במנוימטר — אני משלם " + ils.format(totalM) + " בחודש על מנויים 😱 " + location.href;
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text });
+      return;
+    }
+  } catch (e) { if (e.name === "AbortError") return; }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "minuymeter.png";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("התמונה ירדה — שתף אותה ✓");
+}
+
+/* ---------- toast (עם כפתור פעולה אופציונלי) ---------- */
 let toastTimer;
-function toast(msg) {
+function toast(msg, actionLabel, actionFn) {
   const t = $("toast");
-  t.textContent = msg;
+  $("toastMsg").textContent = msg;
+  const old = t.querySelector("button");
+  if (old) old.remove();
+  if (actionLabel) {
+    const b = document.createElement("button");
+    b.textContent = actionLabel;
+    b.addEventListener("click", () => { t.classList.remove("show"); actionFn(); });
+    t.appendChild(b);
+  }
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  toastTimer = setTimeout(() => t.classList.remove("show"), actionLabel ? 5000 : 2200);
 }
 
 /* ---------- PWA: service worker + install ---------- */
@@ -606,7 +1181,6 @@ let swReg = null;
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("sw.js").then(r => { swReg = r; checkRenewalsNow(); }).catch(() => {});
 }
-
 let installPrompt = null;
 window.addEventListener("beforeinstallprompt", e => {
   e.preventDefault();
@@ -634,7 +1208,6 @@ $("btnBell").addEventListener("click", async () => {
   if (perm === "granted") {
     toast("מעולה! תקבל תזכורת לפני כל חידוש 🔔");
     checkRenewalsNow();
-    // סנכרון תקופתי ברקע — נתמך באנדרואיד כשמותקן כאפליקציה
     try {
       const status = await navigator.permissions.query({ name: "periodic-background-sync" });
       if (status.state === "granted" && swReg && "periodicSync" in swReg) {
@@ -643,7 +1216,6 @@ $("btnBell").addEventListener("click", async () => {
     } catch {}
   }
 });
-
 function checkRenewalsNow() {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   idbSet("subs", subs).catch(() => {});
@@ -653,8 +1225,10 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) chec
 
 /* ---------- wiring ---------- */
 $("fDay").innerHTML = Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}">${i + 1} בחודש</option>`).join("");
+$("fCat").innerHTML = CATS.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join("");
 
 $("fabAdd").addEventListener("click", () => {
+  if (!settings.premium && subs.length >= FREE_LIMIT) { openPremium("יותר מ-" + FREE_LIMIT + " מנויים"); return; }
   $("catSearch").value = "";
   renderCatalog("");
   $("dlgCatalog").showModal();
@@ -666,7 +1240,7 @@ $("catList").addEventListener("click", e => {
   const btn = e.target.closest(".cat-item");
   if (!btn) return;
   $("dlgCatalog").close();
-  openForm({ name: btn.dataset.name, emoji: btn.dataset.emoji, price: parseFloat(btn.dataset.price) });
+  openForm({ name: btn.dataset.name, emoji: btn.dataset.emoji, price: parseFloat(btn.dataset.price), cat: btn.dataset.cat });
 });
 
 $("btnCustom").addEventListener("click", () => {
@@ -681,20 +1255,60 @@ $("list").addEventListener("click", e => {
   if (s) openForm(s);
 });
 
+$("filters").addEventListener("click", e => {
+  const chip = e.target.closest(".fchip");
+  if (!chip) return;
+  activeFilter = chip.dataset.f;
+  render();
+});
+
+$("sortSel").addEventListener("change", () => {
+  if (!settings.premium && $("sortSel").value !== "next") {
+    $("sortSel").value = "next";
+    openPremium("מיון מתקדם");
+    return;
+  }
+  renderList();
+});
+
+$("archList").addEventListener("click", e => {
+  const btn = e.target.closest("[data-restore]");
+  if (!btn) return;
+  const a = archive[parseInt(btn.dataset.restore, 10)];
+  if (!a) return;
+  archive = archive.filter(x => x !== a);
+  openForm({ name: a.name, emoji: a.emoji, price: a.monthly, cat: "שונות" });
+  save(); render();
+});
+
 $("segMonthly").addEventListener("click", () => setCycle("monthly"));
 $("segYearly").addEventListener("click", () => setCycle("yearly"));
+$("segIls").addEventListener("click", () => setCurrency("ILS"));
+$("segUsd").addEventListener("click", () => setCurrency("USD"));
+$("fTrial").addEventListener("change", () => { $("fieldTrialEnd").hidden = !$("fTrial").checked; });
 $("btnSave").addEventListener("click", saveForm);
 
 $("btnDelete").addEventListener("click", () => {
   if (!editId) return;
-  const s = subs.find(x => x.id === editId);
-  if (s && !confirm(`למחוק את "${s.name}"?`)) return;
-  subs = subs.filter(x => x.id !== editId);
-  editId = null;
-  save(); render();
+  pendingDelete = editId;
   $("dlgForm").close();
-  toast("המנוי נמחק");
+  const s = subs.find(x => x.id === pendingDelete);
+  $("delTitle").textContent = s ? `מה קרה עם ${s.name}?` : "מה קרה עם המנוי?";
+  $("dlgDelete").showModal();
 });
+$("btnCancelled").addEventListener("click", () => {
+  $("dlgDelete").close();
+  if (pendingDelete) removeSub(pendingDelete, true);
+  pendingDelete = null; editId = null;
+});
+$("btnJustDelete").addEventListener("click", () => {
+  $("dlgDelete").close();
+  if (pendingDelete) removeSub(pendingDelete, false);
+  pendingDelete = null; editId = null;
+});
+
+$("btnCrown").addEventListener("click", () => openPremium(""));
+$("btnShare").addEventListener("click", shareImage);
 
 document.querySelectorAll("[data-close]").forEach(b =>
   b.addEventListener("click", () => $(b.dataset.close).close()));
