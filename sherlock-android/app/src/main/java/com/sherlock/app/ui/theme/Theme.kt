@@ -4,37 +4,59 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.graphics.Color
 
-private val Green = Color(0xFF00E676)
-private val DarkGreen = Color(0xFF00C853)
-private val Background = Color(0xFF0D0D0D)
-private val Surface = Color(0xFF1A1A1A)
-private val SurfaceVariant = Color(0xFF2A2A2A)
+// Tactical / military intelligence terminal palette
+private val Phosphor = Color(0xFF3DF07A)      // primary night-vision green
+private val PhosphorDim = Color(0xFF1FA855)
+private val Amber = Color(0xFFFFB300)          // alerts / accents (HUD amber)
+private val Void = Color(0xFF060A06)           // background (near-black olive)
+private val Panel = Color(0xFF0E140E)          // surface
+private val PanelHi = Color(0xFF16211A)        // elevated surface
+private val Ink = Color(0xFFC8E6C9)            // primary text (pale green)
+private val InkDim = Color(0xFF6C8A72)         // secondary text
+private val Alert = Color(0xFFFF3B30)          // red — negatives / danger
 
-private val SherlockColors = darkColorScheme(
-    primary = Green,
+private val TacticalColors = darkColorScheme(
+    primary = Phosphor,
     onPrimary = Color.Black,
-    primaryContainer = DarkGreen,
+    primaryContainer = PhosphorDim,
     onPrimaryContainer = Color.Black,
-    secondary = Color(0xFF00BCD4),
+    secondary = Amber,
     onSecondary = Color.Black,
-    background = Background,
-    onBackground = Color(0xFFE0E0E0),
-    surface = Surface,
-    onSurface = Color(0xFFE0E0E0),
-    surfaceVariant = SurfaceVariant,
-    onSurfaceVariant = Color(0xFFB0B0B0),
-    error = Color(0xFFFF5252),
+    tertiary = Amber,
+    background = Void,
+    onBackground = Ink,
+    surface = Panel,
+    onSurface = Ink,
+    surfaceVariant = PanelHi,
+    onSurfaceVariant = InkDim,
+    error = Alert,
     onError = Color.Black,
-    outline = Color(0xFF404040)
+    outline = Color(0xFF2C4030)
 )
+
+// Everything monospace — terminal feel.
+private val Mono = Typography().run {
+    val f = FontFamily.Monospace
+    copy(
+        displayLarge = displayLarge.mono(f), displayMedium = displayMedium.mono(f), displaySmall = displaySmall.mono(f),
+        headlineLarge = headlineLarge.mono(f), headlineMedium = headlineMedium.mono(f), headlineSmall = headlineSmall.mono(f),
+        titleLarge = titleLarge.mono(f), titleMedium = titleMedium.mono(f), titleSmall = titleSmall.mono(f),
+        bodyLarge = bodyLarge.mono(f), bodyMedium = bodyMedium.mono(f), bodySmall = bodySmall.mono(f),
+        labelLarge = labelLarge.mono(f), labelMedium = labelMedium.mono(f), labelSmall = labelSmall.mono(f)
+    )
+}
+
+private fun TextStyle.mono(f: FontFamily) = copy(fontFamily = f)
 
 @Composable
 fun SherlockTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = SherlockColors,
-        typography = Typography(),
+        colorScheme = TacticalColors,
+        typography = Mono,
         content = content
     )
 }

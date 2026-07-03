@@ -104,19 +104,20 @@ private fun HomeScaffold(
 ) {
     var tab by remember { mutableIntStateOf(0) }
     Scaffold(
+        topBar = { ClassificationBar(right = if (tab == 0) "OPERATIONS" else "FIELD TOOLS") },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
                     selected = tab == 0,
                     onClick = { tab = 0 },
                     icon = { Icon(Icons.Default.Folder, null) },
-                    label = { Text("Cases") }
+                    label = { Text("OPS") }
                 )
                 NavigationBarItem(
                     selected = tab == 1,
                     onClick = { tab = 1 },
                     icon = { Icon(Icons.Default.Build, null) },
-                    label = { Text("Quick tools") }
+                    label = { Text("TOOLS") }
                 )
             }
         }

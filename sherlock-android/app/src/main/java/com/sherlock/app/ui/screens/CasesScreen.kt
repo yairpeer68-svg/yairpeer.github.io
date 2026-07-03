@@ -64,13 +64,13 @@ fun CasesScreen(
         Column(Modifier.fillMaxSize()) {
             Column(Modifier.padding(16.dp)) {
                 Text(
-                    "INVESTIGATIONS",
+                    "⬢ OPERATIONS",
                     fontSize = 24.sp, fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    "${cases.size} active case${if (cases.size == 1) "" else "s"}",
+                    "[ ${cases.size} ACTIVE OP${if (cases.size == 1) "" else "S"} ]",
                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -85,7 +85,7 @@ fun CasesScreen(
                         )
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            "No cases yet.\nTap + to start an investigation.",
+                            "NO ACTIVE OPERATIONS\n> tap NEW OP to deploy",
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                             fontFamily = FontFamily.Monospace
                         )
@@ -110,7 +110,7 @@ fun CasesScreen(
         ExtendedFloatingActionButton(
             onClick = { showCreate = true },
             icon = { Icon(Icons.Default.Add, null) },
-            text = { Text("New case") },
+            text = { Text("NEW OP") },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
@@ -187,18 +187,18 @@ private fun CreateCaseDialog(onDismiss: () -> Unit, onCreate: (String, String) -
     var desc by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New investigation") },
+        title = { Text("NEW OPERATION") },
         text = {
             Column {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
-                    label = { Text("Case name") }, singleLine = true,
+                    label = { Text("Operation codename") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = desc, onValueChange = { desc = it },
-                    label = { Text("Description (optional)") },
+                    label = { Text("Briefing (optional)") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -207,7 +207,7 @@ private fun CreateCaseDialog(onDismiss: () -> Unit, onCreate: (String, String) -
             TextButton(
                 onClick = { onCreate(name, desc) },
                 enabled = name.isNotBlank()
-            ) { Text("Create") }
+            ) { Text("DEPLOY") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )

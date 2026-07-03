@@ -213,7 +213,7 @@ fun CaseDetailScreen(
                 ) {
                     Icon(Icons.Default.Search, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Add & investigate")
+                    Text("ADD TARGET & RUN")
                 }
             }
 
@@ -222,7 +222,7 @@ fun CaseDetailScreen(
             if (subjects.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        "Add a username, email, phone,\ndomain or IP to begin.",
+                        "NO TARGETS ASSIGNED\n> add a handle, email, phone,\n  domain or IP to begin recon",
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         fontFamily = FontFamily.Monospace
                     )
@@ -320,7 +320,7 @@ private fun SubjectCard(
             if (findings.isNotEmpty()) {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "$hits result${if (hits == 1) "" else "s"}",
+                    "▸ $hits INTEL HIT${if (hits == 1) "" else "S"}",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -331,7 +331,7 @@ private fun SubjectCard(
             } else if (subject.investigated) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "No results.",
+                    "NO INTEL FOUND",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                 )

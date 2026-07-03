@@ -106,14 +106,14 @@ fun UsernameSearchScreen(
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "SHERLOCK",
+                    text = "⌖ HANDLE RECON",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Hunt usernames across $siteCount platforms",
+                    text = "TRACE HANDLE // $siteCount NETWORKS",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -124,7 +124,7 @@ fun UsernameSearchScreen(
                     value = username,
                     onValueChange = { username = it },
                     placeholder = {
-                        Text("Enter username...", fontFamily = FontFamily.Monospace)
+                        Text("target handle...", fontFamily = FontFamily.Monospace)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -182,12 +182,12 @@ fun UsernameSearchScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = if (isSearching) "Checking... ${(progress * 100).toInt()}%" else "Done",
+                            text = if (isSearching) "SCANNING ${(progress * 100).toInt()}%" else "SCAN COMPLETE",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "Found: $foundCount / ${results.size}",
+                            text = "HITS: $foundCount / ${results.size}",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Bold
@@ -237,7 +237,7 @@ fun UsernameSearchScreen(
                     )
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        text = "Enter a username to search",
+                        text = "AWAITING TARGET HANDLE",
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                         fontFamily = FontFamily.Monospace
                     )

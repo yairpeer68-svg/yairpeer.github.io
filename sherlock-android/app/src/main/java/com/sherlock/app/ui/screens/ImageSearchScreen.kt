@@ -134,14 +134,14 @@ fun ImageSearchScreen(
         Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 4.dp) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "IMAGE SEARCH",
+                    text = "⊞ IMAGE RECON",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "Find where an image appears online",
+                    text = "REVERSE-TRACE A FACE ACROSS THE WEB",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
