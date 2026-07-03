@@ -115,6 +115,27 @@ class CaseRepository(context: Context) {
         return results.size
     }
 
+    /**
+     * Runs the whole operation: investigates every un-run target, then keeps going
+     * for any new targets the cross-referencer derived, up to [maxRounds] deep.
+     * Reports (currentTargetValue, 0..1 progress).
+     */
+    suspend fun deepScan(caseId: Long, maxRounds: Int = 4, onProgress: (String, Float) -> Unit) {
+        for (round in 0 until maxRounds) {
+            val pending = subjectDao.getForCase(caseId).filter { !it.investigated }
+            if (pending.isEmpty()) break
+            pending.forEachIndexed { i, subject ->
+                onProgress(subject.value, i.toFloat() / pending.size)
+                try {
+                    investigate(subject)
+                } catch (_: Throwable) {
+                    // one bad target must not abort the whole operation
+                }
+            }
+        }
+        onProgress("", 1f)
+    }
+
     private suspend fun usernameFindings(username: String, onProgress: (Float) -> Unit): List<OsintFinding> {
         val total = usernameSearch.getSiteCount().coerceAtLeast(1)
         var done = 0

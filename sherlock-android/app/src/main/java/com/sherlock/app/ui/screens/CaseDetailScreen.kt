@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Badge
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
@@ -31,6 +32,8 @@ import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -107,6 +110,8 @@ fun CaseDetailScreen(
 
     var addType by remember { mutableStateOf(SubjectType.USERNAME) }
     var addValue by remember { mutableStateOf("") }
+    var deepScanning by remember { mutableStateOf(false) }
+    var deepTarget by remember { mutableStateOf("") }
 
     fun runInvestigation(subject: SubjectEntity) {
         if (progress.containsKey(subject.id)) return
@@ -118,6 +123,21 @@ fun CaseDetailScreen(
                 snackbarHostState.showSnackbar("Investigation failed: ${t.message ?: t.javaClass.simpleName}")
             } finally {
                 progress.remove(subject.id)
+            }
+        }
+    }
+
+    fun runDeepScan() {
+        if (deepScanning) return
+        deepScanning = true
+        scope.launch {
+            try {
+                repository.deepScan(caseId) { target, _ -> deepTarget = target }
+            } catch (t: Throwable) {
+                snackbarHostState.showSnackbar("Deep scan error: ${t.message ?: t.javaClass.simpleName}")
+            } finally {
+                deepScanning = false
+                deepTarget = ""
             }
         }
     }
@@ -153,6 +173,22 @@ fun CaseDetailScreen(
         }
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
+
+            // ---- operation HUD ----
+            val intelHits = findings.count { it.positive }
+            val links = subjects.count { it.origin != "manual" }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                HudStat("TARGETS", subjects.size.toString())
+                HudStat("INTEL", intelHits.toString())
+                HudStat("LINKS", links.toString())
+            }
+            Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
 
             // ---- add subject ----
             Column(Modifier.padding(16.dp, 8.dp)) {
@@ -214,6 +250,28 @@ fun CaseDetailScreen(
                     Icon(Icons.Default.Search, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("ADD TARGET & RUN")
+                }
+
+                if (subjects.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Button(
+                        onClick = { runDeepScan() },
+                        enabled = !deepScanning,
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary
+                        )
+                    ) {
+                        Icon(Icons.Default.Bolt, null, Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = if (deepScanning)
+                                "DEEP SCAN… ${deepTarget.take(18)}"
+                            else "▶ DEEP SCAN — RUN ENTIRE OP",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
@@ -367,6 +425,23 @@ private fun FindingRow(f: FindingEntity, onOpenUrl: (String) -> Unit) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun HudStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            value,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            label,
+            fontSize = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

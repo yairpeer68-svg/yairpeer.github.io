@@ -39,6 +39,9 @@ interface SubjectDao {
     @Query("SELECT * FROM subjects WHERE id = :id")
     suspend fun get(id: Long): SubjectEntity?
 
+    @Query("SELECT * FROM subjects WHERE caseId = :caseId ORDER BY addedAt ASC")
+    suspend fun getForCase(caseId: Long): List<SubjectEntity>
+
     @Query("SELECT COUNT(*) FROM subjects WHERE caseId = :caseId AND type = :type AND value = :value")
     suspend fun exists(caseId: Long, type: String, value: String): Int
 
