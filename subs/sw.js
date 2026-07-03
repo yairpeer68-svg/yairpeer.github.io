@@ -1,7 +1,7 @@
 /* מנוימטר — service worker: אפליקציה מותקנת, עבודה לא מקוונת, ותזכורות חידוש */
 "use strict";
 
-const CACHE = "minuymeter-v2";
+const CACHE = "minuymeter-v3";
 const ASSETS = ["./", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", e => {
