@@ -2,21 +2,38 @@ plugins {
     id 'com.android.application'
 }
 
+def keystorePath = System.getenv("KEYSTORE_PATH")
+
 android {
     namespace 'io.github.yairpeer.minuymeter'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "io.github.yairpeer.minuymeter"
         minSdk 24
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        targetSdk 35
+        // כל בנייה ב-CI מקבלת מספר גרסה עולה — חובה בחנות פליי
+        versionCode (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+        versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "0")
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            if (keystorePath) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 
