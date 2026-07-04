@@ -1,0 +1,17 @@
+{
+  "name": "תוקף — שום דבר לא יפוג לך יותר",
+  "short_name": "תוקף",
+  "description": "כל התאריכים הביורוקרטיים שלך במקום אחד: טסט, ביטוח, דרכון, רישיון — עם התראה לפני שפג התוקף.",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071018",
+  "theme_color": "#071018",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
