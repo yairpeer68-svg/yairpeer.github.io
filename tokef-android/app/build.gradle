@@ -1,0 +1,49 @@
+plugins {
+    id 'com.android.application'
+}
+
+def keystorePath = System.getenv("KEYSTORE_PATH")
+// כל בנייה ב-CI מקבלת מספר גרסה עולה — חובה בחנות פליי
+def runNumber = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInteger()
+
+android {
+    namespace 'io.github.yairpeer.tokef'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "io.github.yairpeer.tokef"
+        minSdk 24
+        targetSdk 35
+        versionCode runNumber
+        versionName "1.0." + runNumber
+    }
+
+    signingConfigs {
+        release {
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("KEYSTORE_PASSWORD")
+                keyAlias System.getenv("KEY_ALIAS")
+                keyPassword System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (keystorePath) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.10.0'
+}

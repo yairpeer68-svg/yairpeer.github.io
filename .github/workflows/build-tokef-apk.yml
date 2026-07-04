@@ -1,0 +1,39 @@
+name: Build Tokef APK
+
+on:
+  push:
+    branches: [ "main", "claude/monetization-app-idea-prry2y" ]
+    paths: [ "tokef-android/**", "tokef/**" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+
+      - name: Copy web app into APK assets
+        run: |
+          mkdir -p tokef-android/app/src/main/assets
+          cp -r tokef/* tokef-android/app/src/main/assets/
+
+      - name: Build debug APK
+        run: cd tokef-android && gradle assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: tokef-apk
+          path: tokef-android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
