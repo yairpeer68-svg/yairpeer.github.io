@@ -1,7 +1,7 @@
 /* תוקף — service worker: עבודה לא מקוונת והתראות לפני פקיעת תוקף */
 "use strict";
 
-const CACHE = "tokef-v1";
+const CACHE = "tokef-v2";
 const ASSETS = ["./", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -63,9 +63,11 @@ async function checkExpiries() {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   let changed = false;
 
-  // השלב הדחוף ביותר שהפריט נמצא בו כרגע; התראה אחת לכל שלב
+  // השלב הדחוף ביותר שהפריט נמצא בו כרגע; התראה אחת לכל שלב.
+  // פריט שפג ממשיך "לנדנד" פעם בשבוע (מפתח שלב חדש לכל שבוע שעובר).
   function stageFor(days, lead) {
-    if (days < 0)  return { key: "expired", text: "פג התוקף של" };
+    // הנדנוד השבועי נעצר אחרי 8 שבועות כדי לא להפוך לספאם
+    if (days < 0)  return { key: "expired:" + Math.min(Math.floor(-days / 7), 8), text: "פג התוקף של" };
     if (days === 0) return { key: "now", text: "היום פג התוקף של" };
     if (days <= 1) return { key: "day", text: "מחר פג התוקף של" };
     if (days <= 7) return { key: "week", text: "בעוד " + days + " ימים פג התוקף של" };
@@ -75,6 +77,7 @@ async function checkExpiries() {
 
   for (const it of items) {
     if (!it.expiry) continue;
+    if (it.snoozeUntil && new Date(it.snoozeUntil + "T00:00:00") > today) continue; // מושתק זמנית
     const days = Math.round((new Date(it.expiry + "T00:00:00") - today) / 86400000);
     const st = stageFor(days, it.lead || 30);
     if (!st) continue;
@@ -90,6 +93,13 @@ async function checkExpiries() {
       dir: "rtl",
       lang: "he",
     });
+  }
+  // ניקוי: מפתחות של פריטים שנמחקו או חודשו (תאריך התפוגה השתנה)
+  const valid = new Set(items.map(it => it.id + "|" + it.expiry));
+  for (const k of Object.keys(notified)) {
+    const id = k.split(":")[0];
+    const expiry = k.slice(-10);
+    if (!valid.has(id + "|" + expiry)) { delete notified[k]; changed = true; }
   }
   if (changed) await idbSet("notified", notified);
 }
