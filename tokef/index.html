@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>תוקף — שום דבר לא יפוג לך יותר</title>
+<meta name="description" content="כל התאריכים הביורוקרטיים שלך במקום אחד: טסט לרכב, ביטוח, דרכון, רישיון נהיגה, בדיקת גז — עם התראה חכמה לפני שפג התוקף.">
+<meta property="og:title" content="תוקף — שום דבר לא יפוג לך יותר">
+<meta property="og:description" content="טסט, דרכון, ביטוח, רישיון — אפליקציה חינמית שמתריעה לפני שפג התוקף. הנתונים נשמרים אצלך במכשיר.">
+<meta name="theme-color" content="#071018">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #071018;
+    --glow-1: rgba(29, 78, 216, .35);
+    --glow-2: rgba(6, 182, 212, .16);
+    --card: #0f1c29;
+    --card-2: #15263a;
+    --text: #eef6fb;
+    --muted: #8aa3b8;
+    --cyan: #22d3ee;
+    --cyan-dark: #05242c;
+    --blue: #1d4ed8;
+    --teal: #06b6d4;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --bad: #fb5f7d;
+    --border: #1e3247;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: "Rubik", -apple-system, "Segoe UI", Arial, sans-serif;
+    background:
+      radial-gradient(600px 400px at 85% -5%, var(--glow-1), transparent 70%),
+      radial-gradient(500px 380px at -10% 30%, var(--glow-2), transparent 70%),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 14px 16px 130px; }
+
+  /* ---- top bar ---- */
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 2px 4px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 18px; }
+  .brand .shield { font-size: 22px; }
+  .topbar .actions { display: flex; gap: 8px; }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text); font-size: 17px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-family: inherit;
+  }
+  .icon-btn.on { border-color: var(--cyan); box-shadow: 0 0 10px rgba(34, 211, 238, .3); }
+  #btnInstall { display: none; }
+
+  /* ---- hero ---- */
+  .hero {
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, var(--blue), var(--teal));
+    border-radius: 24px;
+    padding: 24px 18px 22px;
+    text-align: center;
+    margin-top: 12px;
+    box-shadow: 0 12px 40px rgba(29, 78, 216, .35);
+  }
+  .hero::after {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(320px 160px at 50% -20%, rgba(255,255,255,.22), transparent 70%);
+    pointer-events: none;
+  }
+  .hero .big { font-size: 44px; }
+  .hero h1 { font-size: 26px; font-weight: 900; color: #fff; margin: 6px 0 2px; }
+  .hero p { font-size: 14px; color: rgba(255,255,255,.85); font-weight: 600; }
+
+  /* ---- sections ---- */
+  h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 24px 4px 10px; letter-spacing: .3px; }
+
+  .item-card {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .08s;
+  }
+  .item-card:active { transform: scale(.985); }
+  .item-card .emoji {
+    font-size: 24px; width: 48px; height: 48px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--card-2); border: 1px solid var(--border); border-radius: 14px;
+  }
+  .item-card .info { flex: 1; min-width: 0; }
+  .item-card .name { font-weight: 800; font-size: 16px; }
+  .item-card .meta { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .status {
+    text-align: left; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  }
+  .pill {
+    font-size: 12px; font-weight: 800; border-radius: 999px; padding: 4px 12px;
+  }
+  .pill.ok   { background: rgba(52, 211, 153, .15); color: var(--ok); }
+  .pill.warn { background: rgba(251, 191, 36, .15); color: var(--warn); }
+  .pill.bad  { background: rgba(251, 95, 125, .18); color: var(--bad); }
+  .status .d { font-size: 11px; color: var(--muted); }
+
+  .empty { text-align: center; padding: 44px 20px; color: var(--muted); }
+  .empty .big { font-size: 46px; margin-bottom: 12px; }
+  .empty p { font-size: 15px; line-height: 1.7; }
+
+  /* ---- fab ---- */
+  .fab {
+    position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); inset-inline-start: 50%;
+    transform: translateX(50%);
+    background: var(--cyan); color: var(--cyan-dark);
+    border: none; border-radius: 999px;
+    font-size: 17px; font-weight: 800; font-family: inherit;
+    padding: 16px 32px;
+    box-shadow: 0 8px 28px rgba(34, 211, 238, .35);
+    cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    z-index: 10;
+  }
+  .fab:active { transform: translateX(50%) scale(.97); }
+
+  /* ---- dialogs ---- */
+  dialog {
+    border: 1px solid var(--border); border-bottom: none;
+    border-radius: 22px 22px 0 0;
+    background: var(--card); color: var(--text);
+    width: 100%; max-width: 560px;
+    max-height: 88vh;
+    padding: 0;
+    margin: auto auto 0;
+    box-shadow: 0 -10px 50px rgba(0, 0, 0, .5);
+  }
+  dialog::backdrop { background: rgba(2, 8, 14, .75); }
+  .dlg-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 18px 10px;
+    position: sticky; top: 0; background: var(--card); z-index: 2;
+  }
+  .dlg-head h3 { font-size: 18px; font-weight: 800; }
+  .dlg-close {
+    background: var(--card-2); border: 1px solid var(--border); border-radius: 999px;
+    width: 32px; height: 32px; font-size: 14px; cursor: pointer;
+    color: var(--muted); font-family: inherit;
+  }
+  .dlg-body { padding: 0 18px 26px; overflow-y: auto; }
+
+  .cat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .cat-item {
+    background: var(--card-2); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px 6px; text-align: center; cursor: pointer;
+    font-family: inherit; color: var(--text);
+  }
+  .cat-item:active { border-color: var(--cyan); }
+  .cat-item .e { font-size: 26px; display: block; margin-bottom: 4px; }
+  .cat-item .n { font-size: 12.5px; font-weight: 600; display: block; }
+  .custom-btn {
+    width: 100%; margin-top: 18px;
+    background: none; border: 2px dashed var(--border); border-radius: 14px;
+    padding: 14px; font-size: 15px; font-weight: 600; color: var(--muted);
+    cursor: pointer; font-family: inherit;
+  }
+
+  /* ---- form ---- */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--bg); color: var(--text);
+    font-size: 16px; font-family: inherit;
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--cyan); border-color: transparent; }
+  .tip {
+    background: rgba(34, 211, 238, .08); border: 1px solid rgba(34, 211, 238, .25);
+    color: #9be5f4; border-radius: 12px; padding: 10px 14px;
+    font-size: 13px; line-height: 1.6; margin-bottom: 14px;
+  }
+  .btn-primary {
+    width: 100%; padding: 15px;
+    background: var(--cyan); color: var(--cyan-dark);
+    border: none; border-radius: 14px;
+    font-size: 17px; font-weight: 800; font-family: inherit;
+    cursor: pointer; margin-top: 6px;
+  }
+  .btn-ghost {
+    width: 100%; padding: 13px;
+    background: none; color: var(--muted);
+    border: none; font-size: 15px; font-weight: 600; font-family: inherit;
+    cursor: pointer; margin-top: 8px;
+  }
+  .btn-danger {
+    width: 100%; padding: 13px;
+    background: none; color: var(--bad);
+    border: none; font-size: 15px; font-weight: 600; font-family: inherit;
+    cursor: pointer; margin-top: 8px;
+  }
+  .renew-link {
+    display: block; text-align: center; margin-top: 10px;
+    color: var(--cyan); font-size: 14px; font-weight: 600; text-decoration: none;
+  }
+
+  /* ---- wizard ---- */
+  .wiz-step { text-align: center; padding: 8px 0 4px; }
+  .wiz-step .big { font-size: 52px; }
+  .wiz-step h4 { font-size: 22px; font-weight: 900; margin: 10px 0 4px; }
+  .wiz-step p { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 16px; }
+  .wiz-progress { display: flex; justify-content: center; gap: 6px; margin-bottom: 14px; }
+  .wiz-progress span { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  .wiz-progress span.on { background: var(--cyan); }
+
+  /* ---- toast ---- */
+  .toast {
+    position: fixed; bottom: 96px; inset-inline-start: 50%;
+    transform: translateX(50%);
+    background: var(--cyan); color: var(--cyan-dark);
+    padding: 10px 20px; border-radius: 999px;
+    font-size: 14px; font-weight: 800;
+    opacity: 0; pointer-events: none;
+    transition: opacity .25s;
+    z-index: 50;
+    box-shadow: 0 6px 20px rgba(34, 211, 238, .3);
+  }
+  .toast.show { opacity: 1; }
+
+  footer { text-align: center; margin-top: 32px; font-size: 12px; color: var(--muted); line-height: 1.8; opacity: .8; }
+  footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand"><span class="shield">🛡️</span> תוקף</div>
+    <div class="actions">
+      <button class="icon-btn" id="btnInstall" title="התקנה על מסך הבית">⬇️</button>
+      <button class="icon-btn" id="btnBell" title="התראות לפני פקיעה">🔔</button>
+    </div>
+  </div>
+
+  <div class="hero" id="hero">
+    <div class="big" id="heroIcon">🛡️</div>
+    <h1 id="heroTitle">הכל בתוקף</h1>
+    <p id="heroSub">שום דבר לא יפוג לך יותר</p>
+  </div>
+
+  <h2 id="listTitle" hidden>הדברים שלי</h2>
+  <div id="list"></div>
+
+  <div class="empty" id="empty">
+    <div class="big">🗂️</div>
+    <p>טסט, דרכון, ביטוח, רישיון…<br>הוסף את התאריכים שלך ותקבל התראה לפני שהם פגים.</p>
+  </div>
+
+  <footer>
+    הנתונים נשמרים רק אצלך במכשיר — לא נשלחים לשום שרת.<br>
+    <a href="privacy.html">מדיניות פרטיות</a>
+  </footer>
+</div>
+
+<button class="fab" id="fabAdd">➕ הוסף תוקף</button>
+
+<!-- catalog -->
+<dialog id="dlgCatalog">
+  <div class="dlg-head">
+    <h3>מה להוסיף?</h3>
+    <button class="dlg-close" data-close="dlgCatalog">✕</button>
+  </div>
+  <div class="dlg-body">
+    <div id="catList" class="cat-grid"></div>
+    <button class="custom-btn" id="btnCustom">➕ משהו אחר עם תאריך תפוגה</button>
+  </div>
+</dialog>
+
+<!-- add / edit form -->
+<dialog id="dlgForm">
+  <div class="dlg-head">
+    <h3 id="formTitle">הוספה</h3>
+    <button class="dlg-close" data-close="dlgForm">✕</button>
+  </div>
+  <div class="dlg-body">
+    <div class="tip" id="fTip" hidden></div>
+    <div class="field">
+      <label for="fName">שם</label>
+      <input id="fName" type="text" maxlength="40" placeholder="למשל: דרכון של יאיר">
+    </div>
+    <div class="field">
+      <label for="fExpiry">תאריך תפוגה</label>
+      <input id="fExpiry" type="date">
+    </div>
+    <div class="field">
+      <label for="fLead">להתריע לפני (ימים)</label>
+      <select id="fLead">
+        <option value="14">שבועיים</option>
+        <option value="30" selected>חודש</option>
+        <option value="60">חודשיים</option>
+        <option value="90">3 חודשים</option>
+        <option value="210">7 חודשים (מומלץ לדרכון)</option>
+      </select>
+    </div>
+    <button class="btn-primary" id="btnSave">שמירה</button>
+    <a class="renew-link" id="fLink" target="_blank" rel="noopener" hidden>🔗 לחידוש באתר הרשמי</a>
+    <button class="btn-danger" id="btnDelete" hidden>🗑️ מחיקה</button>
+  </div>
+</dialog>
+
+<!-- onboarding wizard -->
+<dialog id="dlgWiz">
+  <div class="dlg-head">
+    <h3>ברוך הבא לתוקף 🛡️</h3>
+    <button class="dlg-close" id="wizClose">✕</button>
+  </div>
+  <div class="dlg-body" id="wizBody"></div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* ---------- catalog: Israeli documents & renewals ---------- */
+const CATALOG = [
+  { name: "טסט לרכב", emoji: "🚗", lead: 30,
+    tip: "אפשר לעשות טסט עד חודש לפני מועד הפקיעה בלי לאבד ימים.",
+    link: "https://www.gov.il/he/service/car_licence_renewal" },
+  { name: "ביטוח חובה לרכב", emoji: "📋", lead: 30,
+    tip: "בלי ביטוח חובה בתוקף אסור לנהוג — גם יום אחד. שווה להשוות מחירים לפני החידוש." },
+  { name: "ביטוח מקיף / צד ג'", emoji: "🛡️", lead: 30,
+    tip: "חידוש אוטומטי אצל אותה חברה כמעט תמיד יקר יותר — השווה מחיר לפני." },
+  { name: "רישיון נהיגה", emoji: "🪪", lead: 60,
+    tip: "אפשר לחדש אונליין. מגיל 70 נדרשות בדיקות נוספות.",
+    link: "https://www.gov.il/he/service/driving_license_renewal" },
+  { name: "דרכון", emoji: "✈️", lead: 210,
+    tip: "חשוב! הרבה מדינות דורשות דרכון בתוקף ל-6 חודשים מיום הכניסה. חדש לפחות 7 חודשים לפני הפקיעה.",
+    link: "https://www.gov.il/he/service/renewal_of_biometric_passport" },
+  { name: "תעודת זהות", emoji: "🆔", lead: 60,
+    tip: "תעודה ביומטרית מחדשים בלשכת רשות האוכלוסין — קבע תור מראש." },
+  { name: "ויזה לארה\"ב", emoji: "🇺🇸", lead: 90,
+    tip: "חידוש ויזה יכול לקחת שבועות — אל תחכה לרגע האחרון." },
+  { name: "בדיקת גז", emoji: "🔥", lead: 60,
+    tip: "בדיקת תקינות מערכת הגז נדרשת אחת ל-5 שנים — ספק הגז מחויב לתאם איתך." },
+  { name: "מטפה כיבוי", emoji: "🧯", lead: 30,
+    tip: "מטפה ביתי דורש טעינה ובדיקה תקופתית — בדוק את התווית." },
+  { name: "עזרה ראשונה", emoji: "⛑️", lead: 30,
+    tip: "תוקף תעודת מגיש עזרה ראשונה הוא בדרך כלל שנתיים." },
+  { name: "רישיון נשק", emoji: "🔫", lead: 60,
+    tip: "חידוש דורש מטווח ואישורים — התחל מוקדם." },
+  { name: "רישיון עסק", emoji: "🏪", lead: 90,
+    tip: "חידוש רישיון עסק מול הרשות המקומית יכול לקחת זמן — התחל 3 חודשים לפני." },
+  { name: "משקפיים מהמשלים", emoji: "👓", lead: 0,
+    tip: "טיפ הפוך: ההטבה למשקפיים בביטוח המשלים מתחדשת בדרך כלל כל שנתיים — שים את התאריך שבו מגיעה לך הטבה חדשה!" },
+  { name: "חיסון לכלב", emoji: "🐕", lead: 30,
+    tip: "חיסון כלבת ורישיון כלב מתחדשים כל שנה מול הווטרינר העירוני." },
+  { name: "תו חניה אזורי", emoji: "🅿️", lead: 30,
+    tip: "תו חניה עירוני מתחדש בדרך כלל כל שנה — בדוק מול העירייה שלך." },
+];
+
+const WIZARD_STEPS = ["טסט לרכב", "ביטוח חובה לרכב", "רישיון נהיגה", "דרכון"];
+
+/* ---------- state ---------- */
+const K_ITEMS = "tokef.items.v1";
+const K_WIZ = "tokef.wizard.done";
+let items = loadJSON(K_ITEMS, []);
+let editId = null;
+
+function loadJSON(key, fallback) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key));
+    return v == null ? fallback : v;
+  } catch { return fallback; }
+}
+function save() {
+  localStorage.setItem(K_ITEMS, JSON.stringify(items));
+  idbSet("items", items).catch(() => {});
+}
+
+/* ---------- IndexedDB mirror ---------- */
+function idb() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open("tokef", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("kv");
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+function idbSet(key, val) {
+  return idb().then(db => new Promise((res, rej) => {
+    const tx = db.transaction("kv", "readwrite");
+    tx.objectStore("kv").put(JSON.parse(JSON.stringify(val)), key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  }));
+}
+
+/* ---------- date helpers ---------- */
+function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function daysLeft(it) {
+  return Math.round((new Date(it.expiry + "T00:00:00") - startOfDay(new Date())) / 86400000);
+}
+function toISO(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+const dateFmt = new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "long", year: "numeric" });
+
+function statusOf(it) {
+  const d = daysLeft(it);
+  if (d < 0) return { cls: "bad", label: "פג תוקף!", order: 0 };
+  if (d === 0) return { cls: "bad", label: "פג היום!", order: 0 };
+  if (d <= (it.lead || 30)) return { cls: "warn", label: d === 1 ? "פג מחר" : "עוד " + d + " ימים", order: 1 };
+  return { cls: "ok", label: "בתוקף", order: 2 };
+}
+
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* ---------- rendering ---------- */
+function render() {
+  const attention = items.filter(it => statusOf(it).order < 2);
+  if (items.length === 0) {
+    $("heroIcon").textContent = "🛡️";
+    $("heroTitle").textContent = "תוקף";
+    $("heroSub").textContent = "שום דבר לא יפוג לך יותר";
+  } else if (attention.length === 0) {
+    $("heroIcon").textContent = "✅";
+    $("heroTitle").textContent = "הכל בתוקף";
+    $("heroSub").textContent = items.length + " פריטים במעקב — תנוח בראש שקט";
+  } else {
+    $("heroIcon").textContent = "⚠️";
+    $("heroTitle").textContent = attention.length === 1 ? "פריט אחד דורש טיפול" : attention.length + " פריטים דורשים טיפול";
+    $("heroSub").textContent = "לחץ עליהם למטה כדי לטפל עכשיו";
+  }
+
+  const sorted = [...items].sort((a, b) => {
+    const sa = statusOf(a), sb = statusOf(b);
+    return sa.order - sb.order || daysLeft(a) - daysLeft(b);
+  });
+  $("list").innerHTML = sorted.map(it => {
+    const st = statusOf(it);
+    return `<div class="item-card" data-id="${it.id}">
+      <div class="emoji">${esc(it.emoji)}</div>
+      <div class="info">
+        <div class="name">${esc(it.name)}</div>
+        <div class="meta">בתוקף עד ${dateFmt.format(new Date(it.expiry + "T00:00:00"))}</div>
+      </div>
+      <div class="status"><span class="pill ${st.cls}">${st.label}</span></div>
+    </div>`;
+  }).join("");
+
+  $("listTitle").hidden = items.length === 0;
+  $("empty").style.display = items.length === 0 ? "" : "none";
+}
+
+/* ---------- catalog ---------- */
+function renderCatalog() {
+  $("catList").innerHTML = CATALOG.map((c, i) =>
+    `<button class="cat-item" data-i="${i}">
+      <span class="e">${esc(c.emoji)}</span><span class="n">${esc(c.name)}</span>
+    </button>`).join("");
+}
+
+/* ---------- form ---------- */
+function openForm(preset) {
+  editId = preset.id || null;
+  $("formTitle").textContent = editId ? "עריכה" : "הוספה";
+  $("fName").value = preset.name || "";
+  $("fExpiry").value = preset.expiry || "";
+  $("fLead").value = String(preset.lead || 30);
+  $("fTip").hidden = !preset.tip;
+  $("fTip").textContent = preset.tip || "";
+  $("fLink").hidden = !preset.link;
+  if (preset.link) $("fLink").href = preset.link;
+  $("btnDelete").hidden = !editId;
+  $("dlgForm")._emoji = preset.emoji || "📄";
+  $("dlgForm")._tip = preset.tip || "";
+  $("dlgForm")._link = preset.link || "";
+  $("dlgForm").showModal();
+  if (!editId && !preset.name) $("fName").focus();
+}
+
+function saveForm() {
+  const name = $("fName").value.trim();
+  const expiry = $("fExpiry").value;
+  if (!name) { toast("צריך לתת שם"); $("fName").focus(); return; }
+  if (!expiry) { toast("צריך לבחור תאריך תפוגה"); $("fExpiry").focus(); return; }
+
+  const data = {
+    name, expiry,
+    lead: parseInt($("fLead").value, 10) || 30,
+  };
+  const wasEdit = !!editId;
+  if (editId) {
+    const it = items.find(x => x.id === editId);
+    if (it) Object.assign(it, data);
+  } else {
+    items.push(Object.assign({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      emoji: $("dlgForm")._emoji,
+      tip: $("dlgForm")._tip,
+      link: $("dlgForm")._link,
+    }, data));
+  }
+  save(); render();
+  $("dlgForm").close();
+  toast(wasEdit ? "נשמר ✓" : "נוסף למעקב ✓");
+  editId = null;
+  checkExpiriesNow();
+}
+
+/* ---------- onboarding wizard ---------- */
+let wizIndex = 0;
+function openWizard() {
+  wizIndex = 0;
+  renderWizStep();
+  $("dlgWiz").showModal();
+}
+function renderWizStep() {
+  const body = $("wizBody");
+  if (wizIndex >= WIZARD_STEPS.length) {
+    body.innerHTML = `<div class="wiz-step">
+      <div class="big">🎉</div>
+      <h4>מעולה, אתה מוגן!</h4>
+      <p>אפשר להוסיף עוד דברים בכל רגע — בדיקת גז, רישיון עסק, ויזה, חיסון לכלב ועוד.<br>אל תשכח להפעיל התראות בפעמון 🔔</p>
+      <button class="btn-primary" id="wizDone">סיימנו</button>
+    </div>`;
+    $("wizDone").addEventListener("click", () => { finishWizard(); });
+    return;
+  }
+  const c = CATALOG.find(x => x.name === WIZARD_STEPS[wizIndex]);
+  body.innerHTML = `
+    <div class="wiz-progress">${WIZARD_STEPS.map((_, i) => `<span class="${i <= wizIndex ? "on" : ""}"></span>`).join("")}</div>
+    <div class="wiz-step">
+      <div class="big">${esc(c.emoji)}</div>
+      <h4>${esc(c.name)} — יש לך?</h4>
+      <p>מתי פג התוקף? (אפשר בערך — תמיד אפשר לעדכן)</p>
+    </div>
+    <div class="field"><input id="wizDate" type="date"></div>
+    <button class="btn-primary" id="wizSave">שמור והמשך</button>
+    <button class="btn-ghost" id="wizSkip">אין לי / דלג</button>`;
+  $("wizSave").addEventListener("click", () => {
+    const d = $("wizDate").value;
+    if (!d) { toast("בחר תאריך או דלג"); return; }
+    items.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      name: c.name, emoji: c.emoji, expiry: d, lead: c.lead, tip: c.tip || "", link: c.link || "",
+    });
+    save(); render();
+    wizIndex++; renderWizStep();
+  });
+  $("wizSkip").addEventListener("click", () => { wizIndex++; renderWizStep(); });
+}
+function finishWizard() {
+  localStorage.setItem(K_WIZ, "1");
+  $("dlgWiz").close();
+  checkExpiriesNow();
+}
+$("wizClose").addEventListener("click", finishWizard);
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+/* ---------- PWA ---------- */
+let swReg = null;
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").then(r => { swReg = r; checkExpiriesNow(); }).catch(() => {});
+}
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  installPrompt = e;
+  $("btnInstall").style.display = "flex";
+});
+$("btnInstall").addEventListener("click", async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  const { outcome } = await installPrompt.userChoice;
+  if (outcome === "accepted") { $("btnInstall").style.display = "none"; toast("תוקף הותקן 🎉"); }
+  installPrompt = null;
+});
+
+/* ---------- notifications ---------- */
+function bellState() {
+  $("btnBell").classList.toggle("on", "Notification" in window && Notification.permission === "granted");
+}
+$("btnBell").addEventListener("click", async () => {
+  if (!("Notification" in window)) { toast("הדפדפן לא תומך בהתראות"); return; }
+  if (Notification.permission === "granted") { toast("התראות פעילות ✓"); return; }
+  if (Notification.permission === "denied") { toast("ההתראות חסומות — אפשר לאפשר בהגדרות הדפדפן"); return; }
+  const perm = await Notification.requestPermission();
+  bellState();
+  if (perm === "granted") {
+    toast("מעולה! נתריע לפני כל פקיעה 🔔");
+    checkExpiriesNow();
+    try {
+      const status = await navigator.permissions.query({ name: "periodic-background-sync" });
+      if (status.state === "granted" && swReg && "periodicSync" in swReg) {
+        await swReg.periodicSync.register("check-expiries", { minInterval: 12 * 60 * 60 * 1000 });
+      }
+    } catch {}
+  }
+});
+function checkExpiriesNow() {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  idbSet("items", items).catch(() => {});
+  if (navigator.serviceWorker.controller) navigator.serviceWorker.controller.postMessage("check-expiries");
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkExpiriesNow(); });
+
+/* ---------- wiring ---------- */
+$("fabAdd").addEventListener("click", () => {
+  renderCatalog();
+  $("dlgCatalog").showModal();
+});
+$("catList").addEventListener("click", e => {
+  const btn = e.target.closest(".cat-item");
+  if (!btn) return;
+  $("dlgCatalog").close();
+  openForm(CATALOG[parseInt(btn.dataset.i, 10)]);
+});
+$("btnCustom").addEventListener("click", () => {
+  $("dlgCatalog").close();
+  openForm({});
+});
+$("list").addEventListener("click", e => {
+  const card = e.target.closest(".item-card");
+  if (!card) return;
+  const it = items.find(x => x.id === card.dataset.id);
+  if (it) openForm(it);
+});
+$("btnSave").addEventListener("click", saveForm);
+$("btnDelete").addEventListener("click", () => {
+  if (!editId) return;
+  const it = items.find(x => x.id === editId);
+  if (it && !confirm(`למחוק את "${it.name}"?`)) return;
+  items = items.filter(x => x.id !== editId);
+  editId = null;
+  save(); render();
+  $("dlgForm").close();
+  toast("נמחק");
+});
+document.querySelectorAll("[data-close]").forEach(b =>
+  b.addEventListener("click", () => $(b.dataset.close).close()));
+
+bellState();
+idbSet("items", items).catch(() => {});
+render();
+
+// אשף פתיחה בכניסה ראשונה
+if (!localStorage.getItem(K_WIZ) && items.length === 0) {
+  openWizard();
+}
+</script>
+</body>
+</html>
