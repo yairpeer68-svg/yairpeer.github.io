@@ -32,6 +32,7 @@
     --ok: #34d399;
     --warn: #fbbf24;
     --bad: #fb5f7d;
+    --gold: #fbbf24;
     --border: #1e3247;
     --radius: 18px;
   }
@@ -62,6 +63,7 @@
     font-family: inherit;
   }
   .icon-btn.on { border-color: var(--cyan); box-shadow: 0 0 10px rgba(34, 211, 238, .3); }
+  .icon-btn.gold { border-color: var(--gold); box-shadow: 0 0 10px rgba(251, 191, 36, .3); }
   #btnInstall { display: none; }
 
   /* ---- hero ---- */
@@ -69,7 +71,7 @@
     position: relative; overflow: hidden;
     background: linear-gradient(135deg, var(--blue), var(--teal));
     border-radius: 24px;
-    padding: 24px 18px 22px;
+    padding: 22px 18px 20px;
     text-align: center;
     margin-top: 12px;
     box-shadow: 0 12px 40px rgba(29, 78, 216, .35);
@@ -79,12 +81,37 @@
     background: radial-gradient(320px 160px at 50% -20%, rgba(255,255,255,.22), transparent 70%);
     pointer-events: none;
   }
-  .hero .big { font-size: 44px; }
-  .hero h1 { font-size: 26px; font-weight: 900; color: #fff; margin: 6px 0 2px; }
+  .hero .big { font-size: 40px; }
+  .hero h1 { font-size: 24px; font-weight: 900; color: #fff; margin: 6px 0 2px; }
   .hero p { font-size: 14px; color: rgba(255,255,255,.85); font-weight: 600; }
+  .hero .trip-row { position: relative; margin-top: 12px; }
+  .trip-btn {
+    background: rgba(7, 16, 24, .5); border: 1px solid rgba(255,255,255,.25);
+    color: #fff; border-radius: 999px; padding: 8px 18px;
+    font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+  }
+
+  /* ---- stats (premium) ---- */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+  .stat {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 10px 6px; text-align: center;
+  }
+  .stat .v { font-size: 17px; font-weight: 900; color: var(--cyan); }
+  .stat .l { font-size: 10.5px; color: var(--muted); margin-top: 3px; }
+
+  /* ---- profile chips ---- */
+  .profiles { display: flex; gap: 6px; overflow-x: auto; padding: 2px; margin-top: 14px; scrollbar-width: none; }
+  .profiles::-webkit-scrollbar { display: none; }
+  .pchip {
+    border: 1px solid var(--border); background: var(--card); color: var(--muted);
+    border-radius: 999px; padding: 6px 13px; font-size: 13px; font-weight: 600;
+    font-family: inherit; cursor: pointer; white-space: nowrap;
+  }
+  .pchip.on { border-color: var(--cyan); color: var(--text); }
 
   /* ---- sections ---- */
-  h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 24px 4px 10px; letter-spacing: .3px; }
+  h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 20px 4px 10px; letter-spacing: .3px; }
 
   .item-card {
     display: flex; align-items: center; gap: 12px;
@@ -106,16 +133,11 @@
   .item-card .info { flex: 1; min-width: 0; }
   .item-card .name { font-weight: 800; font-size: 16px; }
   .item-card .meta { font-size: 13px; color: var(--muted); margin-top: 3px; }
-  .status {
-    text-align: left; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
-  }
-  .pill {
-    font-size: 12px; font-weight: 800; border-radius: 999px; padding: 4px 12px;
-  }
+  .status { text-align: left; flex-shrink: 0; }
+  .pill { font-size: 12px; font-weight: 800; border-radius: 999px; padding: 4px 12px; }
   .pill.ok   { background: rgba(52, 211, 153, .15); color: var(--ok); }
   .pill.warn { background: rgba(251, 191, 36, .15); color: var(--warn); }
   .pill.bad  { background: rgba(251, 95, 125, .18); color: var(--bad); }
-  .status .d { font-size: 11px; color: var(--muted); }
 
   .empty { text-align: center; padding: 44px 20px; color: var(--muted); }
   .empty .big { font-size: 46px; margin-bottom: 12px; }
@@ -180,24 +202,34 @@
   /* ---- form ---- */
   .field { margin-bottom: 14px; }
   .field label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-  .field input, .field select {
+  .field input, .field select, .field textarea {
     width: 100%; padding: 12px 14px;
     border: 1px solid var(--border); border-radius: 12px;
     background: var(--bg); color: var(--text);
     font-size: 16px; font-family: inherit;
   }
-  .field input:focus, .field select:focus { outline: 2px solid var(--cyan); border-color: transparent; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--cyan); border-color: transparent; }
+  .field textarea { resize: vertical; min-height: 44px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .tip {
     background: rgba(34, 211, 238, .08); border: 1px solid rgba(34, 211, 238, .25);
     color: #9be5f4; border-radius: 12px; padding: 10px 14px;
     font-size: 13px; line-height: 1.6; margin-bottom: 14px;
   }
+  .pro-tag { font-size: 10px; font-weight: 800; background: rgba(251, 191, 36, .18); color: var(--gold); border-radius: 6px; padding: 2px 6px; }
   .btn-primary {
     width: 100%; padding: 15px;
     background: var(--cyan); color: var(--cyan-dark);
     border: none; border-radius: 14px;
     font-size: 17px; font-weight: 800; font-family: inherit;
     cursor: pointer; margin-top: 6px;
+  }
+  .btn-secondary {
+    width: 100%; padding: 13px;
+    background: var(--card-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 14px;
+    font-size: 15px; font-weight: 600; font-family: inherit;
+    cursor: pointer; margin-top: 8px;
   }
   .btn-ghost {
     width: 100%; padding: 13px;
@@ -211,10 +243,18 @@
     border: none; font-size: 15px; font-weight: 600; font-family: inherit;
     cursor: pointer; margin-top: 8px;
   }
-  .renew-link {
+  .renew-link, .compare-link {
     display: block; text-align: center; margin-top: 10px;
     color: var(--cyan); font-size: 14px; font-weight: 600; text-decoration: none;
   }
+  .compare-link { color: var(--gold); }
+  .doc-thumb { max-width: 100%; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 8px; display: block; }
+  .hist-item {
+    display: flex; gap: 8px; color: var(--muted); font-size: 13px;
+    padding: 6px 4px; border-bottom: 1px dashed var(--border);
+  }
+  .hist-item .up { color: var(--bad); font-weight: 700; }
+  .hist-item .down { color: var(--ok); font-weight: 700; }
 
   /* ---- wizard ---- */
   .wiz-step { text-align: center; padding: 8px 0 4px; }
@@ -224,6 +264,46 @@
   .wiz-progress { display: flex; justify-content: center; gap: 6px; margin-bottom: 14px; }
   .wiz-progress span { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
   .wiz-progress span.on { background: var(--cyan); }
+
+  /* ---- premium ---- */
+  .prem-hero {
+    background: linear-gradient(135deg, rgba(251, 191, 36, .16), rgba(6, 182, 212, .12));
+    border: 1px solid rgba(251, 191, 36, .4);
+    border-radius: 16px; padding: 18px; text-align: center; margin-bottom: 14px;
+  }
+  .prem-hero .crown { font-size: 36px; }
+  .prem-hero h4 { font-size: 20px; font-weight: 900; margin: 6px 0 2px; }
+  .prem-hero p { font-size: 13px; color: var(--muted); }
+  .feat-list { list-style: none; margin: 4px 0 14px; }
+  .feat-list li { display: flex; gap: 9px; align-items: flex-start; font-size: 14px; padding: 6px 2px; }
+  .feat-list li::before { content: "✓"; color: var(--cyan); font-weight: 900; }
+  .price-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+  .price-card {
+    background: var(--card-2); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px; text-align: center;
+  }
+  .price-card .p { font-size: 22px; font-weight: 900; color: var(--gold); }
+  .price-card .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .prem-note { font-size: 12px; color: var(--muted); text-align: center; margin: 10px 0; line-height: 1.6; }
+  .prof-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 10px 14px; margin-bottom: 8px; font-size: 15px; font-weight: 600;
+  }
+  .prof-row .n { flex: 1; }
+  .prof-row button { background: none; border: none; color: var(--bad); cursor: pointer; font-family: inherit; font-size: 13px; }
+
+  /* ---- trip report ---- */
+  .trip-row-item {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+    padding: 11px 14px; margin-bottom: 8px; font-size: 14px;
+  }
+  .trip-row-item .t { flex: 1; }
+  .trip-row-item .s { font-weight: 800; }
+  .trip-row-item .s.ok { color: var(--ok); }
+  .trip-row-item .s.warn { color: var(--warn); }
+  .trip-row-item .s.bad { color: var(--bad); }
 
   /* ---- toast ---- */
   .toast {
@@ -248,6 +328,7 @@
   <div class="topbar">
     <div class="brand"><span class="shield">🛡️</span> תוקף</div>
     <div class="actions">
+      <button class="icon-btn" id="btnCrown" title="תוקף פרימיום">👑</button>
       <button class="icon-btn" id="btnInstall" title="התקנה על מסך הבית">⬇️</button>
       <button class="icon-btn" id="btnBell" title="התראות לפני פקיעה">🔔</button>
     </div>
@@ -257,7 +338,14 @@
     <div class="big" id="heroIcon">🛡️</div>
     <h1 id="heroTitle">הכל בתוקף</h1>
     <p id="heroSub">שום דבר לא יפוג לך יותר</p>
+    <div class="trip-row">
+      <button class="trip-btn" id="btnTrip">✈️ בדיקת נסיעה — כולם מוכנים לטיסה?</button>
+    </div>
   </div>
+
+  <div class="stats" id="statsRow" hidden></div>
+
+  <div class="profiles" id="profileChips" hidden></div>
 
   <h2 id="listTitle" hidden>הדברים שלי</h2>
   <div id="list"></div>
@@ -299,21 +387,51 @@
       <label for="fName">שם</label>
       <input id="fName" type="text" maxlength="40" placeholder="למשל: דרכון של יאיר">
     </div>
-    <div class="field">
-      <label for="fExpiry">תאריך תפוגה</label>
-      <input id="fExpiry" type="date">
+    <div class="row2">
+      <div class="field">
+        <label for="fExpiry">תאריך תפוגה</label>
+        <input id="fExpiry" type="date">
+      </div>
+      <div class="field">
+        <label for="fProfile">של מי? <span class="pro-tag">👑</span></label>
+        <select id="fProfile"></select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label for="fLead">להתריע לפני</label>
+        <select id="fLead">
+          <option value="14">שבועיים</option>
+          <option value="30" selected>חודש</option>
+          <option value="60">חודשיים</option>
+          <option value="90">3 חודשים</option>
+          <option value="210">7 חודשים (לדרכון)</option>
+          <option value="custom">מותאם אישית 👑</option>
+        </select>
+      </div>
+      <div class="field" id="fieldCustomLead" hidden>
+        <label for="fCustomLead">ימים</label>
+        <input id="fCustomLead" type="number" min="1" max="365" placeholder="45">
+      </div>
+    </div>
+    <div class="field" id="fieldRenewPrice" hidden>
+      <label for="fRenewPrice">כמה שילמת על החידוש? (₪, לא חובה)</label>
+      <input id="fRenewPrice" type="number" min="0" step="1" placeholder="0">
     </div>
     <div class="field">
-      <label for="fLead">להתריע לפני (ימים)</label>
-      <select id="fLead">
-        <option value="14">שבועיים</option>
-        <option value="30" selected>חודש</option>
-        <option value="60">חודשיים</option>
-        <option value="90">3 חודשים</option>
-        <option value="210">7 חודשים (מומלץ לדרכון)</option>
-      </select>
+      <label for="fNote">הערה <span class="pro-tag">👑</span></label>
+      <textarea id="fNote" maxlength="200" placeholder="למשל: הפוליסה אצל סוכן משה"></textarea>
     </div>
+    <div class="field" id="fieldDoc">
+      <label>מסמך מצורף <span class="pro-tag">👑</span></label>
+      <img class="doc-thumb" id="docThumb" hidden alt="מסמך מצורף">
+      <input id="fDoc" type="file" accept="image/*">
+    </div>
+    <div id="histBox"></div>
     <button class="btn-primary" id="btnSave">שמירה</button>
+    <button class="btn-secondary" id="btnRenewed" hidden>✅ חידשתי! — עדכון תאריך</button>
+    <button class="btn-secondary" id="btnSnooze" hidden>😴 השתק התראות לשבוע</button>
+    <a class="compare-link" id="fCompare" target="_blank" rel="noopener" hidden></a>
     <a class="renew-link" id="fLink" target="_blank" rel="noopener" hidden>🔗 לחידוש באתר הרשמי</a>
     <button class="btn-danger" id="btnDelete" hidden>🗑️ מחיקה</button>
   </div>
@@ -328,29 +446,49 @@
   <div class="dlg-body" id="wizBody"></div>
 </dialog>
 
+<!-- trip check -->
+<dialog id="dlgTrip">
+  <div class="dlg-head">
+    <h3>✈️ בדיקת נסיעה</h3>
+    <button class="dlg-close" data-close="dlgTrip">✕</button>
+  </div>
+  <div class="dlg-body" id="tripBody"></div>
+</dialog>
+
+<!-- premium -->
+<dialog id="dlgPremium">
+  <div class="dlg-head">
+    <h3>תוקף פרימיום</h3>
+    <button class="dlg-close" data-close="dlgPremium">✕</button>
+  </div>
+  <div class="dlg-body" id="premBody"></div>
+</dialog>
+
 <div class="toast" id="toast"></div>
 
 <script>
 "use strict";
 
-/* ---------- catalog: Israeli documents & renewals ---------- */
+/* ---------- catalog ---------- */
 const CATALOG = [
   { name: "טסט לרכב", emoji: "🚗", lead: 30,
     tip: "אפשר לעשות טסט עד חודש לפני מועד הפקיעה בלי לאבד ימים.",
     link: "https://www.gov.il/he/service/car_licence_renewal" },
   { name: "ביטוח חובה לרכב", emoji: "📋", lead: 30,
-    tip: "בלי ביטוח חובה בתוקף אסור לנהוג — גם יום אחד. שווה להשוות מחירים לפני החידוש." },
+    tip: "בלי ביטוח חובה בתוקף אסור לנהוג — גם יום אחד.",
+    compare: { label: "🔍 השווה מחירי ביטוח לפני שמחדשים", url: "https://www.wobi.co.il/" } },
   { name: "ביטוח מקיף / צד ג'", emoji: "🛡️", lead: 30,
-    tip: "חידוש אוטומטי אצל אותה חברה כמעט תמיד יקר יותר — השווה מחיר לפני." },
+    tip: "חידוש אוטומטי אצל אותה חברה כמעט תמיד יקר יותר — השווה מחיר לפני.",
+    compare: { label: "🔍 השווה מחירי ביטוח לפני שמחדשים", url: "https://www.wobi.co.il/" } },
   { name: "רישיון נהיגה", emoji: "🪪", lead: 60,
     tip: "אפשר לחדש אונליין. מגיל 70 נדרשות בדיקות נוספות.",
     link: "https://www.gov.il/he/service/driving_license_renewal" },
-  { name: "דרכון", emoji: "✈️", lead: 210,
+  { name: "דרכון", emoji: "✈️", lead: 210, travel: "passport",
     tip: "חשוב! הרבה מדינות דורשות דרכון בתוקף ל-6 חודשים מיום הכניסה. חדש לפחות 7 חודשים לפני הפקיעה.",
     link: "https://www.gov.il/he/service/renewal_of_biometric_passport" },
   { name: "תעודת זהות", emoji: "🆔", lead: 60,
     tip: "תעודה ביומטרית מחדשים בלשכת רשות האוכלוסין — קבע תור מראש." },
-  { name: "ויזה לארה\"ב", emoji: "🇺🇸", lead: 90,
+  { name: "ויזה לארה\"ב", emoji: "🇺🇸", lead: 90, travel: "visa",
     tip: "חידוש ויזה יכול לקחת שבועות — אל תחכה לרגע האחרון." },
   { name: "בדיקת גז", emoji: "🔥", lead: 60,
     tip: "בדיקת תקינות מערכת הגז נדרשת אחת ל-5 שנים — ספק הגז מחויב לתאם איתך." },
@@ -371,12 +509,38 @@ const CATALOG = [
 ];
 
 const WIZARD_STEPS = ["טסט לרכב", "ביטוח חובה לרכב", "רישיון נהיגה", "דרכון"];
+const FREE_LIMIT = 6;
+const UNLOCK_CODES = ["YAIR-VIP", "TOKEF2026"];
+const PREMIUM_FEATURES = [
+  "פריטים ללא הגבלה (בחינם: עד " + FREE_LIMIT + ")",
+  "פרופילים לכל המשפחה — הדרכונים של כולם במקום אחד",
+  "בדיקת נסיעה משפחתית — כולם מוכנים לטיסה בתאריך שבחרת?",
+  "\"חידשתי\" בלחיצה + היסטוריית חידושים ומחירים",
+  "מעקב התייקרויות — כמה שילמת שנה שעברה מול השנה",
+  "צירוף צילום מסמך לכל פריט (נשמר רק במכשיר)",
+  "ייצוא כל התאריכים ליומן גוגל/אפל",
+  "גיבוי ושחזור — לא תאבד כלום בהחלפת טלפון",
+  "התראת נודניק שבועית על דברים שפגו",
+  "השתקת התראות זמנית לפריט",
+  "הערות אישיות ומרווח התראה מותאם לכל פריט",
+  "לוח תובנות: מה במעקב, מה דחוף, מה הבא",
+  "וכל פיצ'ר פרימיום עתידי — כלול",
+];
 
 /* ---------- state ---------- */
 const K_ITEMS = "tokef.items.v1";
+const K_PROF = "tokef.profiles.v1";
+const K_SET = "tokef.settings.v1";
 const K_WIZ = "tokef.wizard.done";
+
 let items = loadJSON(K_ITEMS, []);
+let profiles = loadJSON(K_PROF, [{ id: "me", name: "אני", emoji: "👤" }]);
+let settings = Object.assign({ premium: false, compareClicks: 0 }, loadJSON(K_SET, {}));
 let editId = null;
+let activeProfile = "";
+let renewMode = false;
+
+for (const it of items) { if (!it.profile) it.profile = "me"; }
 
 function loadJSON(key, fallback) {
   try {
@@ -386,10 +550,12 @@ function loadJSON(key, fallback) {
 }
 function save() {
   localStorage.setItem(K_ITEMS, JSON.stringify(items));
+  localStorage.setItem(K_PROF, JSON.stringify(profiles));
+  localStorage.setItem(K_SET, JSON.stringify(settings));
   idbSet("items", items).catch(() => {});
 }
 
-/* ---------- IndexedDB mirror ---------- */
+/* ---------- IndexedDB ---------- */
 function idb() {
   return new Promise((res, rej) => {
     const req = indexedDB.open("tokef", 1);
@@ -401,7 +567,22 @@ function idb() {
 function idbSet(key, val) {
   return idb().then(db => new Promise((res, rej) => {
     const tx = db.transaction("kv", "readwrite");
-    tx.objectStore("kv").put(JSON.parse(JSON.stringify(val)), key);
+    tx.objectStore("kv").put(typeof val === "string" ? val : JSON.parse(JSON.stringify(val)), key);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  }));
+}
+function idbGet(key) {
+  return idb().then(db => new Promise((res, rej) => {
+    const r = db.transaction("kv").objectStore("kv").get(key);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+}
+function idbDel(key) {
+  return idb().then(db => new Promise((res, rej) => {
+    const tx = db.transaction("kv", "readwrite");
+    tx.objectStore("kv").delete(key);
     tx.oncomplete = () => res();
     tx.onerror = () => rej(tx.error);
   }));
@@ -429,6 +610,7 @@ const $ = id => document.getElementById(id);
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+function profOf(id) { return profiles.find(p => p.id === id) || profiles[0]; }
 
 /* ---------- rendering ---------- */
 function render() {
@@ -446,25 +628,61 @@ function render() {
     $("heroTitle").textContent = attention.length === 1 ? "פריט אחד דורש טיפול" : attention.length + " פריטים דורשים טיפול";
     $("heroSub").textContent = "לחץ עליהם למטה כדי לטפל עכשיו";
   }
+  $("btnCrown").classList.toggle("gold", settings.premium);
 
-  const sorted = [...items].sort((a, b) => {
-    const sa = statusOf(a), sb = statusOf(b);
-    return sa.order - sb.order || daysLeft(a) - daysLeft(b);
-  });
-  $("list").innerHTML = sorted.map(it => {
+  renderStats(attention);
+  renderProfiles();
+  renderList();
+
+  $("listTitle").hidden = items.length === 0;
+  $("empty").style.display = items.length === 0 ? "" : "none";
+}
+
+function renderStats(attention) {
+  const show = settings.premium && items.length > 0;
+  $("statsRow").hidden = !show;
+  if (!show) return;
+  const next = [...items].filter(it => daysLeft(it) >= 0).sort((a, b) => daysLeft(a) - daysLeft(b))[0];
+  const renewals = items.reduce((s, it) => s + (it.hist || []).length, 0);
+  $("statsRow").innerHTML = `
+    <div class="stat"><div class="v">${items.length}</div><div class="l">במעקב</div></div>
+    <div class="stat"><div class="v">${attention.length}</div><div class="l">דורשים טיפול</div></div>
+    <div class="stat"><div class="v">${next ? daysLeft(next) : "—"}</div><div class="l">${next ? "ימים ל" + esc(next.name).slice(0, 10) : "אין קרוב"}</div></div>
+    <div class="stat"><div class="v">${renewals}</div><div class="l">חידושים בוצעו</div></div>`;
+}
+
+function renderProfiles() {
+  const show = settings.premium && (profiles.length > 1 || items.length > 0);
+  $("profileChips").hidden = !show;
+  if (!show) { activeProfile = ""; return; }
+  if (activeProfile && !profiles.some(p => p.id === activeProfile)) activeProfile = "";
+  $("profileChips").innerHTML =
+    `<button class="pchip ${!activeProfile ? "on" : ""}" data-p="">הכל</button>` +
+    profiles.map(p =>
+      `<button class="pchip ${activeProfile === p.id ? "on" : ""}" data-p="${p.id}">${esc(p.emoji)} ${esc(p.name)}</button>`
+    ).join("") +
+    `<button class="pchip" data-p="__add">➕</button>`;
+}
+
+function renderList() {
+  const shown = (activeProfile ? items.filter(it => it.profile === activeProfile) : [...items])
+    .sort((a, b) => {
+      const sa = statusOf(a), sb = statusOf(b);
+      return sa.order - sb.order || daysLeft(a) - daysLeft(b);
+    });
+  $("list").innerHTML = shown.map(it => {
     const st = statusOf(it);
+    const who = settings.premium && profiles.length > 1 ? " · " + esc(profOf(it.profile).emoji) + " " + esc(profOf(it.profile).name) : "";
+    const extras = (it.note ? " 📝" : "") + (it.doc ? " 📎" : "");
     return `<div class="item-card" data-id="${it.id}">
       <div class="emoji">${esc(it.emoji)}</div>
       <div class="info">
         <div class="name">${esc(it.name)}</div>
-        <div class="meta">בתוקף עד ${dateFmt.format(new Date(it.expiry + "T00:00:00"))}</div>
+        <div class="meta">עד ${dateFmt.format(new Date(it.expiry + "T00:00:00"))}${who}${extras}</div>
       </div>
       <div class="status"><span class="pill ${st.cls}">${st.label}</span></div>
     </div>`;
   }).join("");
-
-  $("listTitle").hidden = items.length === 0;
-  $("empty").style.display = items.length === 0 ? "" : "none";
 }
 
 /* ---------- catalog ---------- */
@@ -476,54 +694,333 @@ function renderCatalog() {
 }
 
 /* ---------- form ---------- */
-function openForm(preset) {
+async function openForm(preset) {
   editId = preset.id || null;
+  renewMode = false;
   $("formTitle").textContent = editId ? "עריכה" : "הוספה";
   $("fName").value = preset.name || "";
   $("fExpiry").value = preset.expiry || "";
-  $("fLead").value = String(preset.lead || 30);
   $("fTip").hidden = !preset.tip;
   $("fTip").textContent = preset.tip || "";
+  $("fNote").value = preset.note || "";
+  $("fieldRenewPrice").hidden = true;
+  $("fRenewPrice").value = "";
+  $("fDoc").value = "";
+
+  // profile select
+  $("fProfile").innerHTML = profiles.map(p => `<option value="${p.id}">${esc(p.emoji)} ${esc(p.name)}</option>`).join("");
+  $("fProfile").value = preset.profile || "me";
+
+  // lead select
+  const lead = preset.lead || 30;
+  const standard = ["14", "30", "60", "90", "210"];
+  if (standard.includes(String(lead))) {
+    $("fLead").value = String(lead);
+    $("fieldCustomLead").hidden = true;
+  } else {
+    $("fLead").value = "custom";
+    $("fieldCustomLead").hidden = false;
+    $("fCustomLead").value = lead;
+  }
+
+  // attached doc thumbnail
+  $("docThumb").hidden = true;
+  if (editId && preset.doc) {
+    const data = await idbGet("doc:" + editId).catch(() => null);
+    if (data) { $("docThumb").src = data; $("docThumb").hidden = false; }
+  }
+
+  // history
+  const hist = preset.hist || [];
+  $("histBox").innerHTML = hist.length && settings.premium
+    ? `<div class="field"><label>היסטוריית חידושים 👑</label>` + hist.map(h => {
+        let price = "";
+        if (h.price != null) {
+          const prev = hist[hist.indexOf(h) - 1];
+          if (prev && prev.price != null && prev.price > 0) {
+            const pct = Math.round(((h.price - prev.price) / prev.price) * 100);
+            price = ` — ₪${h.price} <span class="${pct > 0 ? "up" : "down"}">(${pct > 0 ? "+" : ""}${pct}%)</span>`;
+          } else price = ` — ₪${h.price}`;
+        }
+        return `<div class="hist-item"><span>🔄</span><span>חודש ב-${dateFmt.format(new Date(h.at + "T00:00:00"))}${price}</span></div>`;
+      }).join("") + `</div>`
+    : "";
+
+  const cmp = preset.compare;
+  $("fCompare").hidden = !cmp;
+  if (cmp) { $("fCompare").textContent = cmp.label; $("fCompare").href = cmp.url; }
   $("fLink").hidden = !preset.link;
   if (preset.link) $("fLink").href = preset.link;
+
   $("btnDelete").hidden = !editId;
+  $("btnRenewed").hidden = !editId;
+  $("btnSnooze").hidden = !editId || statusOf(preset).order === 2;
   $("dlgForm")._emoji = preset.emoji || "📄";
   $("dlgForm")._tip = preset.tip || "";
   $("dlgForm")._link = preset.link || "";
+  $("dlgForm")._compare = preset.compare || null;
+  $("dlgForm")._travel = preset.travel || "";
   $("dlgForm").showModal();
   if (!editId && !preset.name) $("fName").focus();
 }
 
-function saveForm() {
+function leadValue() {
+  if ($("fLead").value === "custom") return Math.max(1, parseInt($("fCustomLead").value, 10) || 30);
+  return parseInt($("fLead").value, 10) || 30;
+}
+
+async function saveForm() {
   const name = $("fName").value.trim();
   const expiry = $("fExpiry").value;
   if (!name) { toast("צריך לתת שם"); $("fName").focus(); return; }
   if (!expiry) { toast("צריך לבחור תאריך תפוגה"); $("fExpiry").focus(); return; }
 
+  // premium gates
+  if (!settings.premium) {
+    if ($("fProfile").value !== "me") { openPremium("פרופילים משפחתיים"); return; }
+    if ($("fNote").value.trim()) { openPremium("הערות"); return; }
+    if ($("fLead").value === "custom") { openPremium("מרווח התראה מותאם"); return; }
+    if ($("fDoc").files.length) { openPremium("צירוף מסמכים"); return; }
+    if (!editId && items.length >= FREE_LIMIT) { openPremium("יותר מ-" + FREE_LIMIT + " פריטים"); return; }
+  }
+
   const data = {
     name, expiry,
-    lead: parseInt($("fLead").value, 10) || 30,
+    lead: leadValue(),
+    profile: $("fProfile").value,
+    note: $("fNote").value.trim(),
   };
+
+  let target;
   const wasEdit = !!editId;
   if (editId) {
-    const it = items.find(x => x.id === editId);
-    if (it) Object.assign(it, data);
+    target = items.find(x => x.id === editId);
+    if (target) {
+      if (renewMode && target.expiry !== expiry) {
+        target.hist = (target.hist || []).concat({
+          at: toISO(new Date()),
+          old: target.expiry,
+          price: parseFloat($("fRenewPrice").value) || null,
+        });
+        target.snoozeUntil = null;
+      }
+      Object.assign(target, data);
+    }
   } else {
-    items.push(Object.assign({
+    target = Object.assign({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       emoji: $("dlgForm")._emoji,
       tip: $("dlgForm")._tip,
       link: $("dlgForm")._link,
-    }, data));
+      compare: $("dlgForm")._compare,
+      travel: $("dlgForm")._travel,
+      hist: [],
+    }, data);
+    items.push(target);
   }
+
+  // attach document
+  if (target && $("fDoc").files.length) {
+    const file = $("fDoc").files[0];
+    const dataUrl = await new Promise(res => {
+      const r = new FileReader();
+      r.onload = () => res(r.result);
+      r.readAsDataURL(file);
+    });
+    await idbSet("doc:" + target.id, dataUrl).catch(() => {});
+    target.doc = true;
+  }
+
   save(); render();
   $("dlgForm").close();
-  toast(wasEdit ? "נשמר ✓" : "נוסף למעקב ✓");
-  editId = null;
+  toast(renewMode ? "🎉 החידוש נרשם!" : wasEdit ? "נשמר ✓" : "נוסף למעקב ✓");
+  editId = null; renewMode = false;
   checkExpiriesNow();
 }
 
-/* ---------- onboarding wizard ---------- */
+/* ---------- premium ---------- */
+function openPremium(reason) {
+  const b = $("premBody");
+  if (settings.premium) {
+    b.innerHTML = `
+      <div class="prem-hero"><div class="crown">👑</div><h4>פרימיום פעיל</h4><p>כל הכלים פתוחים. תודה שאתה איתנו!</p></div>
+      <div class="field"><label>👨‍👩‍👧 בני המשפחה</label><div id="profList"></div></div>
+      <div class="row2">
+        <div class="field"><input id="newProfName" type="text" maxlength="15" placeholder="שם (למשל: דנה)"></div>
+        <div class="field"><select id="newProfEmoji">
+          <option>👩</option><option>👨</option><option>🧒</option><option>👶</option><option>👵</option><option>👴</option><option>🚗</option><option>🏍️</option><option>🐕</option>
+        </select></div>
+      </div>
+      <button class="btn-secondary" id="btnAddProf">➕ הוספת בן משפחה / רכב</button>
+      <button class="btn-secondary" id="btnIcs">📅 ייצוא כל התאריכים ליומן</button>
+      <button class="btn-secondary" id="btnBackup">💾 הורדת קובץ גיבוי</button>
+      <button class="btn-secondary" id="btnRestoreBtn">📂 שחזור מגיבוי</button>
+      <input type="file" id="restoreFile" accept="application/json" hidden>`;
+    renderProfList();
+    $("btnAddProf").addEventListener("click", () => {
+      const name = $("newProfName").value.trim();
+      if (!name) { toast("צריך שם"); return; }
+      profiles.push({ id: Date.now().toString(36), name, emoji: $("newProfEmoji").value });
+      $("newProfName").value = "";
+      save(); render(); renderProfList();
+      toast(name + " נוסף ✓");
+    });
+    $("btnIcs").addEventListener("click", exportIcs);
+    $("btnBackup").addEventListener("click", exportBackup);
+    $("btnRestoreBtn").addEventListener("click", () => $("restoreFile").click());
+    $("restoreFile").addEventListener("change", importBackup);
+  } else {
+    b.innerHTML = `
+      <div class="prem-hero"><div class="crown">👑</div><h4>תוקף פרימיום</h4>
+        <p>${reason ? "כדי להשתמש ב<b>" + esc(reason) + "</b> צריך פרימיום" : "ההגנה המלאה — לכל המשפחה"}</p></div>
+      <ul class="feat-list">${PREMIUM_FEATURES.map(f => `<li>${esc(f)}</li>`).join("")}</ul>
+      <div class="price-row">
+        <div class="price-card"><div class="p">₪39</div><div class="l">לשנה · מבצע השקה ₪29</div></div>
+        <div class="price-card"><div class="p">₪79</div><div class="l">פעם אחת — לתמיד</div></div>
+      </div>
+      <p class="prem-note">🚧 הרכישה בתשלום תיפתח בקרוב.<br>יש לך קוד גישה מוקדמת? הכנס אותו כאן:</p>
+      <div class="field"><input id="unlockCode" type="text" placeholder="קוד גישה" style="text-align:center"></div>
+      <button class="btn-primary" id="btnUnlock">הפעלת פרימיום</button>`;
+    $("btnUnlock").addEventListener("click", () => {
+      const code = ($("unlockCode").value || "").trim().toUpperCase();
+      if (UNLOCK_CODES.includes(code)) {
+        settings.premium = true;
+        save(); render();
+        $("dlgPremium").close();
+        toast("👑 פרימיום הופעל! תהנה");
+      } else {
+        toast("קוד לא מוכר — נסה שוב");
+      }
+    });
+  }
+  $("dlgPremium").showModal();
+}
+
+function renderProfList() {
+  $("profList").innerHTML = profiles.map(p =>
+    `<div class="prof-row"><span>${esc(p.emoji)}</span><span class="n">${esc(p.name)}</span>
+      ${p.id !== "me" ? `<button data-delprof="${p.id}">הסרה</button>` : ""}</div>`).join("");
+  $("profList").querySelectorAll("[data-delprof]").forEach(btn =>
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.delprof;
+      const used = items.filter(it => it.profile === id).length;
+      if (used && !confirm(`יש ${used} פריטים של הפרופיל הזה — הם יעברו אליך. להמשיך?`)) return;
+      items.forEach(it => { if (it.profile === id) it.profile = "me"; });
+      profiles = profiles.filter(p => p.id !== id);
+      save(); render(); renderProfList();
+    }));
+}
+
+/* ---------- ICS export ---------- */
+function exportIcs() {
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Tokef//He//IL"];
+  for (const it of items) {
+    const d = it.expiry.replace(/-/g, "");
+    lines.push("BEGIN:VEVENT",
+      "UID:" + it.id + "@tokef",
+      "DTSTART;VALUE=DATE:" + d,
+      "SUMMARY:⏰ פג תוקף: " + it.name.replace(/[,;]/g, " "),
+      "DESCRIPTION:נוצר על ידי אפליקציית תוקף",
+      "BEGIN:VALARM", "TRIGGER:-P" + (it.lead || 30) + "D", "ACTION:DISPLAY",
+      "DESCRIPTION:תזכורת חידוש: " + it.name.replace(/[,;]/g, " "), "END:VALARM",
+      "END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+  download(new Blob([lines.join("\r\n")], { type: "text/calendar" }), "tokef.ics");
+  toast("קובץ היומן ירד — פתח אותו והוא ייכנס ליומן ✓");
+}
+
+/* ---------- backup ---------- */
+function exportBackup() {
+  const data = { app: "tokef", version: 1, exportedAt: new Date().toISOString(), items, profiles, settings };
+  download(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+    "tokef-backup-" + toISO(new Date()) + ".json");
+  toast("קובץ הגיבוי ירד — שמור אותו במקום בטוח ✓");
+}
+function importBackup(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const data = JSON.parse(r.result);
+      if (data.app !== "tokef" || !Array.isArray(data.items)) throw new Error("bad");
+      if (!confirm(`לשחזר ${data.items.length} פריטים? הנתונים הנוכחיים יוחלפו.`)) return;
+      items = data.items;
+      profiles = Array.isArray(data.profiles) && data.profiles.length ? data.profiles : profiles;
+      settings = Object.assign(settings, data.settings || {}, { premium: settings.premium || (data.settings || {}).premium });
+      save(); render();
+      $("dlgPremium").close();
+      toast("הגיבוי שוחזר ✓");
+    } catch { toast("קובץ גיבוי לא תקין"); }
+  };
+  r.readAsText(file);
+}
+function download(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ---------- trip check ---------- */
+function openTrip() {
+  if (!settings.premium) { openPremium("בדיקת נסיעה"); return; }
+  const b = $("tripBody");
+  b.innerHTML = `
+    <div class="field"><label for="tripDate">מתי הטיסה?</label><input id="tripDate" type="date" value="${toISO(new Date(Date.now() + 30 * 86400000))}"></div>
+    <button class="btn-primary" id="btnTripCheck">בדוק את כולם</button>
+    <div id="tripReport" style="margin-top:14px"></div>`;
+  $("btnTripCheck").addEventListener("click", () => {
+    const td = $("tripDate").value;
+    if (!td) { toast("בחר תאריך"); return; }
+    const trip = new Date(td + "T00:00:00");
+    const rows = [];
+    const travelDocs = items.filter(it => it.travel);
+    if (!travelDocs.length) rows.push(`<div class="trip-row-item"><span class="t">לא נמצאו דרכונים או ויזות במעקב — הוסף אותם קודם</span></div>`);
+    for (const it of travelDocs) {
+      const exp = new Date(it.expiry + "T00:00:00");
+      const who = profiles.length > 1 ? profOf(it.profile).emoji + " " + profOf(it.profile).name + " — " : "";
+      if (it.travel === "passport") {
+        const need = new Date(trip); need.setDate(need.getDate() + 180);
+        if (exp < trip) rows.push(row(it, who, "bad", "פג לפני הטיסה! ✕"));
+        else if (exp < need) rows.push(row(it, who, "warn", "פחות מ-6 חודשים ⚠️"));
+        else rows.push(row(it, who, "ok", "מוכן לטיסה ✓"));
+      } else {
+        rows.push(exp < trip ? row(it, who, "bad", "פג לפני הטיסה! ✕") : row(it, who, "ok", "בתוקף ✓"));
+      }
+    }
+    // דברים שיפוגו בזמן שאתה בחו"ל (עד שבועיים אחרי)
+    const during = items.filter(it => !it.travel).filter(it => {
+      const exp = new Date(it.expiry + "T00:00:00");
+      const end = new Date(trip); end.setDate(end.getDate() + 14);
+      return exp >= startOfDay(new Date()) && exp <= end;
+    });
+    if (during.length) {
+      rows.push(`<h2 style="margin:14px 4px 8px">שים לב — יפוגו סביב הנסיעה:</h2>`);
+      for (const it of during) rows.push(row(it, "", "warn", "עד " + dateFmt.format(new Date(it.expiry + "T00:00:00"))));
+    }
+    $("tripReport").innerHTML = rows.join("");
+  });
+  $("dlgTrip").showModal();
+
+  function row(it, who, cls, label) {
+    return `<div class="trip-row-item"><span>${esc(it.emoji)}</span><span class="t">${esc(who)}${esc(it.name)}</span><span class="s ${cls}">${label}</span></div>`;
+  }
+}
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2400);
+}
+
+/* ---------- wizard ---------- */
 let wizIndex = 0;
 function openWizard() {
   wizIndex = 0;
@@ -536,10 +1033,10 @@ function renderWizStep() {
     body.innerHTML = `<div class="wiz-step">
       <div class="big">🎉</div>
       <h4>מעולה, אתה מוגן!</h4>
-      <p>אפשר להוסיף עוד דברים בכל רגע — בדיקת גז, רישיון עסק, ויזה, חיסון לכלב ועוד.<br>אל תשכח להפעיל התראות בפעמון 🔔</p>
+      <p>אפשר להוסיף עוד דברים בכל רגע — בדיקת גז, ויזה, חיסון לכלב ועוד.<br>אל תשכח להפעיל התראות בפעמון 🔔</p>
       <button class="btn-primary" id="wizDone">סיימנו</button>
     </div>`;
-    $("wizDone").addEventListener("click", () => { finishWizard(); });
+    $("wizDone").addEventListener("click", finishWizard);
     return;
   }
   const c = CATALOG.find(x => x.name === WIZARD_STEPS[wizIndex]);
@@ -558,7 +1055,9 @@ function renderWizStep() {
     if (!d) { toast("בחר תאריך או דלג"); return; }
     items.push({
       id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      name: c.name, emoji: c.emoji, expiry: d, lead: c.lead, tip: c.tip || "", link: c.link || "",
+      name: c.name, emoji: c.emoji, expiry: d, lead: c.lead,
+      tip: c.tip || "", link: c.link || "", compare: c.compare || null, travel: c.travel || "",
+      profile: "me", hist: [],
     });
     save(); render();
     wizIndex++; renderWizStep();
@@ -571,16 +1070,6 @@ function finishWizard() {
   checkExpiriesNow();
 }
 $("wizClose").addEventListener("click", finishWizard);
-
-/* ---------- toast ---------- */
-let toastTimer;
-function toast(msg) {
-  const t = $("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
-}
 
 /* ---------- PWA ---------- */
 let swReg = null;
@@ -631,6 +1120,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) chec
 
 /* ---------- wiring ---------- */
 $("fabAdd").addEventListener("click", () => {
+  if (!settings.premium && items.length >= FREE_LIMIT) { openPremium("יותר מ-" + FREE_LIMIT + " פריטים"); return; }
   renderCatalog();
   $("dlgCatalog").showModal();
 });
@@ -650,17 +1140,53 @@ $("list").addEventListener("click", e => {
   const it = items.find(x => x.id === card.dataset.id);
   if (it) openForm(it);
 });
+$("profileChips").addEventListener("click", e => {
+  const chip = e.target.closest(".pchip");
+  if (!chip) return;
+  if (chip.dataset.p === "__add") { openPremium(""); return; }
+  activeProfile = chip.dataset.p;
+  render();
+});
+$("fLead").addEventListener("change", () => {
+  $("fieldCustomLead").hidden = $("fLead").value !== "custom";
+});
 $("btnSave").addEventListener("click", saveForm);
+$("btnRenewed").addEventListener("click", () => {
+  if (!settings.premium) { openPremium("היסטוריית חידושים"); return; }
+  renewMode = true;
+  $("fExpiry").value = "";
+  $("fieldRenewPrice").hidden = false;
+  $("fExpiry").focus();
+  toast("הזן את תאריך התפוגה החדש ולחץ שמירה");
+});
+$("btnSnooze").addEventListener("click", () => {
+  if (!settings.premium) { openPremium("השתקת התראות"); return; }
+  const it = items.find(x => x.id === editId);
+  if (!it) return;
+  const d = new Date(); d.setDate(d.getDate() + 7);
+  it.snoozeUntil = toISO(d);
+  save();
+  $("dlgForm").close();
+  toast("😴 מושתק לשבוע — נזכיר שוב אחרי");
+  checkExpiriesNow();
+});
+$("fCompare").addEventListener("click", () => {
+  settings.compareClicks = (settings.compareClicks || 0) + 1;
+  save();
+});
 $("btnDelete").addEventListener("click", () => {
   if (!editId) return;
   const it = items.find(x => x.id === editId);
   if (it && !confirm(`למחוק את "${it.name}"?`)) return;
+  idbDel("doc:" + editId).catch(() => {});
   items = items.filter(x => x.id !== editId);
   editId = null;
   save(); render();
   $("dlgForm").close();
   toast("נמחק");
 });
+$("btnCrown").addEventListener("click", () => openPremium(""));
+$("btnTrip").addEventListener("click", openTrip);
 document.querySelectorAll("[data-close]").forEach(b =>
   b.addEventListener("click", () => $(b.dataset.close).close()));
 
@@ -668,7 +1194,6 @@ bellState();
 idbSet("items", items).catch(() => {});
 render();
 
-// אשף פתיחה בכניסה ראשונה
 if (!localStorage.getItem(K_WIZ) && items.length === 0) {
   openWizard();
 }
