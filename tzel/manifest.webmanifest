@@ -1,0 +1,17 @@
+{
+  "name": "צל דיגיטלי — כמה אתה חשוף ברשת?",
+  "short_name": "צל דיגיטלי",
+  "description": "בדיקת חשיפה דיגיטלית: דליפות, מאגרים וטביעת רגל — עם מדריך הגנה בעברית.",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#071324",
+  "theme_color": "#071324",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
