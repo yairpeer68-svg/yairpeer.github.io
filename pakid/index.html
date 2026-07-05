@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>פקיד — המדינה כותבת, פקיד מתרגם</title>
+<meta name="description" content="צלם כל מכתב רשמי — ביטוח לאומי, מס הכנסה, עירייה — וקבל בשניות הסבר בעברית פשוטה: מה רוצים ממך, עד מתי, ומה לעשות עכשיו.">
+<meta property="og:title" content="פקיד — המדינה כותבת, פקיד מתרגם 🏛️">
+<meta property="og:description" content="צלם מכתב רשמי וקבל הסבר בעברית של בני אדם + טיוטת תשובה מוכנה.">
+<meta name="theme-color" content="#0a1628">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a1628;
+    --glow-1: rgba(245, 185, 66, .12);
+    --glow-2: rgba(30, 64, 120, .5);
+    --card: #101f36;
+    --card-2: #16294a;
+    --text: #f0f4fa;
+    --muted: #93a5c0;
+    --gold: #f5b942;
+    --gold-dark: #2a1e05;
+    --red: #ff6b6b;
+    --ok: #4ade80;
+    --border: #22375c;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: "Rubik", -apple-system, "Segoe UI", Arial, sans-serif;
+    background:
+      radial-gradient(600px 400px at 85% -5%, var(--glow-1), transparent 70%),
+      radial-gradient(700px 500px at -10% 40%, var(--glow-2), transparent 70%),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 14px 16px 60px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 2px 4px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 19px; }
+  .brand .b { font-size: 22px; }
+  .mode-tag {
+    font-size: 11px; font-weight: 700; border-radius: 999px; padding: 4px 10px;
+    background: rgba(245, 185, 66, .15); color: var(--gold); border: 1px solid rgba(245, 185, 66, .35);
+  }
+
+  /* ---- hero ---- */
+  .hero { text-align: center; padding: 30px 8px 8px; }
+  .hero .stamp { font-size: 52px; }
+  .hero h1 { font-size: 32px; font-weight: 900; letter-spacing: -1px; line-height: 1.25; margin-top: 10px; }
+  .hero h1 em { font-style: normal; color: var(--gold); }
+  .hero p { font-size: 15px; color: var(--muted); line-height: 1.7; margin-top: 10px; }
+
+  .cta {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; margin-top: 22px;
+    background: var(--gold); color: var(--gold-dark);
+    border: none; border-radius: 16px;
+    font-size: 18px; font-weight: 900; font-family: inherit;
+    padding: 18px;
+    box-shadow: 0 10px 30px rgba(245, 185, 66, .3);
+    cursor: pointer;
+  }
+  .cta:active { transform: scale(.985); }
+  input[type=file] { display: none; }
+
+  .samples { margin-top: 26px; }
+  .samples .t { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 10px; }
+  .sample-btn {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; text-align: start;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-family: inherit; font-size: 15px; font-weight: 600;
+    padding: 14px; margin-bottom: 8px; cursor: pointer;
+  }
+  .sample-btn:active { border-color: var(--gold); }
+  .sample-btn .e { font-size: 22px; }
+  .sample-btn .s { display: block; font-size: 12.5px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+
+  h2 { font-size: 14px; color: var(--muted); font-weight: 600; margin: 26px 4px 10px; }
+  .hist-card {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 13px 14px; margin-bottom: 8px; cursor: pointer;
+  }
+  .hist-card .e { font-size: 20px; }
+  .hist-card .info { flex: 1; min-width: 0; }
+  .hist-card .n { font-weight: 700; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hist-card .d { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ---- analysis view ---- */
+  .back-btn {
+    background: none; border: none; color: var(--muted); font-family: inherit;
+    font-size: 14px; font-weight: 600; cursor: pointer; padding: 8px 2px;
+  }
+  .doc-head {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 10px;
+  }
+  .doc-head .from { font-size: 12.5px; color: var(--muted); }
+  .doc-head .title { font-size: 19px; font-weight: 900; margin-top: 4px; }
+  .urgency { display: inline-block; margin-top: 10px; font-size: 12.5px; font-weight: 800; border-radius: 999px; padding: 5px 14px; }
+  .urgency.high { background: rgba(255, 107, 107, .15); color: var(--red); border: 1px solid rgba(255, 107, 107, .4); }
+  .urgency.med  { background: rgba(245, 185, 66, .13); color: var(--gold); border: 1px solid rgba(245, 185, 66, .35); }
+  .urgency.low  { background: rgba(74, 222, 128, .12); color: var(--ok); border: 1px solid rgba(74, 222, 128, .35); }
+
+  .sec {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 15px 16px; margin-bottom: 10px;
+  }
+  .sec .h { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; color: var(--gold); margin-bottom: 8px; }
+  .sec p { font-size: 15px; line-height: 1.75; }
+  .sec.deadline { border-color: rgba(255, 107, 107, .45); }
+  .sec.deadline .h { color: var(--red); }
+  .step { display: flex; gap: 10px; padding: 7px 0; font-size: 15px; line-height: 1.6; }
+  .step .n {
+    flex-shrink: 0; width: 24px; height: 24px; border-radius: 50%;
+    background: var(--card-2); border: 1px solid var(--border);
+    color: var(--gold); font-size: 13px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; margin-top: 2px;
+  }
+  .draft {
+    background: var(--bg); border: 1px dashed var(--border); border-radius: 12px;
+    padding: 14px; font-size: 14px; line-height: 1.8; white-space: pre-wrap; margin-top: 8px;
+  }
+  .copy-btn {
+    width: 100%; margin-top: 10px; padding: 12px;
+    background: var(--card-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 12px;
+    font-size: 14px; font-weight: 700; font-family: inherit; cursor: pointer;
+  }
+  .calm { text-align: center; font-size: 14px; color: var(--muted); padding: 14px 10px 4px; line-height: 1.7; }
+
+  .demo-note {
+    background: rgba(245, 185, 66, .08); border: 1px solid rgba(245, 185, 66, .3);
+    color: #ffd98a; border-radius: 14px; padding: 12px 14px;
+    font-size: 13.5px; line-height: 1.7; margin-bottom: 12px;
+  }
+
+  .spinner { text-align: center; padding: 60px 20px; }
+  .spinner .e { font-size: 44px; animation: pulse 1s infinite alternate; display: inline-block; }
+  .spinner p { color: var(--muted); margin-top: 12px; font-size: 15px; }
+  @keyframes pulse { from { transform: scale(1); opacity: .7; } to { transform: scale(1.15); opacity: 1; } }
+
+  .toast {
+    position: fixed; bottom: 30px; inset-inline-start: 50%;
+    transform: translateX(50%);
+    background: var(--gold); color: var(--gold-dark);
+    padding: 10px 20px; border-radius: 999px;
+    font-size: 14px; font-weight: 800;
+    opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 50;
+  }
+  .toast.show { opacity: 1; }
+
+  footer { text-align: center; margin-top: 36px; font-size: 12px; color: var(--muted); line-height: 1.9; opacity: .85; }
+  footer a { color: var(--muted); }
+  .disclaimer { font-size: 11px; opacity: .8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand"><span class="b">🏛️</span> פקיד</div>
+    <span class="mode-tag" id="modeTag">גרסת הדגמה</span>
+  </div>
+
+  <!-- home view -->
+  <div id="viewHome">
+    <div class="hero">
+      <div class="stamp">📨</div>
+      <h1>המדינה כותבת.<br><em>פקיד מתרגם.</em></h1>
+      <p>צלם כל מכתב רשמי — ביטוח לאומי, מס הכנסה, עירייה —<br>וקבל בשניות: מה רוצים ממך, עד מתי, ומה עושים עכשיו.</p>
+    </div>
+
+    <label class="cta" for="fileInput">📷 צלם או העלה מכתב</label>
+    <input type="file" id="fileInput" accept="image/*,application/pdf">
+
+    <div class="samples">
+      <div class="t">או נסה על מכתב לדוגמה:</div>
+      <div id="sampleList"></div>
+    </div>
+
+    <h2 id="histTitle" hidden>המכתבים שלי</h2>
+    <div id="histList"></div>
+  </div>
+
+  <!-- analysis view -->
+  <div id="viewAnalysis" hidden>
+    <button class="back-btn" id="btnBack">→ חזרה</button>
+    <div id="analysisBody"></div>
+  </div>
+
+  <!-- loading -->
+  <div id="viewLoading" hidden>
+    <div class="spinner"><span class="e">🏛️</span><p>הפקיד קורא את המכתב שלך…</p></div>
+  </div>
+
+  <footer>
+    המסמכים שלך מנותחים ונשמרים באופן מאובטח. <a href="privacy.html">מדיניות פרטיות</a><br>
+    <span class="disclaimer">פקיד עוזר להבין ולהתארגן — הוא לא ייעוץ משפטי. במקרים מורכבים כדאי להתייעץ עם איש מקצוע.</span>
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   הגדרות שרת — כשמחברים את ה-backend, ממלאים את שני אלה
+   וכל האפליקציה עוברת אוטומטית ממצב הדגמה למצב אמיתי.
+   הוראות מלאות: pakid-backend/README.md
+   ========================================================= */
+const CONFIG = {
+  SUPABASE_URL: "",       // למשל: https://xxxx.supabase.co
+  SUPABASE_ANON_KEY: "",  // המפתח הציבורי (anon) מלוח הבקרה
+};
+const SERVER_MODE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+
+/* ---------- מכתבי הדגמה עם ניתוח מלא ---------- */
+const SAMPLES = [
+  {
+    id: "btl",
+    emoji: "🏥",
+    label: "מכתב מביטוח לאומי",
+    sub: "דרישת החזר בגין תשלום יתר",
+    analysis: {
+      sender: "המוסד לביטוח לאומי — תחום גבייה",
+      title: "הם טוענים ששילמו לך יותר מדי, ורוצים את הכסף בחזרה",
+      urgency: "high",
+      urgencyText: "דחוף — יש מועד אחרון לערעור",
+      summary: "לפי המכתב, בתקופה מסוימת קיבלת קצבה בסכום גבוה מהמגיע לך (למשל כי עבדת במקביל או שהשתנה מצבך המשפחתי), ועכשיו הם דורשים החזר של הסכום העודף. זה מכתב מאוד נפוץ — והרבה פעמים אפשר לערער עליו, לפרוס את החוב, או אפילו לבקש מחיקה מטעמי צדק.",
+      demand: "החזר של הסכום הנקוב במכתב, או תגובה מנומקת מצדך.",
+      deadline: "בדרך כלל 45 יום ממועד קבלת המכתב להגשת ערעור או השגה. בדוק את התאריך המדויק במכתב שלך!",
+      steps: [
+        "אל תשלם עדיין — קודם תבדוק. תשלום עלול להתפרש כהסכמה לחוב.",
+        "בדוק במכתב על איזו תקופה מדובר ומה הסיבה לדרישה.",
+        "אסוף מסמכים מהתקופה: תלושי שכר, אישורים, כל מה שרלוונטי.",
+        "הגש השגה בכתב (טיוטה מוכנה למטה) — אפשר באתר ביטוח לאומי או בסניף.",
+        "גם אם החוב מוצדק — אפשר לבקש פריסת תשלומים או ועדת מחיקת חובות.",
+      ],
+      draft: "לכבוד: המוסד לביטוח לאומי, תחום גבייה\nהנדון: השגה על דרישת החזר — [מספר תיק מהמכתב]\n\nשלום רב,\nביום [תאריך] התקבל אצלי מכתבכם בדרישה להחזר בסך [סכום] ₪.\nברצוני להגיש השגה על הדרישה מהנימוקים הבאים:\n1. [פרט: למשל — לא חל שינוי במצבי / דיווחתי כנדרש / הסכום שגוי]\n2. מצורפים מסמכים התומכים בטענתי.\nכמו כן, ככל שיוחלט כי החוב בעינו, אבקש לשקול פריסת תשלומים בהתחשב במצבי הכלכלי.\nאודה לקבלת אישור קבלת פנייה זו ולמענה בכתב.\n\nבכבוד רב,\n[שם מלא] | ת.ז [מספר] | טלפון: [מספר]",
+      calm: "😌 נשום עמוק: אלפי אנשים מקבלים את המכתב הזה כל חודש, ולחלק גדול מהם החוב מצטמצם או נמחק אחרי השגה. העיקר — לא להתעלם ולא לשלם לפני שבודקים.",
+    },
+  },
+  {
+    id: "arnona",
+    emoji: "🏘️",
+    label: "מכתב מהעירייה",
+    sub: "דחיית בקשה להנחה בארנונה",
+    analysis: {
+      sender: "עיריית [שם העיר] — מחלקת גבייה",
+      title: "הבקשה שלך להנחה בארנונה נדחתה — אבל יש דרך לערער",
+      urgency: "med",
+      urgencyText: "חשוב — כדאי לטפל בשבועיים הקרובים",
+      summary: "העירייה דחתה את בקשתך להנחה בארנונה, כנראה בגלל מסמך חסר או אי-עמידה בקריטריון הכנסה. שים לב: דחיות כאלה הן מאוד שכיחות ולעיתים נובעות מטעות טכנית — מסמך שלא נקלט או חישוב הכנסה שגוי. יש לך זכות מלאה לערור בפני ועדת ההנחות.",
+      demand: "אם לא תגיב — ההנחה לא תינתן והחיוב המלא יישאר.",
+      deadline: "ערר לוועדת הנחות מגישים בדרך כלל תוך 30 יום מקבלת ההחלטה.",
+      steps: [
+        "קרא במכתב את סיבת הדחייה המדויקת (חסר מסמך? חריגה בהכנסות?).",
+        "אם חסר מסמך — פשוט השלם אותו והגש מחדש. זה המקרה הכי נפוץ.",
+        "אם נדחית לגופו של עניין — הגש ערר בכתב לוועדת ההנחות (טיוטה למטה).",
+        "צרף: תלושי שכר / אישורי קצבאות של 3 החודשים האחרונים, וכל מסמך רלוונטי.",
+        "טיפ: ברוב הערים אפשר להגיש הכל במייל — חפש 'ועדת הנחות ארנונה' + שם העיר.",
+      ],
+      draft: "לכבוד: ועדת ההנחות, עיריית [עיר]\nהנדון: ערר על דחיית בקשה להנחה בארנונה — נכס [מספר נכס]\n\nשלום רב,\nביום [תאריך] נדחתה בקשתי להנחה בארנונה בנימוק [הנימוק מהמכתב].\nברצוני לערור על ההחלטה: [פרט — למשל: המסמך החסר מצורף כעת / חלה טעות בחישוב ההכנסה החודשית]\nמצורפים כל המסמכים הנדרשים.\nאבקש את דיון הוועדה בעניין ועדכון בכתב.\n\nבכבוד רב,\n[שם מלא] | ת.ז [מספר] | כתובת הנכס: [כתובת]",
+      calm: "😌 רוב העררים על הנחות ארנונה שנדחו בגלל מסמכים — מתקבלים אחרי השלמה. שווה את חצי השעה.",
+    },
+  },
+  {
+    id: "mas",
+    emoji: "💰",
+    label: "מכתב ממס הכנסה",
+    sub: "דרישה להגשת דוח שנתי",
+    analysis: {
+      sender: "רשות המסים — פקיד שומה",
+      title: "אתה נדרש להגיש דוח שנתי — וזה עשוי דווקא להיות לטובתך",
+      urgency: "med",
+      urgencyText: "יש זמן — אבל אל תדחה לרגע האחרון",
+      summary: "רשות המסים דורשת שתגיש דוח שנתי על הכנסותיך. זה קורה למשל אם היו לך כמה מקורות הכנסה, הכנסה משכר דירה, או פעילות עצמאית. חשוב לדעת: חובת הגשה היא לא קנס — ולא מעט אנשים מגלים בעת הגשת הדוח שמגיע להם דווקא החזר מס.",
+      demand: "הגשת דוח שנתי (טופס 1301) עד המועד הנקוב במכתב.",
+      deadline: "המועד מופיע במכתב. אי-הגשה גוררת קנסות שמצטברים כל חודש — אז עדיף מוקדם.",
+      steps: [
+        "אסוף טפסי 106 מכל מעסיק שעבדת בו באותה שנה.",
+        "אסוף אישורים שנתיים: קופות גמל, ביטוח חיים, תרומות (סעיף 46), ריביות.",
+        "אם המצב פשוט (שכיר + עוד הכנסה קטנה) — אפשר להגיש לבד באתר רשות המסים.",
+        "אם יש עסק / שכר דירה משמעותי — שקול יועץ מס; העלות בדרך כלל משתלמת.",
+        "בהזדמנות זו בדוק החזרי מס גם על 6 השנים האחרונות — ייתכן שמגיע לך כסף.",
+      ],
+      draft: "לכבוד: פקיד השומה [אזור]\nהנדון: מכתבכם בדבר חובת הגשת דוח שנתי — ת.ז [מספר]\n\nשלום רב,\nקיבלתי את מכתבכם בנוגע לחובת הגשת דוח לשנת [שנה].\nאני פועל לאיסוף המסמכים הנדרשים ואגיש את הדוח עד המועד הקבוע.\n[אופציונלי: לחלופין — אבקש ארכה של [X] ימים לצורך השלמת מסמכים, זאת בשל (סיבה).]\nאודה לאישורכם בכתב.\n\nבכבוד רב,\n[שם מלא] | ת.ז [מספר] | טלפון: [מספר]",
+      calm: "😌 עובדה משמחת: חלק ניכר ממי שנדרש להגיש דוח מגלה שמגיע לו החזר. ייתכן שהמכתב הזה שווה לך כסף.",
+    },
+  },
+];
+
+/* ---------- state ---------- */
+const K_HIST = "pakid.history.v1";
+let history = loadJSON(K_HIST, []);
+let currentView = "home";
+
+function loadJSON(key, fallback) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key));
+    return v == null ? fallback : v;
+  } catch { return fallback; }
+}
+function saveHistory() {
+  // בגרסת ההדגמה ההיסטוריה נשמרת במכשיר; במצב שרת — במסד הנתונים
+  localStorage.setItem(K_HIST, JSON.stringify(history.slice(0, 30)));
+}
+
+const $ = id => document.getElementById(id);
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+const dtFmt = new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+/* ---------- views ---------- */
+function show(view) {
+  currentView = view;
+  $("viewHome").hidden = view !== "home";
+  $("viewAnalysis").hidden = view !== "analysis";
+  $("viewLoading").hidden = view !== "loading";
+  window.scrollTo(0, 0);
+}
+
+function renderHome() {
+  $("sampleList").innerHTML = SAMPLES.map(s =>
+    `<button class="sample-btn" data-s="${s.id}"><span class="e">${s.emoji}</span>
+      <span>${esc(s.label)}<span class="s">${esc(s.sub)}</span></span></button>`).join("");
+  $("histTitle").hidden = history.length === 0;
+  $("histList").innerHTML = history.map((h, i) =>
+    `<div class="hist-card" data-h="${i}"><span class="e">${h.emoji || "📄"}</span>
+      <div class="info"><div class="n">${esc(h.analysis.title)}</div>
+      <div class="d">${esc(h.analysis.sender)} · ${dtFmt.format(new Date(h.at))}</div></div></div>`).join("");
+}
+
+function renderAnalysis(a, opts = {}) {
+  const urgCls = a.urgency === "high" ? "high" : a.urgency === "low" ? "low" : "med";
+  $("analysisBody").innerHTML = `
+    ${opts.demoNote ? `<div class="demo-note">🧪 <b>זו הדגמה</b> על מכתב טיפוסי — כשהשרת יחובר, פקיד ינתח ככה כל מכתב אמיתי שתצלם.</div>` : ""}
+    <div class="doc-head">
+      <div class="from">📨 ${esc(a.sender)}</div>
+      <div class="title">${esc(a.title)}</div>
+      <span class="urgency ${urgCls}">${esc(a.urgencyText)}</span>
+    </div>
+    <div class="sec"><div class="h">🧾 מה המכתב הזה אומר, בעברית פשוטה</div><p>${esc(a.summary)}</p></div>
+    <div class="sec"><div class="h">👉 מה רוצים ממך</div><p>${esc(a.demand)}</p></div>
+    <div class="sec deadline"><div class="h">⏰ עד מתי</div><p>${esc(a.deadline)}</p></div>
+    <div class="sec"><div class="h">✅ מה לעשות עכשיו — צעד אחר צעד</div>
+      ${a.steps.map((s, i) => `<div class="step"><span class="n">${i + 1}</span><span>${esc(s)}</span></div>`).join("")}
+    </div>
+    <div class="sec"><div class="h">✍️ טיוטת תשובה מוכנה</div>
+      <div class="draft" id="draftText">${esc(a.draft)}</div>
+      <button class="copy-btn" id="btnCopy">📋 העתק את הטיוטה</button>
+    </div>
+    <div class="calm">${esc(a.calm)}</div>`;
+  $("btnCopy").addEventListener("click", () => {
+    navigator.clipboard.writeText(a.draft).then(() => toast("הטיוטה הועתקה ✓"))
+      .catch(() => toast("סמן והעתק ידנית"));
+  });
+  show("analysis");
+}
+
+/* ---------- demo flow ---------- */
+function openSample(id) {
+  const s = SAMPLES.find(x => x.id === id);
+  if (!s) return;
+  show("loading");
+  setTimeout(() => {
+    renderAnalysis(s.analysis, { demoNote: true });
+    if (!history.some(h => h.sampleId === id)) {
+      history.unshift({ sampleId: id, emoji: s.emoji, analysis: s.analysis, at: Date.now() });
+      saveHistory(); renderHome();
+    }
+  }, 1400);
+}
+
+/* ---------- server flow (מופעל כשהשרת מחובר) ---------- */
+let supabase = null;
+async function initServer() {
+  const mod = await import("https://esm.sh/@supabase/supabase-js@2");
+  supabase = mod.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+}
+
+async function analyzeReal(file) {
+  show("loading");
+  try {
+    // התחברות אנונימית שקופה — משתמש נוצר אוטומטית בלי טפסים
+    let { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      const { error } = await supabase.auth.signInAnonymously();
+      if (error) throw error;
+      session = (await supabase.auth.getSession()).data.session;
+    }
+    const b64 = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(",")[1]);
+      r.onerror = rej;
+      r.readAsDataURL(file);
+    });
+    const { data, error } = await supabase.functions.invoke("analyze-letter", {
+      body: { image: b64, mime: file.type || "image/jpeg" },
+    });
+    if (error) throw error;
+    renderAnalysis(data.analysis);
+    history.unshift({ emoji: "📄", analysis: data.analysis, at: Date.now() });
+    saveHistory(); renderHome();
+  } catch (e) {
+    show("home");
+    toast("משהו השתבש בניתוח — נסה שוב");
+    console.error(e);
+  }
+}
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+/* ---------- wiring ---------- */
+$("modeTag").textContent = SERVER_MODE ? "מחובר לשרת ●" : "גרסת הדגמה";
+if (SERVER_MODE) initServer();
+
+$("fileInput").addEventListener("change", e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (SERVER_MODE) {
+    analyzeReal(file);
+  } else {
+    toast("🧪 מנוע ה-AI עוד לא חובר — בינתיים נסה מכתב לדוגמה");
+    $("sampleList").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+});
+
+$("sampleList").addEventListener("click", e => {
+  const btn = e.target.closest(".sample-btn");
+  if (btn) openSample(btn.dataset.s);
+});
+$("histList").addEventListener("click", e => {
+  const card = e.target.closest(".hist-card");
+  if (!card) return;
+  const h = history[parseInt(card.dataset.h, 10)];
+  if (h) renderAnalysis(h.analysis, { demoNote: !!h.sampleId });
+});
+$("btnBack").addEventListener("click", () => show("home"));
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+renderHome();
+show("home");
+</script>
+</body>
+</html>
