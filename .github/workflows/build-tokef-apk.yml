@@ -3,8 +3,11 @@ name: Build Tokef APK
 on:
   push:
     branches: [ "main", "claude/monetization-app-idea-prry2y" ]
-    paths: [ "tokef-android/**", "tokef/**" ]
+    paths: [ "tokef-android/**", "tokef/**", ".github/workflows/build-tokef-apk.yml" ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -31,9 +34,29 @@ jobs:
       - name: Build debug APK
         run: cd tokef-android && gradle assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Rename APK
+        run: cp tokef-android/app/build/outputs/apk/debug/app-debug.apk tokef.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: tokef-apk
-          path: tokef-android/app/build/outputs/apk/debug/app-debug.apk
+          path: tokef.apk
           retention-days: 30
+
+      # בכל דחיפה ל-main: מפרסם את ה-APK כ-Release ציבורי עם קישור הורדה ישיר
+      - name: Publish latest APK as release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: tokef-latest
+          name: "תוקף — גרסה אחרונה (APK)"
+          body: |
+            📱 הגרסה האחרונה של אפליקציית תוקף לאנדרואיד.
+
+            **התקנה:** הורד את `tokef.apk` מלמטה, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
+
+            🛡️ שום דבר לא יפוג לך יותר.
+          files: tokef.apk
+          prerelease: false
+          make_latest: true
