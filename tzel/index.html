@@ -343,39 +343,51 @@ function runScan() {
   lastEmail = email;
   show("scan");
 
-  // ניסיון שרת במקביל לאנימציה; נפילה חיננית להדגמה אם השרת עוד לא הושלם
+  // ניסיון שרת במקביל לאנימציה; נפילה חיננית להדגמה אם השרת עוד לא הושלם.
+  // מרווח נדיב (20ש') כי הסריקה האמיתית עושה כמה קריאות + התעוררות שרת בפעם הראשונה.
   let serverPromise = null;
+  let serverSettled = false;
   lastServerError = "";
   if (SERVER_MODE) {
     serverPromise = Promise.race([
       serverScan(email, phone),
-      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout — השרת לא הגיב תוך 4 שניות")), 4000)),
-    ]).catch(err => { lastServerError = (err && err.message) || String(err); console.warn("[tzel] server scan failed:", lastServerError); return null; });
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout — השרת לא הגיב תוך 20 שניות")), 20000)),
+    ]).catch(err => { lastServerError = (err && err.message) || String(err); console.warn("[tzel] server scan failed:", lastServerError); return null; })
+      .then(r => { serverSettled = true; return r; });
   }
 
   const steps = [
     "> scanning breach databases…",
     "> checking " + email + " …",
-    "> querying public records…",
-    "> analyzing social footprint…",
-    "> checking phone reputation…",
+    "> querying HIBP breach records…",
+    "> pulling exposed data classes…",
+    "> checking paste dumps…",
+    "> checking public profiles…",
     "> compiling exposure report…",
   ];
   let i = 0;
   const log = $("scanLog");
-  const iv = setInterval(async () => {
-    log.textContent = steps[i] || "";
-    if (++i >= steps.length) {
+  const finish = async () => {
+    let report = serverPromise ? await serverPromise : null;
+    if (report) {
+      $("modeTag").textContent = "מחובר ●";
+      lastReport = report;
+    } else {
+      if (SERVER_MODE) toast("שרת לא זמין — הצגת הדגמה");
+      lastReport = demoFindings(email);
+    }
+    renderResults(lastReport);
+  };
+
+  const iv = setInterval(() => {
+    log.textContent = steps[Math.min(i, steps.length - 1)];
+    i++;
+    // בהדגמה: מסיימים אחרי מעבר על כל השלבים.
+    // במצב שרת: ממשיכים לחזור על השלב האחרון עד שהשרת עונה (או timeout).
+    const doneAnimating = i >= steps.length;
+    if (doneAnimating && (!serverPromise || serverSettled)) {
       clearInterval(iv);
-      let report = serverPromise ? await serverPromise : null;
-      if (report) {
-        $("modeTag").textContent = "מחובר ●";
-        lastReport = report;
-      } else {
-        if (SERVER_MODE) toast("שרת לא זמין — הצגת הדגמה");
-        lastReport = demoFindings(email);
-      }
-      renderResults(lastReport);
+      finish();
     }
   }, 420);
 }
