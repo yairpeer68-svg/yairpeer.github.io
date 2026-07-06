@@ -252,7 +252,10 @@
    ממלאים כאן וכל האפליקציה עוברת ממצב הדגמה לבדיקה אמיתית.
    הוראות: tzel-backend/README.md
    ========================================================= */
-const CONFIG = { SUPABASE_URL: "", SUPABASE_ANON_KEY: "" };
+const CONFIG = {
+  SUPABASE_URL: "https://twggrbbkoxjyycydrvpi.supabase.co",
+  SUPABASE_ANON_KEY: "sb_publishable_QPyn4aNqaO2H6kWEedY0SA_przNJs3G",
+};
 const SERVER_MODE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 
 /* פרימיום */
@@ -303,10 +306,42 @@ function show(v) {
 const SEV_LABEL = { critical: "קריטי", warn: "לתיקון", info: "מידע", ok: "תקין" };
 const SEV_CLASS = { critical: "sev-critical", warn: "sev-warn", info: "sev-info", ok: "sev-ok" };
 
+/* ---------- server integration (מופעל כשה-CONFIG מלא) ---------- */
+let supabase = null;
+async function ensureClient() {
+  if (supabase) return supabase;
+  const mod = await import("https://esm.sh/@supabase/supabase-js@2");
+  supabase = mod.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  return supabase;
+}
+async function serverScan(email, phone) {
+  const sb = await ensureClient();
+  let { data: { session } } = await sb.auth.getSession();
+  if (!session) {
+    const { error } = await sb.auth.signInAnonymously();
+    if (error) throw error;
+  }
+  const { data, error } = await sb.functions.invoke("scan", { body: { email, phone } });
+  if (error) throw error;
+  if (!data || !data.report || !Array.isArray(data.report.findings)) throw new Error("bad response");
+  return data.report;
+}
+
 function runScan() {
   const email = $("fEmail").value.trim();
+  const phone = $("fPhone").value.trim();
   if (!email || !email.includes("@")) { toast("הזן כתובת מייל תקינה"); $("fEmail").focus(); return; }
   show("scan");
+
+  // ניסיון שרת במקביל לאנימציה; נפילה חיננית להדגמה אם השרת עוד לא הושלם
+  let serverPromise = null;
+  if (SERVER_MODE) {
+    serverPromise = Promise.race([
+      serverScan(email, phone),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 4000)),
+    ]).catch(err => { console.warn("[tzel] server scan unavailable, using demo:", err && err.message); return null; });
+  }
+
   const steps = [
     "> scanning breach databases…",
     "> checking " + email + " …",
@@ -317,11 +352,19 @@ function runScan() {
   ];
   let i = 0;
   const log = $("scanLog");
-  const iv = setInterval(() => {
+  const iv = setInterval(async () => {
     log.textContent = steps[i] || "";
     if (++i >= steps.length) {
       clearInterval(iv);
-      setTimeout(() => { lastReport = demoFindings(email); renderResults(lastReport); }, 400);
+      let report = serverPromise ? await serverPromise : null;
+      if (report) {
+        $("modeTag").textContent = "מחובר ●";
+        lastReport = report;
+      } else {
+        if (SERVER_MODE) toast("מצב הדגמה — השרת עדיין בהגדרה");
+        lastReport = demoFindings(email);
+      }
+      renderResults(lastReport);
     }
   }, 420);
 }
@@ -445,7 +488,7 @@ let toastTimer;
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2600);}
 
 /* ---------- wiring ---------- */
-$("modeTag").textContent = SERVER_MODE ? "מחובר ●" : "הדגמה";
+$("modeTag").textContent = "הדגמה"; // יתחלף ל"מחובר ●" אחרי סריקה מוצלחת מול השרת
 $("btnScan").addEventListener("click", runScan);
 $("fPhone").addEventListener("keydown", e => { if (e.key === "Enter") runScan(); });
 $("btnRescan").addEventListener("click", () => show("home"));
