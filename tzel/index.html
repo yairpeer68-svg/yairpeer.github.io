@@ -370,10 +370,10 @@ function runScan() {
   const finish = async () => {
     let report = serverPromise ? await serverPromise : null;
     if (report) {
-      $("modeTag").textContent = "מחובר ●";
+      setTag(true);
       lastReport = report;
     } else {
-      if (SERVER_MODE) toast("שרת לא זמין — הצגת הדגמה");
+      if (SERVER_MODE) { setTag(false); toast("שרת לא זמין — הצגת הדגמה"); }
       lastReport = demoFindings(email);
     }
     renderResults(lastReport);
@@ -519,12 +519,31 @@ let toastTimer;
 function toast(msg){const t=$("toast");t.textContent=msg;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2600);}
 
 /* ---------- wiring ---------- */
-$("modeTag").textContent = "הדגמה"; // יתחלף ל"מחובר ●" אחרי סריקה מוצלחת מול השרת
+function setTag(connected) {
+  $("modeTag").textContent = connected ? "מחובר ●" : "הדגמה";
+  $("modeTag").style.color = connected ? "var(--ok)" : "var(--muted)";
+}
+setTag(false);
+
+// בדיקת חיבור אוטומטית בטעינה — מאמתת קשר לשרת (וגם "מחממת" אותו לקיצור זמן הסריקה)
+async function checkConnection() {
+  if (!SERVER_MODE) return;
+  try {
+    const sb = await ensureClient();
+    let { data: { session } } = await sb.auth.getSession();
+    if (!session) { const { error } = await sb.auth.signInAnonymously(); if (error) throw error; }
+    setTag(true);
+  } catch (e) {
+    setTag(false); // נשארים בהדגמה; הסריקה עצמה תנסה שוב ותציג שגיאה אם צריך
+  }
+}
+
 $("btnScan").addEventListener("click", runScan);
 $("fPhone").addEventListener("keydown", e => { if (e.key === "Enter") runScan(); });
 $("btnRescan").addEventListener("click", () => show("home"));
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 show("home");
+checkConnection();
 </script>
 </body>
 </html>
