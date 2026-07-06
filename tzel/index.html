@@ -88,6 +88,14 @@
     font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer;
   }
   .tool-btn:active { border-color: var(--cyan); }
+  .hist-strip { margin-top: 22px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
+  .hist-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .hist-title span { font-weight: 600; color: var(--text); font-size: 12.5px; }
+  .hist-bars { display: flex; align-items: flex-end; gap: 8px; height: 90px; }
+  .hbar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px; }
+  .hfill { width: 100%; max-width: 30px; border-radius: 5px 5px 0 0; min-height: 8px; }
+  .hnum { font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .hdate { font-size: 9.5px; color: var(--muted); }
 
   dialog {
     border: 1px solid var(--border); background: var(--card); color: var(--text);
@@ -261,6 +269,7 @@
 
       <button class="tool-btn" id="btnPwTool">🔑 בדוק אם סיסמה שלך דלפה</button>
     </div>
+    <div id="histStrip" class="hist-strip" hidden></div>
   </div>
 
   <!-- password checker -->
@@ -351,12 +360,40 @@ const $ = id => document.getElementById(id);
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 let lastReport = null;
 let lastServerError = "";
+
+/* ---------- היסטוריית סריקות (מקומית) ---------- */
+const K_HISTORY = "tzel.history.v1";
+function loadHist() { try { return JSON.parse(localStorage.getItem(K_HISTORY)) || []; } catch { return []; } }
+function saveHistory(report, real) {
+  if (!report) return;
+  const crit = report.findings.filter(f => f.sev === "critical").length;
+  const hist = loadHist();
+  hist.unshift({ at: Date.now(), score: report.score, crit, real: !!real });
+  localStorage.setItem(K_HISTORY, JSON.stringify(hist.slice(0, 20)));
+}
+function renderHistory() {
+  const el = document.getElementById("histStrip");
+  if (!el) return;
+  const hist = loadHist();
+  if (hist.length < 2) { el.hidden = true; return; }
+  el.hidden = false;
+  const prev = hist[1].score, now = hist[0].score;
+  const diff = now - prev;
+  const trend = diff > 0 ? `📈 עלית ב-${diff} מהסריקה הקודמת` : diff < 0 ? `📉 ירדת ב-${-diff} מהסריקה הקודמת` : "➡️ ללא שינוי מהסריקה הקודמת";
+  const dtf = new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "short" });
+  el.innerHTML = `<div class="hist-title">היסטוריית הציונים שלך <span>${trend}</span></div>
+    <div class="hist-bars">${hist.slice(0, 8).reverse().map(h => {
+      const col = h.score < 40 ? "var(--red)" : h.score < 70 ? "var(--orange)" : "var(--green)";
+      return `<div class="hbar"><div class="hfill" style="height:${Math.max(8, h.score)}%;background:${col}"></div><span class="hnum">${h.score}</span><span class="hdate">${dtf.format(new Date(h.at))}</span></div>`;
+    }).join("")}</div>`;
+}
 let lastEmail = "";
 
 function show(v) {
   $("viewHome").hidden = v !== "home";
   $("viewScan").hidden = v !== "scan";
   $("viewResults").hidden = v !== "results";
+  if (v === "home") renderHistory();
   window.scrollTo(0, 0);
 }
 
@@ -426,6 +463,7 @@ function runScan() {
       if (SERVER_MODE) { setTag(false); toast("שרת לא זמין — הצגת הדגמה"); }
       lastReport = demoFindings(email);
     }
+    saveHistory(lastReport, !!report);
     renderResults(lastReport);
   };
 
