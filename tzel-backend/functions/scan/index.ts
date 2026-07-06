@@ -100,14 +100,22 @@ Deno.serve(async (req) => {
     const breachCount = await checkBreaches(email.trim().toLowerCase());
     const report = buildReport(breachCount, !!phone);
 
-    // ניטור: נשמר רק גיבוב, לא המייל עצמו
-    if (monitor) {
+    // ניטור: כשהמשתמש מפעיל ניטור, נשמר המייל (מוגן ב-RLS) כדי לאפשר בדיקה חוזרת מול HIBP.
+    // כיבוי ניטור מסמן active=false. ראה מדיניות הפרטיות.
+    const clean = email.trim().toLowerCase();
+    if (monitor === true || monitor === false) {
       const admin = createClient(SUPABASE_URL, SERVICE_KEY);
-      const hash = await sha256Hex(email.trim().toLowerCase());
-      await admin.from("monitors").upsert({
-        user_id: user.id, email_hash: hash,
-        last_breach_count: Math.max(0, breachCount), active: true,
-      }, { onConflict: "user_id,email_hash" });
+      const hash = await sha256Hex(clean);
+      if (monitor === true) {
+        await admin.from("monitors").upsert({
+          user_id: user.id, email_hash: hash, email: clean,
+          last_breach_count: Math.max(0, breachCount), active: true,
+          last_checked: new Date().toISOString(),
+        }, { onConflict: "user_id,email_hash" });
+      } else {
+        await admin.from("monitors").update({ active: false })
+          .eq("user_id", user.id).eq("email_hash", hash);
+      }
     }
 
     return json({ report }, 200, cors);

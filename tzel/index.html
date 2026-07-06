@@ -296,6 +296,7 @@ const $ = id => document.getElementById(id);
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 let lastReport = null;
 let lastServerError = "";
+let lastEmail = "";
 
 function show(v) {
   $("viewHome").hidden = v !== "home";
@@ -315,14 +316,16 @@ async function ensureClient() {
   supabase = mod.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
   return supabase;
 }
-async function serverScan(email, phone) {
+async function serverScan(email, phone, monitor) {
   const sb = await ensureClient();
   let { data: { session } } = await sb.auth.getSession();
   if (!session) {
     const { error } = await sb.auth.signInAnonymously();
     if (error) throw error;
   }
-  const { data, error } = await sb.functions.invoke("scan", { body: { email, phone } });
+  const body = { email, phone };
+  if (monitor === true || monitor === false) body.monitor = monitor;
+  const { data, error } = await sb.functions.invoke("scan", { body });
   if (error) throw error;
   if (!data || !data.report || !Array.isArray(data.report.findings)) throw new Error("bad response");
   return data.report;
@@ -332,6 +335,7 @@ function runScan() {
   const email = $("fEmail").value.trim();
   const phone = $("fPhone").value.trim();
   if (!email || !email.includes("@")) { toast("הזן כתובת מייל תקינה"); $("fEmail").focus(); return; }
+  lastEmail = email;
   show("scan");
 
   // ניסיון שרת במקביל לאנימציה; נפילה חיננית להדגמה אם השרת עוד לא הושלם
@@ -478,11 +482,24 @@ function wireResults() {
     } else toast("קוד לא מוכר");
   });
   const mon = $("btnMonitor");
-  if (mon) mon.addEventListener("click", () => {
+  if (mon) mon.addEventListener("click", async () => {
     if (!isPremium) { toast("ניטור מתמשך זמין בפרימיום 👑"); return; }
     const on = localStorage.getItem("tzel.monitor") === "1";
-    localStorage.setItem("tzel.monitor", on ? "0" : "1");
-    toast(on ? "הניטור כובה" : "🛰️ ניטור הופעל — נתריע על דליפות חדשות");
+    const next = !on;
+    // רישום/ביטול הניטור בשרת (רק במצב מחובר, וכשיש מייל מהסריקה האחרונה)
+    if (SERVER_MODE && lastEmail) {
+      mon.disabled = true;
+      try {
+        await serverScan(lastEmail, "", next);
+      } catch (e) {
+        mon.disabled = false;
+        toast("לא הצלחנו לעדכן ניטור בשרת — נסה שוב");
+        return;
+      }
+      mon.disabled = false;
+    }
+    localStorage.setItem("tzel.monitor", next ? "1" : "0");
+    toast(next ? "🛰️ ניטור הופעל — נתריע במייל על דליפות חדשות" : "הניטור כובה");
     renderResults(lastReport);
   });
 }
