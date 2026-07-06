@@ -81,6 +81,40 @@
   }
   .scan-btn:active { transform: scale(.985); }
   .privacy-line { font-size: 12px; color: var(--muted); text-align: center; margin-top: 12px; line-height: 1.6; }
+  .tool-btn {
+    width: 100%; margin-top: 14px; padding: 14px;
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 14px;
+    font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer;
+  }
+  .tool-btn:active { border-color: var(--cyan); }
+
+  dialog {
+    border: 1px solid var(--border); background: var(--card); color: var(--text);
+    border-radius: 20px; padding: 0; max-width: 460px; width: calc(100% - 32px);
+  }
+  dialog::backdrop { background: rgba(3,8,15,.72); backdrop-filter: blur(2px); }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 8px; }
+  .dlg-head h3 { font-size: 17px; font-weight: 800; }
+  .dlg-x { background: var(--card-2); border: 1px solid var(--border); color: var(--muted); border-radius: 999px; width: 30px; height: 30px; font-size: 14px; cursor: pointer; font-family: inherit; }
+  .dlg-body { padding: 4px 18px 20px; }
+  .pw-note { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: 6px 0 12px; }
+  .pw-row { display: flex; gap: 8px; }
+  .pw-row input { flex: 1; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); font-size: 16px; font-family: inherit; direction: ltr; text-align: left; }
+  .pw-row input:focus { outline: 2px solid var(--cyan); border-color: transparent; }
+  .pw-check { padding: 12px 18px; border: none; border-radius: 12px; background: var(--cyan); color: var(--cyan-dark); font-weight: 800; font-family: inherit; cursor: pointer; white-space: nowrap; }
+  .pw-result { margin-top: 14px; border-radius: 12px; padding: 14px; font-size: 14.5px; line-height: 1.6; display: none; }
+  .pw-result.show { display: block; }
+  .pw-result.bad { background: color-mix(in srgb, var(--red) 14%, transparent); border: 1px solid color-mix(in srgb, var(--red) 45%, transparent); }
+  .pw-result.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 42%, transparent); }
+  .pw-result .big { font-size: 20px; font-weight: 900; display: block; margin-bottom: 4px; }
+  .pw-result.bad .big { color: var(--red); } .pw-result.ok .big { color: var(--ok); }
+  .pw-strength { margin-top: 10px; font-size: 13px; color: var(--muted); }
+  .share-btn {
+    width: 100%; margin-top: 12px; padding: 13px;
+    background: var(--card-2); color: var(--cyan); border: 1px solid color-mix(in srgb, var(--cyan) 40%, transparent);
+    border-radius: 12px; font-size: 15px; font-weight: 800; font-family: inherit; cursor: pointer;
+  }
 
   /* ---- scanning animation ---- */
   .scanning { text-align: center; padding: 40px 20px; }
@@ -224,8 +258,24 @@
       </div>
       <button class="scan-btn" id="btnScan">🔍 סרוק את הצל הדיגיטלי שלי</button>
       <div class="privacy-line">🔒 הבדיקה על עצמך בלבד. איננו שומרים את הפרטים שהזנת — הם משמשים רק לבדיקה הנוכחית.</div>
+
+      <button class="tool-btn" id="btnPwTool">🔑 בדוק אם סיסמה שלך דלפה</button>
     </div>
   </div>
+
+  <!-- password checker -->
+  <dialog id="dlgPw">
+    <div class="dlg-head"><h3>🔑 בדיקת סיסמה שדלפה</h3><button class="dlg-x" id="pwClose">✕</button></div>
+    <div class="dlg-body">
+      <div class="pw-note">🔒 הסיסמה <b>לא עוזבת את המכשיר</b>. אנחנו מגבבים אותה מקומית ושולחים רק 5 תווים מהגיבוב (שיטת k-anonymity של Have I Been Pwned) — אי אפשר לשחזר ממנה את הסיסמה.</div>
+      <div class="pw-row">
+        <input id="pwInput" type="password" placeholder="הקלד סיסמה לבדיקה" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="pw-check" id="pwCheck">בדוק</button>
+      </div>
+      <div class="pw-strength" id="pwStrength"></div>
+      <div class="pw-result" id="pwResult"></div>
+    </div>
+  </dialog>
 
   <!-- scanning -->
   <div id="viewScan" hidden>
@@ -427,6 +477,7 @@ function renderResults(report) {
       </div>
       <div class="verdict" style="color:${scoreColor}">${verdict}</div>
       <div class="sub">מתוך 100 — ככל שגבוה יותר, אתה מוגן יותר</div>
+      <button class="share-btn" id="btnShare">📤 שתף את הציון שלי</button>
     </div>
     <div class="sevbar">
       <div class="sev-pill red"><b>${counts.critical}</b><span>קריטי</span></div>
@@ -485,6 +536,9 @@ function wireResults() {
   document.querySelectorAll(".finding").forEach(card =>
     card.querySelector(".row").addEventListener("click", () => card.classList.toggle("open")));
 
+  const share = $("btnShare");
+  if (share) share.addEventListener("click", shareScore);
+
   const unlock = $("btnUnlock");
   if (unlock) unlock.addEventListener("click", () => toast("💳 התשלום ייפתח בקרוב — בינתיים יש קוד גישה מוקדמת"));
   const have = $("btnHaveCode");
@@ -541,6 +595,89 @@ async function checkConnection() {
 $("btnScan").addEventListener("click", runScan);
 $("fPhone").addEventListener("keydown", e => { if (e.key === "Enter") runScan(); });
 $("btnRescan").addEventListener("click", () => show("home"));
+
+/* ---------- בודק סיסמאות (k-anonymity, מקומי, ללא מפתח) ---------- */
+async function sha1Hex(str) {
+  const buf = await crypto.subtle.digest("SHA-1", new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+}
+function pwStrength(pw) {
+  let s = 0;
+  if (pw.length >= 8) s++; if (pw.length >= 12) s++;
+  if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) s++;
+  if (/\d/.test(pw)) s++; if (/[^A-Za-z0-9]/.test(pw)) s++;
+  return ["חלשה מאוד", "חלשה", "בינונית", "טובה", "חזקה", "חזקה מאוד"][Math.min(s, 5)];
+}
+$("btnPwTool").addEventListener("click", () => {
+  $("pwInput").value = ""; $("pwResult").className = "pw-result"; $("pwStrength").textContent = "";
+  $("dlgPw").showModal(); setTimeout(() => $("pwInput").focus(), 50);
+});
+$("pwClose").addEventListener("click", () => $("dlgPw").close());
+$("pwInput").addEventListener("input", () => {
+  const v = $("pwInput").value;
+  $("pwStrength").textContent = v ? "חוזק הסיסמה: " + pwStrength(v) : "";
+});
+$("pwInput").addEventListener("keydown", e => { if (e.key === "Enter") checkPassword(); });
+$("pwCheck").addEventListener("click", checkPassword);
+async function checkPassword() {
+  const pw = $("pwInput").value;
+  if (!pw) { toast("הקלד סיסמה"); return; }
+  const res = $("pwResult");
+  res.className = "pw-result show ok"; res.innerHTML = "בודק… 🔍";
+  try {
+    const hash = await sha1Hex(pw);
+    const prefix = hash.slice(0, 5), suffix = hash.slice(5);
+    const r = await fetch("https://api.pwnedpasswords.com/range/" + prefix, { headers: { "Add-Padding": "true" } });
+    const text = await r.text();
+    let count = 0;
+    for (const line of text.split("\n")) {
+      const [suf, c] = line.trim().split(":");
+      if (suf === suffix) { count = parseInt(c, 10) || 0; break; }
+    }
+    if (count > 0) {
+      res.className = "pw-result show bad";
+      res.innerHTML = `<span class="big">⚠️ הסיסמה הזו דלפה ${count.toLocaleString("he-IL")} פעמים</span>
+        הסיסמה הזו מופיעה במאגרי דליפות ומוכרת לתוקפים — הם ינסו אותה אוטומטית. <b>אל תשתמש בה באף מקום.</b><br><br>
+        ✅ בחר סיסמה ייחודית וארוכה, או תן למנהל סיסמאות לייצר אותה.`;
+    } else {
+      res.className = "pw-result show ok";
+      res.innerHTML = `<span class="big">✅ הסיסמה לא נמצאה בדליפות</span>
+        הסיסמה הזו לא מופיעה במאגרי הדליפות הידועים. חוזק: <b>${pwStrength(pw)}</b>.<br>
+        זכור: ייחודית לכל אתר + 2FA = הגנה מלאה.`;
+    }
+  } catch (e) {
+    res.className = "pw-result show bad";
+    res.innerHTML = "לא הצלחנו לבדוק כרגע — נסה שוב בעוד רגע.";
+  }
+}
+
+/* ---------- שיתוף ציון (בלי לחשוף פרטים) ---------- */
+async function shareScore() {
+  const score = (lastReport && lastReport.score != null) ? lastReport.score : 0;
+  const verdict = score < 40 ? "חשיפה גבוהה" : score < 70 ? "חשיפה בינונית" : "חשיפה נמוכה";
+  const c = document.createElement("canvas"); c.width = 1080; c.height = 1080;
+  const x = c.getContext("2d");
+  x.fillStyle = "#071324"; x.fillRect(0, 0, 1080, 1080);
+  let g = x.createRadialGradient(880, 120, 0, 880, 120, 720); g.addColorStop(0, "rgba(39,224,192,.35)"); g.addColorStop(1, "transparent");
+  x.fillStyle = g; x.fillRect(0, 0, 1080, 1080);
+  x.textAlign = "center";
+  x.fillStyle = "#27e0c0"; x.font = "800 48px Rubik, Arial"; x.fillText("🕵️ צל דיגיטלי", 540, 200);
+  x.fillStyle = "rgba(255,255,255,.85)"; x.font = "600 40px Rubik, Arial"; x.fillText("ציון ההגנה הדיגיטלית שלי", 540, 400);
+  const col = score < 40 ? "#ff5c7a" : score < 70 ? "#ffa64d" : "#4ade80";
+  x.fillStyle = col; x.font = "900 240px Rubik, Arial"; x.fillText(String(score), 540, 640);
+  x.font = "700 52px Rubik, Arial"; x.fillText(verdict, 540, 730);
+  x.fillStyle = "rgba(255,255,255,.7)"; x.font = "500 38px Rubik, Arial"; x.fillText("כמה אתה חשוף ברשת? בדוק בעצמך 👇", 540, 900);
+  x.fillStyle = "#27e0c0"; x.font = "700 34px Rubik, Arial"; x.fillText(location.host + location.pathname, 540, 970);
+  const blob = await new Promise(r => c.toBlob(r, "image/png"));
+  const file = new File([blob], "tzel-score.png", { type: "image/png" });
+  const text = "בדקתי כמה אני חשוף ברשת עם צל דיגיטלי — ציון ההגנה שלי: " + score + "/100 😱 בדוק גם אתה: " + location.href;
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text }); return; }
+    if (navigator.share) { await navigator.share({ text }); return; }
+  } catch (e) { if (e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "tzel-score.png"; a.click(); URL.revokeObjectURL(a.href);
+  toast("התמונה ירדה — שתף אותה 📤");
+}
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 show("home");
 checkConnection();
