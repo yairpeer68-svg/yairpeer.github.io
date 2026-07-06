@@ -98,25 +98,31 @@
   .hdate { font-size: 9.5px; color: var(--muted); }
 
   dialog {
-    border: 1px solid var(--border); background: var(--card); color: var(--text);
-    border-radius: 20px; padding: 0; max-width: 460px; width: calc(100% - 32px);
+    border: 1px solid var(--border); border-bottom: none;
+    background: var(--card); color: var(--text);
+    border-radius: 22px 22px 0 0; padding: 0;
+    width: 100%; max-width: 560px;
+    max-height: 88dvh; overflow-y: auto;
+    margin: auto auto 0;
+    box-shadow: 0 -12px 50px rgba(0,0,0,.5);
   }
   dialog::backdrop { background: rgba(3,8,15,.72); backdrop-filter: blur(2px); }
-  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 18px 8px; }
-  .dlg-head h3 { font-size: 17px; font-weight: 800; }
-  .dlg-x { background: var(--card-2); border: 1px solid var(--border); color: var(--muted); border-radius: 999px; width: 30px; height: 30px; font-size: 14px; cursor: pointer; font-family: inherit; }
-  .dlg-body { padding: 4px 18px 20px; }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 18px 8px; position: sticky; top: 0; background: var(--card); z-index: 2; }
+  .dlg-head h3 { font-size: 18px; font-weight: 800; }
+  .dlg-x { flex-shrink: 0; background: var(--card-2); border: 1px solid var(--border); color: var(--muted); border-radius: 999px; width: 32px; height: 32px; font-size: 14px; cursor: pointer; font-family: inherit; }
+  .dlg-body { padding: 4px 18px calc(24px + env(safe-area-inset-bottom)); }
   .pw-note { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: 6px 0 12px; }
   .pw-row { display: flex; gap: 8px; }
-  .pw-row input { flex: 1; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); font-size: 16px; font-family: inherit; direction: ltr; text-align: left; }
+  .pw-row { align-items: stretch; }
+  .pw-row input { flex: 1; min-width: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); color: var(--text); font-size: 16px; font-family: inherit; }
   .pw-row input:focus { outline: 2px solid var(--cyan); border-color: transparent; }
   .pw-check { padding: 12px 18px; border: none; border-radius: 12px; background: var(--cyan); color: var(--cyan-dark); font-weight: 800; font-family: inherit; cursor: pointer; white-space: nowrap; }
   .pw-result { margin-top: 14px; border-radius: 12px; padding: 14px; font-size: 14.5px; line-height: 1.6; display: none; }
   .pw-result.show { display: block; }
   .pw-result.bad { background: color-mix(in srgb, var(--red) 14%, transparent); border: 1px solid color-mix(in srgb, var(--red) 45%, transparent); }
-  .pw-result.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 42%, transparent); }
-  .pw-result .big { font-size: 20px; font-weight: 900; display: block; margin-bottom: 4px; }
-  .pw-result.bad .big { color: var(--red); } .pw-result.ok .big { color: var(--ok); }
+  .pw-result.ok { background: color-mix(in srgb, var(--green) 12%, transparent); border: 1px solid color-mix(in srgb, var(--green) 42%, transparent); }
+  .pw-result .big { font-size: 19px; font-weight: 900; display: block; margin-bottom: 6px; text-wrap: balance; }
+  .pw-result.bad .big { color: var(--red); } .pw-result.ok .big { color: var(--green); }
   .pw-strength { margin-top: 10px; font-size: 13px; color: var(--muted); }
   .share-btn {
     width: 100%; margin-top: 12px; padding: 13px;
