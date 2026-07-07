@@ -88,6 +88,38 @@
     font-size: 15px; font-weight: 700; font-family: inherit; cursor: pointer;
   }
   .tool-btn:active { border-color: var(--cyan); }
+  .toolbox { margin-top: 22px; }
+  .tb-title { font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 2px 10px; }
+  .tb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tb-item {
+    display: flex; align-items: center; gap: 10px; text-align: start;
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px; font-family: inherit; color: var(--text); cursor: pointer;
+  }
+  .tb-item:active { border-color: var(--cyan); }
+  .tb-item .e { font-size: 22px; flex-shrink: 0; }
+  .tb-item .t { font-size: 13.5px; font-weight: 700; line-height: 1.3; }
+  .gen-out {
+    display: flex; align-items: center; gap: 8px; margin: 10px 0;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px;
+  }
+  .gen-out code { flex: 1; font-family: ui-monospace, monospace; font-size: 17px; direction: ltr; text-align: left; word-break: break-all; color: var(--cyan); }
+  .gen-copy { flex-shrink: 0; background: var(--card-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 10px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .gen-row { display: flex; align-items: center; gap: 10px; margin: 10px 0; font-size: 14px; }
+  .gen-row input[type=range] { flex: 1; accent-color: var(--cyan); }
+  .gen-row .val { font-weight: 800; color: var(--cyan); min-width: 26px; text-align: center; font-variant-numeric: tabular-nums; }
+  .gen-opts { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 4px; }
+  .chip-t { font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); cursor: pointer; }
+  .chip-t.on { border-color: var(--cyan); color: var(--cyan); background: color-mix(in srgb, var(--cyan) 10%, transparent); }
+  .btn-cyan { width: 100%; padding: 14px; background: var(--cyan); color: var(--cyan-dark); border: none; border-radius: 12px; font-size: 16px; font-weight: 800; font-family: inherit; cursor: pointer; margin-top: 6px; }
+  .check-list { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 14px; }
+  .check-item { display: flex; align-items: center; gap: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; cursor: pointer; }
+  .check-item .cbox { flex-shrink: 0; width: 22px; height: 22px; border: 1.5px solid var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 900; }
+  .check-item.on .cbox { background: var(--green); border-color: var(--green); color: #04231f; }
+  .check-item .ct { flex: 1; font-size: 13.5px; line-height: 1.4; }
+  .check-item .ct small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .wifi-score { text-align: center; padding: 10px 0 4px; font-size: 15px; font-weight: 800; }
+  .wifi-score b { font-size: 26px; }
   .hist-strip { margin-top: 22px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
   .hist-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 12px; display: flex; flex-direction: column; gap: 3px; }
   .hist-title span { font-weight: 600; color: var(--text); font-size: 12.5px; }
@@ -273,7 +305,15 @@
       <button class="scan-btn" id="btnScan">🔍 סרוק את הצל הדיגיטלי שלי</button>
       <div class="privacy-line">🔒 הבדיקה על עצמך בלבד. איננו שומרים את הפרטים שהזנת — הם משמשים רק לבדיקה הנוכחית.</div>
 
-      <button class="tool-btn" id="btnPwTool">🔑 בדוק אם סיסמה שלך דלפה</button>
+      <div class="toolbox">
+        <div class="tb-title">🧰 ארגז הכלים</div>
+        <div class="tb-grid">
+          <button class="tb-item" id="btnPwTool"><span class="e">🔑</span><span class="t">בדוק סיסמה שדלפה</span></button>
+          <button class="tb-item" id="btnPwGen"><span class="e">🎲</span><span class="t">מחולל סיסמאות</span></button>
+          <button class="tb-item" id="btnWifi"><span class="e">📶</span><span class="t">אבטחת ראוטר</span></button>
+          <button class="tb-item" id="btnAlias"><span class="e">📧</span><span class="t">מייל חלופי</span></button>
+        </div>
+      </div>
     </div>
     <div id="histStrip" class="hist-strip" hidden></div>
   </div>
@@ -289,6 +329,47 @@
       </div>
       <div class="pw-strength" id="pwStrength"></div>
       <div class="pw-result" id="pwResult"></div>
+    </div>
+  </dialog>
+
+  <!-- password generator -->
+  <dialog id="dlgGen">
+    <div class="dlg-head"><h3>🎲 מחולל סיסמאות חזקות</h3><button class="dlg-x" data-close="dlgGen">✕</button></div>
+    <div class="dlg-body">
+      <div class="pw-note">מייצר סיסמה אקראית וחזקה במכשיר שלך (מבוסס crypto.getRandomValues). שום דבר לא נשלח לרשת.</div>
+      <div class="gen-out"><code id="genOut">—</code><button class="gen-copy" id="genCopy">העתק</button></div>
+      <div class="gen-row"><span>אורך</span><input type="range" id="genLen" min="8" max="40" value="18"><span class="val" id="genLenVal">18</span></div>
+      <div class="gen-opts">
+        <button class="chip-t on" data-opt="upper">A-Z</button>
+        <button class="chip-t on" data-opt="lower">a-z</button>
+        <button class="chip-t on" data-opt="num">0-9</button>
+        <button class="chip-t on" data-opt="sym">!@#</button>
+      </div>
+      <div class="pw-strength" id="genStrength"></div>
+      <button class="btn-cyan" id="genNew">🎲 צור סיסמה חדשה</button>
+    </div>
+  </dialog>
+
+  <!-- wifi/router security -->
+  <dialog id="dlgWifi">
+    <div class="dlg-head"><h3>📶 בדיקת אבטחת ראוטר</h3><button class="dlg-x" data-close="dlgWifi">✕</button></div>
+    <div class="dlg-body">
+      <div class="pw-note">סמן מה שכבר עשית. הראוטר הביתי הוא השער לכל המכשירים שלך — כדאי שיהיה מוגן.</div>
+      <div class="check-list" id="wifiList"></div>
+      <div class="wifi-score" id="wifiScore"></div>
+    </div>
+  </dialog>
+
+  <!-- email alias -->
+  <dialog id="dlgAlias">
+    <div class="dlg-head"><h3>📧 מייל חלופי חכם</h3><button class="dlg-x" data-close="dlgAlias">✕</button></div>
+    <div class="dlg-body">
+      <div class="pw-note">טריק Gmail: כתובת עם <b>+תווית</b> מגיעה לאותה תיבה, אבל מאפשרת לזהות מי הדליף אותך ולסנן ספאם. הזן את הכתובת שלך:</div>
+      <div class="pw-row">
+        <input id="aliasInput" type="email" inputmode="email" placeholder="you@gmail.com" autocomplete="off">
+        <button class="pw-check" id="aliasGo">צור</button>
+      </div>
+      <div id="aliasOut"></div>
     </div>
   </dialog>
 
@@ -639,6 +720,78 @@ async function checkConnection() {
 $("btnScan").addEventListener("click", runScan);
 $("fPhone").addEventListener("keydown", e => { if (e.key === "Enter") runScan(); });
 $("btnRescan").addEventListener("click", () => show("home"));
+document.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => $(b.dataset.close).close()));
+
+/* ---------- 🎲 מחולל סיסמאות ---------- */
+const GEN = { upper: "ABCDEFGHJKLMNPQRSTUVWXYZ", lower: "abcdefghijkmnpqrstuvwxyz", num: "23456789", sym: "!@#$%^&*-_=+?" };
+const genOpts = { upper: true, lower: true, num: true, sym: true };
+function generatePw() {
+  let pool = "";
+  for (const k in genOpts) if (genOpts[k]) pool += GEN[k];
+  if (!pool) { $("genOut").textContent = "בחר לפחות סוג אחד"; return; }
+  const len = parseInt($("genLen").value, 10);
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  let pw = "";
+  for (let i = 0; i < len; i++) pw += pool[arr[i] % pool.length];
+  $("genOut").textContent = pw;
+  $("genStrength").textContent = "חוזק: " + pwStrength(pw);
+}
+$("btnPwGen").addEventListener("click", () => { $("dlgGen").showModal(); generatePw(); });
+$("genNew").addEventListener("click", generatePw);
+$("genLen").addEventListener("input", () => { $("genLenVal").textContent = $("genLen").value; generatePw(); });
+document.querySelectorAll("#dlgGen .chip-t").forEach(c => c.addEventListener("click", () => {
+  genOpts[c.dataset.opt] = !genOpts[c.dataset.opt]; c.classList.toggle("on"); generatePw();
+}));
+$("genCopy").addEventListener("click", () => {
+  const pw = $("genOut").textContent;
+  navigator.clipboard.writeText(pw).then(() => toast("הסיסמה הועתקה ✓")).catch(() => toast("סמן והעתק ידנית"));
+});
+
+/* ---------- 📶 בדיקת אבטחת ראוטר ---------- */
+const WIFI = [
+  { t: "שיניתי את סיסמת הניהול של הראוטר", s: "ברירת המחדל (admin/admin) ידועה לכל תוקף", w: 25 },
+  { t: "הרשת מוצפנת ב-WPA2 או WPA3", s: "לא WEP ולא רשת פתוחה", w: 25 },
+  { t: "עדכנתי את קושחת הראוטר לאחרונה", s: "עדכונים סוגרים פרצות אבטחה", w: 15 },
+  { t: "כיביתי WPS", s: "פיצ'ר החיבור המהיר פגיע להתקפות", w: 15 },
+  { t: "יש לי רשת אורחים נפרדת", s: "אורחים ומכשירי IoT מבודדים מהמחשב שלך", w: 10 },
+  { t: "שם הרשת (SSID) לא חושף פרטים אישיים", s: "לא שם/כתובת/מספר דירה", w: 10 },
+];
+const wifiState = {};
+function renderWifi() {
+  $("wifiList").innerHTML = WIFI.map((q, i) =>
+    `<div class="check-item ${wifiState[i] ? "on" : ""}" data-i="${i}"><span class="cbox">${wifiState[i] ? "✓" : ""}</span><span class="ct">${esc(q.t)}<small>${esc(q.s)}</small></span></div>`).join("");
+  const score = WIFI.reduce((s, q, i) => s + (wifiState[i] ? q.w : 0), 0);
+  const col = score >= 80 ? "var(--green)" : score >= 50 ? "var(--orange)" : "var(--red)";
+  const verdict = score >= 80 ? "הראוטר שלך מאובטח היטב 🛡️" : score >= 50 ? "יש עוד מה לשפר" : "הראוטר שלך חשוף — טפל בזה";
+  $("wifiScore").innerHTML = `<span style="color:${col}">ציון אבטחת ראוטר: <b>${score}</b>/100</span><br><span style="font-size:13px;color:var(--muted);font-weight:600">${verdict}</span>`;
+  $("wifiList").querySelectorAll(".check-item").forEach(el => el.addEventListener("click", () => {
+    const i = el.dataset.i; wifiState[i] = !wifiState[i]; renderWifi();
+  }));
+}
+$("btnWifi").addEventListener("click", () => { renderWifi(); $("dlgWifi").showModal(); });
+
+/* ---------- 📧 מייל חלופי ---------- */
+$("btnAlias").addEventListener("click", () => { $("aliasOut").innerHTML = ""; $("dlgAlias").showModal(); setTimeout(() => $("aliasInput").focus(), 50); });
+function makeAliases() {
+  const email = $("aliasInput").value.trim();
+  const at = email.indexOf("@");
+  if (at < 1) { toast("הזן כתובת מייל תקינה"); return; }
+  const user = email.slice(0, at), dom = email.slice(at);
+  const gmail = /gmail\.com$/i.test(dom);
+  const svcs = [["shop", "🛒 קניות ואתרים"], ["news", "📰 ניוזלטרים"], ["social", "📱 רשתות חברתיות"], ["work", "💼 עבודה"]];
+  $("aliasOut").innerHTML = `<div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">` +
+    svcs.map(([tag, label]) => {
+      const alias = user + "+" + tag + dom;
+      return `<div class="gen-out"><code>${esc(alias)}</code><button class="gen-copy" data-a="${esc(alias)}">העתק</button></div><div style="font-size:12px;color:var(--muted);margin:-4px 2px 4px">${label}</div>`;
+    }).join("") + `</div>` +
+    (gmail ? `<div class="pw-note" style="margin-top:6px">✅ ב-Gmail כל אלה מגיעים לתיבה שלך אוטומטית. אם אתר מתחיל לשלוח ספאם ל-<b>+shop</b> — אתה יודע מי הדליף אותך, ואפשר לחסום את התווית.</div>`
+           : `<div class="pw-note" style="margin-top:6px">💡 טריק ה-+תווית עובד ב-Gmail ובחלק מהספקים. בדוק אצל הספק שלך, או שקול כתובת ייעודית להרשמות.</div>`);
+  $("aliasOut").querySelectorAll("[data-a]").forEach(btn => btn.addEventListener("click", () =>
+    navigator.clipboard.writeText(btn.dataset.a).then(() => toast("הועתק ✓")).catch(() => toast("סמן והעתק"))));
+}
+$("aliasGo").addEventListener("click", makeAliases);
+$("aliasInput").addEventListener("keydown", e => { if (e.key === "Enter") makeAliases(); });
 
 /* ---------- בודק סיסמאות (k-anonymity, מקומי, ללא מפתח) ---------- */
 async function sha1Hex(str) {
