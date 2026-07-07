@@ -29,6 +29,12 @@ import glob
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
+try:
+    from loke_engine import LokeDevice, parse_pit, LokeError
+    LOKE_AVAILABLE = True
+except Exception:
+    LOKE_AVAILABLE = False
+
 APP_NAME = "מבריק לאב · SamLab"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 TOOLS_DIR = os.path.join(APP_DIR, "tools")
@@ -234,6 +240,8 @@ class SamLabApp:
         self.runner = Runner(self.q)
         self.flash_files = {"BL": "", "AP": "", "CP": "", "CSC": "", "USERDATA": ""}
         self.pit_map = []
+        self.loke = None
+        self._loke_busy = False
 
         root.title(APP_NAME)
         root.configure(bg=BG)
@@ -281,14 +289,17 @@ class SamLabApp:
         self.tab_dl = ttk.Frame(nb)
         self.tab_flash = ttk.Frame(nb)
         self.tab_dev = ttk.Frame(nb)
+        self.tab_loke = ttk.Frame(nb)
         self.tab_cfg = ttk.Frame(nb)
         nb.add(self.tab_dl, text="⬇  הורדת קושחה")
         nb.add(self.tab_flash, text="💾  פלאש")
         nb.add(self.tab_dev, text="🩺  מכשיר ומצבים")
+        nb.add(self.tab_loke, text="🧪  מנוע ישיר")
         nb.add(self.tab_cfg, text="⚙  הגדרות")
         self._build_download(self.tab_dl)
         self._build_flash(self.tab_flash)
         self._build_device(self.tab_dev)
+        self._build_loke(self.tab_loke)
         self._build_config(self.tab_cfg)
 
         # לוג משותף בתחתית
@@ -379,6 +390,33 @@ class SamLabApp:
         ttk.Button(grid, text="🛟 אתחל ל-Recovery", command=lambda: self.act_adb_reboot("recovery")).grid(row=0, column=2, padx=4, pady=4)
         ttk.Button(grid, text="🔁 אתחל ל-Bootloader", command=lambda: self.act_adb_reboot("bootloader")).grid(row=1, column=1, padx=4, pady=4)
         ttk.Button(grid, text="▶ אתחול רגיל", command=lambda: self.act_adb_reboot("")).grid(row=1, column=0, padx=4, pady=4)
+
+    # ---- טאב: מנוע ישיר (ניסיוני) ----
+    def _build_loke(self, parent):
+        c = self._card(parent)
+        ttk.Label(c, text="מנוע LOKE ישיר · ניסיוני", style="H.TLabel").grid(row=0, column=0, columnspan=3, sticky="e", pady=(0, 4))
+        warn = tk.Label(c, bg="#2a2410", fg="#fde68a", justify="right", anchor="e",
+                        font=("Segoe UI", 9), padx=12, pady=10, wraplength=760,
+                        text="⚠ מנוע ניסיוני שמדבר ישירות עם המכשיר (pyusb/libusb), בלי Heimdall. "
+                             "בשלב זה מיושם אך ורק הנתיב הבטוח שאינו כותב דבר: handshake, פתיחת סשן וקריאת "
+                             "טבלת המחיצות (PIT). אין כאן פעולת פלאש — אפס סיכון brick. "
+                             "בדוק על מכשיר בר-הקרבה (למשל ה-A16) לפני שנרחיב לכתיבה.")
+        warn.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 12))
+
+        if not LOKE_AVAILABLE:
+            ttk.Label(c, text="מודול loke_engine לא נטען.", style="Muted.TLabel").grid(row=2, column=0, columnspan=3, sticky="e")
+            return
+
+        self.loke_zlp = tk.BooleanVar(value=False)
+        ttk.Checkbutton(c, text="שלח ZLP אחרי כל פקודה (סמן רק אם החיבור נתקע)",
+                        variable=self.loke_zlp).grid(row=2, column=0, columnspan=3, sticky="e", pady=(0, 10))
+
+        grid = ttk.Frame(c, style="Card.TFrame")
+        grid.grid(row=3, column=0, columnspan=3, sticky="e")
+        ttk.Button(grid, text="🔌 חבר + פתח סשן", command=self.act_loke_connect).grid(row=0, column=0, padx=4, pady=4)
+        ttk.Button(grid, text="📄 קרא PIT (בטוח)", style="Accent.TButton", command=self.act_loke_readpit).grid(row=0, column=1, padx=4, pady=4)
+        ttk.Button(grid, text="♻ סיים סשן + אתחל", command=self.act_loke_reboot).grid(row=0, column=2, padx=4, pady=4)
+        self._loke_pit = None
 
     # ---- טאב: הגדרות ----
     def _build_config(self, parent):
@@ -640,6 +678,87 @@ class SamLabApp:
         pretty = target or "רגיל"
         self._log("info", f"מאתחל את המכשיר ({pretty})…")
         self.runner.run(argv)
+
+    # ---- מנוע LOKE ----
+    def _run_loke(self, fn):
+        if not LOKE_AVAILABLE:
+            messagebox.showwarning(APP_NAME, "מודול loke_engine לא זמין.")
+            return
+        if self._loke_busy:
+            self._log("warn", "פעולת LOKE אחרת עדיין רצה — המתן.")
+            return
+        self._loke_busy = True
+
+        def worker():
+            try:
+                fn()
+            except LokeError as e:
+                self.q.put(("err", "✗ " + str(e)))
+            except Exception as e:
+                self.q.put(("err", f"✗ שגיאה לא צפויה: {e}"))
+            finally:
+                self._loke_busy = False
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _loke_log(self, msg):
+        self.q.put(("out", msg))
+
+    def act_loke_connect(self):
+        def job():
+            if self.loke is not None:
+                self.loke.close()
+            self.loke = LokeDevice(log=self._loke_log, send_zlp=self.loke_zlp.get())
+            self.loke.connect()
+            self.loke.begin_session()
+            self.q.put(("ok", "✓ מחובר וסשן פתוח. אפשר לקרוא PIT."))
+        self._log("info", "מתחבר למכשיר במצב Download (LOKE)…")
+        self._run_loke(job)
+
+    def act_loke_readpit(self):
+        if self.loke is None or self.loke.dev is None:
+            messagebox.showinfo(APP_NAME, "התחבר קודם ('חבר + פתח סשן').")
+            return
+
+        def job():
+            data = self.loke.read_pit()
+            self._loke_pit = data
+            info, entries = parse_pit(data)
+            self.q.put(("ok", f"✓ PIT נקרא: {info['count']} מחיצות (magic 0x{info['magic']:08X})"))
+            self.q.put(("info", "   ID  | מחיצה                    | קובץ פלאש"))
+            for e in entries:
+                self.q.put(("info", "  {:>3} | {:<24} | {}".format(e["id"], e["partition"] or "-", e["filename"] or "-")))
+            self.q.put(("info", "לחץ 'שמור PIT' אם תרצה לשמור לקובץ (בתפריט שנפתח)."))
+            # הצעת שמירה מתבצעת ב-thread הראשי
+            self.root.after(0, self._offer_save_pit)
+        self._log("info", "קורא PIT מהמכשיר (קריאה בלבד)…")
+        self._run_loke(job)
+
+    def _offer_save_pit(self):
+        if not self._loke_pit:
+            return
+        if messagebox.askyesno(APP_NAME, "לשמור את קובץ ה-PIT שנקרא?"):
+            f = filedialog.asksaveasfilename(defaultextension=".pit",
+                                             filetypes=[("PIT", "*.pit"), ("All", "*.*")])
+            if f:
+                try:
+                    with open(f, "wb") as fh:
+                        fh.write(self._loke_pit)
+                    self._log("ok", f"✓ נשמר: {f}")
+                except Exception as e:
+                    self._log("err", f"✗ שמירה נכשלה: {e}")
+
+    def act_loke_reboot(self):
+        if self.loke is None or self.loke.dev is None:
+            messagebox.showinfo(APP_NAME, "אין סשן פעיל.")
+            return
+
+        def job():
+            self.loke.end_session(reboot=True)
+            self.loke.close()
+            self.loke = None
+            self.q.put(("ok", "✓ המכשיר מאותחל והחיבור נסגר."))
+        self._run_loke(job)
 
     # ---- הגדרות ----
     def act_save_cfg(self):
