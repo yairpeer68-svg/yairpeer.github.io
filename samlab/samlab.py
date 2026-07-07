@@ -46,6 +46,57 @@ WARN = "#fbbf24"
 BAD = "#fb5f7d"
 BORDER = "#24344b"
 
+# קודי CSC נפוצים (הקוד הראשון בכל שורה הוא מה שנשלח). ישראל בראש.
+# הרשימה ניתנת לעריכה חופשית — אפשר להקליד כל קוד ידנית.
+CSC_CODES = [
+    "ILO — ישראל (לא מותג)",
+    "CEL — ישראל (סלקום)",
+    "PCL — ישראל (פלאפון)",
+    "PTR — ישראל (פרטנר / אורנג')",
+    "XSG — איחוד האמירויות",
+    "XAA — ארה\"ב (לא נעול)",
+    "BTU — בריטניה",
+    "XEF — צרפת",
+    "DBT — גרמניה",
+    "ITV — איטליה",
+    "PHE — ספרד",
+    "XEO — פולין",
+    "NEE — סקנדינביה",
+    "SER — רוסיה",
+    "TUR — טורקיה",
+    "INS — הודו",
+    "XSA — אוסטרליה",
+    "ZTO — ברזיל",
+    "TGY — הונג קונג",
+    "KOO — קוריאה",
+    "CHC — סין",
+]
+
+# דגמים נפוצים לנוחות (ניתן להקליד כל דגם ידנית).
+COMMON_MODELS = [
+    "SM-S928B — Galaxy S24 Ultra",
+    "SM-S921B — Galaxy S24",
+    "SM-S918B — Galaxy S23 Ultra",
+    "SM-S911B — Galaxy S23",
+    "SM-G998B — Galaxy S21 Ultra",
+    "SM-G991B — Galaxy S21",
+    "SM-A546B — Galaxy A54 5G",
+    "SM-A356B — Galaxy A35 5G",
+    "SM-A155F — Galaxy A15",
+    "SM-A047F — Galaxy A04s",
+    "SM-F946B — Galaxy Z Fold5",
+    "SM-F731B — Galaxy Z Flip5",
+]
+
+
+def code_only(value):
+    """מחלץ את הקוד/דגם מתוך פריט ברשימה בפורמט 'CODE — תיאור'."""
+    if not value:
+        return ""
+    head = value.split("—")[0].strip()      # החלק שלפני המקף
+    tokens = head.split()
+    return tokens[0].strip().upper() if tokens else ""
+
 
 # ---------------------------------------------------------------------------
 # איתור כלים חיצוניים
@@ -264,8 +315,13 @@ class SamLabApp:
         ttk.Label(c, text="נעשה דרך samloader — שרתי FUS הרשמיים, כולל פענוח .enc4/.enc2 אוטומטי.",
                   style="Muted.TLabel").grid(row=1, column=0, columnspan=4, sticky="e", pady=(0, 12))
 
-        self.e_model = self._field(c, "דגם (למשל SM-G991B)", 2)
-        self.e_region = self._field(c, "אזור / CSC (למשל ILO, XSG, BTU)", 3)
+        ttk.Label(c, text="דגם (בחר או הקלד, למשל SM-G991B)", style="Card.TLabel").grid(row=2, column=3, sticky="e", pady=(8, 2))
+        self.e_model = ttk.Combobox(c, width=34, values=COMMON_MODELS)
+        self.e_model.grid(row=2, column=1, columnspan=2, sticky="ew", padx=(0, 6), pady=(8, 2))
+
+        ttk.Label(c, text="אזור / CSC (בחר או הקלד)", style="Card.TLabel").grid(row=3, column=3, sticky="e", pady=(8, 2))
+        self.e_region = ttk.Combobox(c, width=34, values=CSC_CODES)
+        self.e_region.grid(row=3, column=1, columnspan=2, sticky="ew", padx=(0, 6), pady=(8, 2))
 
         ttk.Label(c, text="תיקיית יעד", style="Card.TLabel").grid(row=4, column=3, sticky="e", pady=(8, 2))
         self.e_out = ttk.Entry(c, width=48)
@@ -428,8 +484,8 @@ class SamLabApp:
         self.runner.run(argv)
 
     def _model_region(self):
-        model = self.e_model.get().strip().upper()
-        region = self.e_region.get().strip().upper()
+        model = code_only(self.e_model.get())
+        region = code_only(self.e_region.get())
         if not model or not region:
             messagebox.showwarning(APP_NAME, "הזן דגם ואזור (CSC).")
             return None, None
