@@ -375,6 +375,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_rollup(jid)
         if sub == "diff":
             return self._job_diff(jid, parsed)
+        if sub == "score":
+            return self._job_score(jid)
+        if sub == "compliance":
+            return self._job_compliance(jid, parsed)
         snap = self.server.jobs.snapshot(jid)
         if snap is None:
             return self._json({"error": "unknown job"}, 404)
@@ -417,6 +421,27 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"against": against, "added_modules": added,
                            "removed_modules": removed, "changed_modules": changed,
                            "note": "modules whose findings differ from the saved run"})
+
+    def _job_score(self, jid: str):
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        try:
+            score = workflow.attack_score(results)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"score failed: {exc}"}, 500)
+        return self._json(score)
+
+    def _job_compliance(self, jid: str, parsed):
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        framework = parse_qs(parsed.query).get("framework", ["owasp_top10"])[0]
+        try:
+            report = workflow.compliance_check(results, framework)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"compliance check failed: {exc}"}, 500)
+        return self._json(report)
 
     def _job_report(self, jid: str, parsed):
         results = self.server.jobs.results_obj(jid)

@@ -366,8 +366,8 @@ def deep_plan(results, target="", scope=None, max_hosts: int = 25):
 #  #76  Composite attack score (weighted risk across all findings)
 # --------------------------------------------------------------------------- #
 _CATEGORY_WEIGHTS = {
-    "CRITICAL": 10.0, "HIGH": 5.0, "MEDIUM": 2.0, "LOW": 0.5,
-    "informational": 0.0,
+    "critical": 10.0, "high": 5.0, "medium": 2.0, "low": 0.5,
+    "info": 0.0,
 }
 
 def attack_score(results) -> dict:
