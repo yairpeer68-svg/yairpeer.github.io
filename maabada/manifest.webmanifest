@@ -1,0 +1,17 @@
+{
+  "name": "מעבדה — ניהול מעבדת סלולר",
+  "short_name": "מעבדה",
+  "description": "ניהול מעבדת תיקון סלולר: כרטיסי תיקון, לקוחות, מלאי, מחירון, חשבוניות, מדבקות ברקוד ודוחות. הכול נשמר במכשיר.",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0a0e14",
+  "theme_color": "#0a0e14",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

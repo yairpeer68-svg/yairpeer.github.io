@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מעבדה — ניהול מעבדת סלולר</title>
+<meta name="description" content="ניהול מעבדת תיקון סלולר: כרטיסי תיקון, לקוחות, מלאי חלפים, מחירון, חשבוניות, מדבקות ברקוד ודוחות — הכול נשמר אצלך במכשיר.">
+<meta name="theme-color" content="#0a0e14">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14; --card: #111826; --card-2: #172234; --text: #eef4fb;
+    --muted: #8a9bb2; --cyan: #38bdf8; --blue: #2563eb; --teal: #10b981;
+    --ok: #34d399; --warn: #fbbf24; --bad: #fb5f7d; --border: #24344b; --radius: 14px;
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f7; --card: #ffffff; --card-2: #f1f5fb; --text: #14202e;
+    --muted: #5b6b80; --border: #d8e0ea;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; font-size: calc(15px * var(--fs, 1)); }
+  body {
+    font-family: "Rubik", -apple-system, "Segoe UI", Arial, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh; min-height: 100dvh; line-height: 1.5;
+  }
+  .app { max-width: 1000px; margin: 0 auto; padding: 12px 14px 90px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 2px 12px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 20px; }
+  .brand .logo { font-size: 24px; }
+  .top-actions { display: flex; gap: 8px; align-items: center; }
+  .icon-btn { width: 38px; height: 38px; border-radius: 11px; background: var(--card); border: 1px solid var(--border); color: var(--text); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .icon-btn:hover { border-color: var(--cyan); }
+  #search { flex: 1; max-width: 280px; background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 11px; padding: 9px 12px; font-family: inherit; font-size: 14px; }
+
+  nav.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 6px; }
+  nav.tabs button { white-space: nowrap; background: var(--card); border: 1px solid var(--border); color: var(--muted); border-radius: 999px; padding: 8px 14px; font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer; }
+  nav.tabs button.active { background: var(--card-2); color: var(--cyan); border-color: var(--cyan); }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+  .card h2 { font-size: 15px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); border-radius: 11px; padding: 10px 14px; font-family: inherit; font-weight: 700; font-size: 14px; cursor: pointer; background: var(--card-2); color: var(--text); }
+  .btn:hover { border-color: var(--cyan); }
+  .btn.primary { background: var(--cyan); color: #04263a; border: none; }
+  .btn.ok { background: var(--teal); color: #04261c; border: none; }
+  .btn.warn { border-color: rgba(251,191,36,.5); }
+  .btn.danger { border-color: rgba(251,95,125,.5); color: var(--bad); }
+  .btn.sm { padding: 6px 10px; font-size: 13px; border-radius: 9px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .spacer { flex: 1; }
+
+  .grid { display: grid; gap: 12px; }
+  .grid.k4 { grid-template-columns: repeat(4, 1fr); }
+  .grid.k3 { grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 720px){ .grid.k4 { grid-template-columns: repeat(2,1fr);} .grid.k3{grid-template-columns:1fr;} }
+
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
+  .stat .n { font-size: 26px; font-weight: 900; }
+  .stat .l { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th, td { text-align: right; padding: 9px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 700; font-size: 12.5px; }
+  tr:hover td { background: var(--card-2); }
+  .tablewrap { overflow-x: auto; }
+
+  .chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+  .st-recv { background: rgba(56,189,248,.15); color: var(--cyan); }
+  .st-diag { background: rgba(251,191,36,.15); color: var(--warn); }
+  .st-fix  { background: rgba(37,99,235,.2); color: #7aa2ff; }
+  .st-ready{ background: rgba(52,211,153,.15); color: var(--ok); }
+  .st-done { background: rgba(138,155,178,.18); color: var(--muted); }
+
+  label.fld { display: block; font-size: 12.5px; color: var(--muted); font-weight: 700; margin: 10px 0 4px; }
+  input, select, textarea { width: 100%; background: var(--card-2); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 10px 11px; font-family: inherit; font-size: 14px; }
+  textarea { min-height: 70px; resize: vertical; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width:560px){ .two { grid-template-columns: 1fr; } }
+
+  .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: flex-start; justify-content: center; padding: 20px; z-index: 60; overflow-y: auto; }
+  .modal-back.show { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 18px; max-width: 560px; width: 100%; margin: auto; }
+  .modal h3 { font-size: 18px; font-weight: 900; margin-bottom: 6px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 10px; }
+
+  canvas.sig { background: #fff; border-radius: 10px; touch-action: none; width: 100%; height: 140px; border: 1px solid var(--border); }
+
+  /* print */
+  #printArea { display: none; }
+  @media print {
+    body * { visibility: hidden; }
+    #printArea, #printArea * { visibility: visible; }
+    #printArea { display: block; position: absolute; inset: 0; color: #000; background: #fff; padding: 24px; direction: rtl; }
+  }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--card-2); border: 1px solid var(--cyan); color: var(--text); padding: 10px 18px; border-radius: 12px; z-index: 80; font-weight: 700; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span class="logo">🛠️</span><span id="shopName">מעבדה</span></div>
+    <div class="top-actions">
+      <input id="search" placeholder="🔎 חיפוש לקוח / מכשיר / IMEI / #כרטיס">
+      <button class="icon-btn" id="btnTheme" title="ערכת נושא">🌓</button>
+      <button class="icon-btn" id="btnInstall" title="התקנה" style="display:none">⬇️</button>
+    </div>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button data-view="dashboard" class="active">📊 לוח</button>
+    <button data-view="tickets">🎫 כרטיסי תיקון</button>
+    <button data-view="customers">👥 לקוחות</button>
+    <button data-view="inventory">📦 מלאי</button>
+    <button data-view="prices">🏷️ מחירון</button>
+    <button data-view="reports">📈 דוחות</button>
+    <button data-view="settings">⚙️ הגדרות</button>
+  </nav>
+
+  <div id="view"></div>
+</div>
+
+<div class="modal-back" id="modalBack"><div class="modal" id="modalBox"></div></div>
+<div id="printArea"></div>
+
+<script>
+"use strict";
+
+/* ============================ Store ============================ */
+const DB = {
+  keys: ["customers", "tickets", "inventory", "prices", "settings"],
+  get(k, def) { try { return JSON.parse(localStorage.getItem("maabada:" + k)) ?? def; } catch { return def; } },
+  set(k, v) { localStorage.setItem("maabada:" + k, JSON.stringify(v)); },
+};
+let customers = DB.get("customers", []);
+let tickets = DB.get("tickets", []);
+let inventory = DB.get("inventory", []);
+let prices = DB.get("prices", []);
+let settings = DB.get("settings", { shopName: "מעבדה", currency: "₪", theme: "dark", fs: 1, nextNum: 1001, waCountry: "972" });
+
+function saveAll() { DB.set("customers", customers); DB.set("tickets", tickets); DB.set("inventory", inventory); DB.set("prices", prices); DB.set("settings", settings); }
+function saveSettings() { DB.set("settings", settings); }
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+/* ============================ Helpers ============================ */
+const STATUSES = ["התקבל", "באבחון", "בתיקון", "מוכן", "נמסר"];
+const ST_CLASS = { "התקבל": "st-recv", "באבחון": "st-diag", "בתיקון": "st-fix", "מוכן": "st-ready", "נמסר": "st-done" };
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function money(n) { return (settings.currency || "₪") + " " + (Number(n) || 0).toLocaleString("he-IL"); }
+function monthKey(ts) { const d = new Date(ts); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+function fmtDate(ts) { return new Date(ts).toLocaleDateString("he-IL"); }
+function custName(id) { const c = customers.find(x => x.id === id); return c ? c.name : "—"; }
+function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
+
+/* revenue for a given YYYY-MM from delivered tickets */
+function revenueForMonth(mk) {
+  return tickets.filter(t => t.status === "נמסר" && t.deliveredAt && monthKey(t.deliveredAt) === mk)
+    .reduce((s, t) => s + (Number(t.price) || 0), 0);
+}
+/* repeat repairs: same imei/device appearing in more than one ticket */
+function repeatDevices() {
+  const map = {};
+  tickets.forEach(t => { const key = (t.imei || t.device || "").trim(); if (!key) return; (map[key] = map[key] || []).push(t); });
+  return Object.entries(map).filter(([, arr]) => arr.length > 1).map(([key, arr]) => ({ key, count: arr.length, arr }));
+}
+
+/* ---- Code39 barcode (scannable) ---- */
+const C39 = { "0": "nnnwwnwnn", "1": "wnnwnnnnw", "2": "nnwwnnnnw", "3": "wnwwnnnnn", "4": "nnnwwnnnw", "5": "wnnwwnnnn", "6": "nnwwwnnnn", "7": "nnnwnnwnw", "8": "wnnwnnwnn", "9": "nnwwnnwnn", "A": "wnnnnwnnw", "B": "nnwnnwnnw", "C": "wnwnnwnnn", "D": "nnnnwwnnw", "E": "wnnnwwnnn", "F": "nnwnwwnnn", "G": "nnnnnwwnw", "H": "wnnnnwwnn", "I": "nnwnnwwnn", "J": "nnnnwwwnn", "K": "wnnnnnnww", "L": "nnwnnnnww", "M": "wnwnnnnwn", "N": "nnnnwnnww", "O": "wnnnwnnwn", "P": "nnwnwnnwn", "Q": "nnnnnnwww", "R": "wnnnnnwwn", "S": "nnwnnnwwn", "T": "nnnnwnwwn", "U": "wwnnnnnnw", "V": "nwwnnnnnw", "W": "wwwnnnnnn", "X": "nwnnwnnnw", "Y": "wwnnwnnnn", "Z": "nwwnwnnnn", "-": "nwnnnnwnw", ".": "wwnnnnwnn", " ": "nwwnnnwnn", "*": "nwnnwnwnn" };
+function code39svg(text, h) {
+  h = h || 46; text = ("*" + String(text).toUpperCase().replace(/[^0-9A-Z\-\. ]/g, "") + "*");
+  const nw = 2, ww = 5, gap = 2; let x = 0, rects = "";
+  for (const ch of text) {
+    const pat = C39[ch]; if (!pat) continue;
+    for (let i = 0; i < 9; i++) {
+      const w = pat[i] === "w" ? ww : nw;
+      if (i % 2 === 0) rects += `<rect x="${x}" y="0" width="${w}" height="${h}" fill="#000"/>`;
+      x += w;
+    }
+    x += gap;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${x}" height="${h}" viewBox="0 0 ${x} ${h}">${rects}</svg>`;
+}
+
+/* ============================ Router ============================ */
+let current = "dashboard";
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; setView(b.dataset.view); });
+function setView(v) {
+  current = v;
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  render();
+}
+function render() { ({ dashboard: viewDashboard, tickets: viewTickets, customers: viewCustomers, inventory: viewInventory, prices: viewPrices, reports: viewReports, settings: viewSettings }[current] || viewDashboard)(); }
+
+/* ============================ Views ============================ */
+function viewDashboard() {
+  const active = tickets.filter(t => t.status !== "נמסר");
+  const ready = tickets.filter(t => t.status === "מוכן").length;
+  const low = inventory.filter(p => (Number(p.qty) || 0) <= (Number(p.minQty) || 0)).length;
+  const rev = revenueForMonth(monthKey(Date.now()));
+  const byStatus = STATUSES.map(s => ({ s, n: tickets.filter(t => t.status === s).length }));
+  $("#view").innerHTML = `
+    <div class="grid k4">
+      <div class="stat"><div class="n">${active.length}</div><div class="l">כרטיסים פעילים</div></div>
+      <div class="stat"><div class="n" style="color:var(--ok)">${ready}</div><div class="l">מוכנים למסירה</div></div>
+      <div class="stat"><div class="n" style="color:var(--warn)">${low}</div><div class="l">חלפים במלאי נמוך</div></div>
+      <div class="stat"><div class="n">${money(rev)}</div><div class="l">הכנסה החודש</div></div>
+    </div>
+    <div class="card">
+      <h2>🎫 כרטיסים פעילים</h2>
+      ${active.length ? tableTickets(active.slice().sort((a, b) => b.createdAt - a.createdAt)) : `<div class="empty">אין כרטיסים פעילים. <button class="btn primary sm" onclick="editTicket()">+ כרטיס חדש</button></div>`}
+    </div>
+    <div class="card">
+      <h2>📊 לפי סטטוס</h2>
+      <div class="row">${byStatus.map(x => `<span class="chip ${ST_CLASS[x.s]}">${x.s}: ${x.n}</span>`).join("")}</div>
+    </div>`;
+}
+
+function tableTickets(list) {
+  return `<div class="tablewrap"><table><thead><tr><th>#</th><th>לקוח</th><th>מכשיר</th><th>תקלה</th><th>סטטוס</th><th>מחיר</th><th></th></tr></thead><tbody>${
+    list.map(t => `<tr onclick="openTicket('${t.id}')" style="cursor:pointer">
+      <td><b>${t.num}</b></td><td>${esc(custName(t.customerId))}</td><td>${esc(t.device || "")}</td>
+      <td>${esc((t.fault || "").slice(0, 30))}</td>
+      <td><span class="chip ${ST_CLASS[t.status]}">${t.status}</span></td>
+      <td>${t.price ? money(t.price) : "—"}</td>
+      <td>›</td></tr>`).join("")
+  }</tbody></table></div>`;
+}
+
+function viewTickets() {
+  const q = ($("#search").value || "").trim();
+  let list = tickets.slice().sort((a, b) => b.createdAt - a.createdAt);
+  if (q) list = list.filter(t => matchTicket(t, q));
+  $("#view").innerHTML = `
+    <div class="card">
+      <div class="row"><h2 style="margin:0">🎫 כרטיסי תיקון (${list.length})</h2><div class="spacer"></div>
+      <button class="btn primary" onclick="editTicket()">+ כרטיס חדש</button></div>
+    </div>
+    <div class="card">${list.length ? tableTickets(list) : `<div class="empty">אין כרטיסים.</div>`}</div>`;
+}
+function matchTicket(t, q) {
+  q = q.toLowerCase();
+  return [t.num, t.device, t.imei, t.fault, custName(t.customerId)].some(v => String(v || "").toLowerCase().includes(q));
+}
+
+function viewCustomers() {
+  const q = ($("#search").value || "").trim().toLowerCase();
+  let list = customers.slice().sort((a, b) => a.name.localeCompare(b.name, "he"));
+  if (q) list = list.filter(c => (c.name + c.phone).toLowerCase().includes(q));
+  $("#view").innerHTML = `
+    <div class="card"><div class="row"><h2 style="margin:0">👥 לקוחות (${list.length})</h2><div class="spacer"></div>
+      <button class="btn primary" onclick="editCustomer()">+ לקוח חדש</button></div></div>
+    <div class="card">${list.length ? `<div class="tablewrap"><table><thead><tr><th>שם</th><th>טלפון</th><th>מכשירים</th><th></th></tr></thead><tbody>${
+      list.map(c => { const cnt = tickets.filter(t => t.customerId === c.id).length;
+        return `<tr><td onclick="editCustomer('${c.id}')" style="cursor:pointer"><b>${esc(c.name)}</b></td>
+          <td>${esc(c.phone || "")}</td><td>${cnt} תיקונים</td>
+          <td><button class="btn sm" onclick="waNotify('${c.id}')">💬</button></td></tr>`; }).join("")
+    }</tbody></table></div>` : `<div class="empty">אין לקוחות.</div>`}</div>`;
+}
+
+function viewInventory() {
+  let list = inventory.slice().sort((a, b) => a.name.localeCompare(b.name, "he"));
+  $("#view").innerHTML = `
+    <div class="card"><div class="row"><h2 style="margin:0">📦 מלאי חלפים (${list.length})</h2><div class="spacer"></div>
+      <button class="btn primary" onclick="editPart()">+ חלק חדש</button></div></div>
+    <div class="card">${list.length ? `<div class="tablewrap"><table><thead><tr><th>שם</th><th>מק"ט</th><th>כמות</th><th>מחיר</th><th></th></tr></thead><tbody>${
+      list.map(p => { const lowc = (Number(p.qty) || 0) <= (Number(p.minQty) || 0);
+        return `<tr onclick="editPart('${p.id}')" style="cursor:pointer"><td><b>${esc(p.name)}</b></td><td>${esc(p.sku || "")}</td>
+          <td style="${lowc ? "color:var(--warn);font-weight:800" : ""}">${p.qty || 0}${lowc ? " ⚠️" : ""}</td>
+          <td>${money(p.price)}</td><td>›</td></tr>`; }).join("")
+    }</tbody></table></div>` : `<div class="empty">אין חלפים.</div>`}</div>`;
+}
+
+function viewPrices() {
+  let list = prices.slice();
+  $("#view").innerHTML = `
+    <div class="card"><div class="row"><h2 style="margin:0">🏷️ מחירון (${list.length})</h2><div class="spacer"></div>
+      <button class="btn primary" onclick="editPrice()">+ שורת מחיר</button></div></div>
+    <div class="card">${list.length ? `<div class="tablewrap"><table><thead><tr><th>דגם</th><th>תקלה</th><th>מחיר</th><th></th></tr></thead><tbody>${
+      list.map(p => `<tr onclick="editPrice('${p.id}')" style="cursor:pointer"><td>${esc(p.device)}</td><td>${esc(p.fault)}</td><td><b>${money(p.price)}</b></td><td>›</td></tr>`).join("")
+    }</tbody></table></div>` : `<div class="empty">אין מחירון.</div>`}</div>`;
+}
+
+function viewReports() {
+  const months = [...new Set(tickets.filter(t => t.deliveredAt).map(t => monthKey(t.deliveredAt)))].sort().reverse().slice(0, 12);
+  const reps = repeatDevices();
+  const low = inventory.filter(p => (Number(p.qty) || 0) <= (Number(p.minQty) || 0));
+  const delivered = tickets.filter(t => t.status === "נמסר");
+  const totalRev = delivered.reduce((s, t) => s + (Number(t.price) || 0), 0);
+  $("#view").innerHTML = `
+    <div class="grid k3">
+      <div class="stat"><div class="n">${money(totalRev)}</div><div class="l">הכנסה מצטברת</div></div>
+      <div class="stat"><div class="n">${delivered.length}</div><div class="l">תיקונים שנמסרו</div></div>
+      <div class="stat"><div class="n">${delivered.length ? money(Math.round(totalRev / delivered.length)) : "—"}</div><div class="l">ממוצע לתיקון</div></div>
+    </div>
+    <div class="card"><h2>📈 הכנסה חודשית</h2>
+      ${months.length ? `<div class="tablewrap"><table><thead><tr><th>חודש</th><th>הכנסה</th><th>תיקונים</th></tr></thead><tbody>${
+        months.map(m => `<tr><td>${m}</td><td><b>${money(revenueForMonth(m))}</b></td><td>${delivered.filter(t => monthKey(t.deliveredAt) === m).length}</td></tr>`).join("")
+      }</tbody></table></div>` : `<div class="empty">אין נתונים עדיין.</div>`}</div>
+    <div class="card"><h2>🔁 תיקונים חוזרים</h2>
+      ${reps.length ? `<div class="tablewrap"><table><thead><tr><th>מכשיר / IMEI</th><th>מספר תיקונים</th></tr></thead><tbody>${
+        reps.map(r => `<tr><td>${esc(r.key)}</td><td style="color:var(--warn);font-weight:800">${r.count}</td></tr>`).join("")
+      }</tbody></table></div>` : `<div class="muted">אין תיקונים חוזרים.</div>`}</div>
+    <div class="card"><h2>⚠️ חלפים במלאי נמוך</h2>
+      ${low.length ? low.map(p => `<div class="row" style="justify-content:space-between"><span>${esc(p.name)}</span><b style="color:var(--warn)">${p.qty || 0} / מינ' ${p.minQty || 0}</b></div>`).join("") : `<div class="muted">הכול תקין.</div>`}</div>`;
+}
+
+function viewSettings() {
+  $("#view").innerHTML = `
+    <div class="card"><h2>🏪 פרטי העסק</h2>
+      <label class="fld">שם המעבדה</label><input id="setShop" value="${esc(settings.shopName)}">
+      <div class="two"><div><label class="fld">מטבע</label><input id="setCur" value="${esc(settings.currency)}"></div>
+      <div><label class="fld">קידומת מדינה ל-WhatsApp</label><input id="setWa" value="${esc(settings.waCountry)}"></div></div>
+      <div class="two"><div><label class="fld">גודל גופן</label><select id="setFs">
+        ${[["0.9", "קטן"], ["1", "רגיל"], ["1.15", "גדול"], ["1.3", "גדול מאוד"]].map(([v, l]) => `<option value="${v}" ${String(settings.fs) === v ? "selected" : ""}>${l}</option>`).join("")}
+      </select></div><div><label class="fld">מספר כרטיס הבא</label><input id="setNum" type="number" value="${settings.nextNum}"></div></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" onclick="saveSettingsForm()">💾 שמור</button></div>
+    </div>
+    <div class="card"><h2>💾 גיבוי ושחזור</h2>
+      <p class="muted">כל הנתונים נשמרים במכשיר שלך בלבד. מומלץ לגבות מדי פעם.</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" onclick="exportData(false)">⬇️ ייצוא (JSON)</button>
+        <button class="btn" onclick="exportData(true)">🔒 ייצוא מוצפן</button>
+        <button class="btn" onclick="$('#importFile').click()">⬆️ ייבוא</button>
+        <input type="file" id="importFile" accept=".json,.mbk" style="display:none" onchange="importData(this.files[0])">
+      </div>
+    </div>
+    <div class="card"><h2>ℹ️ אודות</h2><p class="muted">מעבדה — מערכת ניהול מעבדת סלולר. עובד 100% מקומית (PWA), ללא שרת. <a href="../" style="color:var(--cyan)">שאר הכלים</a></p></div>`;
+}
+function saveSettingsForm() {
+  settings.shopName = $("#setShop").value.trim() || "מעבדה";
+  settings.currency = $("#setCur").value.trim() || "₪";
+  settings.waCountry = $("#setWa").value.trim() || "972";
+  settings.fs = parseFloat($("#setFs").value) || 1;
+  settings.nextNum = parseInt($("#setNum").value) || settings.nextNum;
+  saveSettings(); applySettings(); toast("ההגדרות נשמרו"); render();
+}
+
+/* ============================ Modals / Edit ============================ */
+const modalBack = $("#modalBack"), modalBox = $("#modalBox");
+function openModal(html) { modalBox.innerHTML = html; modalBack.classList.add("show"); }
+function closeModal() { modalBack.classList.remove("show"); }
+modalBack.addEventListener("click", e => { if (e.target === modalBack) closeModal(); });
+
+function editCustomer(id) {
+  const c = customers.find(x => x.id === id) || { name: "", phone: "", notes: "" };
+  openModal(`<h3>${id ? "עריכת לקוח" : "לקוח חדש"}</h3>
+    <label class="fld">שם</label><input id="cName" value="${esc(c.name)}">
+    <label class="fld">טלפון</label><input id="cPhone" value="${esc(c.phone)}" inputmode="tel">
+    <label class="fld">הערות</label><textarea id="cNotes">${esc(c.notes)}</textarea>
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveCustomer('${id || ""}')">💾 שמור</button>
+    ${id ? `<button class="btn danger" onclick="delCustomer('${id}')">מחק</button>` : ""}
+    <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+}
+function saveCustomer(id) {
+  const name = $("#cName").value.trim(); if (!name) { toast("הזן שם"); return; }
+  const data = { name, phone: $("#cPhone").value.trim(), notes: $("#cNotes").value.trim() };
+  if (id) Object.assign(customers.find(x => x.id === id), data);
+  else customers.push({ id: uid(), createdAt: Date.now(), ...data });
+  saveAll(); closeModal(); render(); toast("נשמר");
+}
+function delCustomer(id) {
+  if (tickets.some(t => t.customerId === id)) { toast("ללקוח יש כרטיסים — לא ניתן למחוק"); return; }
+  customers = customers.filter(x => x.id !== id); saveAll(); closeModal(); render();
+}
+
+function editTicket(id) {
+  const t = tickets.find(x => x.id === id) || { customerId: "", device: "", imei: "", fault: "", price: "", status: "התקבל", parts: [], warrantyDays: 90 };
+  const custOpts = customers.map(c => `<option value="${c.id}" ${t.customerId === c.id ? "selected" : ""}>${esc(c.name)} ${esc(c.phone || "")}</option>`).join("");
+  openModal(`<h3>${id ? "כרטיס #" + t.num : "כרטיס תיקון חדש"}</h3>
+    <label class="fld">לקוח</label>
+    <div class="row"><select id="tCust" style="flex:1">${custOpts || "<option value=''>— אין לקוחות —</option>"}</select>
+      <button class="btn sm" onclick="quickCustomer()">+ חדש</button></div>
+    <div class="two"><div><label class="fld">דגם מכשיר</label><input id="tDevice" value="${esc(t.device)}"></div>
+      <div><label class="fld">IMEI / מספר סידורי</label><input id="tImei" value="${esc(t.imei)}"></div></div>
+    <label class="fld">תיאור התקלה</label><textarea id="tFault">${esc(t.fault)}</textarea>
+    <div class="two"><div><label class="fld">מחיר</label><input id="tPrice" type="number" value="${t.price}"></div>
+      <div><label class="fld">אחריות (ימים)</label><input id="tWarr" type="number" value="${t.warrantyDays ?? 90}"></div></div>
+    <label class="fld">סטטוס</label><select id="tStatus">${STATUSES.map(s => `<option ${t.status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveTicket('${id || ""}')">💾 שמור</button>
+      <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+}
+function quickCustomer() {
+  const name = prompt("שם הלקוח:"); if (!name) return;
+  const phone = prompt("טלפון:") || "";
+  const c = { id: uid(), name: name.trim(), phone: phone.trim(), notes: "", createdAt: Date.now() };
+  customers.push(c); saveAll();
+  const sel = $("#tCust"); sel.innerHTML += `<option value="${c.id}" selected>${esc(c.name)} ${esc(c.phone)}</option>`; sel.value = c.id;
+}
+function saveTicket(id) {
+  const customerId = $("#tCust").value; if (!customerId) { toast("בחר לקוח"); return; }
+  const data = {
+    customerId, device: $("#tDevice").value.trim(), imei: $("#tImei").value.trim(),
+    fault: $("#tFault").value.trim(), price: parseFloat($("#tPrice").value) || 0,
+    warrantyDays: parseInt($("#tWarr").value) || 0, status: $("#tStatus").value,
+  };
+  let t = tickets.find(x => x.id === id);
+  if (t) {
+    const prevStatus = t.status;
+    Object.assign(t, data); t.updatedAt = Date.now();
+    if (data.status !== prevStatus) t.history = [...(t.history || []), { status: data.status, at: Date.now() }];
+    if (data.status === "נמסר" && !t.deliveredAt) t.deliveredAt = Date.now();
+  } else {
+    t = { id: uid(), num: settings.nextNum++, createdAt: Date.now(), updatedAt: Date.now(), history: [{ status: data.status, at: Date.now() }], ...data };
+    tickets.push(t); saveSettings();
+  }
+  saveAll(); closeModal(); render(); toast("נשמר");
+}
+
+function openTicket(id) {
+  const t = tickets.find(x => x.id === id); if (!t) return;
+  const c = customers.find(x => x.id === t.customerId) || {};
+  const idx = STATUSES.indexOf(t.status);
+  const warrText = t.deliveredAt && t.warrantyDays ? "בתוקף עד " + fmtDate(t.deliveredAt + t.warrantyDays * 86400000) : "—";
+  openModal(`<h3>כרטיס #${t.num} <span class="chip ${ST_CLASS[t.status]}">${t.status}</span></h3>
+    <div class="muted">${esc(c.name || "")} · ${esc(c.phone || "")} · נפתח ${fmtDate(t.createdAt)}</div>
+    <div class="card" style="margin-top:10px;background:var(--card-2)">
+      <div><b>מכשיר:</b> ${esc(t.device || "—")} ${t.imei ? "· IMEI " + esc(t.imei) : ""}</div>
+      <div style="margin-top:4px"><b>תקלה:</b> ${esc(t.fault || "—")}</div>
+      <div style="margin-top:4px"><b>מחיר:</b> ${t.price ? money(t.price) : "—"} · <b>אחריות:</b> ${warrText}</div>
+    </div>
+    <label class="fld">קידום סטטוס</label>
+    <div class="row">${STATUSES.map((s, i) => `<button class="btn sm ${i === idx ? "primary" : ""}" onclick="setTicketStatus('${t.id}','${s}')">${s}</button>`).join("")}</div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" onclick="editTicket('${t.id}')">✏️ עריכה</button>
+      <button class="btn" onclick="printInvoice('${t.id}')">🧾 חשבונית</button>
+      <button class="btn" onclick="printLabel('${t.id}')">🏷️ מדבקה</button>
+      <button class="btn ok" onclick="waNotify('${t.customerId}','${t.id}')">💬 עדכן לקוח</button>
+      ${t.status === "מוכן" || t.status === "נמסר" ? `<button class="btn" onclick="signTicket('${t.id}')">✍️ חתימת מסירה</button>` : ""}
+      <div class="spacer"></div><button class="btn" onclick="closeModal()">סגור</button>
+    </div>
+    ${t.signature ? `<div class="muted" style="margin-top:8px">✓ נחתם על מסירה</div>` : ""}`);
+}
+function setTicketStatus(id, s) {
+  const t = tickets.find(x => x.id === id); if (!t) return;
+  t.status = s; t.updatedAt = Date.now(); t.history = [...(t.history || []), { status: s, at: Date.now() }];
+  if (s === "נמסר" && !t.deliveredAt) t.deliveredAt = Date.now();
+  saveAll(); openTicket(id); render();
+}
+
+/* ---- parts ---- */
+function editPart(id) {
+  const p = inventory.find(x => x.id === id) || { name: "", sku: "", qty: 0, minQty: 1, cost: "", price: "" };
+  openModal(`<h3>${id ? "עריכת חלק" : "חלק חדש"}</h3>
+    <label class="fld">שם החלק</label><input id="pName" value="${esc(p.name)}">
+    <div class="two"><div><label class="fld">מק"ט</label><input id="pSku" value="${esc(p.sku)}"></div>
+      <div><label class="fld">כמות במלאי</label><input id="pQty" type="number" value="${p.qty}"></div></div>
+    <div class="two"><div><label class="fld">התראה מתחת ל-</label><input id="pMin" type="number" value="${p.minQty}"></div>
+      <div><label class="fld">מחיר מכירה</label><input id="pPrice" type="number" value="${p.price}"></div></div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="savePart('${id || ""}')">💾 שמור</button>
+      ${id ? `<button class="btn danger" onclick="delPart('${id}')">מחק</button>` : ""}
+      <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+}
+function savePart(id) {
+  const name = $("#pName").value.trim(); if (!name) { toast("הזן שם"); return; }
+  const data = { name, sku: $("#pSku").value.trim(), qty: parseInt($("#pQty").value) || 0, minQty: parseInt($("#pMin").value) || 0, price: parseFloat($("#pPrice").value) || 0 };
+  if (id) Object.assign(inventory.find(x => x.id === id), data);
+  else inventory.push({ id: uid(), ...data });
+  saveAll(); closeModal(); render(); toast("נשמר");
+}
+function delPart(id) { inventory = inventory.filter(x => x.id !== id); saveAll(); closeModal(); render(); }
+
+/* ---- prices ---- */
+function editPrice(id) {
+  const p = prices.find(x => x.id === id) || { device: "", fault: "", price: "" };
+  openModal(`<h3>${id ? "עריכת מחיר" : "שורת מחיר חדשה"}</h3>
+    <label class="fld">דגם</label><input id="prDev" value="${esc(p.device)}">
+    <label class="fld">תקלה / שירות</label><input id="prFault" value="${esc(p.fault)}">
+    <label class="fld">מחיר</label><input id="prPrice" type="number" value="${p.price}">
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="savePrice('${id || ""}')">💾 שמור</button>
+      ${id ? `<button class="btn danger" onclick="delPrice('${id}')">מחק</button>` : ""}
+      <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+}
+function savePrice(id) {
+  const data = { device: $("#prDev").value.trim(), fault: $("#prFault").value.trim(), price: parseFloat($("#prPrice").value) || 0 };
+  if (!data.device && !data.fault) { toast("מלא פרטים"); return; }
+  if (id) Object.assign(prices.find(x => x.id === id), data);
+  else prices.push({ id: uid(), ...data });
+  saveAll(); closeModal(); render(); toast("נשמר");
+}
+function delPrice(id) { prices = prices.filter(x => x.id !== id); saveAll(); closeModal(); render(); }
+
+/* ---- WhatsApp notify ---- */
+function waNotify(custId, ticketId) {
+  const c = customers.find(x => x.id === custId); if (!c || !c.phone) { toast("אין מספר טלפון ללקוח"); return; }
+  const t = ticketId ? tickets.find(x => x.id === ticketId) : null;
+  let phone = c.phone.replace(/\D/g, "");
+  if (phone.startsWith("0")) phone = settings.waCountry + phone.slice(1);
+  const msg = t
+    ? `שלום ${c.name}, בנוגע לתיקון #${t.num} (${t.device || ""}): הסטטוס הוא "${t.status}".` + (t.status === "מוכן" ? " המכשיר מוכן לאיסוף! 🙌" : "")
+    : `שלום ${c.name}, מ${settings.shopName}.`;
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
+}
+
+/* ---- signature ---- */
+function signTicket(id) {
+  openModal(`<h3>חתימת מסירה — כרטיס</h3><p class="muted">חתום באצבע/עכבר בתוך המסגרת.</p>
+    <canvas id="sig" class="sig"></canvas>
+    <div class="row" style="margin-top:12px"><button class="btn primary" onclick="saveSig('${id}')">✓ שמור חתימה</button>
+      <button class="btn" onclick="clearSig()">נקה</button><div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+  setupSig();
+}
+let sigCtx, sigDrawing = false;
+function setupSig() {
+  const cv = $("#sig"); const rect = cv.getBoundingClientRect();
+  cv.width = rect.width; cv.height = rect.height;
+  sigCtx = cv.getContext("2d"); sigCtx.strokeStyle = "#000"; sigCtx.lineWidth = 2.5; sigCtx.lineCap = "round";
+  const pos = e => { const r = cv.getBoundingClientRect(); const p = e.touches ? e.touches[0] : e; return [p.clientX - r.left, p.clientY - r.top]; };
+  const start = e => { sigDrawing = true; sigCtx.beginPath(); sigCtx.moveTo(...pos(e)); e.preventDefault(); };
+  const move = e => { if (!sigDrawing) return; sigCtx.lineTo(...pos(e)); sigCtx.stroke(); e.preventDefault(); };
+  const end = () => sigDrawing = false;
+  cv.addEventListener("mousedown", start); cv.addEventListener("mousemove", move); window.addEventListener("mouseup", end);
+  cv.addEventListener("touchstart", start); cv.addEventListener("touchmove", move); cv.addEventListener("touchend", end);
+}
+function clearSig() { sigCtx.clearRect(0, 0, sigCtx.canvas.width, sigCtx.canvas.height); }
+function saveSig(id) {
+  const t = tickets.find(x => x.id === id); if (!t) return;
+  t.signature = $("#sig").toDataURL("image/png"); t.deliveredAt = t.deliveredAt || Date.now();
+  if (t.status !== "נמסר") setTicketStatus(id, "נמסר");
+  saveAll(); closeModal(); toast("החתימה נשמרה"); render();
+}
+
+/* ---- print invoice / label ---- */
+function printInvoice(id) {
+  const t = tickets.find(x => x.id === id); if (!t) return;
+  const c = customers.find(x => x.id === t.customerId) || {};
+  $("#printArea").innerHTML = `
+    <div style="font-family:Rubik,Arial;max-width:640px">
+      <div style="display:flex;justify-content:space-between;border-bottom:2px solid #000;padding-bottom:8px">
+        <h1 style="font-size:24px">${esc(settings.shopName)}</h1><div>חשבונית / קבלה<br>#${t.num} · ${fmtDate(Date.now())}</div></div>
+      <p style="margin-top:12px"><b>לקוח:</b> ${esc(c.name || "")} · ${esc(c.phone || "")}</p>
+      <p><b>מכשיר:</b> ${esc(t.device || "")} ${t.imei ? "· IMEI " + esc(t.imei) : ""}</p>
+      <table style="width:100%;border-collapse:collapse;margin-top:14px">
+        <tr style="border-bottom:1px solid #000"><th style="text-align:right;padding:6px">תיאור</th><th style="text-align:left;padding:6px">מחיר</th></tr>
+        <tr><td style="padding:6px">${esc(t.fault || "תיקון")}</td><td style="text-align:left;padding:6px">${money(t.price)}</td></tr>
+        <tr style="border-top:2px solid #000;font-weight:900"><td style="padding:6px">סה"כ</td><td style="text-align:left;padding:6px">${money(t.price)}</td></tr>
+      </table>
+      <p style="margin-top:16px;font-size:13px">אחריות: ${t.warrantyDays || 0} ימים${t.deliveredAt ? " (עד " + fmtDate(t.deliveredAt + (t.warrantyDays || 0) * 86400000) + ")" : ""}</p>
+      ${t.signature ? `<p style="margin-top:16px;font-size:13px">חתימת הלקוח על קבלת המכשיר:</p><img src="${t.signature}" style="height:70px">` : ""}
+      <p style="margin-top:24px;font-size:12px;color:#555">תודה שבחרתם ב${esc(settings.shopName)}</p>
+    </div>`;
+  window.print();
+}
+function printLabel(id) {
+  const t = tickets.find(x => x.id === id); if (!t) return;
+  const c = customers.find(x => x.id === t.customerId) || {};
+  $("#printArea").innerHTML = `
+    <div style="font-family:Rubik,Arial;width:340px;border:1px solid #000;padding:10px">
+      <div style="display:flex;justify-content:space-between"><b style="font-size:20px">#${t.num}</b><span>${fmtDate(t.createdAt)}</span></div>
+      <div style="font-size:15px;margin:4px 0"><b>${esc(c.name || "")}</b> · ${esc(c.phone || "")}</div>
+      <div style="font-size:14px">${esc(t.device || "")} ${t.imei ? "· " + esc(t.imei) : ""}</div>
+      <div style="font-size:13px;margin:4px 0">${esc((t.fault || "").slice(0, 60))}</div>
+      <div style="margin-top:6px">${code39svg("T" + t.num)}</div>
+    </div>`;
+  window.print();
+}
+
+/* ---- export / import (with optional encryption) ---- */
+function collectData() { return { v: 1, exportedAt: Date.now(), customers, tickets, inventory, prices, settings }; }
+async function exportData(encrypt) {
+  const json = JSON.stringify(collectData(), null, 2);
+  let blob, name;
+  if (encrypt) {
+    const pass = prompt("סיסמה להצפנת הגיבוי:"); if (!pass) return;
+    const enc = await encryptText(json, pass);
+    blob = new Blob([enc], { type: "application/octet-stream" }); name = "maabada-backup.mbk";
+  } else { blob = new Blob([json], { type: "application/json" }); name = "maabada-backup.json"; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  URL.revokeObjectURL(a.href); toast("הגיבוי יוצא");
+}
+async function importData(file) {
+  if (!file) return;
+  try {
+    let text = await file.text();
+    if (file.name.endsWith(".mbk")) { const pass = prompt("סיסמת הגיבוי:"); if (!pass) return; text = await decryptText(text, pass); }
+    const d = JSON.parse(text);
+    if (!confirm("הייבוא ידרוס את כל הנתונים הנוכחיים. להמשיך?")) return;
+    customers = d.customers || []; tickets = d.tickets || []; inventory = d.inventory || []; prices = d.prices || []; settings = d.settings || settings;
+    saveAll(); applySettings(); render(); toast("הנתונים יובאו");
+  } catch (e) { toast("שגיאה בייבוא: " + e.message); }
+}
+/* WebCrypto AES-GCM with PBKDF2 */
+async function deriveKey(pass, salt) {
+  const km = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 120000, hash: "SHA-256" }, km, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+function b64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+function unb64(s) { return Uint8Array.from(atob(s), c => c.charCodeAt(0)); }
+async function encryptText(text, pass) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(pass, salt);
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(text));
+  return JSON.stringify({ mbk: 1, salt: b64(salt), iv: b64(iv), ct: b64(ct) });
+}
+async function decryptText(enc, pass) {
+  const o = JSON.parse(enc); const key = await deriveKey(pass, unb64(o.salt));
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(o.iv) }, key, unb64(o.ct));
+  return new TextDecoder().decode(pt);
+}
+
+/* ============================ Settings apply / theme ============================ */
+function applySettings() {
+  document.documentElement.setAttribute("data-theme", settings.theme || "dark");
+  document.documentElement.style.setProperty("--fs", settings.fs || 1);
+  $("#shopName").textContent = settings.shopName || "מעבדה";
+  document.title = (settings.shopName || "מעבדה") + " — ניהול מעבדת סלולר";
+}
+$("#btnTheme").addEventListener("click", () => { settings.theme = (settings.theme === "light" ? "dark" : "light"); saveSettings(); applySettings(); });
+$("#search").addEventListener("input", () => { if (["tickets", "customers"].includes(current)) render(); });
+
+/* PWA install */
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; $("#btnInstall").style.display = "flex"; });
+$("#btnInstall").addEventListener("click", async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; $("#btnInstall").style.display = "none"; });
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+
+/* boot */
+applySettings();
+render();
+</script>
+</body>
+</html>
