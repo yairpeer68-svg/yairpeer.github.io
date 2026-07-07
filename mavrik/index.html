@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מבריק — כלי מעבדה לתיקון אנדרואיד תקוע</title>
+<meta name="description" content="כלי מעבדה בדפדפן לתיקון טלפוני אנדרואיד: bootloop, פלאש כושל, סלוט A/B תקוע ומחיקת נתונים — דרך fastboot ו-WebUSB, בלי התקנות.">
+<meta property="og:title" content="מבריק — כלי מעבדה לתיקון אנדרואיד">
+<meta property="og:description" content="fastboot ישירות מהדפדפן: אתחול למצבים, החלפת סלוט, מחיקת מחיצות, פלאש boot/recovery/vbmeta ופתיחת bootloader.">
+<meta name="theme-color" content="#0a0e14">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --glow-1: rgba(56, 189, 248, .22);
+    --glow-2: rgba(16, 185, 129, .14);
+    --card: #111826;
+    --card-2: #172234;
+    --text: #eef4fb;
+    --muted: #8a9bb2;
+    --cyan: #38bdf8;
+    --blue: #2563eb;
+    --teal: #10b981;
+    --ok: #34d399;
+    --warn: #fbbf24;
+    --bad: #fb5f7d;
+    --border: #24344b;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: "Rubik", -apple-system, "Segoe UI", Arial, sans-serif;
+    background:
+      radial-gradient(650px 420px at 88% -6%, var(--glow-1), transparent 70%),
+      radial-gradient(520px 400px at -12% 26%, var(--glow-2), transparent 70%),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh; min-height: 100dvh;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 620px; margin: 0 auto; padding: 14px 16px 60px; }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 2px 4px; }
+  .brand { display: flex; align-items: center; gap: 8px; font-weight: 900; font-size: 19px; }
+  .brand .logo { font-size: 22px; }
+  .topbar .actions { display: flex; gap: 8px; }
+  .icon-btn {
+    width: 38px; height: 38px; border-radius: 12px;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text); font-size: 17px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-family: inherit;
+  }
+  .icon-btn:hover { border-color: var(--cyan); }
+  #btnInstall { display: none; }
+
+  .hero {
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, #1e3a8a, #0ea5e9 60%, #10b981);
+    border-radius: 22px; padding: 22px 18px; text-align: center; margin-top: 12px;
+    box-shadow: 0 12px 40px rgba(37, 99, 235, .3);
+  }
+  .hero h1 { font-size: 24px; font-weight: 900; letter-spacing: -.5px; }
+  .hero p { color: #eaf6ff; font-size: 14px; margin-top: 6px; opacity: .95; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: none; border-radius: 13px; padding: 13px 18px;
+    font-family: inherit; font-weight: 800; font-size: 15px; cursor: pointer;
+    background: var(--card-2); color: var(--text); border: 1px solid var(--border);
+    transition: transform .05s ease, border-color .15s ease, background .15s ease;
+    width: 100%;
+  }
+  .btn:hover { border-color: var(--cyan); }
+  .btn:active { transform: scale(.985); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.primary {
+    background: #fff; color: #0b3b6b; border: none;
+    box-shadow: 0 6px 20px rgba(255,255,255,.18);
+    font-size: 16px; margin-top: 14px;
+  }
+  .btn.primary:hover { background: #eefaff; }
+  .btn.warn { border-color: rgba(251,191,36,.5); }
+  .btn.warn:hover { border-color: var(--warn); }
+  .btn.danger { border-color: rgba(251,95,125,.5); color: #ffd7de; }
+  .btn.danger:hover { border-color: var(--bad); background: rgba(251,95,125,.08); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; margin-top: 14px;
+  }
+  .card h2 { font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .card h2 .num { color: var(--muted); font-weight: 800; }
+  .card .sub { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 420px){ .grid2 { grid-template-columns: 1fr; } }
+
+  /* connection status */
+  #statusChip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700;
+    background: var(--card-2); border: 1px solid var(--border); color: var(--muted);
+  }
+  #statusChip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  #statusChip.on { color: var(--ok); border-color: rgba(52,211,153,.4); }
+  #statusChip.on .dot { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  #statusChip.busy { color: var(--warn); border-color: rgba(251,191,36,.4); }
+  #statusChip.busy .dot { background: var(--warn); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  .devinfo { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 13.5px; margin-top: 4px; }
+  .devinfo dt { color: var(--muted); }
+  .devinfo dd { font-weight: 700; word-break: break-all; }
+  .badge { display:inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+  .badge.ok { background: rgba(52,211,153,.15); color: var(--ok); }
+  .badge.bad { background: rgba(251,95,125,.15); color: var(--bad); }
+  .badge.muted { background: var(--card-2); color: var(--muted); }
+
+  label.fld { display: block; font-size: 13px; color: var(--muted); font-weight: 700; margin: 10px 0 5px; }
+  select, input[type=text], input[type=file] {
+    width: 100%; background: var(--card-2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 11px; padding: 11px 12px;
+    font-family: inherit; font-size: 14px;
+  }
+  input[type=file]::file-selector-button {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; font-family: inherit; font-weight: 700;
+    margin-inline-end: 10px; cursor: pointer;
+  }
+
+  .disabled-block { opacity: .4; pointer-events: none; }
+
+  /* console */
+  #console {
+    background: #060a10; border: 1px solid var(--border); border-radius: 12px;
+    padding: 12px; height: 220px; overflow-y: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 12.5px; direction: ltr; text-align: left; white-space: pre-wrap; word-break: break-word;
+  }
+  #console .l { display: block; padding: 1px 0; }
+  #console .info { color: #8a9bb2; }
+  #console .cmd { color: #7dd3fc; }
+  #console .ok { color: #6ee7b7; }
+  #console .err { color: #fca5b5; }
+  #console .warn { color: #fcd34d; }
+  .progwrap { height: 8px; background: var(--card-2); border-radius: 999px; overflow: hidden; margin-top: 10px; display: none; }
+  .progbar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--cyan), var(--teal)); transition: width .1s linear; }
+
+  .note { font-size: 12.5px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+  .note b { color: var(--text); }
+  details { margin-top: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); overflow: hidden; }
+  details > summary { cursor: pointer; padding: 14px 16px; font-weight: 800; font-size: 15px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  details > summary::-webkit-details-marker { display: none; }
+  details > summary::after { content: "›"; transform: rotate(90deg); transition: transform .2s; color: var(--muted); font-size: 20px; }
+  details[open] > summary::after { transform: rotate(-90deg); }
+  details .body { padding: 0 16px 16px; font-size: 13.5px; color: var(--muted); }
+  details .body h3 { color: var(--text); font-size: 14px; margin: 12px 0 4px; }
+  details .body code { background: var(--card-2); padding: 1px 6px; border-radius: 6px; font-size: 12.5px; color: var(--cyan); direction: ltr; display: inline-block; }
+  details .body ul { padding-inline-start: 20px; margin: 4px 0; }
+  details .body li { margin: 3px 0; }
+
+  .warnbox { background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.35); border-radius: 12px; padding: 12px 14px; font-size: 13px; color: #fde68a; margin-top: 12px; }
+  .footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 24px; }
+  .footer a { color: var(--cyan); text-decoration: none; }
+
+  /* modal */
+  .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; padding: 20px; z-index: 50; }
+  .modal-back.show { display: flex; }
+  .modal { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 20px; max-width: 420px; width: 100%; }
+  .modal h3 { font-size: 17px; font-weight: 900; margin-bottom: 8px; }
+  .modal p { color: var(--muted); font-size: 14px; margin-bottom: 14px; }
+  .modal .row { display: flex; gap: 10px; }
+  .modal .row .btn { flex: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand"><span class="logo">🔧</span><span>מבריק</span></div>
+    <div class="actions">
+      <button class="icon-btn" id="btnInstall" title="התקנה">⬇️</button>
+      <button class="icon-btn" id="btnHelp" title="עזרה" onclick="document.getElementById('guide').open=true;document.getElementById('guide').scrollIntoView({behavior:'smooth'})">?</button>
+    </div>
+  </div>
+
+  <div class="hero">
+    <h1>מבריק</h1>
+    <p>כלי מעבדה לתיקון אנדרואיד תקוע — fastboot ישירות מהדפדפן, בלי התקנת דרייברים או תוכנות</p>
+    <button class="btn primary" id="btnConnect">🔌 חבר טלפון (fastboot)</button>
+  </div>
+
+  <div id="unsupported" class="warnbox" style="display:none">
+    ⚠️ הדפדפן הזה לא תומך ב-WebUSB. הכלי עובד ב-<b>Chrome</b> או <b>Edge</b> על מחשב (Windows / macOS / Linux) או על אנדרואיד. ב-Safari ובאייפון זה לא נתמך.
+  </div>
+
+  <!-- status -->
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+      <h2>מצב חיבור</h2>
+      <span id="statusChip"><span class="dot"></span><span id="statusText">לא מחובר</span></span>
+    </div>
+    <div id="devinfoWrap" style="display:none">
+      <dl class="devinfo" id="devinfo"></dl>
+      <button class="btn" style="margin-top:12px" id="btnRefresh">🔄 רענן פרטי מכשיר</button>
+    </div>
+    <p class="sub" id="connectHint" style="margin-top:8px; margin-bottom:0">
+      חבר את הטלפון לכבל USB והכנס אותו למצב <b>bootloader / fastboot</b>, ואז לחץ "חבר טלפון". לא יודע איך? פתח את "מדריך: איך נכנסים ל-fastboot" למטה.
+    </p>
+  </div>
+
+  <!-- actions (disabled until connected) -->
+  <div id="actions" class="disabled-block">
+
+    <div class="card">
+      <h2>♻️ אתחול למצבים</h2>
+      <p class="sub">שולח את הטלפון למצב הרצוי. לרוב הצעד הראשון בבדיקה.</p>
+      <div class="grid2">
+        <button class="btn" data-reboot="">▶️ אתחול רגיל (מערכת)</button>
+        <button class="btn" data-reboot="bootloader">🔁 אתחול ל-bootloader</button>
+        <button class="btn" data-reboot="fastboot">⚡ אתחול ל-fastbootd</button>
+        <button class="btn" data-reboot="recovery">🛟 אתחול ל-recovery</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🩺 תיקונים נפוצים</h2>
+      <p class="sub">הפעולות שפותרות את רוב הבריקים הרכים והלולאות.</p>
+
+      <label class="fld">החלפת סלוט פעיל (A/B) — מתקן לולאת אתחול אחרי עדכון כושל</label>
+      <div class="grid2">
+        <button class="btn" data-slot="a">➡️ הפעל סלוט A</button>
+        <button class="btn" data-slot="b">➡️ הפעל סלוט B</button>
+      </div>
+
+      <label class="fld">מחיקת מחיצות — פותר תקיעות אחרי עדכון או אפליקציה בעייתית</label>
+      <div class="grid2">
+        <button class="btn warn" data-erase="cache">🧹 מחק cache</button>
+        <button class="btn danger" data-wipe="1">🗑️ מחיקת נתונים (Factory)</button>
+      </div>
+      <p class="note">⚠️ "מחיקת נתונים" מוחקת את כל המידע של המשתמש (userdata + cache). בלתי הפיך.</p>
+    </div>
+
+    <div class="card">
+      <h2>💾 פלאש תמונה (image)</h2>
+      <p class="sub">כתיבת קובץ raw למחיצה. מתאים ל-<b>boot / init_boot / recovery / vbmeta / dtbo</b>. קבצים דחוסים (sparse) גדולים כמו super/system אינם נתמכים בכלי דפדפן.</p>
+      <label class="fld">מחיצה</label>
+      <select id="partSelect">
+        <option value="boot">boot</option>
+        <option value="init_boot">init_boot</option>
+        <option value="recovery">recovery</option>
+        <option value="vbmeta">vbmeta</option>
+        <option value="vbmeta_system">vbmeta_system</option>
+        <option value="dtbo">dtbo</option>
+        <option value="vendor_boot">vendor_boot</option>
+        <option value="__custom">אחר (הקלד ידנית)…</option>
+      </select>
+      <input type="text" id="partCustom" placeholder="שם מחיצה" style="display:none; margin-top:8px">
+
+      <label class="fld">סיומת סלוט (למכשירי A/B)</label>
+      <select id="slotSuffix">
+        <option value="">ללא / אוטומטי</option>
+        <option value="_a">_a</option>
+        <option value="_b">_b</option>
+      </select>
+
+      <label class="fld">קובץ תמונה (.img)</label>
+      <input type="file" id="imgFile" accept=".img,.bin,application/octet-stream">
+
+      <div class="progwrap" id="flashProgWrap"><div class="progbar" id="flashProg"></div></div>
+      <button class="btn warn" id="btnFlash" style="margin-top:12px">💾 כתוב למחיצה</button>
+      <p class="note">⚠️ פלאש של קובץ שגוי או למחיצה לא נכונה עלול להזיק. ודא שהקובץ מתאים בדיוק לדגם.</p>
+    </div>
+
+    <div class="card">
+      <h2>🔓 נעילת Bootloader</h2>
+      <p class="sub">נדרש כדי לפלאש. <b>פתיחת נעילה מוחקת את כל הנתונים</b> ומצריכה אישור על מסך הטלפון בכפתורי עוצמה.</p>
+      <div class="grid2">
+        <button class="btn danger" data-flashing="unlock">🔓 פתח נעילה (unlock)</button>
+        <button class="btn" data-flashing="lock">🔒 נעל (lock)</button>
+      </div>
+      <p class="note">אם <code>flashing unlock</code> לא נתמך בדגם, נסה אוטומטית <code>oem unlock</code> — הכלי ינסה את שניהם.</p>
+    </div>
+
+    <div class="card">
+      <h2>🧾 מידע וכלים</h2>
+      <div class="grid2">
+        <button class="btn" id="btnGetvarAll">📋 סרוק את כל המשתנים</button>
+        <button class="btn" id="btnClearLog">🧽 נקה לוג</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- console -->
+  <div class="card">
+    <h2>🖥️ יומן פעולות</h2>
+    <p class="sub">כל פקודה ותשובה מה-bootloader מתועדת כאן.</p>
+    <div id="console"><span class="l info">// מוכן. חבר טלפון כדי להתחיל.</span></div>
+  </div>
+
+  <!-- guide -->
+  <details id="guide">
+    <summary>📖 מדריך: איך נכנסים ל-fastboot ומה עושים</summary>
+    <div class="body">
+      <h3>מה זה בכלל?</h3>
+      <p>fastboot הוא מצב תיקון נמוך-רמה של אנדרואיד. במצב הזה אפשר לאתחל מחדש, למחוק מחיצות פגומות ולכתוב תמונות מערכת — בדיוק מה שצריך כדי "להחיות" טלפון שנתקע.</p>
+
+      <h3>איך מכניסים טלפון ל-fastboot?</h3>
+      <ul>
+        <li><b>הטלפון עדיין נדלק / יש ADB:</b> חבר USB והרץ במחשב <code>adb reboot bootloader</code>.</li>
+        <li><b>שילוב כפתורים (מהמכשיר כבוי):</b>
+          <ul>
+            <li>Google Pixel / רוב הדגמים: <code>עוצמה למטה + הדלקה</code></li>
+            <li>Xiaomi / Redmi / POCO: <code>עוצמה למטה + הדלקה</code></li>
+            <li>OnePlus: <code>עוצמה למעלה + למטה + הדלקה</code></li>
+            <li>Motorola: <code>עוצמה למטה + הדלקה</code></li>
+          </ul>
+        </li>
+        <li><b>Samsung:</b> סמסונג לא משתמשת ב-fastboot אלא ב-Download Mode (Odin). הכלי הזה לא תומך בסמסונג — צריך Odin ייעודי.</li>
+      </ul>
+
+      <h3>דרישות טכניות</h3>
+      <ul>
+        <li>דפדפן <b>Chrome</b> או <b>Edge</b> (מחשב או אנדרואיד). לא עובד ב-Safari/אייפון.</li>
+        <li><b>Windows:</b> ייתכן שתצטרך דרייבר WinUSB למכשיר. אם הטלפון לא מופיע ברשימת ההתקנים, התקן את "Google USB Driver" או השתמש ב-Zadig להתקין WinUSB לממשק ה-fastboot.</li>
+        <li><b>Linux:</b> ודא הרשאות udev למכשיר (קבוצת plugdev).</li>
+      </ul>
+
+      <h3>מתכון מהיר: טלפון בלולאת אתחול (bootloop)</h3>
+      <ul>
+        <li>1. הכנס ל-bootloader וחבר בכלי.</li>
+        <li>2. אם המכשיר A/B — נסה "הפעל סלוט A", אתחל; אם לא עזר, "הפעל סלוט B".</li>
+        <li>3. עדיין תקוע? "מחק cache" ואתחל.</li>
+        <li>4. אם יש קובץ boot.img/init_boot.img מקורי מדויק לדגם — פלאש אותו.</li>
+        <li>5. מוצא אחרון: "מחיקת נתונים" (Factory) — מוחק הכול אבל מחזיר לחיים.</li>
+      </ul>
+
+      <div class="warnbox" style="margin-top:14px">
+        הכלי מבצע פעולות אמיתיות על החומרה. פעולות מחיקה ופלאש הן באחריותך. עבוד עם קבצי קושחה מקוריים בלבד, ותעד את דגם המכשיר המדויק לפני כל פלאש.
+      </div>
+    </div>
+  </details>
+
+  <div class="footer">
+    מבריק · פועל 100% במכשיר שלך, שום נתון לא נשלח לשרת · <a href="../">שאר האפליקציות</a>
+  </div>
+</div>
+
+<!-- confirmation modal -->
+<div class="modal-back" id="modalBack">
+  <div class="modal">
+    <h3 id="modalTitle">אישור</h3>
+    <p id="modalMsg"></p>
+    <div class="row">
+      <button class="btn" id="modalCancel">ביטול</button>
+      <button class="btn danger" id="modalOk">אישור</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   Fastboot over WebUSB — implements the fastboot wire protocol
+   (text commands over bulk endpoints; download+flash for images).
+   ============================================================ */
+class Fastboot {
+  constructor() { this.device = null; this.epIn = null; this.epOut = null; this.iface = null; this.maxPacket = 64; }
+
+  get connected() { return !!this.device && this.device.opened; }
+
+  static supported() { return !!(navigator.usb && navigator.usb.requestDevice); }
+
+  async requestAndOpen() {
+    // Match the fastboot USB interface class (0xFF/0x42/0x03) plus common phone vendors.
+    const filters = [
+      { classCode: 0xff, subclassCode: 0x42, protocolCode: 0x03 },
+      { vendorId: 0x18d1 }, // Google
+      { vendorId: 0x2717 }, // Xiaomi
+      { vendorId: 0x22b8 }, // Motorola
+      { vendorId: 0x2a70 }, // OnePlus/Oppo
+      { vendorId: 0x0b05 }, // Asus
+      { vendorId: 0x0e8d }, // MediaTek
+      { vendorId: 0x1004 }, // LG
+      { vendorId: 0x12d1 }, // Huawei
+    ];
+    this.device = await navigator.usb.requestDevice({ filters });
+    await this.device.open();
+    if (this.device.configuration === null) await this.device.selectConfiguration(1);
+
+    let ifaceNum = null, alt = null;
+    for (const cfg of this.device.configurations) {
+      for (const intf of cfg.interfaces) {
+        for (const a of intf.alternates) {
+          if (a.interfaceClass === 0xff && a.interfaceSubclass === 0x42 && a.interfaceProtocol === 0x03) {
+            ifaceNum = intf.interfaceNumber; alt = a;
+          }
+        }
+      }
+    }
+    if (alt === null) {
+      await this.device.close();
+      this.device = null;
+      throw new Error("לא נמצא ממשק fastboot במכשיר. ודא שהטלפון במצב bootloader/fastboot (ולא במצב רגיל או Download Mode של סמסונג).");
+    }
+    for (const ep of alt.endpoints) {
+      if (ep.type === "bulk" && ep.direction === "in")  { this.epIn = ep.endpointNumber; this.maxPacket = ep.packetSize || 64; }
+      if (ep.type === "bulk" && ep.direction === "out") this.epOut = ep.endpointNumber;
+    }
+    if (this.epIn == null || this.epOut == null) {
+      await this.device.close(); this.device = null;
+      throw new Error("לא נמצאו ערוצי תקשורת (bulk endpoints) לממשק fastboot.");
+    }
+    await this.device.claimInterface(ifaceNum);
+    this.iface = ifaceNum;
+    return { product: this.device.productName, manufacturer: this.device.manufacturerName, serial: this.device.serialNumber };
+  }
+
+  async close() {
+    try { if (this.device) { if (this.iface != null) await this.device.releaseInterface(this.iface); await this.device.close(); } } catch (e) {}
+    this.device = null; this.epIn = this.epOut = this.iface = null;
+  }
+
+  // Read one response cycle. INFO lines are streamed to onInfo; resolves on OKAY/FAIL/DATA.
+  async _readResponse(onInfo) {
+    for (;;) {
+      const res = await this.device.transferIn(this.epIn, 256);
+      if (res.status !== "ok") throw new Error("שגיאת קריאה מה-USB (" + res.status + ")");
+      const text = new TextDecoder().decode(res.data).replace(/\0+$/,"");
+      const status = text.substring(0, 4);
+      const payload = text.substring(4);
+      if (status === "INFO") { if (onInfo) onInfo(payload); continue; }
+      if (status === "OKAY") return { ok: true, data: payload };
+      if (status === "FAIL") return { ok: false, data: payload || "(ללא פירוט)" };
+      if (status === "DATA") return { ok: true, data: payload, isData: true };
+      // Some bootloaders reply with bare text; treat as OKAY payload.
+      return { ok: true, data: text };
+    }
+  }
+
+  async command(cmd, onInfo) {
+    const bytes = new TextEncoder().encode(cmd);
+    if (bytes.length > 64) throw new Error("פקודה ארוכה מדי (מעל 64 בתים): " + cmd);
+    const w = await this.device.transferOut(this.epOut, bytes);
+    if (w.status !== "ok") throw new Error("שגיאת שליחה ל-USB (" + w.status + ")");
+    return await this._readResponse(onInfo);
+  }
+
+  async getVar(name, onInfo) {
+    const r = await this.command("getvar:" + name, onInfo);
+    return r.ok ? r.data.trim() : null;
+  }
+
+  async download(bytes, onProgress) {
+    const sizeHex = bytes.length.toString(16).padStart(8, "0");
+    const r = await this.command("download:" + sizeHex);
+    if (!r.isData) throw new Error("ה-bootloader סירב לקבל את הקובץ: " + r.data);
+    const CHUNK = 512 * 1024;
+    for (let off = 0; off < bytes.length; off += CHUNK) {
+      const slice = bytes.subarray(off, Math.min(off + CHUNK, bytes.length));
+      const w = await this.device.transferOut(this.epOut, slice);
+      if (w.status !== "ok") throw new Error("שגיאה בשליחת נתונים (" + w.status + ")");
+      if (onProgress) onProgress(Math.min(off + CHUNK, bytes.length) / bytes.length);
+    }
+    const done = await this._readResponse();
+    if (!done.ok) throw new Error("ה-bootloader דחה את הנתונים: " + done.data);
+    return done;
+  }
+}
+
+/* ============================================================
+   UI wiring
+   ============================================================ */
+const fb = new Fastboot();
+const $ = s => document.querySelector(s);
+const consoleEl = $("#console");
+
+function log(msg, cls = "info") {
+  const line = document.createElement("span");
+  line.className = "l " + cls;
+  line.textContent = msg;
+  consoleEl.appendChild(line);
+  consoleEl.scrollTop = consoleEl.scrollHeight;
+}
+function logCmd(c) { log("$ fastboot " + c, "cmd"); }
+
+function setStatus(state, text) {
+  const chip = $("#statusChip");
+  chip.className = state; // "", "on", "busy"
+  $("#statusText").textContent = text;
+}
+function setBusy(b) {
+  document.querySelectorAll("#actions .btn").forEach(el => el.disabled = b);
+  if (b) setStatus("busy", "עסוק…");
+}
+
+let busy = false;
+async function guarded(label, fn) {
+  if (!fb.connected) { log("אין חיבור. חבר טלפון קודם.", "err"); return; }
+  if (busy) { log("פעולה אחרת עדיין רצה — המתן.", "warn"); return; }
+  busy = true; setBusy(true);
+  try {
+    await fn();
+  } catch (e) {
+    log("✗ " + (e && e.message ? e.message : e), "err");
+  } finally {
+    busy = false; setBusy(false);
+    if (fb.connected) setStatus("on", "מחובר");
+    else { setStatus("", "לא מחובר"); onDisconnected(); }
+  }
+}
+
+function onInfo(t) { log("  ℹ " + t.trim(), "info"); }
+
+async function refreshDeviceInfo() {
+  const fields = [
+    ["product",       "מוצר"],
+    ["variant",       "וריאנט"],
+    ["serialno",      "מספר סידורי"],
+    ["current-slot",  "סלוט פעיל"],
+    ["slot-count",    "מספר סלוטים"],
+    ["unlocked",      "נעילה פתוחה"],
+    ["secure",        "מאובטח"],
+    ["battery-voltage","מתח סוללה"],
+    ["version-bootloader","גרסת bootloader"],
+  ];
+  const dl = $("#devinfo");
+  dl.innerHTML = "";
+  for (const [key, label] of fields) {
+    let val = null;
+    try { val = await fb.getVar(key); } catch (e) { val = null; }
+    if (val == null || val === "" || /not found|unknown/i.test(val)) continue;
+    const dt = document.createElement("dt"); dt.textContent = label;
+    const dd = document.createElement("dd");
+    if (key === "unlocked") {
+      const yes = /yes|true|1/i.test(val);
+      dd.innerHTML = '<span class="badge ' + (yes ? "ok" : "bad") + '">' + (yes ? "פתוחה 🔓" : "נעולה 🔒") + "</span>";
+    } else dd.textContent = val;
+    dl.appendChild(dt); dl.appendChild(dd);
+  }
+  $("#devinfoWrap").style.display = dl.children.length ? "block" : "none";
+  $("#connectHint").style.display = "none";
+}
+
+function onConnected(info) {
+  $("#actions").classList.remove("disabled-block");
+  setStatus("on", "מחובר");
+  $("#btnConnect").textContent = "🔌 נתק / החלף מכשיר";
+  log("✓ מחובר: " + (info.product || info.manufacturer || "מכשיר fastboot") + (info.serial ? " (" + info.serial + ")" : ""), "ok");
+}
+function onDisconnected() {
+  $("#actions").classList.add("disabled-block");
+  $("#devinfoWrap").style.display = "none";
+  $("#connectHint").style.display = "block";
+  $("#btnConnect").textContent = "🔌 חבר טלפון (fastboot)";
+  setStatus("", "לא מחובר");
+}
+
+/* ---- connect button ---- */
+$("#btnConnect").addEventListener("click", async () => {
+  if (fb.connected) { await fb.close(); log("נותק.", "warn"); onDisconnected(); return; }
+  try {
+    setStatus("busy", "מחפש מכשיר…");
+    const info = await fb.requestAndOpen();
+    onConnected(info);
+    await guarded("info", refreshDeviceInfo);
+  } catch (e) {
+    if (e && e.name === "NotFoundError") { log("לא נבחר מכשיר.", "warn"); }
+    else log("✗ " + (e && e.message ? e.message : e), "err");
+    setStatus("", "לא מחובר");
+  }
+});
+
+$("#btnRefresh").addEventListener("click", () => guarded("info", refreshDeviceInfo));
+
+/* ---- reboot buttons ---- */
+document.querySelectorAll("[data-reboot]").forEach(btn => {
+  btn.addEventListener("click", () => guarded("reboot", async () => {
+    const target = btn.getAttribute("data-reboot");
+    const cmd = target ? "reboot-" + target : "reboot";
+    logCmd(target ? "reboot " + target : "reboot");
+    const r = await fb.command(cmd, onInfo);
+    if (r.ok) {
+      log("✓ המכשיר מאותחל" + (target ? " ל-" + target : "") + ". החיבור ינותק.", "ok");
+      // Device drops off the bus after reboot.
+      setTimeout(async () => { await fb.close(); onDisconnected(); }, 800);
+    } else log("✗ " + r.data, "err");
+  }));
+});
+
+/* ---- set active slot ---- */
+document.querySelectorAll("[data-slot]").forEach(btn => {
+  btn.addEventListener("click", () => guarded("slot", async () => {
+    const slot = btn.getAttribute("data-slot");
+    logCmd("--set-active=" + slot);
+    const r = await fb.command("set_active:" + slot, onInfo);
+    if (r.ok) log("✓ הסלוט הפעיל הוגדר ל-" + slot.toUpperCase() + ". אתחל את המכשיר לבדיקה.", "ok");
+    else log("✗ החלפת סלוט נכשלה: " + r.data + " (ייתכן שהמכשיר אינו A/B)", "err");
+  }));
+});
+
+/* ---- erase cache ---- */
+document.querySelectorAll("[data-erase]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const part = btn.getAttribute("data-erase");
+    confirmModal("מחיקת " + part, "לכתוב אפס למחיצת " + part + "? פעולה זו בטוחה יחסית ולרוב פותרת תקיעות.", () => {
+      guarded("erase", async () => {
+        logCmd("erase " + part);
+        const r = await fb.command("erase:" + part, onInfo);
+        if (r.ok) log("✓ " + part + " נמחקה.", "ok");
+        else log("✗ מחיקה נכשלה: " + r.data, "err");
+      });
+    });
+  });
+});
+
+/* ---- factory wipe ---- */
+document.querySelector("[data-wipe]").addEventListener("click", () => {
+  confirmModal("מחיקת נתונים מלאה", "פעולה זו תמחק את כל המידע של המשתמש (userdata + cache). המידע לא ניתן לשחזור. להמשיך?", () => {
+    guarded("wipe", async () => {
+      for (const p of ["userdata", "cache", "metadata"]) {
+        logCmd("erase " + p);
+        const r = await fb.command("erase:" + p, onInfo);
+        if (r.ok) log("✓ " + p + " נמחקה.", "ok");
+        else log("• " + p + ": " + r.data + " (ייתכן שאינה קיימת בדגם — ממשיך)", "warn");
+      }
+      log("✓ מחיקת נתונים הושלמה. אתחל את המכשיר.", "ok");
+    });
+  });
+});
+
+/* ---- flashing unlock/lock ---- */
+document.querySelectorAll("[data-flashing]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const action = btn.getAttribute("data-flashing");
+    const msg = action === "unlock"
+      ? "פתיחת נעילת ה-bootloader תמחק את כל הנתונים במכשיר. לאחר השליחה יופיע אישור על מסך הטלפון — אשר עם כפתורי העוצמה. להמשיך?"
+      : "לנעול מחדש את ה-bootloader? במקרים מסוימים זה ימחק נתונים ועלול לחסום מכשיר שאינו על קושחה מקורית.";
+    confirmModal((action === "unlock" ? "פתיחת" : "נעילת") + " Bootloader", msg, () => {
+      guarded("flashing", async () => {
+        logCmd("flashing " + action);
+        let r = await fb.command("flashing " + action, onInfo);
+        if (!r.ok) {
+          log("• flashing " + action + " לא נתמך, מנסה oem " + action + "…", "warn");
+          logCmd("oem " + action);
+          r = await fb.command("oem " + action, onInfo);
+        }
+        if (r.ok) log("✓ פקודת " + action + " נשלחה. אם המסך מבקש אישור — אשר בכפתורי העוצמה.", "ok");
+        else log("✗ " + r.data, "err");
+      });
+    });
+  });
+});
+
+/* ---- flash image ---- */
+$("#partSelect").addEventListener("change", e => {
+  $("#partCustom").style.display = e.target.value === "__custom" ? "block" : "none";
+});
+$("#btnFlash").addEventListener("click", () => {
+  const file = $("#imgFile").files[0];
+  if (!file) { log("בחר קובץ .img לפלאש קודם.", "warn"); return; }
+  let part = $("#partSelect").value;
+  if (part === "__custom") part = $("#partCustom").value.trim();
+  if (!part) { log("הזן שם מחיצה.", "warn"); return; }
+  part += $("#slotSuffix").value;
+
+  confirmModal("פלאש ל-" + part,
+    "לכתוב את הקובץ \"" + file.name + "\" (" + fmtBytes(file.size) + ") למחיצה " + part + "? ודא שהקובץ מתאים בדיוק לדגם. פלאש שגוי עלול להזיק.",
+    () => {
+      guarded("flash", async () => {
+        const maxRaw = parseInt(await fb.getVar("max-download-size"), 16) || parseInt(await fb.getVar("max-download-size"), 10) || 0;
+        const buf = new Uint8Array(await file.arrayBuffer());
+
+        // Reject Android sparse images — this browser tool only flashes raw.
+        if (buf.length >= 4 && buf[0] === 0x3a && buf[1] === 0xff && buf[2] === 0x26 && buf[3] === 0xed) {
+          throw new Error("הקובץ הוא sparse image — לא נתמך בכלי דפדפן. השתמש בקובץ raw (למשל boot.img מקורי).");
+        }
+        if (maxRaw && buf.length > maxRaw) {
+          throw new Error("הקובץ (" + fmtBytes(buf.length) + ") גדול מהמותר לפלאש ישיר (" + fmtBytes(maxRaw) + "). מחיצות ענק כמו super/system דורשות פיצול sparse שאינו נתמך כאן.");
+        }
+
+        const pw = $("#flashProgWrap"), pb = $("#flashProg");
+        pw.style.display = "block"; pb.style.width = "0%";
+        log("שולח " + fmtBytes(buf.length) + " ל-bootloader…", "info");
+        await fb.download(buf, p => { pb.style.width = Math.round(p * 100) + "%"; });
+        logCmd("flash " + part);
+        const r = await fb.command("flash:" + part, onInfo);
+        pw.style.display = "none";
+        if (r.ok) log("✓ הפלאש ל-" + part + " הושלם בהצלחה.", "ok");
+        else log("✗ הפלאש נכשל: " + r.data, "err");
+      });
+    });
+});
+
+/* ---- getvar all ---- */
+$("#btnGetvarAll").addEventListener("click", () => guarded("getvar-all", async () => {
+  logCmd("getvar all");
+  const r = await fb.command("getvar:all", onInfo);
+  if (!r.ok) log("✗ " + r.data, "err");
+  else log("✓ סריקת המשתנים הסתיימה.", "ok");
+}));
+
+$("#btnClearLog").addEventListener("click", () => { consoleEl.innerHTML = ""; log("// הלוג נוקה.", "info"); });
+
+/* ---- confirm modal ---- */
+let modalCb = null;
+function confirmModal(title, msg, cb) {
+  $("#modalTitle").textContent = title;
+  $("#modalMsg").textContent = msg;
+  modalCb = cb;
+  $("#modalBack").classList.add("show");
+}
+$("#modalOk").addEventListener("click", () => { $("#modalBack").classList.remove("show"); const c = modalCb; modalCb = null; if (c) c(); });
+$("#modalCancel").addEventListener("click", () => { $("#modalBack").classList.remove("show"); modalCb = null; });
+$("#modalBack").addEventListener("click", e => { if (e.target === $("#modalBack")) { $("#modalBack").classList.remove("show"); modalCb = null; } });
+
+/* ---- helpers ---- */
+function fmtBytes(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + " MB";
+  return (n / 1073741824).toFixed(2) + " GB";
+}
+
+/* ---- WebUSB disconnect event ---- */
+if (Fastboot.supported()) {
+  navigator.usb.addEventListener("disconnect", e => {
+    if (fb.device && e.device === fb.device) {
+      log("⚠ המכשיר נותק פיזית מה-USB.", "warn");
+      fb.device = null; fb.epIn = fb.epOut = fb.iface = null;
+      onDisconnected();
+    }
+  });
+} else {
+  $("#unsupported").style.display = "block";
+  $("#btnConnect").disabled = true;
+}
+
+/* ---- PWA ---- */
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; $("#btnInstall").style.display = "flex"; });
+$("#btnInstall").addEventListener("click", async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; $("#btnInstall").style.display = "none"; });
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+</script>
+</body>
+</html>
