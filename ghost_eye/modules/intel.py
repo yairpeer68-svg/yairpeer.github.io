@@ -19,38 +19,6 @@ def _resolve_ip(host: str) -> str:
 
 
 @register
-class VirusTotalLookup(Module):
-    id, name, category = "virustotal", "VirusTotal reputation", "Threat Intel"
-    target_kind = "host"
-    needs = ["virustotal api key"]
-
-    def run(self, target: str, ctx: Context) -> Result:
-        try:
-            host = clean_host(target)
-            key = ctx.config.require("virustotal")
-        except (ValueError, RuntimeError) as exc:
-            return self.fail(target, str(exc))
-        kind = "ip_addresses" if is_ip(host) else "domains"
-        try:
-            r = ctx.session.get(
-                f"https://www.virustotal.com/api/v3/{kind}/{host}",
-                headers={"x-apikey": key}, timeout=ctx.timeout)
-            if r.status_code != 200:
-                return self.fail(host, f"VirusTotal HTTP {r.status_code}")
-            attr = r.json().get("data", {}).get("attributes", {})
-            stats = attr.get("last_analysis_stats", {})
-            return self.ok(host, {
-                "reputation": attr.get("reputation"),
-                "malicious": stats.get("malicious"),
-                "suspicious": stats.get("suspicious"),
-                "harmless": stats.get("harmless"),
-                "categories": attr.get("categories"),
-            })
-        except Exception as exc:  # noqa: BLE001
-            return self.fail(host, f"VirusTotal failed: {exc}")
-
-
-@register
 class IpReputation(Module):
     id, name, category = "rbl", "IP reputation / DNS blacklists", "Threat Intel"
     target_kind = "host"
@@ -85,41 +53,6 @@ class IpReputation(Module):
                 if res:
                     listed.append(res)
         return self.ok(ip, {"checked": len(self._RBLS), "listed_on": listed or ["clean"]})
-
-
-@register
-class AbuseIpdb(Module):
-    id, name, category = "abuseipdb", "AbuseIPDB reputation", "Threat Intel"
-    target_kind = "host"
-    needs = ["abuseipdb api key"]
-
-    def run(self, target: str, ctx: Context) -> Result:
-        try:
-            host = clean_host(target)
-            key = ctx.config.require("abuseipdb")
-            ip = _resolve_ip(host)
-        except (ValueError, RuntimeError) as exc:
-            return self.fail(target, str(exc))
-        except OSError as exc:
-            return self.fail(target, f"cannot resolve: {exc}")
-        try:
-            r = ctx.session.get("https://api.abuseipdb.com/api/v2/check",
-                                params={"ipAddress": ip, "maxAgeInDays": 90},
-                                headers={"Key": key, "Accept": "application/json"},
-                                timeout=ctx.timeout)
-            if r.status_code != 200:
-                return self.fail(ip, f"AbuseIPDB HTTP {r.status_code}")
-            d = r.json().get("data", {})
-            return self.ok(ip, {
-                "abuse_confidence_score": d.get("abuseConfidenceScore"),
-                "total_reports": d.get("totalReports"),
-                "country": d.get("countryCode"),
-                "isp": d.get("isp"),
-                "domain": d.get("domain"),
-                "is_tor": d.get("isTor"),
-            })
-        except Exception as exc:  # noqa: BLE001
-            return self.fail(ip, f"AbuseIPDB failed: {exc}")
 
 
 @register

@@ -83,7 +83,7 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
                 "svcver", "sshaudit", "dohdot", "mqtt", "ntp", "grpc",
                 "dockerapi", "k8sadv", "ldap", "smb", "ftpanon",
                 "quicdetect", "wgdetect", "meshdetect", "ipv6only", "rebindguard"],
-    "ai": ["deepseek", "aiapi", "dsapi", "aikeyleak", "aidash", "vectordb",
+    "ai": ["deepseek", "aiapi", "aikeyleak", "aidash", "vectordb",
             "aiapp", "modelserve", "aiorch", "jupyter", "hfrecon", "promptleak"],
     "api": ["gqlaudit", "restfuzz", "wsaudit", "ssedetect", "apiver",
             "preflightcheck", "contentneg", "hateoas", "webhookfind", "idorsurface"],

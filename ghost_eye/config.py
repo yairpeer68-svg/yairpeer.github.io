@@ -1,7 +1,7 @@
 """
-Configuration + API-key management.
+Configuration management.
 
-Resolution order for any key:  explicit env var  >  config file  >  None.
+Resolution order for any setting:  explicit env var  >  config file  >  default.
 Config file lives at ~/.ghosteye/config.ini (override with GHOSTEYE_CONFIG).
 
 Example ~/.ghosteye/config.ini
@@ -12,13 +12,6 @@ timeout = 15
 user_agent =
 proxy =
 verify_tls = true
-
-[api_keys]
-# Only optional FREE-tier keys remain. Everything else works with no key.
-# (The paid Shodan/Censys/HIBP/SecurityTrails integrations were removed in v3.3.)
-virustotal =
-abuseipdb =
-deepseek =
 """
 
 from __future__ import annotations
@@ -28,12 +21,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-# env-var name -> config (section, option). Only free-tier keys remain.
-_ENV_MAP = {
-    "virustotal": ("VT_API_KEY", "api_keys", "virustotal"),
-    "abuseipdb": ("ABUSEIPDB_API_KEY", "api_keys", "abuseipdb"),
-    "deepseek": ("DEEPSEEK_API_KEY", "api_keys", "deepseek"),
-}
+_ENV_MAP: dict = {}
 
 _DEFAULTS = {
     "threads": "10",
@@ -104,7 +92,6 @@ class Config:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         cp = configparser.ConfigParser()
         cp["settings"] = dict(_DEFAULTS)
-        cp["api_keys"] = {k: "" for k in ("virustotal", "abuseipdb", "deepseek")}
         with open(self.path, "w", encoding="utf-8") as fh:
             cp.write(fh)
         return self.path
