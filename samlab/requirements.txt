@@ -1,0 +1,5 @@
+# מנוע הורדת הקושחה (FUS crypto נכון של Samsung)
+samloader>=0.4.0
+
+# פירוק images דחוסים (image.lz4) בתוך קבצי AP לפני פלאש
+lz4>=4.0.0
