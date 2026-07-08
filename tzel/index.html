@@ -120,6 +120,21 @@
   .check-item .ct small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
   .wifi-score { text-align: center; padding: 10px 0 4px; font-size: 15px; font-weight: 800; }
   .wifi-score b { font-size: 26px; }
+  .tb-item .pro { font-size: 10px; }
+  .fam-member { display: flex; align-items: center; gap: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  .fam-member .avatar { font-size: 22px; flex-shrink: 0; }
+  .fam-member .info { flex: 1; min-width: 0; }
+  .fam-member .nm { font-weight: 700; font-size: 14.5px; }
+  .fam-member .em { font-size: 12px; color: var(--muted); direction: ltr; text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fam-member .res { text-align: center; flex-shrink: 0; }
+  .fam-member .res .sc { font-size: 18px; font-weight: 900; }
+  .fam-member .res .lb { font-size: 10.5px; color: var(--muted); }
+  .fam-member .del { background: none; border: none; color: var(--muted); font-family: inherit; font-size: 16px; cursor: pointer; flex-shrink: 0; }
+  .fam-add { display: flex; gap: 8px; margin: 12px 0; }
+  .fam-add input { padding: 11px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font-size: 15px; font-family: inherit; }
+  .fam-add input.nm { width: 90px; }
+  .fam-add input.em { flex: 1; min-width: 0; }
+  .fam-empty { text-align: center; color: var(--muted); font-size: 13.5px; padding: 16px 0; line-height: 1.6; }
   .hist-strip { margin-top: 22px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
   .hist-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 12px; display: flex; flex-direction: column; gap: 3px; }
   .hist-title span { font-weight: 600; color: var(--text); font-size: 12.5px; }
@@ -312,6 +327,7 @@
           <button class="tb-item" id="btnPwGen"><span class="e">🎲</span><span class="t">מחולל סיסמאות</span></button>
           <button class="tb-item" id="btnWifi"><span class="e">📶</span><span class="t">אבטחת ראוטר</span></button>
           <button class="tb-item" id="btnAlias"><span class="e">📧</span><span class="t">מייל חלופי</span></button>
+          <button class="tb-item" id="btnFamily"><span class="e">👨‍👩‍👧</span><span class="t">בדיקה משפחתית <span class="pro">👑</span></span></button>
         </div>
       </div>
     </div>
@@ -357,6 +373,21 @@
       <div class="pw-note">סמן מה שכבר עשית. הראוטר הביתי הוא השער לכל המכשירים שלך — כדאי שיהיה מוגן.</div>
       <div class="check-list" id="wifiList"></div>
       <div class="wifi-score" id="wifiScore"></div>
+    </div>
+  </dialog>
+
+  <!-- family check -->
+  <dialog id="dlgFamily">
+    <div class="dlg-head"><h3>👨‍👩‍👧 בדיקה משפחתית</h3><button class="dlg-x" data-close="dlgFamily">✕</button></div>
+    <div class="dlg-body">
+      <div class="pw-note">בדוק את החשיפה של כל בני המשפחה במקום אחד — הורים, ילדים, בני זוג. במיוחד חשוב למי שפחות ער לאיומי סייבר.</div>
+      <div id="famList"></div>
+      <div class="fam-add">
+        <input class="nm" id="famName" type="text" maxlength="12" placeholder="שם">
+        <input class="em" id="famEmail" type="email" inputmode="email" placeholder="email@example.com" autocomplete="off">
+        <button class="pw-check" id="famAdd">הוסף</button>
+      </div>
+      <button class="btn-cyan" id="famScan">🔍 בדוק את כל המשפחה</button>
     </div>
   </dialog>
 
@@ -792,6 +823,58 @@ function makeAliases() {
 }
 $("aliasGo").addEventListener("click", makeAliases);
 $("aliasInput").addEventListener("keydown", e => { if (e.key === "Enter") makeAliases(); });
+
+/* ---------- 👨‍👩‍👧 בדיקה משפחתית (פרימיום) ---------- */
+const K_FAMILY = "tzel.family.v1";
+let family = [];
+try { family = JSON.parse(localStorage.getItem(K_FAMILY)) || []; } catch { family = []; }
+function saveFamily() { localStorage.setItem(K_FAMILY, JSON.stringify(family)); }
+const AVATARS = ["👨", "👩", "🧒", "👧", "👦", "👴", "👵", "🧑"];
+function renderFamily() {
+  const el = $("famList");
+  if (!family.length) { el.innerHTML = `<div class="fam-empty">עוד לא הוספת בני משפחה.<br>הוסף שם ומייל למטה, ואז לחץ "בדוק את כל המשפחה".</div>`; return; }
+  el.innerHTML = family.map((m, i) => {
+    const res = m.score != null
+      ? `<div class="res"><div class="sc" style="color:${m.score < 40 ? "var(--red)" : m.score < 70 ? "var(--orange)" : "var(--green)"}">${m.score}</div><div class="lb">${m.breaches != null ? m.breaches + " דליפות" : "ציון"}</div></div>`
+      : `<div class="res"><div class="lb">${m.scanning ? "בודק…" : "לא נבדק"}</div></div>`;
+    return `<div class="fam-member"><span class="avatar">${AVATARS[i % AVATARS.length]}</span>
+      <div class="info"><div class="nm">${esc(m.name || "בן משפחה")}</div><div class="em">${esc(m.email)}</div></div>
+      ${res}<button class="del" data-del="${i}">🗑️</button></div>`;
+  }).join("");
+  el.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", () => {
+    family.splice(parseInt(b.dataset.del, 10), 1); saveFamily(); renderFamily();
+  }));
+}
+$("btnFamily").addEventListener("click", () => {
+  if (!isPremium) { toast("בדיקה משפחתית זמינה בפרימיום 👑 — הפעל דרך דוח סריקה"); return; }
+  renderFamily(); $("dlgFamily").showModal();
+});
+$("famAdd").addEventListener("click", () => {
+  const name = $("famName").value.trim(), email = $("famEmail").value.trim();
+  if (!email.includes("@")) { toast("הזן מייל תקין"); return; }
+  if (family.length >= 8) { toast("עד 8 בני משפחה"); return; }
+  family.push({ name, email });
+  $("famName").value = ""; $("famEmail").value = "";
+  saveFamily(); renderFamily();
+});
+$("famEmail").addEventListener("keydown", e => { if (e.key === "Enter") $("famAdd").click(); });
+$("famScan").addEventListener("click", async () => {
+  if (!family.length) { toast("הוסף לפחות בן משפחה אחד"); return; }
+  for (const m of family) {
+    m.scanning = true; renderFamily();
+    try {
+      let report = null;
+      if (SERVER_MODE) report = await serverScan(m.email, "").catch(() => null);
+      if (!report) report = demoFindings(m.email);
+      m.score = report.score;
+      m.breaches = report.breachCount != null ? report.breachCount : null;
+    } catch { m.score = null; }
+    m.scanning = false; renderFamily();
+  }
+  saveFamily();
+  const worst = [...family].filter(m => m.score != null).sort((a, b) => a.score - b.score)[0];
+  if (worst) toast(`${worst.name || "בן משפחה"} הכי חשוף (ציון ${worst.score}) — כדאי לטפל`);
+});
 
 /* ---------- בודק סיסמאות (k-anonymity, מקומי, ללא מפתח) ---------- */
 async function sha1Hex(str) {
