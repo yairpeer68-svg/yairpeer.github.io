@@ -214,6 +214,8 @@
     <p class="sub" id="connectHint" style="margin-top:8px; margin-bottom:0">
       חבר את הטלפון לכבל USB והכנס אותו למצב <b>bootloader / fastboot</b>, ואז לחץ "חבר טלפון". לא יודע איך? פתח את "מדריך: איך נכנסים ל-fastboot" למטה.
     </p>
+    <div id="brandBanner" class="warnbox" style="display:none; margin-top:12px"></div>
+    <div id="slotRec" class="warnbox" style="display:none; margin-top:12px; background:rgba(52,211,153,.08); border-color:rgba(52,211,153,.35); color:#a7f3d0"></div>
   </div>
 
   <!-- actions (disabled until connected) -->
@@ -227,7 +229,9 @@
         <button class="btn" data-reboot="bootloader">🔁 אתחול ל-bootloader</button>
         <button class="btn" data-reboot="fastboot">⚡ אתחול ל-fastbootd</button>
         <button class="btn" data-reboot="recovery">🛟 אתחול ל-recovery</button>
+        <button class="btn warn" data-reboot="edl">🔻 אתחול ל-EDL (שיאומי/קוואלקום)</button>
       </div>
+      <p class="note">EDL = מצב חירום של קוואלקום (9008). שימושי לשיאומי תקוע קשה. היציאה ממנו לרוב בהחזקת עוצמה+הדלקה כ-10 שניות.</p>
     </div>
 
     <div class="card">
@@ -295,6 +299,7 @@
         <button class="btn" id="btnGetvarAll">📋 סרוק את כל המשתנים</button>
         <button class="btn" id="btnClearLog">🧽 נקה לוג</button>
       </div>
+      <div id="getvarTable" style="display:none; margin-top:12px; max-height:260px; overflow:auto; border:1px solid var(--border); border-radius:10px"></div>
     </div>
   </div>
 
@@ -520,6 +525,16 @@ async function guarded(label, fn) {
 
 function onInfo(t) { log("  ℹ " + t.trim(), "info"); }
 
+function detectBrand(vals) {
+  const s = ((vals.product || "") + " " + (vals["product-name"] || "") + " " + (fb.device && fb.device.manufacturerName || "")).toLowerCase();
+  if (/samsung|sm-|exynos/.test(s)) return "samsung";
+  if (/xiaomi|redmi|poco|mi |miui|umi/.test(s)) return "xiaomi";
+  if (/pixel|google/.test(s)) return "google";
+  if (/oneplus|oppo|realme|oplus/.test(s)) return "oneplus";
+  if (/motorola|moto/.test(s)) return "motorola";
+  return "other";
+}
+
 async function refreshDeviceInfo() {
   const fields = [
     ["product",       "מוצר"],
@@ -534,10 +549,12 @@ async function refreshDeviceInfo() {
   ];
   const dl = $("#devinfo");
   dl.innerHTML = "";
+  const vals = {};
   for (const [key, label] of fields) {
     let val = null;
     try { val = await fb.getVar(key); } catch (e) { val = null; }
     if (val == null || val === "" || /not found|unknown/i.test(val)) continue;
+    vals[key] = val;
     const dt = document.createElement("dt"); dt.textContent = label;
     const dd = document.createElement("dd");
     if (key === "unlocked") {
@@ -548,6 +565,33 @@ async function refreshDeviceInfo() {
   }
   $("#devinfoWrap").style.display = dl.children.length ? "block" : "none";
   $("#connectHint").style.display = "none";
+
+  // ---- ניתוב לפי מותג (46) ----
+  const brand = detectBrand(vals);
+  const banner = $("#brandBanner");
+  if (brand === "samsung") {
+    banner.style.display = "block";
+    banner.innerHTML = '⚠️ זוהה מכשיר <b>Samsung</b>. סמסונג אינה עובדת עם fastboot אלא עם Download Mode (Odin). ' +
+      'הכלי הזה לא יכול לתקן סמסונג — השתמש ב-<b><a href="../samlab/" style="color:#fde68a">מבריק לאב</a></b> (תוכנת ה-Windows לסמסונג).';
+  } else if (brand === "xiaomi") {
+    banner.style.display = "block";
+    banner.innerHTML = '📱 זוהה מכשיר <b>Xiaomi/Redmi/POCO</b>. שים לב: MIUI/HyperOS עם <b>Anti-Rollback</b> — אל תפלאש גרסה ישנה יותר, זה עלול לנעול את המכשיר לצמיתות. ' +
+      'פתיחת bootloader דורשת אישור חשבון Mi (Mi Unlock) והמתנה.';
+  } else {
+    banner.style.display = "none";
+  }
+
+  // ---- המלצת סלוט A/B (47) ----
+  const slotRec = $("#slotRec");
+  if (vals["current-slot"] && (vals["slot-count"] && parseInt(vals["slot-count"]) >= 2 || /^[ab]$/i.test(vals["current-slot"]))) {
+    const cur = vals["current-slot"].toLowerCase();
+    const other = cur === "a" ? "b" : "a";
+    slotRec.style.display = "block";
+    slotRec.innerHTML = `🔀 מכשיר <b>A/B</b> — הסלוט הפעיל כרגע: <b>${cur.toUpperCase()}</b>. ` +
+      `אם יש לולאת אתחול אחרי עדכון, נסה להעביר לסלוט <b>${other.toUpperCase()}</b> (כפתור "הפעל סלוט ${other.toUpperCase()}") ולאתחל.`;
+  } else {
+    slotRec.style.display = "none";
+  }
 }
 
 function onConnected(info) {
@@ -559,6 +603,8 @@ function onConnected(info) {
 function onDisconnected() {
   $("#actions").classList.add("disabled-block");
   $("#devinfoWrap").style.display = "none";
+  $("#brandBanner").style.display = "none";
+  $("#slotRec").style.display = "none";
   $("#connectHint").style.display = "block";
   $("#btnConnect").textContent = "🔌 חבר טלפון (fastboot)";
   setStatus("", "לא מחובר");
@@ -700,12 +746,27 @@ $("#btnFlash").addEventListener("click", () => {
     });
 });
 
-/* ---- getvar all ---- */
+/* ---- getvar all (מציג טבלה) ---- */
 $("#btnGetvarAll").addEventListener("click", () => guarded("getvar-all", async () => {
   logCmd("getvar all");
-  const r = await fb.command("getvar:all", onInfo);
-  if (!r.ok) log("✗ " + r.data, "err");
-  else log("✓ סריקת המשתנים הסתיימה.", "ok");
+  const rows = [];
+  const collect = t => {
+    log("  ℹ " + t.trim(), "info");
+    const m = t.trim().match(/^([^:]+):\s*(.*)$/);
+    if (m) rows.push([m[1].trim(), m[2].trim()]);
+  };
+  const r = await fb.command("getvar:all", collect);
+  if (!r.ok) { log("✗ " + r.data, "err"); return; }
+  log("✓ סריקת המשתנים הסתיימה (" + rows.length + " ערכים).", "ok");
+  if (rows.length) {
+    rows.sort((a, b) => a[0].localeCompare(b[0]));
+    const wrap = $("#getvarTable");
+    wrap.style.display = "block";
+    wrap.innerHTML = '<table style="width:100%; border-collapse:collapse; font-size:12.5px; direction:ltr; text-align:left">' +
+      rows.map(([k, v]) => '<tr><td style="padding:3px 8px; border-bottom:1px solid var(--border); color:var(--muted); white-space:nowrap">' +
+        k.replace(/[<>&]/g, "") + '</td><td style="padding:3px 8px; border-bottom:1px solid var(--border); word-break:break-all">' +
+        v.replace(/[<>&]/g, "") + "</td></tr>").join("") + "</table>";
+  }
 }));
 
 $("#btnClearLog").addEventListener("click", () => { consoleEl.innerHTML = ""; log("// הלוג נוקה.", "info"); });
