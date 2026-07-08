@@ -63,9 +63,10 @@ def _u32(*vals):
 class LokeDevice:
     """חיבור LOKE למכשיר Samsung במצב Download. נתיב קריאה בלבד."""
 
-    def __init__(self, log=print, send_zlp=False):
+    def __init__(self, log=print, send_zlp=False, hexlog=False):
         self.log = log
         self.send_zlp = send_zlp          # שליחת Zero-Length-Packet אחרי כל שליחה (לתאימות עם דגמים מסוימים)
+        self.hexlog = hexlog              # רישום גולמי (hex) של כל תעבורה — לניפוי תקלות פרוטוקול
         self.dev = None
         self.intf_num = None
         self.ep_in = None
@@ -145,6 +146,8 @@ class LokeDevice:
 
     # ---- שכבת תעבורה ----
     def _write(self, data):
+        if self.hexlog:
+            self.log("→ " + bytes(data)[:64].hex())
         n = self.ep_out.write(data, self._timeout)
         if self.send_zlp:
             try:
@@ -154,8 +157,17 @@ class LokeDevice:
         return n
 
     def _read(self, size):
-        data = self.dev.read(self.ep_in.bEndpointAddress, size, self._timeout)
-        return bytes(data)
+        data = bytes(self.dev.read(self.ep_in.bEndpointAddress, size, self._timeout))
+        if self.hexlog:
+            self.log("← " + data[:64].hex())
+        return data
+
+    def get_device_type(self):
+        """מחזיר את מזהה סוג המכשיר (מספר) — פעולת קריאה בטוחה."""
+        self._write(_u32(CT_SESSION, SESS_DEVICETYPE))
+        val = self._read_response(CT_SESSION)
+        self.log(f"✓ device type = {val}")
+        return val
 
     def _read_response(self, expected_type):
         resp = self._read(8)

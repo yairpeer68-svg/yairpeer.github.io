@@ -55,27 +55,30 @@ BORDER = "#24344b"
 # קודי CSC נפוצים (הקוד הראשון בכל שורה הוא מה שנשלח). ישראל בראש.
 # הרשימה ניתנת לעריכה חופשית — אפשר להקליד כל קוד ידנית.
 CSC_CODES = [
-    "ILO — ישראל (לא מותג)",
-    "CEL — ישראל (סלקום)",
-    "PCL — ישראל (פלאפון)",
-    "PTR — ישראל (פרטנר / אורנג')",
-    "XSG — איחוד האמירויות",
-    "XAA — ארה\"ב (לא נעול)",
-    "BTU — בריטניה",
-    "XEF — צרפת",
-    "DBT — גרמניה",
-    "ITV — איטליה",
-    "PHE — ספרד",
-    "XEO — פולין",
-    "NEE — סקנדינביה",
-    "SER — רוסיה",
-    "TUR — טורקיה",
-    "INS — הודו",
-    "XSA — אוסטרליה",
-    "ZTO — ברזיל",
-    "TGY — הונג קונג",
-    "KOO — קוריאה",
-    "CHC — סין",
+    # ישראל
+    "ILO — ישראל (לא מותג)", "CEL — ישראל (סלקום)", "PCL — ישראל (פלאפון)", "PTR — ישראל (פרטנר / אורנג')",
+    # אירופה
+    "BTU — בריטניה", "EVR — בריטניה (EE)", "VOD — בריטניה (Vodafone)", "O2U — בריטניה (O2)", "H3G — בריטניה (Three)",
+    "XEF — צרפת", "FTM — צרפת (Orange)", "SFR — צרפת (SFR)", "BOG — צרפת (Bouygues)",
+    "DBT — גרמניה", "VD2 — גרמניה (Vodafone)", "DTM — גרמניה (Telekom)",
+    "ITV — איטליה", "TIM — איטליה (TIM)", "VOM — איטליה (Vodafone)",
+    "PHE — ספרד", "XEC — ספרד (Movistar)", "AMN — הולנד", "XEO — פולין", "XEH — הונגריה",
+    "NEE — סקנדינביה", "TEB — נורבגיה", "TET — שוודיה", "DKR — דנמרק", "ELS — יוון",
+    "AUT — אוסטריה", "XEZ — צ'כיה", "SEB — הבלטיות", "ROM — רומניה", "BGL — בולגריה",
+    "SER — רוסיה", "SEK — רוסיה (MTS)", "UKR — אוקראינה", "SKZ — קזחסטן",
+    # המזרח התיכון ואפריקה
+    "XSG — איחוד האמירויות", "MID — המזרח התיכון", "KSA — ערב הסעודית", "PAK — פקיסטן",
+    "TUR — טורקיה", "EGY — מצרים", "TUN — תוניסיה", "MWD — מרוקו", "AFR — דרום אפריקה",
+    # אסיה
+    "INS — הודו", "INU — הודו", "TGY — הונג קונג", "CHC — סין", "TGL — סין (China Unicom)",
+    "KOO — קוריאה", "SKC — קוריאה (SKT)", "XSP — סינגפור", "XME — מלזיה", "XXV — וייטנאם",
+    "THL — תאילנד", "XTC — פיליפינים", "XSE — אינדונזיה", "BRI — טייוואן",
+    # אוקיאניה
+    "XSA — אוסטרליה", "VAU — אוסטרליה (Vodafone)", "TEL — אוסטרליה (Telstra)", "OPS — אוסטרליה (Optus)", "NZC — ניו זילנד",
+    # אמריקה
+    "XAA — ארה\"ב (לא נעול)", "ATT — ארה\"ב (AT&T)", "TMB — ארה\"ב (T-Mobile)", "VZW — ארה\"ב (Verizon)", "SPR — ארה\"ב (Sprint)",
+    "XAC — קנדה", "BMC — קנדה (Bell)", "RWC — קנדה (Rogers)",
+    "ZTO — ברזיל", "ZTA — ברזיל", "COO — קולומביה", "CHO — צ'ילה", "ARO — ארגנטינה", "TPA — פנמה", "UPO — אורוגוואי", "TCE — מקסיקו",
 ]
 
 # דגמים נפוצים לנוחות (ניתן להקליד כל דגם ידנית).
@@ -88,6 +91,8 @@ COMMON_MODELS = [
     "SM-G991B — Galaxy S21",
     "SM-A546B — Galaxy A54 5G",
     "SM-A356B — Galaxy A35 5G",
+    "SM-A166B — Galaxy A16 5G",
+    "SM-A165F — Galaxy A16 4G",
     "SM-A155F — Galaxy A15",
     "SM-A047F — Galaxy A04s",
     "SM-F946B — Galaxy Z Fold5",
@@ -334,14 +339,18 @@ class SamLabApp:
         self.e_region = ttk.Combobox(c, width=34, values=CSC_CODES)
         self.e_region.grid(row=3, column=1, columnspan=2, sticky="ew", padx=(0, 6), pady=(8, 2))
 
-        ttk.Label(c, text="תיקיית יעד", style="Card.TLabel").grid(row=4, column=3, sticky="e", pady=(8, 2))
+        ttk.Label(c, text="גרסה מסוימת (רשות — ריק = העדכנית)", style="Card.TLabel").grid(row=4, column=3, sticky="e", pady=(8, 2))
+        self.e_ver = ttk.Entry(c, width=34)
+        self.e_ver.grid(row=4, column=1, columnspan=2, sticky="ew", padx=(0, 6), pady=(8, 2))
+
+        ttk.Label(c, text="תיקיית יעד", style="Card.TLabel").grid(row=5, column=3, sticky="e", pady=(8, 2))
         self.e_out = ttk.Entry(c, width=48)
         self.e_out.insert(0, self.cfg.get("out_dir", ""))
-        self.e_out.grid(row=5, column=1, columnspan=2, sticky="ew", padx=(0, 6))
-        ttk.Button(c, text="בחר…", command=self._pick_out).grid(row=5, column=0, sticky="w")
+        self.e_out.grid(row=6, column=1, columnspan=2, sticky="ew", padx=(0, 6))
+        ttk.Button(c, text="בחר…", command=self._pick_out).grid(row=6, column=0, sticky="w")
 
         btns = ttk.Frame(c, style="Card.TFrame")
-        btns.grid(row=6, column=0, columnspan=4, sticky="e", pady=(14, 0))
+        btns.grid(row=7, column=0, columnspan=4, sticky="e", pady=(14, 0))
         ttk.Button(btns, text="🔎 בדוק גרסה עדכנית", command=self.act_checkupdate).pack(side="right", padx=4)
         ttk.Button(btns, text="⬇ הורד + פענח", style="Accent.TButton", command=self.act_download).pack(side="right", padx=4)
         c.columnconfigure(1, weight=1)
@@ -372,9 +381,38 @@ class SamLabApp:
 
         btns = ttk.Frame(c, style="Card.TFrame")
         btns.grid(row=row, column=0, columnspan=4, sticky="e", pady=(14, 0))
+        ttk.Button(btns, text="🗂 הצג תוכן קבצים", command=self.act_view_tar).pack(side="right", padx=4)
         ttk.Button(btns, text="🧩 הכן תוכנית פלאש", command=self.act_prepare_flash).pack(side="right", padx=4)
         ttk.Button(btns, text="💾 בצע פלאש", style="Danger.TButton", command=self.act_flash).pack(side="right", padx=4)
         c.columnconfigure(1, weight=1)
+
+    def act_view_tar(self):
+        chosen = {k: v for k, v in self.flash_files.items() if v}
+        if not chosen:
+            messagebox.showinfo(APP_NAME, "בחר קובץ .tar.md5 אחד לפחות.")
+            return
+
+        def worker():
+            for key, path in chosen.items():
+                self.q.put(("cmd", f"— {key}: {os.path.basename(path)} —"))
+                try:
+                    with tarfile.open(path, "r:*") as tar:
+                        for m in tar.getmembers():
+                            if m.isfile():
+                                self.q.put(("out", f"    {m.name}  ({self._fmt_size(m.size)})"))
+                except Exception as e:
+                    self.q.put(("err", f"    ✗ {e}"))
+            self.q.put(("ok", "✓ תצוגת התוכן הסתיימה."))
+        self._log("info", "קורא את תוכן קובצי הקושחה…")
+        threading.Thread(target=worker, daemon=True).start()
+
+    @staticmethod
+    def _fmt_size(n):
+        for unit in ("B", "KB", "MB", "GB"):
+            if n < 1024:
+                return f"{n:.0f} {unit}"
+            n /= 1024
+        return f"{n:.1f} TB"
 
     # ---- טאב: מכשיר ומצבים ----
     def _build_device(self, parent):
@@ -398,9 +436,9 @@ class SamLabApp:
         warn = tk.Label(c, bg="#2a2410", fg="#fde68a", justify="right", anchor="e",
                         font=("Segoe UI", 9), padx=12, pady=10, wraplength=760,
                         text="⚠ מנוע ניסיוני שמדבר ישירות עם המכשיר (pyusb/libusb), בלי Heimdall. "
-                             "בשלב זה מיושם אך ורק הנתיב הבטוח שאינו כותב דבר: handshake, פתיחת סשן וקריאת "
-                             "טבלת המחיצות (PIT). אין כאן פעולת פלאש — אפס סיכון brick. "
-                             "בדוק על מכשיר בר-הקרבה (למשל ה-A16) לפני שנרחיב לכתיבה.")
+                             "מיושם אך ורק הנתיב הבטוח שאינו כותב דבר: handshake, פתיחת סשן, קריאת "
+                             "טבלת המחיצות (PIT) ומידע מכשיר. אין כאן פעולת פלאש — אפס סיכון brick. "
+                             "כתיבה (flash) תיפתח רק אחרי שקריאת ה-PIT תאומת אצלך על ה-A16.")
         warn.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 12))
 
         if not LOKE_AVAILABLE:
@@ -408,14 +446,18 @@ class SamLabApp:
             return
 
         self.loke_zlp = tk.BooleanVar(value=False)
+        self.loke_hex = tk.BooleanVar(value=False)
         ttk.Checkbutton(c, text="שלח ZLP אחרי כל פקודה (סמן רק אם החיבור נתקע)",
-                        variable=self.loke_zlp).grid(row=2, column=0, columnspan=3, sticky="e", pady=(0, 10))
+                        variable=self.loke_zlp).grid(row=2, column=0, columnspan=3, sticky="e", pady=(0, 2))
+        ttk.Checkbutton(c, text="רישום גולמי hex (ניפוי תקלות פרוטוקול)",
+                        variable=self.loke_hex).grid(row=3, column=0, columnspan=3, sticky="e", pady=(0, 10))
 
         grid = ttk.Frame(c, style="Card.TFrame")
-        grid.grid(row=3, column=0, columnspan=3, sticky="e")
+        grid.grid(row=4, column=0, columnspan=3, sticky="e")
         ttk.Button(grid, text="🔌 חבר + פתח סשן", command=self.act_loke_connect).grid(row=0, column=0, padx=4, pady=4)
         ttk.Button(grid, text="📄 קרא PIT (בטוח)", style="Accent.TButton", command=self.act_loke_readpit).grid(row=0, column=1, padx=4, pady=4)
-        ttk.Button(grid, text="♻ סיים סשן + אתחל", command=self.act_loke_reboot).grid(row=0, column=2, padx=4, pady=4)
+        ttk.Button(grid, text="🆔 מידע מכשיר", command=self.act_loke_devinfo).grid(row=0, column=2, padx=4, pady=4)
+        ttk.Button(grid, text="♻ סיים סשן + אתחל", command=self.act_loke_reboot).grid(row=1, column=1, padx=4, pady=4)
         self._loke_pit = None
 
     # ---- טאב: הגדרות ----
@@ -518,6 +560,10 @@ class SamLabApp:
         save_config(self.cfg)
         # samloader: download מוריד ואז אפשר decrypt; רבות מהגרסאות מפענחות אוטומטית עם --decrypt
         argv = self._samloader_argv() + ["-m", model, "-r", region, "download", "-O", out, "--decrypt"]
+        ver = self.e_ver.get().strip()
+        if ver:
+            argv += ["-v", ver]
+            self._log("info", f"מוריד גרסה מבוקשת {ver}…")
         self._log("info", f"מוריד קושחה אל {out} (עלול לקחת זמן רב)…")
         self.runner.run(argv)
 
@@ -708,11 +754,22 @@ class SamLabApp:
         def job():
             if self.loke is not None:
                 self.loke.close()
-            self.loke = LokeDevice(log=self._loke_log, send_zlp=self.loke_zlp.get())
+            self.loke = LokeDevice(log=self._loke_log, send_zlp=self.loke_zlp.get(), hexlog=self.loke_hex.get())
             self.loke.connect()
             self.loke.begin_session()
             self.q.put(("ok", "✓ מחובר וסשן פתוח. אפשר לקרוא PIT."))
         self._log("info", "מתחבר למכשיר במצב Download (LOKE)…")
+        self._run_loke(job)
+
+    def act_loke_devinfo(self):
+        if self.loke is None or self.loke.dev is None:
+            messagebox.showinfo(APP_NAME, "התחבר קודם ('חבר + פתח סשן').")
+            return
+
+        def job():
+            self.loke.hexlog = self.loke_hex.get()
+            self.loke.get_device_type()
+        self._log("info", "קורא מזהה סוג מכשיר (LOKE)…")
         self._run_loke(job)
 
     def act_loke_readpit(self):
@@ -721,6 +778,7 @@ class SamLabApp:
             return
 
         def job():
+            self.loke.hexlog = self.loke_hex.get()
             data = self.loke.read_pit()
             self._loke_pit = data
             info, entries = parse_pit(data)
