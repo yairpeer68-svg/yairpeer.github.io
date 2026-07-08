@@ -135,6 +135,12 @@
   .fam-add input.nm { width: 90px; }
   .fam-add input.em { flex: 1; min-width: 0; }
   .fam-empty { text-align: center; color: var(--muted); font-size: 13.5px; padding: 16px 0; line-height: 1.6; }
+  .up-reason { text-align: center; font-size: 15px; font-weight: 700; color: var(--cyan); margin: 4px 0 14px; }
+  .up-list { list-style: none; margin: 0 0 14px; display: flex; flex-direction: column; gap: 8px; }
+  .up-list li { display: flex; gap: 9px; font-size: 14px; }
+  .up-list li::before { content: "✓"; color: var(--cyan); font-weight: 900; }
+  .up-price { text-align: center; font-size: 14px; color: var(--muted); margin-bottom: 12px; }
+  .up-price b { font-size: 22px; color: var(--text); }
   .hist-strip { margin-top: 22px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
   .hist-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 12px; display: flex; flex-direction: column; gap: 3px; }
   .hist-title span { font-weight: 600; color: var(--text); font-size: 12.5px; }
@@ -324,9 +330,9 @@
         <div class="tb-title">🧰 ארגז הכלים</div>
         <div class="tb-grid">
           <button class="tb-item" id="btnPwTool"><span class="e">🔑</span><span class="t">בדוק סיסמה שדלפה</span></button>
-          <button class="tb-item" id="btnPwGen"><span class="e">🎲</span><span class="t">מחולל סיסמאות</span></button>
-          <button class="tb-item" id="btnWifi"><span class="e">📶</span><span class="t">אבטחת ראוטר</span></button>
-          <button class="tb-item" id="btnAlias"><span class="e">📧</span><span class="t">מייל חלופי</span></button>
+          <button class="tb-item" id="btnPwGen"><span class="e">🎲</span><span class="t">מחולל סיסמאות <span class="pro">👑</span></span></button>
+          <button class="tb-item" id="btnWifi"><span class="e">📶</span><span class="t">אבטחת ראוטר <span class="pro">👑</span></span></button>
+          <button class="tb-item" id="btnAlias"><span class="e">📧</span><span class="t">מייל חלופי <span class="pro">👑</span></span></button>
           <button class="tb-item" id="btnFamily"><span class="e">👨‍👩‍👧</span><span class="t">בדיקה משפחתית <span class="pro">👑</span></span></button>
         </div>
       </div>
@@ -373,6 +379,23 @@
       <div class="pw-note">סמן מה שכבר עשית. הראוטר הביתי הוא השער לכל המכשירים שלך — כדאי שיהיה מוגן.</div>
       <div class="check-list" id="wifiList"></div>
       <div class="wifi-score" id="wifiScore"></div>
+    </div>
+  </dialog>
+
+  <!-- upgrade / premium unlock -->
+  <dialog id="dlgUpgrade">
+    <div class="dlg-head"><h3>👑 תוקף פרימיום</h3><button class="dlg-x" data-close="dlgUpgrade">✕</button></div>
+    <div class="dlg-body">
+      <div class="up-reason" id="upReason"></div>
+      <ul class="up-list">
+        <li>הדוח המלא — כל הדליפות וכל צעדי ההגנה</li>
+        <li>מחולל סיסמאות, בדיקת ראוטר, מייל חלופי</li>
+        <li>בדיקה משפחתית — כל המשפחה במקום אחד</li>
+        <li>ניטור מתמשך — התראה על דליפה חדשה</li>
+      </ul>
+      <div class="up-price"><b>₪19.90</b> לחודש · בחינם: סריקה + בדיקת סיסמה</div>
+      <div class="pw-note" style="text-align:center">🚧 הרכישה תיפתח בקרוב. יש קוד גישה מוקדמת?</div>
+      <div class="pw-row"><input id="upCode" type="text" placeholder="קוד גישה" style="text-align:center"><button class="pw-check" id="upUnlock">הפעל</button></div>
     </div>
   </dialog>
 
@@ -768,7 +791,7 @@ function generatePw() {
   $("genOut").textContent = pw;
   $("genStrength").textContent = "חוזק: " + pwStrength(pw);
 }
-$("btnPwGen").addEventListener("click", () => { $("dlgGen").showModal(); generatePw(); });
+$("btnPwGen").addEventListener("click", () => { if (!requirePremium("מחולל סיסמאות")) return; $("dlgGen").showModal(); generatePw(); });
 $("genNew").addEventListener("click", generatePw);
 $("genLen").addEventListener("input", () => { $("genLenVal").textContent = $("genLen").value; generatePw(); });
 document.querySelectorAll("#dlgGen .chip-t").forEach(c => c.addEventListener("click", () => {
@@ -800,10 +823,10 @@ function renderWifi() {
     const i = el.dataset.i; wifiState[i] = !wifiState[i]; renderWifi();
   }));
 }
-$("btnWifi").addEventListener("click", () => { renderWifi(); $("dlgWifi").showModal(); });
+$("btnWifi").addEventListener("click", () => { if (!requirePremium("בדיקת אבטחת ראוטר")) return; renderWifi(); $("dlgWifi").showModal(); });
 
 /* ---------- 📧 מייל חלופי ---------- */
-$("btnAlias").addEventListener("click", () => { $("aliasOut").innerHTML = ""; $("dlgAlias").showModal(); setTimeout(() => $("aliasInput").focus(), 50); });
+$("btnAlias").addEventListener("click", () => { if (!requirePremium("מייל חלופי")) return; $("aliasOut").innerHTML = ""; $("dlgAlias").showModal(); setTimeout(() => $("aliasInput").focus(), 50); });
 function makeAliases() {
   const email = $("aliasInput").value.trim();
   const at = email.indexOf("@");
@@ -845,8 +868,25 @@ function renderFamily() {
     family.splice(parseInt(b.dataset.del, 10), 1); saveFamily(); renderFamily();
   }));
 }
+/* ---------- שער פרימיום מרכזי ---------- */
+function requirePremium(reason) {
+  if (isPremium) return true;
+  $("upReason").textContent = reason ? "כדי להשתמש ב" + reason + " צריך פרימיום 👑" : "פתח את כל הכלים והדוח המלא 👑";
+  $("upCode").value = "";
+  $("dlgUpgrade").showModal();
+  return false;
+}
+$("upUnlock").addEventListener("click", () => {
+  const code = ($("upCode").value || "").trim().toUpperCase();
+  if (UNLOCK_CODES.includes(code)) {
+    isPremium = true; localStorage.setItem("tzel.premium", "1");
+    $("dlgUpgrade").close();
+    toast("👑 פרימיום הופעל! כל הכלים נפתחו");
+  } else { toast("קוד לא מוכר — נסה שוב"); }
+});
+
 $("btnFamily").addEventListener("click", () => {
-  if (!isPremium) { toast("בדיקה משפחתית זמינה בפרימיום 👑 — הפעל דרך דוח סריקה"); return; }
+  if (!requirePremium("בדיקה משפחתית")) return;
   renderFamily(); $("dlgFamily").showModal();
 });
 $("famAdd").addEventListener("click", () => {
