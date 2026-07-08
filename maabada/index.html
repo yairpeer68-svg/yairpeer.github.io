@@ -136,17 +136,26 @@
 
 /* ============================ Store ============================ */
 const DB = {
-  keys: ["customers", "tickets", "inventory", "prices", "settings"],
+  keys: ["customers", "tickets", "inventory", "prices", "recipes", "settings"],
   get(k, def) { try { return JSON.parse(localStorage.getItem("maabada:" + k)) ?? def; } catch { return def; } },
   set(k, v) { localStorage.setItem("maabada:" + k, JSON.stringify(v)); },
 };
+const DEFAULT_RECIPES = [
+  { id: "r1", name: "החלפת מסך", fault: "החלפת מסך / זכוכית", checklist: ["בדיקת מגע ותצוגה לפני", "גיבוי מידע ללקוח", "פירוק מסך ישן", "התקנת מסך חדש", "בדיקת מגע/תצוגה אחרי", "הרכבה ואטימה"] },
+  { id: "r2", name: "החלפת סוללה", fault: "החלפת סוללה", checklist: ["בדיקת בריאות סוללה", "פירוק", "החלפת סוללה", "כיול טעינה", "בדיקת טעינה מלאה"] },
+  { id: "r3", name: "לא נטען", fault: "לא נטען / שקע טעינה", checklist: ["בדיקת כבל ומטען", "ניקוי שקע הטעינה", "בדיקת שקע", "החלפת שקע במידת הצורך"] },
+  { id: "r4", name: "רטיבות", fault: "נזק מים / רטיבות", checklist: ["פירוק מיידי", "ניקוי אולטרסוני", "בדיקת קורוזיה", "ייבוש", "בדיקת רכיבים והפעלה"] },
+  { id: "r5", name: "לא נדלק", fault: "לא נדלק", checklist: ["בדיקת טעינה", "בדיקת כפתור הדלקה", "מדידת צריכת זרם", "אבחון לוח אם"] },
+];
 let customers = DB.get("customers", []);
 let tickets = DB.get("tickets", []);
 let inventory = DB.get("inventory", []);
 let prices = DB.get("prices", []);
-let settings = DB.get("settings", { shopName: "מעבדה", currency: "₪", theme: "dark", fs: 1, nextNum: 1001, waCountry: "972" });
+let recipes = DB.get("recipes", DEFAULT_RECIPES);
+let settings = DB.get("settings", { shopName: "מעבדה", currency: "₪", theme: "dark", fs: 1, nextNum: 1001, waCountry: "972", setupDone: false });
 
-function saveAll() { DB.set("customers", customers); DB.set("tickets", tickets); DB.set("inventory", inventory); DB.set("prices", prices); DB.set("settings", settings); }
+function saveAll() { DB.set("customers", customers); DB.set("tickets", tickets); DB.set("inventory", inventory); DB.set("prices", prices); DB.set("recipes", recipes); DB.set("settings", settings); }
+function logAudit(t, action) { t.audit = [...(t.audit || []), { action, at: Date.now() }]; }
 function saveSettings() { DB.set("settings", settings); }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
@@ -158,6 +167,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": 
 function money(n) { return (settings.currency || "₪") + " " + (Number(n) || 0).toLocaleString("he-IL"); }
 function monthKey(ts) { const d = new Date(ts); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
 function fmtDate(ts) { return new Date(ts).toLocaleDateString("he-IL"); }
+function fmtDateTime(ts) { return new Date(ts).toLocaleString("he-IL"); }
 function custName(id) { const c = customers.find(x => x.id === id); return c ? c.name : "—"; }
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
 
@@ -333,8 +343,33 @@ function viewSettings() {
         <input type="file" id="importFile" accept=".json,.mbk" style="display:none" onchange="importData(this.files[0])">
       </div>
     </div>
+    <div class="card"><div class="row"><h2 style="margin:0">🧰 מתכוני תיקון</h2><div class="spacer"></div><button class="btn sm primary" onclick="editRecipe()">+ מתכון</button></div>
+      <p class="muted" style="margin:6px 0">כל מתכון ממלא תקלה + צ'ק-ליסט אוטומטי בכרטיס חדש.</p>
+      ${recipes.length ? recipes.map(r => `<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--border);padding:6px 0">
+        <span><b>${esc(r.name)}</b> <span class="muted">· ${r.checklist.length} שלבים</span></span>
+        <span><button class="btn sm" onclick="editRecipe('${r.id}')">ערוך</button></span></div>`).join("") : `<div class="muted">אין מתכונים.</div>`}</div>
+    <div class="card"><h2>⌨️ קיצורי מקלדת</h2><p class="muted">N — כרטיס חדש · / — חיפוש · 1‑7 — מעבר בין טאבים · Esc — סגירה</p></div>
     <div class="card"><h2>ℹ️ אודות</h2><p class="muted">מעבדה — מערכת ניהול מעבדת סלולר. עובד 100% מקומית (PWA), ללא שרת. <a href="../" style="color:var(--cyan)">שאר הכלים</a></p></div>`;
 }
+function editRecipe(id) {
+  const r = recipes.find(x => x.id === id) || { name: "", fault: "", checklist: [] };
+  openModal(`<h3>${id ? "עריכת מתכון" : "מתכון חדש"}</h3>
+    <label class="fld">שם המתכון</label><input id="rcName" value="${esc(r.name)}">
+    <label class="fld">תקלה ברירת מחדל</label><input id="rcFault" value="${esc(r.fault)}">
+    <label class="fld">שלבי צ'ק-ליסט (שורה לכל שלב)</label><textarea id="rcSteps" style="min-height:120px">${esc(r.checklist.map(c => typeof c === "string" ? c : c.s).join("\n"))}</textarea>
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveRecipe('${id || ""}')">💾 שמור</button>
+      ${id ? `<button class="btn danger" onclick="delRecipe('${id}')">מחק</button>` : ""}
+      <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+}
+function saveRecipe(id) {
+  const name = $("#rcName").value.trim(); if (!name) { toast("הזן שם"); return; }
+  const checklist = $("#rcSteps").value.split("\n").map(s => s.trim()).filter(Boolean);
+  const data = { name, fault: $("#rcFault").value.trim(), checklist };
+  if (id) Object.assign(recipes.find(x => x.id === id), data);
+  else recipes.push({ id: uid(), ...data });
+  saveAll(); closeModal(); render(); toast("נשמר");
+}
+function delRecipe(id) { recipes = recipes.filter(x => x.id !== id); saveAll(); closeModal(); render(); }
 function saveSettingsForm() {
   settings.shopName = $("#setShop").value.trim() || "מעבדה";
   settings.currency = $("#setCur").value.trim() || "₪";
@@ -381,12 +416,20 @@ function editTicket(id) {
       <button class="btn sm" onclick="quickCustomer()">+ חדש</button></div>
     <div class="two"><div><label class="fld">דגם מכשיר</label><input id="tDevice" value="${esc(t.device)}"></div>
       <div><label class="fld">IMEI / מספר סידורי</label><input id="tImei" value="${esc(t.imei)}"></div></div>
+    <label class="fld">מתכון תיקון (ממלא תקלה + צ'ק-ליסט)</label>
+    <select id="tRecipe" onchange="applyRecipe()"><option value="">— בחר מתכון —</option>${recipes.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join("")}</select>
     <label class="fld">תיאור התקלה</label><textarea id="tFault">${esc(t.fault)}</textarea>
     <div class="two"><div><label class="fld">מחיר</label><input id="tPrice" type="number" value="${t.price}"></div>
       <div><label class="fld">אחריות (ימים)</label><input id="tWarr" type="number" value="${t.warrantyDays ?? 90}"></div></div>
     <label class="fld">סטטוס</label><select id="tStatus">${STATUSES.map(s => `<option ${t.status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
     <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveTicket('${id || ""}')">💾 שמור</button>
       <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+}
+function applyRecipe() {
+  const r = recipes.find(x => x.id === $("#tRecipe").value); if (!r) return;
+  if (!$("#tFault").value.trim()) $("#tFault").value = r.fault;
+  window._pendingChecklist = r.checklist.map(s => ({ s, done: false }));
+  toast("מתכון הוחל — הצ'ק-ליסט יתווסף בשמירה");
 }
 function quickCustomer() {
   const name = prompt("שם הלקוח:"); if (!name) return;
@@ -403,15 +446,20 @@ function saveTicket(id) {
     warrantyDays: parseInt($("#tWarr").value) || 0, status: $("#tStatus").value,
   };
   let t = tickets.find(x => x.id === id);
+  const pending = window._pendingChecklist;
   if (t) {
-    const prevStatus = t.status;
+    const prevStatus = t.status, prevPrice = t.price;
     Object.assign(t, data); t.updatedAt = Date.now();
-    if (data.status !== prevStatus) t.history = [...(t.history || []), { status: data.status, at: Date.now() }];
+    logAudit(t, "עודכן");
+    if (data.status !== prevStatus) { t.history = [...(t.history || []), { status: data.status, at: Date.now() }]; logAudit(t, "סטטוס → " + data.status); }
+    if (data.price !== prevPrice) logAudit(t, "מחיר → " + money(data.price));
     if (data.status === "נמסר" && !t.deliveredAt) t.deliveredAt = Date.now();
+    if (pending) t.checklist = pending;
   } else {
-    t = { id: uid(), num: settings.nextNum++, createdAt: Date.now(), updatedAt: Date.now(), history: [{ status: data.status, at: Date.now() }], ...data };
+    t = { id: uid(), num: settings.nextNum++, createdAt: Date.now(), updatedAt: Date.now(), history: [{ status: data.status, at: Date.now() }], audit: [{ action: "נוצר", at: Date.now() }], checklist: pending || [], ...data };
     tickets.push(t); saveSettings();
   }
+  window._pendingChecklist = null;
   saveAll(); closeModal(); render(); toast("נשמר");
 }
 
@@ -427,6 +475,9 @@ function openTicket(id) {
       <div style="margin-top:4px"><b>תקלה:</b> ${esc(t.fault || "—")}</div>
       <div style="margin-top:4px"><b>מחיר:</b> ${t.price ? money(t.price) : "—"} · <b>אחריות:</b> ${warrText}</div>
     </div>
+    ${t.checklist && t.checklist.length ? `<label class="fld">צ'ק-ליסט (${t.checklist.filter(c => c.done).length}/${t.checklist.length})</label>${
+      t.checklist.map((c, i) => `<label style="display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer"><input type="checkbox" style="width:auto" ${c.done ? "checked" : ""} onchange="toggleCheck('${t.id}',${i})"><span style="${c.done ? "text-decoration:line-through;color:var(--muted)" : ""}">${esc(c.s)}</span></label>`).join("")
+    }` : ""}
     <label class="fld">קידום סטטוס</label>
     <div class="row">${STATUSES.map((s, i) => `<button class="btn sm ${i === idx ? "primary" : ""}" onclick="setTicketStatus('${t.id}','${s}')">${s}</button>`).join("")}</div>
     <div class="row" style="margin-top:14px">
@@ -437,11 +488,19 @@ function openTicket(id) {
       ${t.status === "מוכן" || t.status === "נמסר" ? `<button class="btn" onclick="signTicket('${t.id}')">✍️ חתימת מסירה</button>` : ""}
       <div class="spacer"></div><button class="btn" onclick="closeModal()">סגור</button>
     </div>
-    ${t.signature ? `<div class="muted" style="margin-top:8px">✓ נחתם על מסירה</div>` : ""}`);
+    ${t.signature ? `<div class="muted" style="margin-top:8px">✓ נחתם על מסירה</div>` : ""}
+    ${(t.audit && t.audit.length) ? `<label class="fld">🧾 יומן שינויים</label><div class="muted" style="font-size:12.5px;line-height:1.9">${
+      t.audit.slice().reverse().map(a => `${fmtDateTime(a.at)} · ${esc(a.action)}`).join("<br>")
+    }</div>` : ""}`);
+}
+function toggleCheck(id, i) {
+  const t = tickets.find(x => x.id === id); if (!t || !t.checklist[i]) return;
+  t.checklist[i].done = !t.checklist[i].done; saveAll(); openTicket(id);
 }
 function setTicketStatus(id, s) {
   const t = tickets.find(x => x.id === id); if (!t) return;
   t.status = s; t.updatedAt = Date.now(); t.history = [...(t.history || []), { status: s, at: Date.now() }];
+  logAudit(t, "סטטוס → " + s);
   if (s === "נמסר" && !t.deliveredAt) t.deliveredAt = Date.now();
   saveAll(); openTicket(id); render();
 }
@@ -524,6 +583,7 @@ function clearSig() { sigCtx.clearRect(0, 0, sigCtx.canvas.width, sigCtx.canvas.
 function saveSig(id) {
   const t = tickets.find(x => x.id === id); if (!t) return;
   t.signature = $("#sig").toDataURL("image/png"); t.deliveredAt = t.deliveredAt || Date.now();
+  logAudit(t, "נחתם על מסירה");
   if (t.status !== "נמסר") setTicketStatus(id, "נמסר");
   saveAll(); closeModal(); toast("החתימה נשמרה"); render();
 }
@@ -620,11 +680,59 @@ $("#search").addEventListener("input", () => { if (["tickets", "customers"].incl
 let deferredPrompt = null;
 window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; $("#btnInstall").style.display = "flex"; });
 $("#btnInstall").addEventListener("click", async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; $("#btnInstall").style.display = "none"; });
-if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+/* PWA + עדכון-עצמי (76) */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").then(reg => {
+      reg.addEventListener("updatefound", () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener("statechange", () => {
+          if (nw.state === "installed" && navigator.serviceWorker.controller) showUpdateToast();
+        });
+      });
+    }).catch(() => {});
+  });
+}
+function showUpdateToast() {
+  const t = document.createElement("div"); t.className = "toast";
+  t.innerHTML = 'גרסה חדשה זמינה · <b style="cursor:pointer;color:var(--cyan)">רענן</b>';
+  t.querySelector("b").onclick = () => location.reload();
+  document.body.appendChild(t); setTimeout(() => t.remove(), 8000);
+}
+
+/* קיצורי מקלדת (71) */
+document.addEventListener("keydown", e => {
+  if (modalBack.classList.contains("show")) { if (e.key === "Escape") closeModal(); return; }
+  if (e.target.matches("input, textarea, select")) { if (e.key === "Escape") e.target.blur(); return; }
+  if (e.key === "/") { e.preventDefault(); $("#search").focus(); }
+  else if (e.key === "n" || e.key === "N") { editTicket(); }
+  else if (e.key >= "1" && e.key <= "7") {
+    const v = ["dashboard", "tickets", "customers", "inventory", "prices", "reports", "settings"][+e.key - 1];
+    if (v) setView(v);
+  }
+});
+
+/* אשף התקנה ראשוני (72) */
+function maybeWizard() {
+  if (settings.setupDone) return;
+  openModal(`<h3>👋 ברוך הבא ל"מעבדה"</h3><p class="muted">כמה פרטים כדי להתחיל (ניתן לשנות בהגדרות).</p>
+    <label class="fld">שם המעבדה</label><input id="wzShop" value="${esc(settings.shopName)}">
+    <div class="two"><div><label class="fld">מטבע</label><input id="wzCur" value="${esc(settings.currency)}"></div>
+      <div><label class="fld">קידומת מדינה (WhatsApp)</label><input id="wzWa" value="${esc(settings.waCountry)}"></div></div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="finishWizard()">🚀 בואו נתחיל</button></div>`);
+}
+function finishWizard() {
+  settings.shopName = ($("#wzShop").value || "מעבדה").trim();
+  settings.currency = ($("#wzCur").value || "₪").trim();
+  settings.waCountry = ($("#wzWa").value || "972").trim();
+  settings.setupDone = true; saveSettings(); applySettings(); closeModal(); render(); toast("הכול מוכן!");
+}
 
 /* boot */
 applySettings();
 render();
+maybeWizard();
 </script>
 </body>
 </html>

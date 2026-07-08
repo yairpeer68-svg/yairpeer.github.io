@@ -1,7 +1,7 @@
 /* מעבדה — service worker: עבודה לא מקוונת (cache-first עם רענון ברקע) */
 "use strict";
 
-const CACHE = "maabada-v1";
+const CACHE = "maabada-v2";
 const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./privacy.html", "./icons/icon-192.png", "./icons/icon-512.png"];
 
 self.addEventListener("install", e => {
