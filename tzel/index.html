@@ -146,6 +146,13 @@
   .lang-opt { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; font-family: inherit; color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; }
   .lang-opt.on { border-color: var(--cyan); color: var(--cyan); }
   .lang-opt .flag { font-size: 18px; }
+  .act-head { display: flex; align-items: center; gap: 16px; margin: 6px 0 16px; }
+  .act-ring { width: 72px; height: 72px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 18px; background: conic-gradient(var(--cyan) 0deg, var(--card-2) 0deg); position: relative; }
+  .act-ring::after { content: ""; position: absolute; inset: 7px; border-radius: 50%; background: var(--card); }
+  .act-ring span { position: relative; z-index: 1; color: var(--cyan); }
+  .act-txt { flex: 1; }
+  .act-level { font-size: 17px; font-weight: 800; }
+  .act-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
   .hist-strip { margin-top: 22px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
   .hist-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 12px; display: flex; flex-direction: column; gap: 3px; }
   .hist-title span { font-weight: 600; color: var(--text); font-size: 12.5px; }
@@ -342,6 +349,7 @@
           <button class="tb-item" id="btnWifi"><span class="e">📶</span><span class="t"><span data-i18n="tWifi">אבטחת ראוטר</span> <span class="pro">👑</span></span></button>
           <button class="tb-item" id="btnAlias"><span class="e">📧</span><span class="t"><span data-i18n="tAlias">מייל חלופי</span> <span class="pro">👑</span></span></button>
           <button class="tb-item" id="btnFamily"><span class="e">👨‍👩‍👧</span><span class="t"><span data-i18n="tFamily">בדיקה משפחתית</span> <span class="pro">👑</span></span></button>
+          <button class="tb-item" id="btnAction"><span class="e">🩹</span><span class="t"><span data-i18n="tAction">מרכז הפעולה</span> <span class="pro">👑</span></span></button>
         </div>
       </div>
     </div>
@@ -419,6 +427,18 @@
     </div>
   </dialog>
 
+  <!-- action center -->
+  <dialog id="dlgAction">
+    <div class="dlg-head"><h3>🩹 מרכז הפעולה</h3><button class="dlg-x" data-close="dlgAction">✕</button></div>
+    <div class="dlg-body">
+      <div class="act-head">
+        <div class="act-ring" id="actRing"><span id="actPct">0%</span></div>
+        <div class="act-txt"><div class="act-level" id="actLevel"></div><div class="act-sub" id="actSub"></div></div>
+      </div>
+      <div class="check-list" id="actList"></div>
+    </div>
+  </dialog>
+
   <!-- family check -->
   <dialog id="dlgFamily">
     <div class="dlg-head"><h3>👨‍👩‍👧 בדיקה משפחתית</h3><button class="dlg-x" data-close="dlgFamily">✕</button></div>
@@ -489,7 +509,7 @@ const I18N = {
     scanBtn: "🔍 סרוק את הצל הדיגיטלי שלי",
     privacyLine: "🔒 הבדיקה על עצמך בלבד. איננו שומרים את הפרטים שהזנת — הם משמשים רק לבדיקה הנוכחית.",
     toolboxTitle: "🧰 ארגז הכלים",
-    tPwCheck: "בדוק סיסמה שדלפה", tPwGen: "מחולל סיסמאות", tWifi: "אבטחת ראוטר", tAlias: "מייל חלופי", tFamily: "בדיקה משפחתית",
+    tPwCheck: "בדוק סיסמה שדלפה", tPwGen: "מחולל סיסמאות", tWifi: "אבטחת ראוטר", tAlias: "מייל חלופי", tFamily: "בדיקה משפחתית", tAction: "מרכז הפעולה",
   },
   en: {
     _dir: "ltr", _label: "EN",
@@ -500,7 +520,7 @@ const I18N = {
     scanBtn: "🔍 Scan my digital shadow",
     privacyLine: "🔒 Self-check only. We don't store what you enter — it's used only for this check.",
     toolboxTitle: "🧰 Toolbox",
-    tPwCheck: "Check leaked password", tPwGen: "Password generator", tWifi: "Router security", tAlias: "Alias email", tFamily: "Family check",
+    tPwCheck: "Check leaked password", tPwGen: "Password generator", tWifi: "Router security", tAlias: "Alias email", tFamily: "Family check", tAction: "Action center",
   },
 };
 let lang = localStorage.getItem("tzel.lang") || (navigator.language || "he").slice(0, 2);
@@ -949,6 +969,44 @@ $("upUnlock").addEventListener("click", () => {
 $("btnFamily").addEventListener("click", () => {
   if (!requirePremium("בדיקה משפחתית")) return;
   renderFamily(); $("dlgFamily").showModal();
+});
+
+/* ---------- 🩹 מרכז הפעולה — משימות אבטחה ---------- */
+const ACTIONS = [
+  { id: "2fa_mail", t: "הפעל אימות דו-שלבי (2FA) במייל הראשי", s: "ההגנה הכי חשובה — מונע השתלטות גם אם סיסמה דלפה" },
+  { id: "pw_mgr", t: "עבור למנהל סיסמאות", s: "Bitwarden חינמי — סיסמה חזקה וייחודית לכל אתר" },
+  { id: "pw_unique", t: "החלף סיסמאות ממוחזרות", s: "אותה סיסמה בכמה אתרים = דלת פתוחה לתוקף" },
+  { id: "pw_check", t: "בדוק שהסיסמאות שלך לא דלפו", s: "השתמש בבודק הסיסמאות של האפליקציה" },
+  { id: "2fa_bank", t: "הפעל 2FA בבנק ובאשראי", s: "החשבונות שהכי כדאי להגן עליהם" },
+  { id: "update", t: "עדכן מערכת הפעלה ואפליקציות", s: "עדכונים סוגרים פרצות אבטחה ידועות" },
+  { id: "router", t: "אבטח את הראוטר הביתי", s: "סיסמת ניהול חדשה + WPA2/WPA3" },
+  { id: "privacy", t: "צמצם פרטים בפרופילים ציבוריים", s: "הסתר טלפון, תאריך לידה וכתובת" },
+  { id: "backup", t: "הגדר גיבוי אוטומטי לנתונים החשובים", s: "הגנה מפני כופרה ואובדן מכשיר" },
+  { id: "review", t: "בדוק פעילות התחברות חשודה", s: "עבור על ההתחברויות האחרונות בחשבונות" },
+];
+const K_ACTIONS = "tzel.actions.v1";
+let actState = {};
+try { actState = JSON.parse(localStorage.getItem(K_ACTIONS)) || {}; } catch { actState = {}; }
+function renderActions() {
+  const done = ACTIONS.filter(a => actState[a.id]).length;
+  const pct = Math.round((done / ACTIONS.length) * 100);
+  const deg = (pct / 100) * 360;
+  $("actRing").style.background = `conic-gradient(var(--cyan) ${deg}deg, var(--card-2) ${deg}deg)`;
+  $("actPct").textContent = pct + "%";
+  const level = pct === 100 ? "מוגן במלואך 🛡️" : pct >= 70 ? "רמת הגנה גבוהה" : pct >= 40 ? "בדרך הנכונה" : "יש עבודה לעשות";
+  $("actLevel").textContent = level;
+  $("actSub").textContent = `${done} מתוך ${ACTIONS.length} משימות הושלמו`;
+  $("actList").innerHTML = ACTIONS.map(a =>
+    `<div class="check-item ${actState[a.id] ? "on" : ""}" data-a="${a.id}"><span class="cbox">${actState[a.id] ? "✓" : ""}</span><span class="ct">${esc(a.t)}<small>${esc(a.s)}</small></span></div>`).join("");
+  $("actList").querySelectorAll(".check-item").forEach(el => el.addEventListener("click", () => {
+    const id = el.dataset.a; actState[id] = !actState[id];
+    localStorage.setItem(K_ACTIONS, JSON.stringify(actState));
+    renderActions();
+  }));
+}
+$("btnAction").addEventListener("click", () => {
+  if (!requirePremium("מרכז הפעולה")) return;
+  renderActions(); $("dlgAction").showModal();
 });
 $("famAdd").addEventListener("click", () => {
   const name = $("famName").value.trim(), email = $("famEmail").value.trim();
