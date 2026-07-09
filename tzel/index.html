@@ -141,6 +141,11 @@
   .up-list li::before { content: "✓"; color: var(--cyan); font-weight: 900; }
   .up-price { text-align: center; font-size: 14px; color: var(--muted); margin-bottom: 12px; }
   .up-price b { font-size: 22px; color: var(--text); }
+  .lang-btn { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; }
+  .lang-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 4px; }
+  .lang-opt { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; font-family: inherit; color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; }
+  .lang-opt.on { border-color: var(--cyan); color: var(--cyan); }
+  .lang-opt .flag { font-size: 18px; }
   .hist-strip { margin-top: 22px; background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
   .hist-title { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 12px; display: flex; flex-direction: column; gap: 3px; }
   .hist-title span { font-weight: 600; color: var(--text); font-size: 12.5px; }
@@ -303,37 +308,40 @@
 <body>
 <div class="wrap">
   <div class="topbar">
-    <div class="brand"><span class="b">🕵️</span> צל דיגיטלי</div>
-    <span class="mono" id="modeTag" style="font-size:11px;color:var(--muted)"></span>
+    <div class="brand"><span class="b">🕵️</span> <span data-i18n="brand">צל דיגיטלי</span></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="mono" id="modeTag" style="font-size:11px;color:var(--muted)"></span>
+      <button id="btnLang" class="lang-btn" title="שפה / Language">🌐 <span id="langLabel">עב</span></button>
+    </div>
   </div>
 
   <!-- intro + form -->
   <div id="viewHome">
     <div class="hero">
       <div class="eye">👁️</div>
-      <h1>מה האינטרנט<br><em>יודע עליך?</em></h1>
-      <p>בשנייה אחת תגלה איפה הפרטים שלך דלפו, באילו מאגרים אתה מופיע, ואיך למחוק ולהתגונן — לפני שמישהו אחר ימצא את זה קודם.</p>
+      <h1 data-i18n-html="heroTitle">מה האינטרנט<br><em>יודע עליך?</em></h1>
+      <p data-i18n="heroSub">בשנייה אחת תגלה איפה הפרטים שלך דלפו, באילו מאגרים אתה מופיע, ואיך למחוק ולהתגונן — לפני שמישהו אחר ימצא את זה קודם.</p>
     </div>
     <div class="form">
       <div class="field">
-        <label for="fEmail">כתובת אימייל</label>
+        <label for="fEmail" data-i18n="emailLabel">כתובת אימייל</label>
         <input id="fEmail" type="email" inputmode="email" placeholder="you@example.com" autocomplete="off">
       </div>
       <div class="field">
-        <label for="fPhone">טלפון (לא חובה)</label>
+        <label for="fPhone" data-i18n="phoneLabel">טלפון (לא חובה)</label>
         <input id="fPhone" type="tel" inputmode="tel" placeholder="050-1234567" autocomplete="off">
       </div>
-      <button class="scan-btn" id="btnScan">🔍 סרוק את הצל הדיגיטלי שלי</button>
-      <div class="privacy-line">🔒 הבדיקה על עצמך בלבד. איננו שומרים את הפרטים שהזנת — הם משמשים רק לבדיקה הנוכחית.</div>
+      <button class="scan-btn" id="btnScan" data-i18n="scanBtn">🔍 סרוק את הצל הדיגיטלי שלי</button>
+      <div class="privacy-line" data-i18n="privacyLine">🔒 הבדיקה על עצמך בלבד. איננו שומרים את הפרטים שהזנת — הם משמשים רק לבדיקה הנוכחית.</div>
 
       <div class="toolbox">
-        <div class="tb-title">🧰 ארגז הכלים</div>
+        <div class="tb-title" data-i18n="toolboxTitle">🧰 ארגז הכלים</div>
         <div class="tb-grid">
-          <button class="tb-item" id="btnPwTool"><span class="e">🔑</span><span class="t">בדוק סיסמה שדלפה</span></button>
-          <button class="tb-item" id="btnPwGen"><span class="e">🎲</span><span class="t">מחולל סיסמאות <span class="pro">👑</span></span></button>
-          <button class="tb-item" id="btnWifi"><span class="e">📶</span><span class="t">אבטחת ראוטר <span class="pro">👑</span></span></button>
-          <button class="tb-item" id="btnAlias"><span class="e">📧</span><span class="t">מייל חלופי <span class="pro">👑</span></span></button>
-          <button class="tb-item" id="btnFamily"><span class="e">👨‍👩‍👧</span><span class="t">בדיקה משפחתית <span class="pro">👑</span></span></button>
+          <button class="tb-item" id="btnPwTool"><span class="e">🔑</span><span class="t" data-i18n="tPwCheck">בדוק סיסמה שדלפה</span></button>
+          <button class="tb-item" id="btnPwGen"><span class="e">🎲</span><span class="t"><span data-i18n="tPwGen">מחולל סיסמאות</span> <span class="pro">👑</span></span></button>
+          <button class="tb-item" id="btnWifi"><span class="e">📶</span><span class="t"><span data-i18n="tWifi">אבטחת ראוטר</span> <span class="pro">👑</span></span></button>
+          <button class="tb-item" id="btnAlias"><span class="e">📧</span><span class="t"><span data-i18n="tAlias">מייל חלופי</span> <span class="pro">👑</span></span></button>
+          <button class="tb-item" id="btnFamily"><span class="e">👨‍👩‍👧</span><span class="t"><span data-i18n="tFamily">בדיקה משפחתית</span> <span class="pro">👑</span></span></button>
         </div>
       </div>
     </div>
@@ -379,6 +387,18 @@
       <div class="pw-note">סמן מה שכבר עשית. הראוטר הביתי הוא השער לכל המכשירים שלך — כדאי שיהיה מוגן.</div>
       <div class="check-list" id="wifiList"></div>
       <div class="wifi-score" id="wifiScore"></div>
+    </div>
+  </dialog>
+
+  <!-- language -->
+  <dialog id="dlgLang">
+    <div class="dlg-head"><h3>🌐 שפה / Language</h3><button class="dlg-x" data-close="dlgLang">✕</button></div>
+    <div class="dlg-body">
+      <div class="lang-grid">
+        <button class="lang-opt" data-lang="he"><span class="flag">🇮🇱</span> עברית</button>
+        <button class="lang-opt" data-lang="en"><span class="flag">🇬🇧</span> English</button>
+      </div>
+      <div class="pw-note" style="margin-top:14px">🌍 <b>לכל שפה אחרת</b> (90+): פתח את תפריט הדפדפן ובחר "תרגם דף" (Translate) — Chrome ו-Safari מתרגמים אוטומטית לכל שפה בעולם.<br><span style="color:var(--muted)">For any other language, use your browser's "Translate page" — it supports 100+ languages.</span></div>
     </div>
   </dialog>
 
@@ -457,6 +477,47 @@ const CONFIG = {
   SUPABASE_ANON_KEY: "sb_publishable_QPyn4aNqaO2H6kWEedY0SA_przNJs3G",
 };
 const SERVER_MODE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+
+/* ---------- i18n: עברית + אנגלית מובנות; שאר 90+ השפות דרך תרגום הדפדפן ---------- */
+const I18N = {
+  he: {
+    _dir: "rtl", _label: "עב",
+    brand: "צל דיגיטלי",
+    heroTitle: "מה האינטרנט<br><em>יודע עליך?</em>",
+    heroSub: "בשנייה אחת תגלה איפה הפרטים שלך דלפו, באילו מאגרים אתה מופיע, ואיך למחוק ולהתגונן — לפני שמישהו אחר ימצא את זה קודם.",
+    emailLabel: "כתובת אימייל", phoneLabel: "טלפון (לא חובה)",
+    scanBtn: "🔍 סרוק את הצל הדיגיטלי שלי",
+    privacyLine: "🔒 הבדיקה על עצמך בלבד. איננו שומרים את הפרטים שהזנת — הם משמשים רק לבדיקה הנוכחית.",
+    toolboxTitle: "🧰 ארגז הכלים",
+    tPwCheck: "בדוק סיסמה שדלפה", tPwGen: "מחולל סיסמאות", tWifi: "אבטחת ראוטר", tAlias: "מייל חלופי", tFamily: "בדיקה משפחתית",
+  },
+  en: {
+    _dir: "ltr", _label: "EN",
+    brand: "Digital Shadow",
+    heroTitle: "What does the internet<br><em>know about you?</em>",
+    heroSub: "In one second, find out where your details leaked, which databases you appear in, and how to protect yourself — before someone else finds it first.",
+    emailLabel: "Email address", phoneLabel: "Phone (optional)",
+    scanBtn: "🔍 Scan my digital shadow",
+    privacyLine: "🔒 Self-check only. We don't store what you enter — it's used only for this check.",
+    toolboxTitle: "🧰 Toolbox",
+    tPwCheck: "Check leaked password", tPwGen: "Password generator", tWifi: "Router security", tAlias: "Alias email", tFamily: "Family check",
+  },
+};
+let lang = localStorage.getItem("tzel.lang") || (navigator.language || "he").slice(0, 2);
+if (!I18N[lang]) lang = "he";
+function applyLang() {
+  const dict = I18N[lang];
+  document.documentElement.lang = lang;
+  document.documentElement.dir = dict._dir;
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const k = el.getAttribute("data-i18n"); if (dict[k] != null) el.textContent = dict[k];
+  });
+  document.querySelectorAll("[data-i18n-html]").forEach(el => {
+    const k = el.getAttribute("data-i18n-html"); if (dict[k] != null) el.innerHTML = dict[k];
+  });
+  const ll = document.getElementById("langLabel"); if (ll) ll.textContent = dict._label;
+}
+function setLang(l) { if (!I18N[l]) return; lang = l; localStorage.setItem("tzel.lang", l); applyLang(); }
 
 /* פרימיום */
 const UNLOCK_CODES = ["YAIR-VIP", "TZEL2026"];
@@ -998,7 +1059,17 @@ async function shareScore() {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "tzel-score.png"; a.click(); URL.revokeObjectURL(a.href);
   toast("התמונה ירדה — שתף אותה 📤");
 }
+/* ---------- language switcher ---------- */
+$("btnLang").addEventListener("click", () => {
+  document.querySelectorAll("#dlgLang .lang-opt").forEach(o => o.classList.toggle("on", o.dataset.lang === lang));
+  $("dlgLang").showModal();
+});
+document.querySelectorAll("#dlgLang .lang-opt").forEach(o => o.addEventListener("click", () => {
+  setLang(o.dataset.lang); $("dlgLang").close();
+}));
+
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+applyLang();
 show("home");
 checkConnection();
 </script>
