@@ -152,7 +152,7 @@ let tickets = DB.get("tickets", []);
 let inventory = DB.get("inventory", []);
 let prices = DB.get("prices", []);
 let recipes = DB.get("recipes", DEFAULT_RECIPES);
-let settings = DB.get("settings", { shopName: "מעבדה", currency: "₪", theme: "dark", fs: 1, nextNum: 1001, waCountry: "972", setupDone: false });
+let settings = DB.get("settings", { shopName: "מעבדה", currency: "₪", theme: "dark", fs: 1, nextNum: 1001, waCountry: "972", setupDone: false, lang: "he" });
 
 function saveAll() { DB.set("customers", customers); DB.set("tickets", tickets); DB.set("inventory", inventory); DB.set("prices", prices); DB.set("recipes", recipes); DB.set("settings", settings); }
 function logAudit(t, action) { t.audit = [...(t.audit || []), { action, at: Date.now() }]; }
@@ -162,6 +162,16 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 /* ============================ Helpers ============================ */
 const STATUSES = ["התקבל", "באבחון", "בתיקון", "מוכן", "נמסר"];
 const ST_CLASS = { "התקבל": "st-recv", "באבחון": "st-diag", "בתיקון": "st-fix", "מוכן": "st-ready", "נמסר": "st-done" };
+
+/* ---- i18n (68): ליבת הממשק בעברית/אנגלית/ערבית/רוסית, עברית כברירת מחדל ונפילה ---- */
+const I18N = {
+  en: { "לוח": "Dashboard", "כרטיסי תיקון": "Repairs", "לקוחות": "Customers", "מלאי": "Inventory", "מחירון": "Pricing", "דוחות": "Reports", "הגדרות": "Settings", "התקבל": "Received", "באבחון": "Diagnosing", "בתיקון": "Repairing", "מוכן": "Ready", "נמסר": "Delivered", "כרטיסים פעילים": "Active tickets", "מוכנים למסירה": "Ready for pickup", "חלפים במלאי נמוך": "Low-stock parts", "הכנסה החודש": "Revenue this month", "שפה": "Language" },
+  ar: { "לוח": "لوحة", "כרטיסי תיקון": "إصلاحات", "לקוחות": "العملاء", "מלאי": "المخزون", "מחירון": "الأسعار", "דוחות": "التقارير", "הגדרות": "الإعدادات", "התקבל": "مُستلم", "באבחון": "تشخيص", "בתיקון": "قيد الإصلاح", "מוכן": "جاهز", "נמסר": "تم التسليم", "כרטיסים פעילים": "تذاكر نشطة", "מוכנים למסירה": "جاهز للتسليم", "חלפים במלאי נמוך": "قطع قليلة المخزون", "הכנסה החודש": "إيرادات الشهر", "שפה": "اللغة" },
+  ru: { "לוח": "Панель", "כרטיסי תיקון": "Ремонты", "לקוחות": "Клиенты", "מלאי": "Склад", "מחירון": "Цены", "דוחות": "Отчёты", "הגדרות": "Настройки", "התקבל": "Принят", "באבחון": "Диагностика", "בתיקון": "В ремонте", "מוכן": "Готов", "נמסר": "Выдан", "כרטיסים פעילים": "Активные заявки", "מוכנים למסירה": "Готовы к выдаче", "חלפים במלאי נמוך": "Мало на складе", "הכנסה החודש": "Доход за месяц", "שפה": "Язык" },
+};
+function t(s) { const L = settings.lang || "he"; return L === "he" ? s : ((I18N[L] && I18N[L][s]) || s); }
+const TABS = [["dashboard", "📊", "לוח"], ["tickets", "🎫", "כרטיסי תיקון"], ["customers", "👥", "לקוחות"], ["inventory", "📦", "מלאי"], ["prices", "🏷️", "מחירון"], ["reports", "📈", "דוחות"], ["settings", "⚙️", "הגדרות"]];
+function renderTabs() { document.getElementById("tabs").innerHTML = TABS.map(([v, e, l]) => `<button data-view="${v}" class="${v === current ? "active" : ""}">${e} ${esc(t(l))}</button>`).join(""); }
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function money(n) { return (settings.currency || "₪") + " " + (Number(n) || 0).toLocaleString("he-IL"); }
@@ -205,7 +215,7 @@ let current = "dashboard";
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; setView(b.dataset.view); });
 function setView(v) {
   current = v;
-  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+  renderTabs();
   render();
 }
 function render() { ({ dashboard: viewDashboard, tickets: viewTickets, customers: viewCustomers, inventory: viewInventory, prices: viewPrices, reports: viewReports, settings: viewSettings }[current] || viewDashboard)(); }
@@ -219,18 +229,18 @@ function viewDashboard() {
   const byStatus = STATUSES.map(s => ({ s, n: tickets.filter(t => t.status === s).length }));
   $("#view").innerHTML = `
     <div class="grid k4">
-      <div class="stat"><div class="n">${active.length}</div><div class="l">כרטיסים פעילים</div></div>
-      <div class="stat"><div class="n" style="color:var(--ok)">${ready}</div><div class="l">מוכנים למסירה</div></div>
-      <div class="stat"><div class="n" style="color:var(--warn)">${low}</div><div class="l">חלפים במלאי נמוך</div></div>
-      <div class="stat"><div class="n">${money(rev)}</div><div class="l">הכנסה החודש</div></div>
+      <div class="stat"><div class="n">${active.length}</div><div class="l">${t("כרטיסים פעילים")}</div></div>
+      <div class="stat"><div class="n" style="color:var(--ok)">${ready}</div><div class="l">${t("מוכנים למסירה")}</div></div>
+      <div class="stat"><div class="n" style="color:var(--warn)">${low}</div><div class="l">${t("חלפים במלאי נמוך")}</div></div>
+      <div class="stat"><div class="n">${money(rev)}</div><div class="l">${t("הכנסה החודש")}</div></div>
     </div>
     <div class="card">
-      <h2>🎫 כרטיסים פעילים</h2>
+      <h2>🎫 ${t("כרטיסים פעילים")}</h2>
       ${active.length ? tableTickets(active.slice().sort((a, b) => b.createdAt - a.createdAt)) : `<div class="empty">אין כרטיסים פעילים. <button class="btn primary sm" onclick="editTicket()">+ כרטיס חדש</button></div>`}
     </div>
     <div class="card">
       <h2>📊 לפי סטטוס</h2>
-      <div class="row">${byStatus.map(x => `<span class="chip ${ST_CLASS[x.s]}">${x.s}: ${x.n}</span>`).join("")}</div>
+      <div class="row">${byStatus.map(x => `<span class="chip ${ST_CLASS[x.s]}">${t(x.s)}: ${x.n}</span>`).join("")}</div>
     </div>`;
 }
 
@@ -239,7 +249,7 @@ function tableTickets(list) {
     list.map(t => `<tr onclick="openTicket('${t.id}')" style="cursor:pointer">
       <td><b>${t.num}</b></td><td>${esc(custName(t.customerId))}</td><td>${esc(t.device || "")}</td>
       <td>${esc((t.fault || "").slice(0, 30))}</td>
-      <td><span class="chip ${ST_CLASS[t.status]}">${t.status}</span></td>
+      <td><span class="chip ${ST_CLASS[t.status]}">${window.t(t.status)}</span></td>
       <td>${t.price ? money(t.price) : "—"}</td>
       <td>›</td></tr>`).join("")
   }</tbody></table></div>`;
@@ -327,6 +337,8 @@ function viewSettings() {
   $("#view").innerHTML = `
     <div class="card"><h2>🏪 פרטי העסק</h2>
       <label class="fld">שם המעבדה</label><input id="setShop" value="${esc(settings.shopName)}">
+      <label class="fld">${t("שפה")} / Language</label>
+      <select id="setLang">${[["he", "עברית"], ["en", "English"], ["ar", "العربية"], ["ru", "Русский"]].map(([v, l]) => `<option value="${v}" ${settings.lang === v ? "selected" : ""}>${l}</option>`).join("")}</select>
       <div class="two"><div><label class="fld">מטבע</label><input id="setCur" value="${esc(settings.currency)}"></div>
       <div><label class="fld">קידומת מדינה ל-WhatsApp</label><input id="setWa" value="${esc(settings.waCountry)}"></div></div>
       <div class="two"><div><label class="fld">גודל גופן</label><select id="setFs">
@@ -375,6 +387,7 @@ function saveSettingsForm() {
   settings.currency = $("#setCur").value.trim() || "₪";
   settings.waCountry = $("#setWa").value.trim() || "972";
   settings.fs = parseFloat($("#setFs").value) || 1;
+  settings.lang = $("#setLang").value || "he";
   settings.nextNum = parseInt($("#setNum").value) || settings.nextNum;
   saveSettings(); applySettings(); toast("ההגדרות נשמרו"); render();
 }
@@ -468,7 +481,7 @@ function openTicket(id) {
   const c = customers.find(x => x.id === t.customerId) || {};
   const idx = STATUSES.indexOf(t.status);
   const warrText = t.deliveredAt && t.warrantyDays ? "בתוקף עד " + fmtDate(t.deliveredAt + t.warrantyDays * 86400000) : "—";
-  openModal(`<h3>כרטיס #${t.num} <span class="chip ${ST_CLASS[t.status]}">${t.status}</span></h3>
+  openModal(`<h3>כרטיס #${t.num} <span class="chip ${ST_CLASS[t.status]}">${window.t(t.status)}</span></h3>
     <div class="muted">${esc(c.name || "")} · ${esc(c.phone || "")} · נפתח ${fmtDate(t.createdAt)}</div>
     <div class="card" style="margin-top:10px;background:var(--card-2)">
       <div><b>מכשיר:</b> ${esc(t.device || "—")} ${t.imei ? "· IMEI " + esc(t.imei) : ""}</div>
@@ -479,7 +492,7 @@ function openTicket(id) {
       t.checklist.map((c, i) => `<label style="display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer"><input type="checkbox" style="width:auto" ${c.done ? "checked" : ""} onchange="toggleCheck('${t.id}',${i})"><span style="${c.done ? "text-decoration:line-through;color:var(--muted)" : ""}">${esc(c.s)}</span></label>`).join("")
     }` : ""}
     <label class="fld">קידום סטטוס</label>
-    <div class="row">${STATUSES.map((s, i) => `<button class="btn sm ${i === idx ? "primary" : ""}" onclick="setTicketStatus('${t.id}','${s}')">${s}</button>`).join("")}</div>
+    <div class="row">${STATUSES.map((s, i) => `<button class="btn sm ${i === idx ? "primary" : ""}" onclick="setTicketStatus('${t.id}','${s}')">${window.t(s)}</button>`).join("")}</div>
     <div class="row" style="margin-top:14px">
       <button class="btn" onclick="editTicket('${t.id}')">✏️ עריכה</button>
       <button class="btn" onclick="printInvoice('${t.id}')">🧾 חשבונית</button>
@@ -670,8 +683,12 @@ async function decryptText(enc, pass) {
 function applySettings() {
   document.documentElement.setAttribute("data-theme", settings.theme || "dark");
   document.documentElement.style.setProperty("--fs", settings.fs || 1);
+  const lang = settings.lang || "he";
+  document.documentElement.setAttribute("lang", lang);
+  document.documentElement.setAttribute("dir", (lang === "he" || lang === "ar") ? "rtl" : "ltr");
   $("#shopName").textContent = settings.shopName || "מעבדה";
   document.title = (settings.shopName || "מעבדה") + " — ניהול מעבדת סלולר";
+  renderTabs();
 }
 $("#btnTheme").addEventListener("click", () => { settings.theme = (settings.theme === "light" ? "dark" : "light"); saveSettings(); applySettings(); });
 $("#search").addEventListener("input", () => { if (["tickets", "customers"].includes(current)) render(); });
