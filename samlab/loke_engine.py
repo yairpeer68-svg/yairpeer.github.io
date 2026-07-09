@@ -42,6 +42,18 @@ PIT_DUMP = 1
 PIT_PART = 2
 PIT_ENDXFER = 3
 
+# FileTransfer request types (זהים במספר אך שונים בהקשר)
+FT_FLASH = 0
+FT_DUMP = 1
+FT_PART = 2
+FT_END = 3
+FT_DEST_PHONE = 0
+FT_DEST_MODEM = 1
+
+# פרמטרי העברת קובץ (כמו Heimdall)
+FT_PACKET_SIZE = 1048576   # 1 MiB לכל חלק
+FT_SEQ_MAX = 30            # עד 30 חלקים (30 MiB) לכל רצף
+
 # End-session request types
 END_SESSION = 0
 END_REBOOT = 1
@@ -217,6 +229,71 @@ class LokeDevice:
         self.log("✓ קריאת PIT הושלמה.")
         return buf
 
+    # ---- כתיבה (flash) — ניסיוני! פעולה שכותבת למכשיר ----
+    def _write_part(self, data):
+        """שולח חלק נתונים גולמי (עד 1MB) עם timeout מורחב."""
+        if self.hexlog:
+            self.log(f"→ [data part {len(data)} B]")
+        self.ep_out.write(data, 60000)
+        if self.send_zlp:
+            try:
+                self.ep_out.write(b"", self._timeout)
+            except Exception:
+                pass
+
+    def flash_image(self, entry, data, on_progress=None):
+        """
+        כותב image למחיצה לפי רשומת PIT (entry עם device_type ו-id).
+        מיישם את רצף Odin/LOKE של Heimdall. **ניסיוני — לבדיקה על מכשיר בר-הקרבה.**
+        """
+        device_type = int(entry["device_type"])
+        file_id = int(entry["id"])
+        name = entry.get("partition", "?")
+        total = len(data)
+        if total == 0:
+            raise LokeError("הקובץ ריק.")
+        self.log(f"מתחיל פלאש ל-{name} (deviceType={device_type}, id={file_id}, {total} בתים)…")
+
+        # התחלת העברת קובץ
+        self._write(_u32(CT_FILEXFER, FT_FLASH))
+        self._read_response(CT_FILEXFER)
+
+        offset = 0
+        while offset < total:
+            remaining = total - offset
+            parts = min(FT_SEQ_MAX, (remaining + FT_PACKET_SIZE - 1) // FT_PACKET_SIZE)
+            seq_total = parts * FT_PACKET_SIZE            # מרופד (FlashPart)
+            seq_effective = min(remaining, seq_total)     # בתים בפועל (End)
+            is_last = (offset + seq_effective >= total)
+
+            # תחילת רצף
+            self._write(_u32(CT_FILEXFER, FT_PART, seq_total))
+            self._read_response(CT_FILEXFER)
+
+            # שליחת חלקי 1MB (החלק האחרון מרופד באפסים)
+            for i in range(parts):
+                cs = offset + i * FT_PACKET_SIZE
+                chunk = data[cs:cs + FT_PACKET_SIZE]
+                if len(chunk) < FT_PACKET_SIZE:
+                    chunk = chunk + b"\x00" * (FT_PACKET_SIZE - len(chunk))
+                self._write_part(chunk)
+                self._read_response(CT_FILEXFER)  # אישור החלק
+                if on_progress:
+                    on_progress(min(cs + FT_PACKET_SIZE, total) / total)
+
+            # סיום רצף
+            self._write(self._end_phone(seq_effective, device_type, file_id, is_last))
+            self._read_response(CT_FILEXFER)
+            offset += seq_effective
+
+        self.log(f"✓ הפלאש ל-{name} הושלם.")
+
+    @staticmethod
+    def _end_phone(seq_effective, device_type, file_id, is_last):
+        # [0x66][FT_END][dest=phone][seqEffective][unknown1=0][deviceType][fileId][endOfFile]
+        return _u32(CT_FILEXFER, FT_END, FT_DEST_PHONE, seq_effective, 0,
+                    device_type, file_id, 1 if is_last else 0)
+
     # ---- סיום סשן ----
     def end_session(self, reboot=False):
         req = END_REBOOT if reboot else END_SESSION
@@ -259,9 +336,11 @@ def parse_pit(data):
         if off + PIT_ENTRY_SIZE > len(data):
             break
         e = data[off:off + PIT_ENTRY_SIZE]
+        device_type = struct.unpack("<I", e[4:8])[0]
         identifier = struct.unpack("<I", e[8:12])[0]
         block_count = struct.unpack("<I", e[24:28])[0]
         entries.append({
+            "device_type": device_type,
             "id": identifier,
             "blocks": block_count,
             "partition": _cstr(e[36:68]),
@@ -275,8 +354,9 @@ def parse_pit(data):
 # בדיקה עצמאית (ללא חומרה): מאמת את פירוק ה-PIT מול חבילה מסונתזת
 # ---------------------------------------------------------------------------
 def _selftest():
-    def entry(idv, blocks, name, fname):
+    def entry(idv, blocks, name, fname, dtype=0):
         b = bytearray(PIT_ENTRY_SIZE)
+        struct.pack_into("<I", b, 4, dtype)
         struct.pack_into("<I", b, 8, idv)
         struct.pack_into("<I", b, 24, blocks)
         nm = name.encode("ascii"); b[36:36 + len(nm)] = nm
@@ -289,9 +369,18 @@ def _selftest():
     blob = bytes(hdr) + entry(1, 100, "BOOT", "boot.img") + entry(2, 4096, "USERDATA", "userdata.img")
     info, entries = parse_pit(blob)
     assert info["count"] == 2, info
-    assert entries[0] == {"id": 1, "blocks": 100, "partition": "BOOT", "filename": "boot.img"}, entries[0]
+    assert entries[0] == {"device_type": 0, "id": 1, "blocks": 100, "partition": "BOOT", "filename": "boot.img"}, entries[0]
     assert entries[1]["partition"] == "USERDATA" and entries[1]["filename"] == "userdata.img", entries[1]
     print("loke_engine parse_pit self-test PASSED:", entries)
+
+    # בדיקת מבנה חבילות הכתיבה (byte layout)
+    ep = LokeDevice._end_phone(0x1000, 2, 5, True)
+    assert len(ep) == 32, len(ep)
+    fields = struct.unpack("<8I", ep)
+    assert fields == (CT_FILEXFER, FT_END, FT_DEST_PHONE, 0x1000, 0, 2, 5, 1), fields
+    flashpart = _u32(CT_FILEXFER, FT_PART, 0x2000)
+    assert len(flashpart) == 12 and struct.unpack("<3I", flashpart) == (CT_FILEXFER, FT_PART, 0x2000)
+    print("loke_engine flash-packet layout self-test PASSED")
 
 
 if __name__ == "__main__":

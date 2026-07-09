@@ -436,9 +436,9 @@ class SamLabApp:
         warn = tk.Label(c, bg="#2a2410", fg="#fde68a", justify="right", anchor="e",
                         font=("Segoe UI", 9), padx=12, pady=10, wraplength=760,
                         text="⚠ מנוע ניסיוני שמדבר ישירות עם המכשיר (pyusb/libusb), בלי Heimdall. "
-                             "מיושם אך ורק הנתיב הבטוח שאינו כותב דבר: handshake, פתיחת סשן, קריאת "
-                             "טבלת המחיצות (PIT) ומידע מכשיר. אין כאן פעולת פלאש — אפס סיכון brick. "
-                             "כתיבה (flash) תיפתח רק אחרי שקריאת ה-PIT תאומת אצלך על ה-A16.")
+                             "קריאה (handshake, סשן, PIT, מידע) בטוחה. פלאש (כתיבה) הוא ניסיוני ולא נבדק "
+                             "על חומרה — בצע קודם 'קרא PIT', ואז פלאש אך ורק על מכשיר בר-הקרבה (A16). "
+                             "אם קריאת ה-PIT מציגה טבלת מחיצות תקינה — הפרוטוקול עובד.")
         warn.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(0, 12))
 
         if not LOKE_AVAILABLE:
@@ -459,6 +459,70 @@ class SamLabApp:
         ttk.Button(grid, text="🆔 מידע מכשיר", command=self.act_loke_devinfo).grid(row=0, column=2, padx=4, pady=4)
         ttk.Button(grid, text="♻ סיים סשן + אתחל", command=self.act_loke_reboot).grid(row=1, column=1, padx=4, pady=4)
         self._loke_pit = None
+        self._loke_entries = []
+        self._loke_flash_file = ""
+
+        # --- כתיבה (ניסיוני) ---
+        fwarn = tk.Label(c, bg="#3a1720", fg="#ffd7de", justify="right", anchor="e",
+                         font=("Segoe UI", 9), padx=12, pady=8, wraplength=760,
+                         text="🧪 פלאש LOKE ישיר — ניסיוני, כותב למכשיר. פועל רק אחרי 'קרא PIT'. "
+                              "בדוק אך ורק על מכשיר בר-הקרבה (A16). פלאש שגוי עלול להרוס את המכשיר.")
+        fwarn.grid(row=5, column=0, columnspan=3, sticky="ew", pady=(14, 6))
+        ttk.Label(c, text="מחיצה (מתוך ה-PIT שנקרא)", style="Card.TLabel").grid(row=6, column=2, sticky="e", pady=2)
+        self.loke_part = ttk.Combobox(c, values=[], state="readonly", width=26)
+        self.loke_part.grid(row=6, column=1, sticky="ew", padx=6)
+        self.loke_flash_lbl = ttk.Label(c, text="לא נבחר קובץ", style="Muted.TLabel")
+        self.loke_flash_lbl.grid(row=7, column=1, sticky="e", padx=6)
+        ttk.Button(c, text="בחר image…", command=self._pick_loke_img).grid(row=7, column=2, sticky="e")
+        ttk.Button(c, text="🧪 בצע פלאש LOKE", style="Danger.TButton",
+                   command=self.act_loke_flash).grid(row=7, column=0, sticky="w")
+        c.columnconfigure(1, weight=1)
+
+    def _pick_loke_img(self):
+        f = filedialog.askopenfilename(title="בחר image לפלאש",
+                                       filetypes=[("Image", "*.img *.bin *.mbn *.pit"), ("All", "*.*")])
+        if f:
+            self._loke_flash_file = f
+            self.loke_flash_lbl.configure(text=os.path.basename(f), foreground=OK)
+
+    def act_loke_flash(self):
+        if self.loke is None or self.loke.dev is None:
+            messagebox.showinfo(APP_NAME, "התחבר קודם ('חבר + פתח סשן').")
+            return
+        if not self._loke_entries:
+            messagebox.showinfo(APP_NAME, "קרא PIT קודם ('קרא PIT') כדי לקבל את רשימת המחיצות.")
+            return
+        part = self.loke_part.get().strip()
+        entry = next((e for e in self._loke_entries if e["partition"] == part), None)
+        if not entry:
+            messagebox.showwarning(APP_NAME, "בחר מחיצה מהרשימה.")
+            return
+        if not self._loke_flash_file:
+            messagebox.showwarning(APP_NAME, "בחר קובץ image לפלאש.")
+            return
+        try:
+            with open(self._loke_flash_file, "rb") as fh:
+                data = fh.read()
+        except Exception as e:
+            messagebox.showerror(APP_NAME, f"קריאת הקובץ נכשלה: {e}")
+            return
+        if data[:4] == b"\x3a\xff\x26\xed":
+            messagebox.showwarning(APP_NAME, "הקובץ הוא sparse image — לא נתמך במנוע הישיר. השתמש ב-image גולמי.")
+            return
+        if not messagebox.askyesno(APP_NAME,
+                                   "⚠ פלאש LOKE ניסיוני!\n\n"
+                                   f"מחיצה: {part}  (deviceType={entry['device_type']}, id={entry['id']})\n"
+                                   f"קובץ: {os.path.basename(self._loke_flash_file)} ({self._fmt_size(len(data))})\n\n"
+                                   "פעולה זו כותבת ישירות למכשיר ולא נבדקה על חומרה. "
+                                   "בצע אך ורק על מכשיר בר-הקרבה. להמשיך?"):
+            return
+
+        def job():
+            self.loke.hexlog = self.loke_hex.get()
+            self.loke.flash_image(entry, data, on_progress=lambda p: None)
+            self.q.put(("ok", f"✓ פלאש LOKE ל-{part} הסתיים. אתחל את המכשיר לבדיקה."))
+        self._log("warn", f"מתחיל פלאש LOKE ל-{part} — אל תנתק את הכבל!")
+        self._run_loke(job)
 
     # ---- טאב: הגדרות ----
     def _build_config(self, parent):
@@ -782,6 +846,9 @@ class SamLabApp:
             data = self.loke.read_pit()
             self._loke_pit = data
             info, entries = parse_pit(data)
+            self._loke_entries = entries
+            names = [e["partition"] for e in entries if e["partition"]]
+            self.root.after(0, lambda: self.loke_part.configure(values=names))
             self.q.put(("ok", f"✓ PIT נקרא: {info['count']} מחיצות (magic 0x{info['magic']:08X})"))
             self.q.put(("info", "   ID  | מחיצה                    | קובץ פלאש"))
             for e in entries:
