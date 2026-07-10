@@ -235,6 +235,45 @@ def parse_pit(text):
 
 
 # ---------------------------------------------------------------------------
+# כלי קבצים: בניית/עריכת .tar.md5 בפורמט Odin
+# ---------------------------------------------------------------------------
+def _append_md5(out_path):
+    """מוסיף שורת MD5 בסוף (פורמט Odin: md5 של תוכן ה-tar + '  שם' בסוף הקובץ)."""
+    import hashlib
+    with open(out_path, "rb") as f:
+        digest = hashlib.md5(f.read()).hexdigest()
+    with open(out_path, "ab") as f:
+        f.write("{}  {}\n".format(digest, os.path.basename(out_path)).encode())
+    return digest
+
+
+def build_tar_md5(src_files, out_path):
+    """בונה קובץ .tar.md5 בפורמט Odin מרשימת קבצים."""
+    with tarfile.open(out_path, "w") as tar:
+        for p in src_files:
+            tar.add(p, arcname=os.path.basename(p))
+    return _append_md5(out_path)
+
+
+def replace_in_tar(src_tar, member_name, new_file, out_path):
+    """יוצר tar חדש כמו המקור, אך מחליף קובץ בודד; ומוסיף MD5."""
+    with tarfile.open(src_tar, "r:*") as tin, tarfile.open(out_path, "w") as tout:
+        for m in tin.getmembers():
+            if not m.isfile():
+                continue
+            if m.name == member_name:
+                tout.add(new_file, arcname=member_name)
+            else:
+                tout.addfile(m, tin.extractfile(m))
+    return _append_md5(out_path)
+
+
+def list_tar_members(src_tar):
+    with tarfile.open(src_tar, "r:*") as tin:
+        return [m.name for m in tin.getmembers() if m.isfile()]
+
+
+# ---------------------------------------------------------------------------
 # הממשק הגרפי
 # ---------------------------------------------------------------------------
 class SamLabApp:
@@ -295,16 +334,19 @@ class SamLabApp:
         self.tab_flash = ttk.Frame(nb)
         self.tab_dev = ttk.Frame(nb)
         self.tab_loke = ttk.Frame(nb)
+        self.tab_tools = ttk.Frame(nb)
         self.tab_cfg = ttk.Frame(nb)
         nb.add(self.tab_dl, text="⬇  הורדת קושחה")
         nb.add(self.tab_flash, text="💾  פלאש")
         nb.add(self.tab_dev, text="🩺  מכשיר ומצבים")
         nb.add(self.tab_loke, text="🧪  מנוע ישיר")
+        nb.add(self.tab_tools, text="🧰  כלי קבצים")
         nb.add(self.tab_cfg, text="⚙  הגדרות")
         self._build_download(self.tab_dl)
         self._build_flash(self.tab_flash)
         self._build_device(self.tab_dev)
         self._build_loke(self.tab_loke)
+        self._build_tools(self.tab_tools)
         self._build_config(self.tab_cfg)
 
         # לוג משותף בתחתית
@@ -523,6 +565,83 @@ class SamLabApp:
             self.q.put(("ok", f"✓ פלאש LOKE ל-{part} הסתיים. אתחל את המכשיר לבדיקה."))
         self._log("warn", f"מתחיל פלאש LOKE ל-{part} — אל תנתק את הכבל!")
         self._run_loke(job)
+
+    # ---- טאב: כלי קבצים ----
+    def _build_tools(self, parent):
+        c = self._card(parent)
+        ttk.Label(c, text="כלי קבצי קושחה", style="H.TLabel").grid(row=0, column=0, columnspan=3, sticky="e", pady=(0, 4))
+        ttk.Label(c, text="בניית ועריכת קובצי .tar.md5 בפורמט Odin — מקומית, בלי מכשיר.",
+                  style="Muted.TLabel").grid(row=1, column=0, columnspan=3, sticky="e", pady=(0, 12))
+
+        ttk.Label(c, text="🆕 בניית .tar.md5 מקבצים (25)", style="Card.TLabel").grid(row=2, column=2, columnspan=2, sticky="e", pady=(6, 2))
+        ttk.Button(c, text="בחר קבצים ובנה tar.md5…", command=self.act_build_tar).grid(row=3, column=0, columnspan=3, sticky="e", pady=(0, 14))
+
+        ttk.Label(c, text="✏️ עריכה: החלפת קובץ בתוך tar (24)", style="Card.TLabel").grid(row=4, column=2, columnspan=2, sticky="e", pady=(6, 2))
+        ttk.Button(c, text="1. בחר .tar/.tar.md5…", command=self.act_pick_tar).grid(row=5, column=0, sticky="w")
+        self.tar_member = ttk.Combobox(c, values=[], state="readonly", width=28)
+        self.tar_member.grid(row=5, column=1, sticky="ew", padx=6)
+        self.tar_repl_lbl = ttk.Label(c, text="לא נבחר קובץ מחליף", style="Muted.TLabel")
+        self.tar_repl_lbl.grid(row=6, column=1, sticky="e", padx=6)
+        ttk.Button(c, text="2. קובץ מחליף…", command=self.act_pick_repl).grid(row=6, column=0, sticky="w")
+        ttk.Button(c, text="3. בנה tar חדש", style="Accent.TButton", command=self.act_replace_tar).grid(row=7, column=0, sticky="w", pady=(8, 0))
+        c.columnconfigure(1, weight=1)
+        self._src_tar = ""
+        self._repl_file = ""
+
+    def act_build_tar(self):
+        files = filedialog.askopenfilenames(title="בחר קבצי image", filetypes=[("Image", "*.img *.bin *.mbn *.pit"), ("All", "*.*")])
+        if not files:
+            return
+        out = filedialog.asksaveasfilename(defaultextension=".tar.md5", filetypes=[("Odin tar.md5", "*.tar.md5"), ("All", "*.*")])
+        if not out:
+            return
+
+        def worker():
+            try:
+                digest = build_tar_md5(list(files), out)
+                self.q.put(("ok", f"✓ נוצר {os.path.basename(out)} ({len(files)} קבצים, MD5 {digest[:8]}…)"))
+            except Exception as e:
+                self.q.put(("err", f"✗ בנייה נכשלה: {e}"))
+        self._log("info", f"בונה tar.md5 מ-{len(files)} קבצים…")
+        threading.Thread(target=worker, daemon=True).start()
+
+    def act_pick_tar(self):
+        f = filedialog.askopenfilename(title="בחר tar", filetypes=[("Samsung firmware", "*.tar.md5 *.tar"), ("All", "*.*")])
+        if not f:
+            return
+        self._src_tar = f
+        try:
+            self.tar_member.configure(values=list_tar_members(f))
+            self._log("ok", f"✓ נטען {os.path.basename(f)} — בחר קובץ להחלפה מהרשימה.")
+        except Exception as e:
+            self._log("err", f"✗ קריאת ה-tar נכשלה: {e}")
+
+    def act_pick_repl(self):
+        f = filedialog.askopenfilename(title="בחר קובץ מחליף")
+        if f:
+            self._repl_file = f
+            self.tar_repl_lbl.configure(text=os.path.basename(f), foreground=OK)
+
+    def act_replace_tar(self):
+        member = self.tar_member.get().strip()
+        if not self._src_tar or not member:
+            messagebox.showinfo(APP_NAME, "בחר tar וקובץ מתוכו להחלפה.")
+            return
+        if not self._repl_file:
+            messagebox.showinfo(APP_NAME, "בחר קובץ מחליף.")
+            return
+        out = filedialog.asksaveasfilename(defaultextension=".tar.md5", filetypes=[("Odin tar.md5", "*.tar.md5"), ("All", "*.*")])
+        if not out:
+            return
+
+        def worker():
+            try:
+                digest = replace_in_tar(self._src_tar, member, self._repl_file, out)
+                self.q.put(("ok", f"✓ נוצר {os.path.basename(out)} — הוחלף '{member}' (MD5 {digest[:8]}…)"))
+            except Exception as e:
+                self.q.put(("err", f"✗ עריכה נכשלה: {e}"))
+        self._log("info", f"מחליף '{member}' ובונה tar חדש…")
+        threading.Thread(target=worker, daemon=True).start()
 
     # ---- טאב: הגדרות ----
     def _build_config(self, parent):
