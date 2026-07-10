@@ -29,11 +29,11 @@
 ### 2. הכלים החיצוניים
 - **Heimdall:** הורד והנח את `heimdall.exe` בתיקיית `tools/`.
 - **ADB:** הורד את [platform-tools](https://developer.android.com/tools/releases/platform-tools), והעתק את `adb.exe` (עם `AdbWinApi.dll`, `AdbWinUsbApi.dll`) לתיקיית `tools/`.
-- **samloader:** מותקן אוטומטית דרך `run.bat`/`build.bat`. ⚠️ samloader מוגבל ל‑Python **<3.11**, ולכן ב‑Python 3.11 ומעלה מתקינים אותו עם דגל עקיפה:
+- **samloader:** מותקן אוטומטית דרך `run.bat`/`build.bat`. גרסת PyPI מוגבלת ל‑Python **<3.11**, לכן משתמשים ב**פורק martinetd** התומך ב‑Python 3.11+ (אותו CLI בדיוק), שמותקן מקובץ zip בלי צורך ב‑git:
   ```
-  pip install --ignore-requires-python samloader
+  pip install "https://github.com/martinetd/samloader/archive/refs/heads/master.zip"
   ```
-  אם ההתקנה נכשלת — שאר התוכנה (פלאש, LOKE, כלי קבצים, מידע) עובדת; רק טאב "הורדת קושחה" לא יהיה זמין. חלופה: התקן Python 3.10.
+  אם ההתקנה נכשלת — שאר התוכנה (פלאש, LOKE, כלי קבצים, מידע) עובדת; רק טאב "הורדת קושחה" לא יהיה זמין.
 
 ### 3. דרייבר USB (קריטי לפלאש)
 כדי ש‑Heimdall יראה את המכשיר ב‑Download Mode צריך דרייבר **libusb / WinUSB** לממשק ה‑Download:

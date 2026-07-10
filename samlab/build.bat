@@ -13,8 +13,8 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-REM samloader מוגבל ל-Python <3.11 — עוקפים כדי לתמוך ב-3.11+ (לא חוסם בנייה)
-python -m pip install --ignore-requires-python samloader
+REM samloader: פורק martinetd התומך ב-Python 3.11+ (אותו CLI). לא חוסם בנייה
+python -m pip install "https://github.com/martinetd/samloader/archive/refs/heads/master.zip"
 
 echo [2/3] בונה את SamLab.exe...
 pyinstaller --noconfirm --onefile --windowed --name SamLab samlab.py

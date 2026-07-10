@@ -5,8 +5,8 @@ setlocal
 echo מתקין תלויות ליבה...
 python -m pip install -r requirements.txt
 
-echo מתקין samloader (הורדת קושחה) — עוקף מגבלת גרסת Python...
-python -m pip install --ignore-requires-python samloader
+echo מתקין samloader (הורדת קושחה) — פורק martinetd התומך ב-Python 3.11+...
+python -m pip install "https://github.com/martinetd/samloader/archive/refs/heads/master.zip"
 if errorlevel 1 (
   echo.
   echo [אזהרה] התקנת samloader נכשלה. שאר התוכנה תעבוד; רק טאב "הורדת קושחה" לא יהיה זמין.
