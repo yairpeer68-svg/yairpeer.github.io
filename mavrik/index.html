@@ -347,6 +347,32 @@
         <li>5. מוצא אחרון: "מחיקת נתונים" (Factory) — מוחק הכול אבל מחזיר לחיים.</li>
       </ul>
 
+      <h3>📱 שיאומי — הסרת בלוטוור ופרסומות MIUI (debloat)</h3>
+      <p>אפשר לכבות אפליקציות מערכת מיותרות ופרסומות בלי root, דרך ADB (מכשיר דלוק, ניפוי USB פעיל):</p>
+      <ul>
+        <li>כבה פרסומות מערכת: <code>adb shell pm disable-user --user 0 com.miui.systemAdSolution</code></li>
+        <li>הסר אפליקציות מומלצות/glance במסך נעילה דרך הגדרות → מסך נעילה.</li>
+        <li>לכיבוי אפליקציה: <code>adb shell pm uninstall -k --user 0 &lt;package&gt;</code> (מוסר למשתמש, לא מוחק מהמערכת — הפיך ב-<code>pm install-existing</code>).</li>
+        <li>עבוד עם רשימות debloat מוכרות ל-MIUI/HyperOS, ואל תסיר חבילות ליבה (com.android.*, com.miui.securitycenter).</li>
+      </ul>
+
+      <h3>🌍 שיאומי — אזור ROM (גלובלי / EU / CN)</h3>
+      <ul>
+        <li><b>CN (סיני):</b> אין Google Play, יש פרסומות — לרוב עדיף להמיר לגלובלי.</li>
+        <li><b>Global / EU:</b> מומלץ לרוב המשתמשים; EU ללא פרסומות מובנות.</li>
+        <li>המרת אזור אמיתית = פלאש ROM גלובלי מקורי דרך <b>Mi Flash</b> (מצב fastboot/EDL), לא רק שינוי הגדרה. דורש bootloader פתוח.</li>
+        <li>זהה את הדגם המדויק (Settings → About) לפני הורדת ROM — פלאש ROM לא תואם עלול להזיק.</li>
+      </ul>
+
+      <h3>🔧 Oppo / Vivo / Realme (MediaTek / Qualcomm)</h3>
+      <ul>
+        <li>רבים מהם <b>אינם</b> חושפים fastboot flash מלא (המחיצות נעולות) — לרוב צריך כלים ייעודיים.</li>
+        <li><b>MediaTek:</b> פלאש דרך <b>SP Flash Tool</b> עם scatter file, או ניקוי דרך mtkclient (מצב BROM).</li>
+        <li><b>Qualcomm:</b> שחזור דרך <b>EDL 9008</b> עם firehose loader חתום המתאים לדגם (בכלי כמו QFIL/QPST).</li>
+        <li>Realme/Oppo (ColorOS): שחזור מ-recovery עם קובץ עדכון רשמי (ozip/OTA) הוא הדרך הבטוחה ביותר ללא כלים מיוחדים.</li>
+        <li>הכלי הזה (fastboot) מתאים להם רק אם הם נכנסים ל-fastboot ומאפשרים את הפעולה — אחרת השתמש בכלי היצרן המתאים.</li>
+      </ul>
+
       <div class="warnbox" style="margin-top:14px">
         הכלי מבצע פעולות אמיתיות על החומרה. פעולות מחיקה ופלאש הן באחריותך. עבוד עם קבצי קושחה מקוריים בלבד, ותעד את דגם המכשיר המדויק לפני כל פלאש.
       </div>
