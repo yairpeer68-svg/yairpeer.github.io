@@ -96,10 +96,20 @@ class LokeDevice:
             raise LokeError("חבילת pyusb אינה מותקנת. הרץ: pip install pyusb  (ונדרש גם libusb-1.0).")
         self._usb, self._util = _core, _util
 
+        # backend: מעדיפים את libusb-package (מביא את libusb-1.0 מובנה, בלי התקנה ידנית)
+        backend = None
         try:
-            dev = _core.find(idVendor=SAMSUNG_VID)
+            import libusb_package
+            backend = libusb_package.get_libusb1_backend()
+        except Exception:
+            backend = None
+
+        try:
+            dev = _core.find(idVendor=SAMSUNG_VID, backend=backend)
         except Exception as e:
-            raise LokeError(f"שגיאת גישה ל-USB (libusb): {e}. ודא ש-libusb-1.0 מותקן ושהותקן דרייבר (Zadig).")
+            raise LokeError(
+                f"שגיאת גישה ל-USB (libusb): {e}. התקן את libusb: "
+                "pip install libusb-package  — ואז הפעל מחדש. (בנוסף דרוש דרייבר WinUSB דרך Zadig לממשק ה-Download.)")
         if dev is None:
             raise LokeError("לא נמצא מכשיר Samsung (VID 04E8) במצב Download. ודא חיבור, מצב Download ודרייבר.")
 

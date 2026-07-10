@@ -88,9 +88,8 @@ build.bat        ::  → dist\SamLab.exe
 2. רק אז נסה פלאש של image קטן וזניח (למשל `up_param`/לוגו) כדי לאמת כתיבה, לפני מחיצות קריטיות.
 
 **דרישות למנוע הישיר:**
-- `pip install pyusb` (כלול ב‑requirements) **וגם** ספריית **libusb‑1.0**:
-  - Windows: הנח את `libusb-1.0.dll` לצד התוכנה, או התקן libusb.
-  - הכנס את המכשיר ל‑Download Mode, הרץ **[Zadig](https://zadig.akeo.ie/)**, בחר את התקן ה‑Samsung והתקן לו דרייבר **libusbK** (או WinUSB).
+- `pyusb` + **`libusb-package`** (שניהם ב‑requirements). `libusb-package` מביא את `libusb-1.0` מובנה ופותר את השגיאה "No backend available" — בלי להתקין DLL ידנית.
+- דרייבר: הכנס את המכשיר ל‑Download Mode, הרץ **[Zadig](https://zadig.akeo.ie/)**, בחר את התקן ה‑Samsung והתקן לו דרייבר **WinUSB** (או libusbK).
 - אם "חבר" נתקע ללא תשובה — סמן את **"שלח ZLP אחרי כל פקודה"** ונסה שוב.
 
 > הערה ל‑A16 (MediaTek): פרוטוקול ה‑LOKE הבסיסי זהה, אך אם הזיהוי או קריאת ה‑PIT נכשלים, דווח לי את הפלט מהיומן ונכוונן.
