@@ -9,10 +9,12 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt pyinstaller
 if errorlevel 1 (
   echo.
-  echo שגיאה בהתקנת התלויות. ודא ש-Python 3.10+ מותקן ומחובר לרשת.
+  echo שגיאה בהתקנת תלויות הליבה. ודא ש-Python 3.10+ מותקן ומחובר לרשת.
   pause
   exit /b 1
 )
+REM samloader מוגבל ל-Python <3.11 — עוקפים כדי לתמוך ב-3.11+ (לא חוסם בנייה)
+python -m pip install --ignore-requires-python samloader
 
 echo [2/3] בונה את SamLab.exe...
 pyinstaller --noconfirm --onefile --windowed --name SamLab samlab.py

@@ -1,9 +1,10 @@
-# מנוע הורדת הקושחה (FUS crypto נכון של Samsung)
-samloader>=0.4.0
-
+# תלויות ליבה (עובדות בכל גרסת Python נתמכת)
 # פירוק images דחוסים (image.lz4) בתוך קבצי AP לפני פלאש
 lz4>=4.0.0
-
 # מנוע LOKE הישיר הניסיוני (טאב "מנוע ישיר") — תקשורת USB ישירה
 # דורש גם את ספריית libusb-1.0 במערכת (ראה README, סעיף Zadig/libusb)
 pyusb>=1.2.1
+
+# הערה: samloader (הורדת קושחה) מותקן בנפרד כי הוא מוגבל ל-Python <3.11.
+# ב-Python 3.11+ התקן אותו כך (run.bat עושה זאת אוטומטית):
+#   pip install --ignore-requires-python samloader
