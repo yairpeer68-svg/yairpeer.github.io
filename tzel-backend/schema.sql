@@ -22,6 +22,16 @@ create table if not exists public.monitors (
 
 create index if not exists monitors_user_idx on public.monitors (user_id);
 
+-- אירועי סריקה: לוג קל להגבלת קצב (מונע שימוש לרעה במכסת HIBP)
+create table if not exists public.scan_events (
+  id bigint generated always as identity primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  ip_hash text,                                 -- SHA-256 של ה-IP, לא ה-IP עצמו
+  created_at timestamptz not null default now()
+);
+
+create index if not exists scan_events_user_time_idx on public.scan_events (user_id, created_at desc);
+
 -- יצירת פרופיל אוטומטית
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -38,7 +48,10 @@ create trigger on_auth_user_created
 -- Row Level Security
 alter table public.profiles enable row level security;
 alter table public.monitors enable row level security;
+alter table public.scan_events enable row level security;
 
 create policy "read own profile" on public.profiles for select using (auth.uid() = id);
 create policy "read own monitors" on public.monitors for select using (auth.uid() = user_id);
 create policy "manage own monitors" on public.monitors for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+-- scan_events: אין policy — נכתב/נקרא רק ע"י service_role (עוקף RLS), לא נגיש ללקוח
+create policy "read own scan_events" on public.scan_events for select using (auth.uid() = user_id);

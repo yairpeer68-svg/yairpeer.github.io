@@ -495,6 +495,9 @@
 const CONFIG = {
   SUPABASE_URL: "https://twggrbbkoxjyycydrvpi.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_QPyn4aNqaO2H6kWEedY0SA_przNJs3G",
+  // Cloudflare Turnstile — מפתח אתר ציבורי (מותר לחשוף). מונע בוטים משריפת מכסת הסריקות.
+  // הסוד (Secret Key) חי רק ב-Supabase Secrets, לעולם לא כאן.
+  TURNSTILE_SITE_KEY: "0x4AAAAAADy_RoEFaVdh87cH",
 };
 const SERVER_MODE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
 
@@ -622,6 +625,53 @@ function show(v) {
 const SEV_LABEL = { critical: "קריטי", warn: "לתיקון", info: "מידע", ok: "תקין" };
 const SEV_CLASS = { critical: "sev-critical", warn: "sev-warn", info: "sev-info", ok: "sev-ok" };
 
+/* ---------- Cloudflare Turnstile — הוכחת-אנוש בלתי-נראית (מונע בוטים) ---------- */
+let tsWidgetId = null;
+let tsResolve = null;
+let tsScriptPromise = null;
+function loadTurnstile() {
+  if (window.turnstile) return Promise.resolve();
+  if (tsScriptPromise) return tsScriptPromise;
+  tsScriptPromise = new Promise((resolve, reject) => {
+    const s = document.createElement("script");
+    s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    s.async = true; s.defer = true;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("turnstile load failed"));
+    document.head.appendChild(s);
+  });
+  return tsScriptPromise;
+}
+// מחזיר token של Turnstile (או null אם לא מוגדר/נכשל — אז השרת יחליט אם לחסום)
+function getTurnstileToken() {
+  if (!CONFIG.TURNSTILE_SITE_KEY) return Promise.resolve(null);
+  return loadTurnstile().then(() => new Promise((resolve) => {
+    let box = document.getElementById("tsBox");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "tsBox";
+      box.style.cssText = "position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:9999";
+      document.body.appendChild(box);
+    }
+    let settled = false;
+    const done = (t) => { if (settled) return; settled = true; tsResolve = null; resolve(t); };
+    tsResolve = done;
+    if (tsWidgetId === null) {
+      tsWidgetId = window.turnstile.render(box, {
+        sitekey: CONFIG.TURNSTILE_SITE_KEY,
+        appearance: "interaction-only",   // בלתי-נראה אלא אם צריך אתגר
+        callback: (t) => { if (tsResolve) tsResolve(t); },
+        "error-callback": () => { if (tsResolve) tsResolve(null); },
+        "timeout-callback": () => { if (tsResolve) tsResolve(null); },
+      });
+    } else {
+      try { window.turnstile.reset(tsWidgetId); } catch (_) {}
+    }
+    // רשת ביטחון: לא לתקוע את הסריקה אם Turnstile לא מגיב
+    setTimeout(() => done(null), 8000);
+  })).catch(() => null);
+}
+
 /* ---------- server integration (מופעל כשה-CONFIG מלא) ---------- */
 let supabase = null;
 async function ensureClient() {
@@ -637,7 +687,9 @@ async function serverScan(email, phone, monitor) {
     const { error } = await sb.auth.signInAnonymously();
     if (error) throw error;
   }
+  const token = await getTurnstileToken();
   const body = { email, phone };
+  if (token) body.turnstileToken = token;
   if (monitor === true || monitor === false) body.monitor = monitor;
   const { data, error } = await sb.functions.invoke("scan", { body });
   if (error) throw error;

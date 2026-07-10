@@ -15,10 +15,51 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const HIBP_KEY = Deno.env.get("HIBP_API_KEY") ?? "";
 const HIBP_HEADERS = { "hibp-api-key": HIBP_KEY, "user-agent": "TzelDigitali" };
+// סוד Turnstile — חי רק כאן בשרת. אם ריק, אימות ה-CAPTCHA מדולג (מצב פיתוח).
+const TURNSTILE_SECRET = Deno.env.get("TURNSTILE_SECRET_KEY") ?? "";
+
+// הגבלת קצב: מגן על מכסת HIBP מפני שימוש לרעה
+const RATE_10M = 5;      // עד 5 סריקות ב-10 דקות למשתמש
+const RATE_DAY = 25;     // עד 25 סריקות ביממה למשתמש
 
 async function sha256Hex(s: string) {
   const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+// אימות טוקן Turnstile מול Cloudflare (הוכחת-אנוש). מונע בוטים.
+async function verifyTurnstile(token: string, ip: string): Promise<boolean> {
+  if (!TURNSTILE_SECRET) return true;        // לא מוגדר — לא חוסם (פיתוח)
+  if (!token) return false;
+  try {
+    const form = new FormData();
+    form.append("secret", TURNSTILE_SECRET);
+    form.append("response", token);
+    if (ip) form.append("remoteip", ip);
+    const res = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+      method: "POST", body: form,
+    });
+    const data = await res.json();
+    return !!data.success;
+  } catch {
+    return false;
+  }
+}
+
+// הגבלת קצב מבוססת DB: סופרת סריקות אחרונות של המשתמש וחוסמת ספאם
+async function checkRate(admin: ReturnType<typeof createClient>, userId: string): Promise<{ ok: boolean; reason?: string }> {
+  const now = Date.now();
+  const tenMinAgo = new Date(now - 10 * 60 * 1000).toISOString();
+  const dayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+  const { count: recent } = await admin.from("scan_events")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId).gte("created_at", tenMinAgo);
+  if ((recent ?? 0) >= RATE_10M) return { ok: false, reason: "rate_10m" };
+  const { count: daily } = await admin.from("scan_events")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId).gte("created_at", dayAgo);
+  if ((daily ?? 0) >= RATE_DAY) return { ok: false, reason: "rate_day" };
+  return { ok: true };
 }
 
 interface Breach {
@@ -221,9 +262,22 @@ Deno.serve(async (req) => {
     const { data: { user } } = await authClient.auth.getUser();
     if (!user) return json({ error: "unauthorized" }, 401, cors);
 
-    const { email, phone, monitor } = await req.json();
+    const { email, phone, monitor, turnstileToken } = await req.json();
     if (!email || !email.includes("@")) return json({ error: "bad_email" }, 400, cors);
     const clean = email.trim().toLowerCase();
+
+    // הוכחת-אנוש (Turnstile) — חוסם בוטים לפני שריפת מכסת HIBP
+    const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim();
+    if (!(await verifyTurnstile(turnstileToken ?? "", ip))) {
+      return json({ error: "captcha_failed" }, 403, cors);
+    }
+
+    // הגבלת קצב — מגן על המכסה מפני שימוש חוזר לרעה
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+    const rate = await checkRate(admin, user.id);
+    if (!rate.ok) return json({ error: rate.reason }, 429, cors);
+    const ipHash = ip ? await sha256Hex(ip) : null;
+    await admin.from("scan_events").insert({ user_id: user.id, ip_hash: ipHash });
 
     const [breaches, pastes, gravatar] = await Promise.all([
       fetchBreaches(clean),
@@ -235,7 +289,6 @@ Deno.serve(async (req) => {
 
     // ניטור: המייל נשמר (מוגן ב-RLS) רק כשהמשתמש מפעיל ניטור. ראה מדיניות פרטיות.
     if (monitor === true || monitor === false) {
-      const admin = createClient(SUPABASE_URL, SERVICE_KEY);
       const hash = await sha256Hex(clean);
       if (monitor === true) {
         await admin.from("monitors").upsert({
