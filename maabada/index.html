@@ -152,9 +152,12 @@ let tickets = DB.get("tickets", []);
 let inventory = DB.get("inventory", []);
 let prices = DB.get("prices", []);
 let recipes = DB.get("recipes", DEFAULT_RECIPES);
-let settings = DB.get("settings", { shopName: "מעבדה", currency: "₪", theme: "dark", fs: 1, nextNum: 1001, waCountry: "972", setupDone: false, lang: "he" });
+let techs = DB.get("techs", []);
+let refurb = DB.get("refurb", []);
+let guides = DB.get("guides", []);
+let settings = DB.get("settings", { shopName: "מעבדה", currency: "₪", theme: "dark", fs: 1, nextNum: 1001, waCountry: "972", setupDone: false, lang: "he", demoMode: false });
 
-function saveAll() { DB.set("customers", customers); DB.set("tickets", tickets); DB.set("inventory", inventory); DB.set("prices", prices); DB.set("recipes", recipes); DB.set("settings", settings); }
+function saveAll() { DB.set("customers", customers); DB.set("tickets", tickets); DB.set("inventory", inventory); DB.set("prices", prices); DB.set("recipes", recipes); DB.set("techs", techs); DB.set("refurb", refurb); DB.set("guides", guides); DB.set("settings", settings); }
 function logAudit(t, action) { t.audit = [...(t.audit || []), { action, at: Date.now() }]; }
 function saveSettings() { DB.set("settings", settings); }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -178,7 +181,11 @@ function money(n) { return (settings.currency || "₪") + " " + (Number(n) || 0)
 function monthKey(ts) { const d = new Date(ts); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
 function fmtDate(ts) { return new Date(ts).toLocaleDateString("he-IL"); }
 function fmtDateTime(ts) { return new Date(ts).toLocaleString("he-IL"); }
-function custName(id) { const c = customers.find(x => x.id === id); return c ? c.name : "—"; }
+function maskStr(s) { if (!settings.demoMode) return s; s = String(s || ""); if (s.length <= 2) return "••"; return s.slice(0, 1) + "•".repeat(Math.max(1, s.length - 2)) + s.slice(-1); }
+function custName(id) { const c = customers.find(x => x.id === id); return c ? maskStr(c.name) : "—"; }
+function techName(id) { const x = techs.find(v => v.id === id); return x ? x.name : ""; }
+function ticketSecs(t) { let sec = (t.timeLogs || []).reduce((s, l) => s + ((l.end || l.start) - l.start), 0) / 1000; if (t.timerStart) sec += (Date.now() - t.timerStart) / 1000; return Math.floor(sec); }
+function fmtDur(sec) { const h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60); return (h ? h + "ש' " : "") + m + "ד'"; }
 function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2200); }
 
 /* revenue for a given YYYY-MM from delivered tickets */
@@ -227,6 +234,7 @@ function viewDashboard() {
   const low = inventory.filter(p => (Number(p.qty) || 0) <= (Number(p.minQty) || 0)).length;
   const rev = revenueForMonth(monthKey(Date.now()));
   const byStatus = STATUSES.map(s => ({ s, n: tickets.filter(t => t.status === s).length }));
+  const notPicked = tickets.filter(k => k.status === "מוכן" && (Date.now() - (k.readyAt || k.updatedAt || k.createdAt)) > 3 * 86400000);
   $("#view").innerHTML = `
     <div class="grid k4">
       <div class="stat"><div class="n">${active.length}</div><div class="l">${t("כרטיסים פעילים")}</div></div>
@@ -234,6 +242,9 @@ function viewDashboard() {
       <div class="stat"><div class="n" style="color:var(--warn)">${low}</div><div class="l">${t("חלפים במלאי נמוך")}</div></div>
       <div class="stat"><div class="n">${money(rev)}</div><div class="l">${t("הכנסה החודש")}</div></div>
     </div>
+    ${notPicked.length ? `<div class="card" style="border-color:var(--warn)"><h2>🔔 מוכנים ולא נאספו (מעל 3 ימים)</h2>${
+      notPicked.map(k => `<div class="row" style="justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span onclick="openTicket('${k.id}')" style="cursor:pointer">#${k.num} · ${esc(custName(k.customerId))} · ${esc(k.device || "")}</span><button class="btn sm ok" onclick="waNotify('${k.customerId}','${k.id}')">💬 תזכורת</button></div>`).join("")
+    }</div>` : ""}
     <div class="card">
       <h2>🎫 ${t("כרטיסים פעילים")}</h2>
       ${active.length ? tableTickets(active.slice().sort((a, b) => b.createdAt - a.createdAt)) : `<div class="empty">אין כרטיסים פעילים. <button class="btn primary sm" onclick="editTicket()">+ כרטיס חדש</button></div>`}
@@ -280,8 +291,8 @@ function viewCustomers() {
       <button class="btn primary" onclick="editCustomer()">+ לקוח חדש</button></div></div>
     <div class="card">${list.length ? `<div class="tablewrap"><table><thead><tr><th>שם</th><th>טלפון</th><th>מכשירים</th><th></th></tr></thead><tbody>${
       list.map(c => { const cnt = tickets.filter(t => t.customerId === c.id).length;
-        return `<tr><td onclick="editCustomer('${c.id}')" style="cursor:pointer"><b>${esc(c.name)}</b></td>
-          <td>${esc(c.phone || "")}</td><td>${cnt} תיקונים</td>
+        return `<tr><td onclick="editCustomer('${c.id}')" style="cursor:pointer"><b>${esc(maskStr(c.name))}</b></td>
+          <td>${esc(maskStr(c.phone || ""))}</td><td>${cnt} תיקונים</td>
           <td><button class="btn sm" onclick="waNotify('${c.id}')">💬</button></td></tr>`; }).join("")
     }</tbody></table></div>` : `<div class="empty">אין לקוחות.</div>`}</div>`;
 }
@@ -344,8 +355,13 @@ function viewSettings() {
       <div class="two"><div><label class="fld">גודל גופן</label><select id="setFs">
         ${[["0.9", "קטן"], ["1", "רגיל"], ["1.15", "גדול"], ["1.3", "גדול מאוד"]].map(([v, l]) => `<option value="${v}" ${String(settings.fs) === v ? "selected" : ""}>${l}</option>`).join("")}
       </select></div><div><label class="fld">מספר כרטיס הבא</label><input id="setNum" type="number" value="${settings.nextNum}"></div></div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px;cursor:pointer"><input type="checkbox" id="setDemo" style="width:auto" ${settings.demoMode ? "checked" : ""}> מצב הדגמה (מסתיר שמות/טלפונים של לקוחות)</label>
       <div class="row" style="margin-top:12px"><button class="btn primary" onclick="saveSettingsForm()">💾 שמור</button></div>
     </div>
+    <div class="card"><div class="row"><h2 style="margin:0">👷 צוות טכנאים</h2><div class="spacer"></div><button class="btn sm primary" onclick="editTech()">+ טכנאי</button></div>
+      <p class="muted" style="margin:6px 0">הקצה טכנאי לכל כרטיס ועקוב אחר זמני עבודה וביצועים.</p>
+      ${techs.length ? techs.map(x => { const done = tickets.filter(k => k.techId === x.id && k.status === "נמסר").length; const secs = tickets.filter(k => k.techId === x.id).reduce((s, k) => s + ticketSecs(k), 0);
+        return `<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--border);padding:6px 0"><span><b>${esc(x.name)}</b> <span class="muted">· ${done} תיקונים · ${fmtDur(secs)}</span></span><button class="btn sm" onclick="editTech('${x.id}')">ערוך</button></div>`; }).join("") : `<div class="muted">אין טכנאים.</div>`}</div>
     <div class="card"><h2>💾 גיבוי ושחזור</h2>
       <p class="muted">כל הנתונים נשמרים במכשיר שלך בלבד. מומלץ לגבות מדי פעם.</p>
       <div class="row" style="margin-top:10px">
@@ -382,12 +398,29 @@ function saveRecipe(id) {
   saveAll(); closeModal(); render(); toast("נשמר");
 }
 function delRecipe(id) { recipes = recipes.filter(x => x.id !== id); saveAll(); closeModal(); render(); }
+/* טכנאים (67) */
+function editTech(id) {
+  const x = techs.find(v => v.id === id) || { name: "" };
+  openModal(`<h3>${id ? "עריכת טכנאי" : "טכנאי חדש"}</h3>
+    <label class="fld">שם הטכנאי</label><input id="tkName" value="${esc(x.name)}">
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveTech('${id || ""}')">💾 שמור</button>
+      ${id ? `<button class="btn danger" onclick="delTech('${id}')">מחק</button>` : ""}
+      <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+}
+function saveTech(id) {
+  const name = $("#tkName").value.trim(); if (!name) { toast("הזן שם"); return; }
+  if (id) Object.assign(techs.find(v => v.id === id), { name });
+  else techs.push({ id: uid(), name });
+  saveAll(); closeModal(); render(); toast("נשמר");
+}
+function delTech(id) { techs = techs.filter(v => v.id !== id); saveAll(); closeModal(); render(); }
 function saveSettingsForm() {
   settings.shopName = $("#setShop").value.trim() || "מעבדה";
   settings.currency = $("#setCur").value.trim() || "₪";
   settings.waCountry = $("#setWa").value.trim() || "972";
   settings.fs = parseFloat($("#setFs").value) || 1;
   settings.lang = $("#setLang").value || "he";
+  settings.demoMode = $("#setDemo").checked;
   settings.nextNum = parseInt($("#setNum").value) || settings.nextNum;
   saveSettings(); applySettings(); toast("ההגדרות נשמרו"); render();
 }
@@ -434,7 +467,8 @@ function editTicket(id) {
     <label class="fld">תיאור התקלה</label><textarea id="tFault">${esc(t.fault)}</textarea>
     <div class="two"><div><label class="fld">מחיר</label><input id="tPrice" type="number" value="${t.price}"></div>
       <div><label class="fld">אחריות (ימים)</label><input id="tWarr" type="number" value="${t.warrantyDays ?? 90}"></div></div>
-    <label class="fld">סטטוס</label><select id="tStatus">${STATUSES.map(s => `<option ${t.status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+    <div class="two"><div><label class="fld">סטטוס</label><select id="tStatus">${STATUSES.map(s => `<option ${t.status === s ? "selected" : ""}>${s}</option>`).join("")}</select></div>
+      <div><label class="fld">טכנאי מטפל</label><select id="tTech"><option value="">— לא הוקצה —</option>${techs.map(x => `<option value="${x.id}" ${t.techId === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></div></div>
     <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveTicket('${id || ""}')">💾 שמור</button>
       <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
 }
@@ -457,6 +491,7 @@ function saveTicket(id) {
     customerId, device: $("#tDevice").value.trim(), imei: $("#tImei").value.trim(),
     fault: $("#tFault").value.trim(), price: parseFloat($("#tPrice").value) || 0,
     warrantyDays: parseInt($("#tWarr").value) || 0, status: $("#tStatus").value,
+    techId: $("#tTech").value || "",
   };
   let t = tickets.find(x => x.id === id);
   const pending = window._pendingChecklist;
@@ -482,12 +517,18 @@ function openTicket(id) {
   const idx = STATUSES.indexOf(t.status);
   const warrText = t.deliveredAt && t.warrantyDays ? "בתוקף עד " + fmtDate(t.deliveredAt + t.warrantyDays * 86400000) : "—";
   openModal(`<h3>כרטיס #${t.num} <span class="chip ${ST_CLASS[t.status]}">${window.t(t.status)}</span></h3>
-    <div class="muted">${esc(c.name || "")} · ${esc(c.phone || "")} · נפתח ${fmtDate(t.createdAt)}</div>
+    <div class="muted">${esc(maskStr(c.name || ""))} · ${esc(maskStr(c.phone || ""))} · נפתח ${fmtDate(t.createdAt)}</div>
     <div class="card" style="margin-top:10px;background:var(--card-2)">
       <div><b>מכשיר:</b> ${esc(t.device || "—")} ${t.imei ? "· IMEI " + esc(t.imei) : ""}</div>
       <div style="margin-top:4px"><b>תקלה:</b> ${esc(t.fault || "—")}</div>
       <div style="margin-top:4px"><b>מחיר:</b> ${t.price ? money(t.price) : "—"} · <b>אחריות:</b> ${warrText}</div>
+      <div style="margin-top:4px"><b>טכנאי:</b> ${esc(techName(t.techId) || "—")} · <b>זמן עבודה:</b> ${fmtDur(ticketSecs(t))} ${t.timerStart ? '<span style="color:var(--ok)">● פועל</span>' : ""}</div>
     </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sm ${t.timerStart ? "danger" : "ok"}" onclick="toggleTimer('${t.id}')">${t.timerStart ? "⏸ עצור טיימר" : "▶ התחל טיימר"}</button>
+      <label class="btn sm" style="cursor:pointer">📷 הוסף תמונה<input type="file" accept="image/*" style="display:none" onchange="addPhoto('${t.id}', this)"></label>
+    </div>
+    ${(t.photos && t.photos.length) ? `<div class="row" style="margin-top:8px;gap:6px">${t.photos.map((p, i) => `<div style="position:relative"><img src="${p}" style="height:64px;border-radius:8px;border:1px solid var(--border)"><span onclick="delPhoto('${t.id}',${i})" style="position:absolute;top:-6px;left:-6px;background:var(--bad);color:#fff;border-radius:50%;width:18px;height:18px;font-size:12px;text-align:center;cursor:pointer;line-height:18px">×</span></div>`).join("")}</div>` : ""}
     ${t.checklist && t.checklist.length ? `<label class="fld">צ'ק-ליסט (${t.checklist.filter(c => c.done).length}/${t.checklist.length})</label>${
       t.checklist.map((c, i) => `<label style="display:flex;gap:8px;align-items:center;margin:3px 0;cursor:pointer"><input type="checkbox" style="width:auto" ${c.done ? "checked" : ""} onchange="toggleCheck('${t.id}',${i})"><span style="${c.done ? "text-decoration:line-through;color:var(--muted)" : ""}">${esc(c.s)}</span></label>`).join("")
     }` : ""}
@@ -498,6 +539,7 @@ function openTicket(id) {
       <button class="btn" onclick="printInvoice('${t.id}')">🧾 חשבונית</button>
       <button class="btn" onclick="printLabel('${t.id}')">🏷️ מדבקה</button>
       <button class="btn ok" onclick="waNotify('${t.customerId}','${t.id}')">💬 עדכן לקוח</button>
+      <button class="btn" onclick="printWipeCert('${t.id}')">🔐 תעודת מחיקה</button>
       ${t.status === "מוכן" || t.status === "נמסר" ? `<button class="btn" onclick="signTicket('${t.id}')">✍️ חתימת מסירה</button>` : ""}
       <div class="spacer"></div><button class="btn" onclick="closeModal()">סגור</button>
     </div>
@@ -510,10 +552,59 @@ function toggleCheck(id, i) {
   const t = tickets.find(x => x.id === id); if (!t || !t.checklist[i]) return;
   t.checklist[i].done = !t.checklist[i].done; saveAll(); openTicket(id);
 }
+/* מעקב זמן עבודה (70) */
+function toggleTimer(id) {
+  const t = tickets.find(x => x.id === id); if (!t) return;
+  if (t.timerStart) {
+    t.timeLogs = [...(t.timeLogs || []), { start: t.timerStart, end: Date.now() }];
+    t.timerStart = null; logAudit(t, "עצר טיימר");
+  } else { t.timerStart = Date.now(); logAudit(t, "התחיל טיימר"); }
+  saveAll(); openTicket(id);
+}
+/* תמונות לפני/אחרי (50) */
+function addPhoto(id, input) {
+  const t = tickets.find(x => x.id === id); if (!t || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const cv = document.createElement("canvas");
+      const scale = Math.min(1, 1000 / Math.max(img.width, img.height));
+      cv.width = img.width * scale; cv.height = img.height * scale;
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      t.photos = [...(t.photos || []), cv.toDataURL("image/jpeg", 0.7)];
+      logAudit(t, "נוספה תמונה"); saveAll(); openTicket(id); toast("התמונה נוספה");
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(input.files[0]);
+}
+function delPhoto(id, i) {
+  const t = tickets.find(x => x.id === id); if (!t || !t.photos) return;
+  t.photos.splice(i, 1); saveAll(); openTicket(id);
+}
+/* תעודת מחיקה מאובטחת (35) */
+function printWipeCert(id) {
+  const t = tickets.find(x => x.id === id); if (!t) return;
+  const c = customers.find(x => x.id === t.customerId) || {};
+  $("#printArea").innerHTML = `
+    <div style="font-family:Rubik,Arial;max-width:640px;border:2px solid #000;padding:24px">
+      <h1 style="font-size:24px;text-align:center">תעודת מחיקת נתונים מאובטחת</h1>
+      <p style="text-align:center;color:#555">${esc(settings.shopName)} · ${fmtDate(Date.now())}</p>
+      <hr style="margin:14px 0">
+      <p><b>לקוח:</b> ${esc(c.name || "")}</p>
+      <p><b>מכשיר:</b> ${esc(t.device || "")} ${t.imei ? "· IMEI " + esc(t.imei) : ""}</p>
+      <p><b>כרטיס:</b> #${t.num}</p>
+      <p style="margin-top:14px">בזאת מאושר כי בוצעה מחיקת נתונים מלאה (Factory Reset / מחיקה מאובטחת) על המכשיר הנ"ל, וכל המידע האישי שהיה עליו הוסר בהתאם לנהלי המעבדה.</p>
+      <p style="margin-top:24px">חתימת המעבדה: ____________________</p>
+    </div>`;
+  window.print();
+}
 function setTicketStatus(id, s) {
   const t = tickets.find(x => x.id === id); if (!t) return;
   t.status = s; t.updatedAt = Date.now(); t.history = [...(t.history || []), { status: s, at: Date.now() }];
   logAudit(t, "סטטוס → " + s);
+  if (s === "מוכן" && !t.readyAt) t.readyAt = Date.now();
   if (s === "נמסר" && !t.deliveredAt) t.deliveredAt = Date.now();
   saveAll(); openTicket(id); render();
 }
