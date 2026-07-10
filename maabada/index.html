@@ -155,7 +155,7 @@ let recipes = DB.get("recipes", DEFAULT_RECIPES);
 let techs = DB.get("techs", []);
 let refurb = DB.get("refurb", []);
 let guides = DB.get("guides", []);
-let settings = DB.get("settings", { shopName: "מעבדה", currency: "₪", theme: "dark", fs: 1, nextNum: 1001, waCountry: "972", setupDone: false, lang: "he", demoMode: false });
+let settings = DB.get("settings", { shopName: "מעבדה", currency: "₪", theme: "dark", fs: 1, nextNum: 1001, waCountry: "972", setupDone: false, lang: "he", demoMode: false, role: "manager" });
 
 function saveAll() { DB.set("customers", customers); DB.set("tickets", tickets); DB.set("inventory", inventory); DB.set("prices", prices); DB.set("recipes", recipes); DB.set("techs", techs); DB.set("refurb", refurb); DB.set("guides", guides); DB.set("settings", settings); }
 function logAudit(t, action) { t.audit = [...(t.audit || []), { action, at: Date.now() }]; }
@@ -174,7 +174,9 @@ const I18N = {
 };
 function t(s) { const L = settings.lang || "he"; return L === "he" ? s : ((I18N[L] && I18N[L][s]) || s); }
 const TABS = [["dashboard", "📊", "לוח"], ["tickets", "🎫", "כרטיסי תיקון"], ["customers", "👥", "לקוחות"], ["inventory", "📦", "מלאי"], ["prices", "🏷️", "מחירון"], ["refurb", "♻️", "יד שנייה"], ["guides", "📚", "מדריכים"], ["reports", "📈", "דוחות"], ["settings", "⚙️", "הגדרות"]];
-function renderTabs() { document.getElementById("tabs").innerHTML = TABS.map(([v, e, l]) => `<button data-view="${v}" class="${v === current ? "active" : ""}">${e} ${esc(t(l))}</button>`).join(""); }
+const ROLE_VIEWS = { manager: null, tech: ["dashboard", "tickets", "guides", "refurb", "inventory"], reception: ["dashboard", "tickets", "customers"] };
+function allowedView(v) { if (v === "settings") return true; const a = ROLE_VIEWS[settings.role || "manager"]; return !a || a.includes(v); }
+function renderTabs() { document.getElementById("tabs").innerHTML = TABS.filter(([v]) => allowedView(v)).map(([v, e, l]) => `<button data-view="${v}" class="${v === current ? "active" : ""}">${e} ${esc(t(l))}</button>`).join(""); }
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 function money(n) { return (settings.currency || "₪") + " " + (Number(n) || 0).toLocaleString("he-IL"); }
@@ -225,7 +227,7 @@ function setView(v) {
   renderTabs();
   render();
 }
-function render() { ({ dashboard: viewDashboard, tickets: viewTickets, customers: viewCustomers, inventory: viewInventory, prices: viewPrices, refurb: viewRefurb, guides: viewGuides, reports: viewReports, settings: viewSettings }[current] || viewDashboard)(); }
+function render() { if (!allowedView(current)) current = "dashboard"; ({ dashboard: viewDashboard, tickets: viewTickets, customers: viewCustomers, inventory: viewInventory, prices: viewPrices, refurb: viewRefurb, guides: viewGuides, reports: viewReports, settings: viewSettings }[current] || viewDashboard)(); }
 
 /* ============================ Views ============================ */
 function viewDashboard() {
@@ -334,15 +336,30 @@ function viewCustomers() {
 
 function viewInventory() {
   let list = inventory.slice().sort((a, b) => a.name.localeCompare(b.name, "he"));
+  const lowCount = inventory.filter(p => (Number(p.qty) || 0) <= (Number(p.minQty) || 0)).length;
   $("#view").innerHTML = `
     <div class="card"><div class="row"><h2 style="margin:0">📦 מלאי חלפים (${list.length})</h2><div class="spacer"></div>
+      ${lowCount ? `<button class="btn sm warn" onclick="showReorder()">🛒 רשימת הזמנה (${lowCount})</button>` : ""}
       <button class="btn primary" onclick="editPart()">+ חלק חדש</button></div></div>
-    <div class="card">${list.length ? `<div class="tablewrap"><table><thead><tr><th>שם</th><th>מק"ט</th><th>כמות</th><th>מחיר</th><th></th></tr></thead><tbody>${
+    <div class="card">${list.length ? `<div class="tablewrap"><table><thead><tr><th>שם</th><th>ספק</th><th>כמות</th><th>מחיר</th><th></th></tr></thead><tbody>${
       list.map(p => { const lowc = (Number(p.qty) || 0) <= (Number(p.minQty) || 0);
-        return `<tr onclick="editPart('${p.id}')" style="cursor:pointer"><td><b>${esc(p.name)}</b></td><td>${esc(p.sku || "")}</td>
+        return `<tr onclick="editPart('${p.id}')" style="cursor:pointer"><td><b>${esc(p.name)}</b> <span class="muted">${esc(p.sku || "")}</span></td><td>${esc(p.supplier || "—")}</td>
           <td style="${lowc ? "color:var(--warn);font-weight:800" : ""}">${p.qty || 0}${lowc ? " ⚠️" : ""}</td>
           <td>${money(p.price)}</td><td>›</td></tr>`; }).join("")
     }</tbody></table></div>` : `<div class="empty">אין חלפים.</div>`}</div>`;
+}
+/* רשימת הזמנת חלפים אוטומטית לפי סף, מקובצת לפי ספק (62,64) */
+function showReorder() {
+  const low = inventory.filter(p => (Number(p.qty) || 0) <= (Number(p.minQty) || 0));
+  const bySup = {};
+  low.forEach(p => { const s = p.supplier || "ללא ספק"; (bySup[s] = bySup[s] || []).push(p); });
+  const body = Object.entries(bySup).map(([sup, parts]) => {
+    const rows = parts.map(p => { const order = Math.max((Number(p.minQty) || 0) * 2 - (Number(p.qty) || 0), 1); return `<div class="row" style="justify-content:space-between;padding:3px 0"><span>${esc(p.name)}</span><b>להזמין ${order}</b></div>`; }).join("");
+    const txt = `הזמנה מ${sup}:\n` + parts.map(p => `• ${p.name} × ${Math.max((Number(p.minQty) || 0) * 2 - (Number(p.qty) || 0), 1)}`).join("\n");
+    return `<div class="card" style="background:var(--card-2)"><div class="row"><b>${esc(sup)}</b><div class="spacer"></div><button class="btn sm" onclick='navigator.clipboard&&navigator.clipboard.writeText(${JSON.stringify(txt)});toast("הועתק")'>📋 העתק</button></div>${rows}</div>`;
+  }).join("");
+  openModal(`<h3>🛒 רשימת הזמנת חלפים</h3><p class="muted">חלפים מתחת לסף, מקובצים לפי ספק. הכמות המוצעת מחזירה למלאי בטוח.</p>${body}
+    <div class="row" style="margin-top:12px"><div class="spacer"></div><button class="btn" onclick="closeModal()">סגור</button></div>`);
 }
 
 function viewPrices() {
@@ -462,6 +479,8 @@ function viewSettings() {
       <div class="two"><div><label class="fld">גודל גופן</label><select id="setFs">
         ${[["0.9", "קטן"], ["1", "רגיל"], ["1.15", "גדול"], ["1.3", "גדול מאוד"]].map(([v, l]) => `<option value="${v}" ${String(settings.fs) === v ? "selected" : ""}>${l}</option>`).join("")}
       </select></div><div><label class="fld">מספר כרטיס הבא</label><input id="setNum" type="number" value="${settings.nextNum}"></div></div>
+      <label class="fld">תפקיד (מסנן את הטאבים המוצגים)</label>
+      <select id="setRole">${[["manager", "מנהל — הכול"], ["tech", "טכנאי — תיקונים/מלאי/מדריכים"], ["reception", "קבלה — תיקונים/לקוחות"]].map(([v, l]) => `<option value="${v}" ${(settings.role || "manager") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
       <label style="display:flex;gap:8px;align-items:center;margin-top:12px;cursor:pointer"><input type="checkbox" id="setDemo" style="width:auto" ${settings.demoMode ? "checked" : ""}> מצב הדגמה (מסתיר שמות/טלפונים של לקוחות)</label>
       <div class="row" style="margin-top:12px"><button class="btn primary" onclick="saveSettingsForm()">💾 שמור</button></div>
     </div>
@@ -528,6 +547,7 @@ function saveSettingsForm() {
   settings.fs = parseFloat($("#setFs").value) || 1;
   settings.lang = $("#setLang").value || "he";
   settings.demoMode = $("#setDemo").checked;
+  settings.role = $("#setRole").value || "manager";
   settings.nextNum = parseInt($("#setNum").value) || settings.nextNum;
   saveSettings(); applySettings(); toast("ההגדרות נשמרו"); render();
 }
@@ -718,20 +738,23 @@ function setTicketStatus(id, s) {
 
 /* ---- parts ---- */
 function editPart(id) {
-  const p = inventory.find(x => x.id === id) || { name: "", sku: "", qty: 0, minQty: 1, cost: "", price: "" };
+  const p = inventory.find(x => x.id === id) || { name: "", sku: "", qty: 0, minQty: 1, cost: "", price: "", supplier: "", warrantyMonths: "" };
   openModal(`<h3>${id ? "עריכת חלק" : "חלק חדש"}</h3>
     <label class="fld">שם החלק</label><input id="pName" value="${esc(p.name)}">
     <div class="two"><div><label class="fld">מק"ט</label><input id="pSku" value="${esc(p.sku)}"></div>
       <div><label class="fld">כמות במלאי</label><input id="pQty" type="number" value="${p.qty}"></div></div>
     <div class="two"><div><label class="fld">התראה מתחת ל-</label><input id="pMin" type="number" value="${p.minQty}"></div>
       <div><label class="fld">מחיר מכירה</label><input id="pPrice" type="number" value="${p.price}"></div></div>
+    <div class="two"><div><label class="fld">ספק</label><input id="pSup" value="${esc(p.supplier || "")}"></div>
+      <div><label class="fld">עלות קנייה</label><input id="pCost" type="number" value="${p.cost}"></div></div>
+    <label class="fld">אחריות חלף (חודשים)</label><input id="pWarr" type="number" value="${p.warrantyMonths}">
     <div class="row" style="margin-top:14px"><button class="btn primary" onclick="savePart('${id || ""}')">💾 שמור</button>
       ${id ? `<button class="btn danger" onclick="delPart('${id}')">מחק</button>` : ""}
       <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
 }
 function savePart(id) {
   const name = $("#pName").value.trim(); if (!name) { toast("הזן שם"); return; }
-  const data = { name, sku: $("#pSku").value.trim(), qty: parseInt($("#pQty").value) || 0, minQty: parseInt($("#pMin").value) || 0, price: parseFloat($("#pPrice").value) || 0 };
+  const data = { name, sku: $("#pSku").value.trim(), qty: parseInt($("#pQty").value) || 0, minQty: parseInt($("#pMin").value) || 0, price: parseFloat($("#pPrice").value) || 0, supplier: $("#pSup").value.trim(), cost: parseFloat($("#pCost").value) || 0, warrantyMonths: parseInt($("#pWarr").value) || 0 };
   if (id) Object.assign(inventory.find(x => x.id === id), data);
   else inventory.push({ id: uid(), ...data });
   saveAll(); closeModal(); render(); toast("נשמר");
