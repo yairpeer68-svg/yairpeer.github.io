@@ -173,7 +173,7 @@ const I18N = {
   ru: { "לוח": "Панель", "כרטיסי תיקון": "Ремонты", "לקוחות": "Клиенты", "מלאי": "Склад", "מחירון": "Цены", "דוחות": "Отчёты", "הגדרות": "Настройки", "התקבל": "Принят", "באבחון": "Диагностика", "בתיקון": "В ремонте", "מוכן": "Готов", "נמסר": "Выдан", "כרטיסים פעילים": "Активные заявки", "מוכנים למסירה": "Готовы к выдаче", "חלפים במלאי נמוך": "Мало на складе", "הכנסה החודש": "Доход за месяц", "שפה": "Язык" },
 };
 function t(s) { const L = settings.lang || "he"; return L === "he" ? s : ((I18N[L] && I18N[L][s]) || s); }
-const TABS = [["dashboard", "📊", "לוח"], ["tickets", "🎫", "כרטיסי תיקון"], ["customers", "👥", "לקוחות"], ["inventory", "📦", "מלאי"], ["prices", "🏷️", "מחירון"], ["reports", "📈", "דוחות"], ["settings", "⚙️", "הגדרות"]];
+const TABS = [["dashboard", "📊", "לוח"], ["tickets", "🎫", "כרטיסי תיקון"], ["customers", "👥", "לקוחות"], ["inventory", "📦", "מלאי"], ["prices", "🏷️", "מחירון"], ["refurb", "♻️", "יד שנייה"], ["guides", "📚", "מדריכים"], ["reports", "📈", "דוחות"], ["settings", "⚙️", "הגדרות"]];
 function renderTabs() { document.getElementById("tabs").innerHTML = TABS.map(([v, e, l]) => `<button data-view="${v}" class="${v === current ? "active" : ""}">${e} ${esc(t(l))}</button>`).join(""); }
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -225,7 +225,7 @@ function setView(v) {
   renderTabs();
   render();
 }
-function render() { ({ dashboard: viewDashboard, tickets: viewTickets, customers: viewCustomers, inventory: viewInventory, prices: viewPrices, reports: viewReports, settings: viewSettings }[current] || viewDashboard)(); }
+function render() { ({ dashboard: viewDashboard, tickets: viewTickets, customers: viewCustomers, inventory: viewInventory, prices: viewPrices, refurb: viewRefurb, guides: viewGuides, reports: viewReports, settings: viewSettings }[current] || viewDashboard)(); }
 
 /* ============================ Views ============================ */
 function viewDashboard() {
@@ -246,7 +246,7 @@ function viewDashboard() {
       notPicked.map(k => `<div class="row" style="justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span onclick="openTicket('${k.id}')" style="cursor:pointer">#${k.num} · ${esc(custName(k.customerId))} · ${esc(k.device || "")}</span><button class="btn sm ok" onclick="waNotify('${k.customerId}','${k.id}')">💬 תזכורת</button></div>`).join("")
     }</div>` : ""}
     <div class="card">
-      <h2>🎫 ${t("כרטיסים פעילים")}</h2>
+      <div class="row"><h2 style="margin:0">🎫 ${t("כרטיסים פעילים")}</h2><div class="spacer"></div><button class="btn sm" onclick="openBigScreen()">🖥️ מסך גדול</button></div>
       ${active.length ? tableTickets(active.slice().sort((a, b) => b.createdAt - a.createdAt)) : `<div class="empty">אין כרטיסים פעילים. <button class="btn primary sm" onclick="editTicket()">+ כרטיס חדש</button></div>`}
     </div>
     <div class="card">
@@ -255,6 +255,35 @@ function viewDashboard() {
     </div>`;
 }
 
+/* 🖥️ לוח מחוונים למסך גדול (78) */
+let bigScreenTimer = null;
+function openBigScreen() {
+  let el = document.getElementById("bigscreen");
+  if (!el) { el = document.createElement("div"); el.id = "bigscreen"; document.body.appendChild(el); }
+  el.style.cssText = "position:fixed;inset:0;background:var(--bg);z-index:100;padding:40px;overflow:auto";
+  const paint = () => {
+    const active = tickets.filter(k => k.status !== "נמסר");
+    const ready = tickets.filter(k => k.status === "מוכן");
+    el.innerHTML = `<div class="row" style="justify-content:space-between;margin-bottom:24px">
+      <h1 style="font-size:38px">${esc(settings.shopName)}</h1><button class="btn" onclick="closeBigScreen()">✕ יציאה</button></div>
+      <div class="grid k3" style="margin-bottom:24px">
+        <div class="stat"><div class="n" style="font-size:52px">${active.length}</div><div class="l" style="font-size:18px">בעבודה</div></div>
+        <div class="stat"><div class="n" style="font-size:52px;color:var(--ok)">${ready.length}</div><div class="l" style="font-size:18px">מוכנים לאיסוף</div></div>
+        <div class="stat"><div class="n" style="font-size:52px">${money(revenueForMonth(monthKey(Date.now())))}</div><div class="l" style="font-size:18px">הכנסה החודש</div></div>
+      </div>
+      <h2 style="font-size:26px;margin-bottom:12px">✅ מוכנים לאיסוף</h2>
+      ${ready.length ? ready.map(k => `<div style="font-size:24px;padding:10px 0;border-bottom:1px solid var(--border)">#${k.num} · ${esc(custName(k.customerId))} · ${esc(k.device || "")}</div>`).join("") : '<div class="muted" style="font-size:20px">—</div>'}`;
+  };
+  paint();
+  if (bigScreenTimer) clearInterval(bigScreenTimer);
+  bigScreenTimer = setInterval(paint, 15000);
+  if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+}
+function closeBigScreen() {
+  if (bigScreenTimer) { clearInterval(bigScreenTimer); bigScreenTimer = null; }
+  const el = document.getElementById("bigscreen"); if (el) el.remove();
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
 function tableTickets(list) {
   return `<div class="tablewrap"><table><thead><tr><th>#</th><th>לקוח</th><th>מכשיר</th><th>תקלה</th><th>סטטוס</th><th>מחיר</th><th></th></tr></thead><tbody>${
     list.map(t => `<tr onclick="openTicket('${t.id}')" style="cursor:pointer">
@@ -266,13 +295,19 @@ function tableTickets(list) {
   }</tbody></table></div>`;
 }
 
+let ticketTechFilter = "";
+function setTicketTechFilter(v) { ticketTechFilter = v; render(); }
 function viewTickets() {
   const q = ($("#search").value || "").trim();
   let list = tickets.slice().sort((a, b) => b.createdAt - a.createdAt);
   if (q) list = list.filter(t => matchTicket(t, q));
+  if (ticketTechFilter) list = list.filter(t => (ticketTechFilter === "none" ? !t.techId : t.techId === ticketTechFilter));
+  const techFilterUI = techs.length ? `<select onchange="setTicketTechFilter(this.value)" style="width:auto">
+      <option value="">כל הטכנאים</option><option value="none" ${ticketTechFilter === "none" ? "selected" : ""}>לא הוקצה</option>
+      ${techs.map(x => `<option value="${x.id}" ${ticketTechFilter === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>` : "";
   $("#view").innerHTML = `
     <div class="card">
-      <div class="row"><h2 style="margin:0">🎫 כרטיסי תיקון (${list.length})</h2><div class="spacer"></div>
+      <div class="row"><h2 style="margin:0">🎫 כרטיסי תיקון (${list.length})</h2>${techFilterUI}<div class="spacer"></div>
       <button class="btn primary" onclick="editTicket()">+ כרטיס חדש</button></div>
     </div>
     <div class="card">${list.length ? tableTickets(list) : `<div class="empty">אין כרטיסים.</div>`}</div>`;
@@ -319,6 +354,78 @@ function viewPrices() {
       list.map(p => `<tr onclick="editPrice('${p.id}')" style="cursor:pointer"><td>${esc(p.device)}</td><td>${esc(p.fault)}</td><td><b>${money(p.price)}</b></td><td>›</td></tr>`).join("")
     }</tbody></table></div>` : `<div class="empty">אין מחירון.</div>`}</div>`;
 }
+
+/* ♻️ מכשירים יד שנייה / refurbished (66) */
+const RF_STATUS = ["נרכש", "בשיפוץ", "למכירה", "נמכר"];
+function viewRefurb() {
+  const list = refurb.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const forSale = list.filter(d => d.status === "למכירה");
+  const profit = list.filter(d => d.status === "נמכר").reduce((s, d) => s + ((Number(d.salePrice) || 0) - (Number(d.cost) || 0)), 0);
+  $("#view").innerHTML = `
+    <div class="grid k3">
+      <div class="stat"><div class="n">${forSale.length}</div><div class="l">למכירה עכשיו</div></div>
+      <div class="stat"><div class="n">${list.filter(d => d.status === "נמכר").length}</div><div class="l">נמכרו</div></div>
+      <div class="stat"><div class="n">${money(profit)}</div><div class="l">רווח ממכירות</div></div>
+    </div>
+    <div class="card"><div class="row"><h2 style="margin:0">♻️ מכשירים יד שנייה (${list.length})</h2><div class="spacer"></div><button class="btn primary" onclick="editRefurb()">+ מכשיר</button></div></div>
+    <div class="card">${list.length ? `<div class="tablewrap"><table><thead><tr><th>דגם</th><th>סטטוס</th><th>עלות</th><th>מחיר</th><th></th></tr></thead><tbody>${
+      list.map(d => `<tr onclick="editRefurb('${d.id}')" style="cursor:pointer"><td><b>${esc(d.model || "")}</b> <span class="muted">${esc(d.imei || "")}</span></td>
+        <td><span class="chip st-${d.status === "נמכר" ? "done" : d.status === "למכירה" ? "ready" : "fix"}">${esc(d.status)}</span></td>
+        <td>${d.cost ? money(d.cost) : "—"}</td><td>${d.salePrice ? money(d.salePrice) : "—"}</td><td>›</td></tr>`).join("")
+    }</tbody></table></div>` : `<div class="empty">אין מכשירים.</div>`}</div>`;
+}
+function editRefurb(id) {
+  const d = refurb.find(x => x.id === id) || { model: "", imei: "", cost: "", salePrice: "", status: "נרכש", notes: "" };
+  openModal(`<h3>${id ? "עריכת מכשיר" : "מכשיר יד שנייה חדש"}</h3>
+    <div class="two"><div><label class="fld">דגם</label><input id="rfModel" value="${esc(d.model)}"></div>
+      <div><label class="fld">IMEI</label><input id="rfImei" value="${esc(d.imei)}"></div></div>
+    <div class="two"><div><label class="fld">עלות רכישה</label><input id="rfCost" type="number" value="${d.cost}"></div>
+      <div><label class="fld">מחיר מכירה</label><input id="rfPrice" type="number" value="${d.salePrice}"></div></div>
+    <label class="fld">סטטוס</label><select id="rfStatus">${RF_STATUS.map(s => `<option ${d.status === s ? "selected" : ""}>${s}</option>`).join("")}</select>
+    <label class="fld">הערות</label><textarea id="rfNotes">${esc(d.notes)}</textarea>
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveRefurb('${id || ""}')">💾 שמור</button>
+      ${id ? `<button class="btn danger" onclick="delRefurb('${id}')">מחק</button>` : ""}
+      <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+}
+function saveRefurb(id) {
+  const data = { model: $("#rfModel").value.trim(), imei: $("#rfImei").value.trim(), cost: parseFloat($("#rfCost").value) || 0, salePrice: parseFloat($("#rfPrice").value) || 0, status: $("#rfStatus").value, notes: $("#rfNotes").value.trim() };
+  if (!data.model) { toast("הזן דגם"); return; }
+  if (id) Object.assign(refurb.find(x => x.id === id), data);
+  else refurb.push({ id: uid(), createdAt: Date.now(), ...data });
+  saveAll(); closeModal(); render(); toast("נשמר");
+}
+function delRefurb(id) { refurb = refurb.filter(x => x.id !== id); saveAll(); closeModal(); render(); }
+
+/* 📚 ספריית מדריכי תיקון (71) */
+function viewGuides() {
+  const q = ($("#search").value || "").trim().toLowerCase();
+  let list = guides.slice().sort((a, b) => (a.title || "").localeCompare(b.title || "", "he"));
+  if (q) list = list.filter(g => (g.title + g.model + g.body).toLowerCase().includes(q));
+  $("#view").innerHTML = `
+    <div class="card"><div class="row"><h2 style="margin:0">📚 מדריכי תיקון (${list.length})</h2><div class="spacer"></div><button class="btn primary" onclick="editGuide()">+ מדריך</button></div></div>
+    ${list.length ? list.map(g => `<div class="card"><div class="row"><h2 style="margin:0">${esc(g.title)}</h2><div class="spacer"></div>${g.model ? `<span class="muted">${esc(g.model)}</span>` : ""}<button class="btn sm" onclick="editGuide('${g.id}')">ערוך</button></div>
+      ${g.body ? `<div style="white-space:pre-wrap;margin-top:8px;font-size:14px">${esc(g.body)}</div>` : ""}
+      ${g.url ? `<a href="${esc(g.url)}" target="_blank" style="color:var(--cyan)">🔗 קישור/וידאו</a>` : ""}</div>`).join("") : `<div class="empty">אין מדריכים עדיין.</div>`}`;
+}
+function editGuide(id) {
+  const g = guides.find(x => x.id === id) || { title: "", model: "", body: "", url: "" };
+  openModal(`<h3>${id ? "עריכת מדריך" : "מדריך חדש"}</h3>
+    <label class="fld">כותרת</label><input id="gdTitle" value="${esc(g.title)}">
+    <label class="fld">דגם / קטגוריה</label><input id="gdModel" value="${esc(g.model)}">
+    <label class="fld">תוכן / שלבים</label><textarea id="gdBody" style="min-height:140px">${esc(g.body)}</textarea>
+    <label class="fld">קישור לוידאו (רשות)</label><input id="gdUrl" value="${esc(g.url)}" inputmode="url">
+    <div class="row" style="margin-top:14px"><button class="btn primary" onclick="saveGuide('${id || ""}')">💾 שמור</button>
+      ${id ? `<button class="btn danger" onclick="delGuide('${id}')">מחק</button>` : ""}
+      <div class="spacer"></div><button class="btn" onclick="closeModal()">ביטול</button></div>`);
+}
+function saveGuide(id) {
+  const title = $("#gdTitle").value.trim(); if (!title) { toast("הזן כותרת"); return; }
+  const data = { title, model: $("#gdModel").value.trim(), body: $("#gdBody").value.trim(), url: $("#gdUrl").value.trim() };
+  if (id) Object.assign(guides.find(x => x.id === id), data);
+  else guides.push({ id: uid(), ...data });
+  saveAll(); closeModal(); render(); toast("נשמר");
+}
+function delGuide(id) { guides = guides.filter(x => x.id !== id); saveAll(); closeModal(); render(); }
 
 function viewReports() {
   const months = [...new Set(tickets.filter(t => t.deliveredAt).map(t => monthKey(t.deliveredAt)))].sort().reverse().slice(0, 12);
@@ -782,7 +889,7 @@ function applySettings() {
   renderTabs();
 }
 $("#btnTheme").addEventListener("click", () => { settings.theme = (settings.theme === "light" ? "dark" : "light"); saveSettings(); applySettings(); });
-$("#search").addEventListener("input", () => { if (["tickets", "customers"].includes(current)) render(); });
+$("#search").addEventListener("input", () => { if (["tickets", "customers", "guides"].includes(current)) render(); });
 
 /* PWA install */
 let deferredPrompt = null;
