@@ -1,0 +1,12 @@
+# Claude Code internal files
+.claude/
+
+# Android build artifacts
+*.apk
+*.aab
+*.dex
+build/
+.gradle/
+local.properties
+*.iml
+.idea/

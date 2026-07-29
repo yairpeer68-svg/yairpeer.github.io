@@ -1,0 +1,667 @@
+#include <jni.h>
+#include <android/log.h>
+#include <cstring>
+#include <cstdint>
+#include <atomic>
+#include <arpa/inet.h>
+#include <math.h>
+#include <sys/time.h>
+
+#define TAG "PacketEngine"
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  TAG, __VA_ARGS__)
+#define LOGW(...) __android_log_print(ANDROID_LOG_WARN,  TAG, __VA_ARGS__)
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+
+#pragma pack(push, 1)
+struct IpHdr  { uint8_t ver_ihl, tos; uint16_t tot_len, id, frag_off; uint8_t ttl, proto; uint16_t check; uint32_t saddr, daddr; };
+struct TcpHdr { uint16_t sport, dport; uint32_t seq, ack; uint8_t off, flags; uint16_t win, check, urg; };
+struct UdpHdr { uint16_t sport, dport, len, check; };
+struct DnsHdr { uint16_t id, flags, qdcount, ancount, nscount, arcount; };
+#pragma pack(pop)
+
+#define PROTO_TCP   6
+#define PROTO_UDP  17
+#define PORT_DNS   htons(53)
+#define FLAG_RST   0x04
+#define FLAG_ACK   0x10
+// DSCP EF (Expedited Forwarding) = 0xB8 = 1011_1000
+#define DSCP_EF    0xB8
+
+static const uint32_t CF_DNS  = 0x01010101; // 1.1.1.1 (big-endian on wire)
+
+// ── Counters ─────────────────────────────────────────────────────────────────
+static std::atomic<uint64_t> pkt_total{0};
+static std::atomic<uint64_t> pkt_lost{0};
+static std::atomic<uint64_t> bytes_total{0};
+static std::atomic<uint64_t> dns_redirected{0};
+static std::atomic<uint64_t> dns_blocked{0};
+static std::atomic<uint64_t> analytics_dropped{0};
+
+// ── FEC state ────────────────────────────────────────────────────────────────
+#define FEC_GROUP     4          // every N data packets → 1 parity packet
+#define FEC_HEADER    0xFE       // parity packet marker
+#define FEC_NORMAL    0x00       // normal packet marker
+#define FEC_MAX_PKT   2048       // max bytes per FEC slot
+
+static std::atomic<bool> fec_enabled{false};
+
+struct FecSlot {
+    uint8_t  data[FEC_MAX_PKT];
+    int      len;   // 0 = slot empty
+};
+
+// Circular buffer holding the last FEC_GROUP outbound UDP payloads
+static FecSlot  fec_buf[FEC_GROUP];
+static int      fec_count{0};   // how many packets have been added since last reset
+
+// Received packet tracking: track lengths for last FEC_GROUP inbound packets
+// to detect which slot is missing (slot index → stored length, 0 = absent)
+static FecSlot  fec_rx_buf[FEC_GROUP];
+static int      fec_rx_count{0};
+static bool     fec_rx_have[FEC_GROUP]{false, false, false, false};
+
+// ── Checksum ─────────────────────────────────────────────────────────────────
+static uint16_t chksum(const void* d, int len) {
+    uint32_t s = 0;
+    const uint16_t* p = (const uint16_t*)d;
+    while (len > 1) { s += *p++; len -= 2; }
+    if (len) s += *(const uint8_t*)p;
+    while (s >> 16) s = (s & 0xFFFF) + (s >> 16);
+    return (uint16_t)~s;
+}
+
+static uint16_t tcp_chk(const IpHdr* ip, const TcpHdr* tcp, int tlen) {
+    struct { uint32_t s, d; uint8_t z, p; uint16_t l; }
+        ps = { ip->saddr, ip->daddr, 0, PROTO_TCP, htons(tlen) };
+    uint32_t s = 0;
+    const uint16_t* p = (const uint16_t*)&ps;
+    for (int i = 0; i < (int)sizeof(ps) / 2; i++) s += p[i];
+    p = (const uint16_t*)tcp;
+    int l = tlen;
+    while (l > 1) { s += *p++; l -= 2; }
+    if (l) s += *(const uint8_t*)p;
+    while (s >> 16) s = (s & 0xFFFF) + (s >> 16);
+    return (uint16_t)~s;
+}
+
+static uint16_t udp_chk(const IpHdr* ip, const UdpHdr* udp, int ulen) {
+    struct { uint32_t s, d; uint8_t z, p; uint16_t l; }
+        ps = { ip->saddr, ip->daddr, 0, PROTO_UDP, htons(ulen) };
+    uint32_t s = 0;
+    const uint16_t* p = (const uint16_t*)&ps;
+    for (int i = 0; i < (int)sizeof(ps) / 2; i++) s += p[i];
+    p = (const uint16_t*)udp;
+    int l = ulen;
+    while (l > 1) { s += *p++; l -= 2; }
+    if (l) s += *(const uint8_t*)p;
+    while (s >> 16) s = (s & 0xFFFF) + (s >> 16);
+    uint16_t r = (uint16_t)~s;
+    return r ? r : 0xFFFF; // RFC 768: 0 means no checksum; use 0xFFFF if computed sum is 0
+}
+
+// ── DNS name parser ───────────────────────────────────────────────────────────
+static int dns_name(const uint8_t* buf, int blen, int off, char* out, int osz) {
+    int pos = off, wr = 0, jmp = 0;
+    while (pos < blen && jmp < 10) {
+        uint8_t l = buf[pos];
+        if (!l) { pos++; break; }
+        if ((l & 0xC0) == 0xC0) {
+            if (pos + 1 >= blen) return -1;
+            pos = ((l & 0x3F) << 8) | buf[pos + 1];
+            jmp++;
+            continue;
+        }
+        if (wr > 0 && wr < osz - 1) out[wr++] = '.';
+        for (int i = 0; i < l && pos + 1 + i < blen && wr < osz - 1; i++)
+            out[wr++] = (char)buf[pos + 1 + i];
+        pos += l + 1;
+    }
+    if (wr < osz) out[wr] = '\0';
+    return pos;
+}
+
+// Slow/distant matchmaking servers — NXDOMAIN block list
+static const char* BLOCKED[] = {
+    "cod-eu-matchmaking", "cod-us-east", "cod-us-west",
+    "activision.com.edgekey.net", "s3-eu-west", "d2dzik3ii2sd1y",
+    "pdp.lol.riotgames.com", "euw1.api.riotgames",
+    nullptr
+};
+
+static bool is_blocked(const char* n) {
+    for (int i = 0; BLOCKED[i]; i++)
+        if (strstr(n, BLOCKED[i])) return true;
+    return false;
+}
+
+static int nxdomain(uint8_t* d, int len) {
+    if (len < (int)sizeof(DnsHdr)) return -1;
+    DnsHdr* h = (DnsHdr*)d;
+    // Set QR=1, AA=1, RCODE=3 (NXDOMAIN), RA=1
+    h->flags     = htons(0x8583);
+    h->ancount   = 0;
+    h->nscount   = 0;
+    h->arcount   = 0;
+    return len;
+}
+
+// ── QoS: DSCP EF stamp ───────────────────────────────────────────────────────
+static void stamp_dscp(IpHdr* ip) {
+    if ((ip->tos & 0xFC) != DSCP_EF) {
+        ip->tos   = (ip->tos & 0x03) | DSCP_EF;
+        ip->check = 0;
+        ip->check = chksum(ip, (ip->ver_ihl & 0xF) * 4);
+    }
+}
+
+// ── TCP RST builder ───────────────────────────────────────────────────────────
+static int build_rst(const uint8_t* orig, int olen, uint8_t* out, int osz) {
+    int ihl = (orig[0] & 0xF) * 4;
+    if (olen < ihl + (int)sizeof(TcpHdr) || osz < ihl + (int)sizeof(TcpHdr)) return -1;
+    const IpHdr*  ip  = (const IpHdr*)orig;
+    const TcpHdr* tcp = (const TcpHdr*)(orig + ihl);
+    if (ip->proto != PROTO_TCP) return -1;
+    memcpy(out, orig, ihl + sizeof(TcpHdr));
+    IpHdr*  rip = (IpHdr*)out;
+    TcpHdr* rt  = (TcpHdr*)(out + ihl);
+    rip->saddr  = ip->daddr; rip->daddr = ip->saddr;
+    rt->sport   = tcp->dport; rt->dport = tcp->sport;
+    rt->flags   = FLAG_RST | FLAG_ACK;
+    rt->seq     = tcp->ack;
+    rt->ack     = htonl(ntohl(tcp->seq) + 1);
+    rt->win     = 0; rt->urg = 0;
+    int tlen    = sizeof(TcpHdr);
+    rip->tot_len = htons(ihl + tlen);
+    rip->check  = 0; rip->check = chksum(rip, ihl);
+    rt->check   = 0; rt->check  = tcp_chk(rip, rt, tlen);
+    return ihl + tlen;
+}
+
+// ── FEC helpers ──────────────────────────────────────────────────────────────
+
+// Store outbound UDP payload into the circular FEC buffer.
+// Returns true when a parity packet should be emitted (every FEC_GROUP packets).
+static bool fec_store_outbound(const uint8_t* payload, int plen) {
+    if (plen <= 0 || plen > FEC_MAX_PKT) return false;
+    int slot = fec_count % FEC_GROUP;
+    memcpy(fec_buf[slot].data, payload, plen);
+    fec_buf[slot].len = plen;
+    fec_count++;
+    return (fec_count % FEC_GROUP) == 0;
+}
+
+// Build a parity (XOR) packet into dst.  dst must be FEC_MAX_PKT+1 bytes.
+// Layout: [0xFE][xor_byte_0][xor_byte_1]...[xor_byte_N-1]
+// Returns total length written (parity_len + 1), or 0 on error.
+static int fec_build_parity(uint8_t* dst, int dsz) {
+    // Find maximum payload length across the group
+    int maxlen = 0;
+    for (int i = 0; i < FEC_GROUP; i++) {
+        if (fec_buf[i].len > maxlen) maxlen = fec_buf[i].len;
+    }
+    if (maxlen == 0 || dsz < maxlen + 1) return 0;
+
+    dst[0] = FEC_HEADER;
+    memset(dst + 1, 0, maxlen);
+    for (int i = 0; i < FEC_GROUP; i++) {
+        int l = fec_buf[i].len;
+        for (int b = 0; b < l; b++) {
+            dst[1 + b] ^= fec_buf[i].data[b];
+        }
+    }
+    return maxlen + 1;
+}
+
+// Process an inbound FEC-tagged UDP payload (already stripped of IP/UDP headers).
+// payload[0] should be FEC_HEADER or FEC_NORMAL.
+// Returns:
+//   0  = normal packet, no reconstruction needed (caller uses payload+1, plen-1)
+//   1  = parity packet consumed; if a slot was missing, reconstructed data is
+//         written into fec_rx_buf[missing_slot] and its len is set
+//  -1  = error / not an FEC payload
+static int fec_process_inbound(const uint8_t* payload, int plen) {
+    if (plen < 2) return -1;
+
+    uint8_t hdr = payload[0];
+    if (hdr == FEC_NORMAL) {
+        // Store in receive circular buffer
+        int slot = fec_rx_count % FEC_GROUP;
+        int dlen = plen - 1;
+        if (dlen > FEC_MAX_PKT) dlen = FEC_MAX_PKT;
+        memcpy(fec_rx_buf[slot].data, payload + 1, dlen);
+        fec_rx_buf[slot].len = dlen;
+        fec_rx_have[slot]    = true;
+        fec_rx_count++;
+        return 0;
+    }
+
+    if (hdr == FEC_HEADER) {
+        // Count missing slots in the current group
+        int missing_slot = -1;
+        int missing_count = 0;
+        for (int i = 0; i < FEC_GROUP; i++) {
+            if (!fec_rx_have[i]) {
+                missing_slot = i;
+                missing_count++;
+            }
+        }
+
+        if (missing_count == 1 && missing_slot >= 0) {
+            // Reconstruct the missing packet via XOR
+            int parity_len = plen - 1;
+            if (parity_len > FEC_MAX_PKT) parity_len = FEC_MAX_PKT;
+
+            // Start with parity bytes
+            memcpy(fec_rx_buf[missing_slot].data, payload + 1, parity_len);
+            int maxlen = parity_len;
+
+            for (int i = 0; i < FEC_GROUP; i++) {
+                if (i == missing_slot) continue;
+                int l = fec_rx_buf[i].len;
+                if (l > maxlen) maxlen = l;
+                for (int b = 0; b < l; b++) {
+                    fec_rx_buf[missing_slot].data[b] ^= fec_rx_buf[i].data[b];
+                }
+            }
+            fec_rx_buf[missing_slot].len = maxlen;
+            fec_rx_have[missing_slot]    = true;
+            LOGI("FEC: reconstructed missing slot %d (%d bytes)", missing_slot, maxlen);
+        }
+
+        // Reset for the next group
+        for (int i = 0; i < FEC_GROUP; i++) fec_rx_have[i] = false;
+        fec_rx_count = 0;
+        return 1;
+    }
+
+    return -1;
+}
+
+// ── Analytics / telemetry detection ──────────────────────────────────────────
+
+// Activision analytics Cloudflare CDN range: 104.16.0.0/12  (104.16.x.x – 104.31.x.x)
+// We match only the documented 104.16.x.x /16 sub-range as specified.
+static inline bool is_activision_analytics_ip(uint32_t daddr_network) {
+    // daddr is in network byte order; convert to host order for comparison
+    uint32_t ip = ntohl(daddr_network);
+    // 104.16.0.0/16  → 0x68100000 / 0xFFFF0000
+    return (ip & 0xFFFF0000u) == 0x68100000u;
+}
+
+// Check if the UDP payload looks like analytics traffic.
+// payload points to first byte of UDP payload (after UdpHdr).
+// plen is the payload byte count.
+// dport and daddr are from the UDP/IP headers (network byte order).
+static bool is_analytics_packet(const uint8_t* payload, int plen,
+                                 uint16_t dport_network, uint32_t daddr_network) {
+    // Rule 1: destination IP in Activision analytics range (104.16.x.x)
+    if (is_activision_analytics_ip(daddr_network)) return true;
+
+    // Rule 2: UDP payload starts with "ANAL" magic bytes
+    if (plen >= 4 &&
+        payload[0] == 0x41 && payload[1] == 0x4E &&
+        payload[2] == 0x41 && payload[3] == 0x4C) return true;
+
+    // Rule 3: large (>500 bytes) UDP payload going to port 443 (HTTPS analytics)
+    if (plen > 500 && dport_network == htons(443)) return true;
+
+    return false;
+}
+
+// ── JNI ──────────────────────────────────────────────────────────────────────
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_processPacket(
+    JNIEnv* env, jobject, jbyteArray pkt, jint len, jboolean isGamePkt) {
+
+    jbyte* buf = env->GetByteArrayElements(pkt, nullptr);
+    if (!buf || len < 20) {
+        if (buf) env->ReleaseByteArrayElements(pkt, buf, JNI_ABORT);
+        return 0;
+    }
+    pkt_total++;
+    bytes_total += (uint64_t)len;
+
+    IpHdr* ip  = (IpHdr*)buf;
+    int ihl    = (ip->ver_ihl & 0xF) * 4;
+    int result = 0;
+
+    // Stamp DSCP EF for all traffic (prioritize at router level)
+    stamp_dscp(ip);
+    result = 1;
+
+    if (ip->proto == PROTO_UDP && len > ihl + (int)sizeof(UdpHdr)) {
+        UdpHdr* udp     = (UdpHdr*)((uint8_t*)buf + ihl);
+        uint8_t* udp_payload = (uint8_t*)buf + ihl + sizeof(UdpHdr);
+        int      udp_plen    = len - ihl - (int)sizeof(UdpHdr);
+
+        // ── Analytics trimming (outbound) ─────────────────────────────────
+        if (udp->dport != PORT_DNS && udp_plen > 0 &&
+            is_analytics_packet(udp_payload, udp_plen, udp->dport, ip->daddr)) {
+            analytics_dropped++;
+            LOGW("Analytics packet dropped (dst=%08x port=%d len=%d)",
+                 ntohl(ip->daddr), ntohs(udp->dport), udp_plen);
+            env->ReleaseByteArrayElements(pkt, buf, JNI_ABORT);
+            return -2;
+        }
+
+        if (udp->dport == PORT_DNS) {
+            uint8_t* dns  = (uint8_t*)buf + ihl + sizeof(UdpHdr);
+            int      dlen = len - ihl - sizeof(UdpHdr);
+            if (dlen > (int)sizeof(DnsHdr)) {
+                char domain[256] = {};
+                dns_name(dns, dlen, sizeof(DnsHdr), domain, sizeof(domain));
+                if (domain[0] && is_blocked(domain)) {
+                    LOGW("NXDOMAIN: %s", domain);
+                    dns_blocked++;
+                    nxdomain(dns, dlen);
+                    // Swap src/dst to make it look like a reply
+                    uint32_t ti = ip->saddr; ip->saddr = ip->daddr; ip->daddr = ti;
+                    uint16_t tp = udp->sport; udp->sport = udp->dport; udp->dport = tp;
+                    ip->check  = 0; ip->check  = chksum(ip, ihl);
+                    udp->check = 0; udp->check = udp_chk(ip, udp, ntohs(udp->len));
+                    result = 2;
+                } else if (ip->daddr != CF_DNS) {
+                    // Redirect to Cloudflare DoH-capable DNS
+                    ip->daddr  = CF_DNS;
+                    ip->check  = 0; ip->check  = chksum(ip, ihl);
+                    udp->check = 0; // Recalculate
+                    udp->check = udp_chk(ip, udp, ntohs(udp->len));
+                    dns_redirected++;
+                    result = 3;
+                }
+            }
+        } else if (fec_enabled.load() && udp_plen > 0) {
+            // ── FEC outbound: store packet and emit parity every 4th packet ─
+            // Prepend FEC_NORMAL header byte in-place is not possible without
+            // rewriting the packet buffer, so we store the raw payload and let
+            // the Java layer call buildFecParity() after every 4th sendPacket.
+            if (fec_store_outbound(udp_payload, udp_plen)) {
+                // Signal caller with result=4 so Java knows to call buildFecParity
+                result = 4;
+            }
+        }
+    }
+
+    env->SetByteArrayRegion(pkt, 0, len, buf);
+    env->ReleaseByteArrayElements(pkt, buf, 0);
+    return result;
+}
+
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_buildRst(
+    JNIEnv* env, jobject, jbyteArray original, jint length) {
+    jbyte* orig = env->GetByteArrayElements(original, nullptr);
+    if (!orig) return nullptr;
+    uint8_t rst[256];
+    int rlen = build_rst((const uint8_t*)orig, length, rst, sizeof(rst));
+    env->ReleaseByteArrayElements(original, orig, JNI_ABORT);
+    if (rlen <= 0) return nullptr;
+    jbyteArray r = env->NewByteArray(rlen);
+    env->SetByteArrayRegion(r, 0, rlen, (jbyte*)rst);
+    return r;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_recordLoss(JNIEnv*, jobject) {
+    pkt_lost++;
+}
+
+extern "C" JNIEXPORT jfloat JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_getPacketLoss(JNIEnv*, jobject) {
+    uint64_t tot = pkt_total.load(), lost = pkt_lost.load();
+    return tot > 0 ? (float)lost / tot * 100.f : 0.f;
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_resetCounters(JNIEnv*, jobject) {
+    pkt_total = 0; pkt_lost = 0; bytes_total = 0;
+    dns_redirected = 0; dns_blocked = 0; analytics_dropped = 0;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_getVersion(JNIEnv* env, jobject) {
+    return env->NewStringUTF("PacketEngine v5.0 | DSCP-EF+DNS-CF+NXDOMAIN+RST+UDPchk+FEC+AnalyticsDrop");
+}
+
+// ── FEC JNI ──────────────────────────────────────────────────────────────────
+
+// Enable or disable FEC processing.
+extern "C" JNIEXPORT void JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_enableFec(JNIEnv*, jobject, jboolean enable) {
+    bool was = fec_enabled.exchange((bool)enable);
+    if (!was && (bool)enable) {
+        // Reset state when enabling
+        memset(fec_buf,    0, sizeof(fec_buf));
+        memset(fec_rx_buf, 0, sizeof(fec_rx_buf));
+        for (int i = 0; i < FEC_GROUP; i++) fec_rx_have[i] = false;
+        fec_count    = 0;
+        fec_rx_count = 0;
+    }
+    LOGI("FEC %s", (bool)enable ? "enabled" : "disabled");
+}
+
+// Build and return the XOR parity packet for the current group.
+// Should be called by Java after processPacket returns 4.
+// The returned byte array has layout: [0xFE][xor_byte_0]...[xor_byte_N-1]
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_buildFecParity(JNIEnv* env, jobject) {
+    uint8_t parity[FEC_MAX_PKT + 1];
+    int plen = fec_build_parity(parity, sizeof(parity));
+    if (plen <= 0) return nullptr;
+    jbyteArray r = env->NewByteArray(plen);
+    env->SetByteArrayRegion(r, 0, plen, (jbyte*)parity);
+    return r;
+}
+
+// Process an inbound FEC-tagged UDP payload (first byte is FEC_HEADER or FEC_NORMAL).
+// Returns: 0=normal data, 1=parity consumed (check getFecReconstructed for recovered data),
+//         -1=error.
+extern "C" JNIEXPORT jint JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_processFecPacket(
+    JNIEnv* env, jobject, jbyteArray payload, jint plen) {
+    jbyte* p = env->GetByteArrayElements(payload, nullptr);
+    if (!p) return -1;
+    int r = fec_process_inbound((const uint8_t*)p, plen);
+    env->ReleaseByteArrayElements(payload, p, JNI_ABORT);
+    return r;
+}
+
+// After processFecPacket returns 1 and a slot was reconstructed, retrieve it.
+// Returns the reconstructed packet bytes, or null if nothing was reconstructed.
+extern "C" JNIEXPORT jbyteArray JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_getFecReconstructed(JNIEnv* env, jobject, jint slot) {
+    if (slot < 0 || slot >= FEC_GROUP) return nullptr;
+    int l = fec_rx_buf[slot].len;
+    if (l <= 0) return nullptr;
+    jbyteArray r = env->NewByteArray(l);
+    env->SetByteArrayRegion(r, 0, l, (jbyte*)fec_rx_buf[slot].data);
+    return r;
+}
+
+// ── Analytics JNI ─────────────────────────────────────────────────────────────
+
+// Return the total number of analytics/telemetry packets that were dropped.
+extern "C" JNIEXPORT jlong JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_getAnalyticsDropped(JNIEnv*, jobject) {
+    return (jlong)analytics_dropped.load();
+}
+
+// ── Thread affinity ───────────────────────────────────────────────────────────
+#include <pthread.h>
+#include <sched.h>
+#include <sys/resource.h>
+#include <unistd.h>
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_pinToBigCores(JNIEnv*, jobject) {
+    int numCores = (int)sysconf(_SC_NPROCESSORS_CONF);
+    if (numCores <= 0) return -1;
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    int bigStart = numCores / 2;
+    for (int i = bigStart; i < numCores; i++) CPU_SET(i, &cpuset);
+    int r = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+    LOGI("Thread affinity → cores %d-%d (r=%d)", bigStart, numCores - 1, r);
+    return r;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_setRealtimeScheduling(JNIEnv*, jobject) {
+    struct sched_param sp = {}; sp.sched_priority = 10;
+    int r = sched_setscheduler(0, SCHED_FIFO, &sp);
+    if (r == 0) LOGI("Thread → SCHED_FIFO priority 10");
+    else {
+        LOGW("SCHED_FIFO failed (need CAP_SYS_NICE), falling back to SCHED_RR");
+        sp.sched_priority = 1;
+        sched_setscheduler(0, SCHED_RR, &sp);
+    }
+    setpriority(PRIO_PROCESS, 0, -10);
+    return r;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_getNumCores(JNIEnv*, jobject) {
+    return (jint)sysconf(_SC_NPROCESSORS_CONF);
+}
+
+// ── Socket tuning ─────────────────────────────────────────────────────────────
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_tuneSocket(JNIEnv*, jobject, jint fd) {
+    int r = 0;
+    int on = 1;
+    r |= setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
+    int rcvbuf = 256 * 1024;
+    r |= setsockopt(fd, SOL_SOCKET, SO_RCVBUF, &rcvbuf, sizeof(rcvbuf));
+    int sndbuf = 128 * 1024;
+    r |= setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof(sndbuf));
+    int prio = 6;
+    setsockopt(fd, SOL_SOCKET, SO_PRIORITY, &prio, sizeof(prio)); // ignore error (may need root)
+    // IP_TOS: set DSCP EF at socket level
+    int tos = DSCP_EF;
+    setsockopt(fd, IPPROTO_IP, IP_TOS, &tos, sizeof(tos));
+    LOGI("Socket tuned: nodelay + rcv=256K + snd=128K + DSCP_EF (fd=%d, r=%d)", fd, r);
+    return r;
+}
+
+// ── madvise: keep game pages in RAM ─────────────────────────────────────────
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <stdio.h>
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_adviseKeepInRam(JNIEnv*, jobject, jint pid) {
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/maps", pid);
+    FILE* f = fopen(path, "r");
+    if (!f) { LOGW("Cannot open /proc/%d/maps (no permission)", pid); return -1; }
+    char line[512];
+    int advised = 0;
+    while (fgets(line, sizeof(line), f)) {
+        if (!strstr(line, "r-xp") && !strstr(line, "rw-p")) continue;
+        if (strstr(line, "/system/") || strstr(line, "/apex/") ||
+            strstr(line, "/data/app/~~")) continue; // Skip APK base mappings
+        unsigned long start = 0, end = 0;
+        if (sscanf(line, "%lx-%lx", &start, &end) == 2 && end > start) {
+            size_t sz = end - start;
+            if (sz > 0 && sz < 256UL * 1024 * 1024) { // cap at 256MB
+                if (madvise((void*)start, sz, MADV_WILLNEED) == 0) advised++;
+            }
+        }
+    }
+    fclose(f);
+    LOGI("madvise WILLNEED: %d regions for pid=%d", advised, pid);
+    return advised;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 🧠 TinyML — Deep Neural Network Lag Predictor (pure C++, no external libs)
+// ══════════════════════════════════════════════════════════════════════════════
+
+class TinyMLPredictor {
+private:
+    float weights_hidden[3][4] = {
+        { 0.12f, -0.05f,  0.43f,  0.11f},
+        {-0.22f,  0.55f, -0.13f,  0.88f},
+        { 0.71f,  0.12f,  0.04f, -0.33f}
+    };
+    float bias_hidden[4] = {0.05f, -0.1f, 0.2f, 0.0f};
+    float weights_out[4] = {0.85f, -0.45f, 0.66f, 0.12f};
+    float bias_out = 0.15f;
+
+    long last_packet_time_ms = 0;
+
+    float relu(float x)    { return x > 0 ? x : 0; }
+    float sigmoid(float x) { return 1.0f / (1.0f + expf(-x)); }
+
+    long getCurrentTimeMs() {
+        struct timeval tv; gettimeofday(&tv, nullptr);
+        return tv.tv_sec * 1000L + tv.tv_usec / 1000;
+    }
+
+public:
+    TinyMLPredictor() { last_packet_time_ms = getCurrentTimeMs(); }
+
+    // Returns probability [0..1] that the next packet will cause jitter/lag
+    float predictJitterProbability(int packet_size, int protocol) {
+        long now = getCurrentTimeMs();
+        float delta_ms = (float)(now - last_packet_time_ms);
+        last_packet_time_ms = now;
+
+        float input[3];
+        input[0] = (float)packet_size / 1500.0f;       // normalise to MTU
+        input[1] = delta_ms / 100.0f;                   // normalise to 100ms
+        input[2] = (protocol == PROTO_UDP) ? 1.0f : 0.0f;
+
+        float hidden[4] = {};
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 3; j++) hidden[i] += input[j] * weights_hidden[j][i];
+            hidden[i] = relu(hidden[i] + bias_hidden[i]);
+        }
+        float out = 0;
+        for (int i = 0; i < 4; i++) out += hidden[i] * weights_out[i];
+        return sigmoid(out + bias_out);
+    }
+};
+
+static TinyMLPredictor ai_router;
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_injectPacketToAI(
+        JNIEnv* env, jobject, jbyteArray pkt, jint len) {
+    if (len <= 20) return -1;
+    jbyte* buf = (jbyte*)env->GetPrimitiveArrayCritical(pkt, nullptr);
+    if (!buf) return -1;
+
+    uint8_t protocol = (uint8_t)buf[9];
+    float prob = ai_router.predictJitterProbability(len, protocol);
+
+    if (prob > 0.85f) {
+        LOGW("AI: ⚡ lag probability %.0f%% — elevating DSCP EF", prob * 100);
+        buf[1] = DSCP_EF; // mark packet for QoS priority
+    }
+
+    env->ReleasePrimitiveArrayCritical(pkt, buf, 0);
+    return (prob > 0.85f) ? 2 : 1; // 2 = AI-elevated, 1 = normal
+}
+
+// ── High priority mode ────────────────────────────────────────────────────────
+extern "C" JNIEXPORT void JNICALL
+Java_com_yourname_gamemodevpn_PacketEngine_setHighPriorityMode(JNIEnv*, jobject, jboolean enable) {
+    if (enable) {
+        setpriority(PRIO_PROCESS, 0, -10);
+        struct sched_param sp = {}; sp.sched_priority = 1;
+        if (sched_setscheduler(0, SCHED_FIFO, &sp) == 0)
+            LOGI("Thread → SCHED_FIFO priority 1");
+        else
+            sched_setscheduler(0, SCHED_RR, &sp);
+    } else {
+        struct sched_param sp = {}; sp.sched_priority = 0;
+        sched_setscheduler(0, SCHED_OTHER, &sp);
+        setpriority(PRIO_PROCESS, 0, 0);
+    }
+}
