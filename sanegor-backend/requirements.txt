@@ -1,0 +1,44 @@
+# ---- Web framework ----
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+websockets==14.1
+
+# ---- Settings / validation ----
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# ---- Database ----
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+pgvector==0.3.6
+greenlet==3.1.1
+
+# ---- Cache / queue ----
+redis[hiredis]==5.2.1
+celery==5.4.0
+
+# ---- Security ----
+argon2-cffi==23.1.0
+pyjwt[crypto]==2.10.1
+cryptography==44.0.0
+authlib==1.4.0
+
+# ---- HTTP / AI ----
+httpx==0.28.1
+httpx-sse==0.4.0
+tiktoken==0.8.0
+
+# ---- Documents ----
+pypdf==5.1.0
+python-docx==1.1.2
+reportlab==4.2.5
+pillow==11.0.0
+pytesseract==0.3.13
+opencv-python-headless==4.10.0.84
+
+# ---- Observability ----
+structlog==24.4.0
+prometheus-client==0.21.1
