@@ -7,6 +7,9 @@
 #   ./scripts/run-local.sh run     # run on a connected device
 #   ./scripts/run-local.sh apk     # build an installable APK
 #
+#   # against a backend on this machine, over WiFi:
+#   API_BASE_URL=http://192.168.1.20:8000 ./scripts/run-local.sh run
+#
 # scripts/run-local.sh is gitignored, so the key stays on your machine.
 #
 # The key ends up as a plain string inside the APK, which is fine for a build
@@ -18,8 +21,15 @@ set -euo pipefail
 
 DEEPSEEK_API_KEY="sk-your-key-here"
 
-# Only needed once a backend exists; ignored in server-less mode.
+# Backend address. Override for a LAN server:
+#   10.0.2.2       the host machine, as seen from an Android emulator
+#   192.168.x.x    this machine's LAN address, for a real phone on the WiFi
+# Ignored entirely while the app runs in server-less mode.
 API_BASE_URL="${API_BASE_URL:-http://10.0.2.2:8000}"
+
+# Cleartext HTTP to a LAN address only works in a debug build; the release
+# build refuses plain HTTP to anything but loopback. Use `run` or a debug APK
+# when pointing at a development machine.
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 

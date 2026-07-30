@@ -49,6 +49,43 @@ keyAlias=upload
 אם הקובץ לא קיים, build של release ייחתם בחתימת debug — נוח ל-CI, לא מתאים
 לפרסום.
 
+### הרצה מול שרת על המחשב שלך (WiFi)
+
+אפשר להריץ את ה-backend על המחשב ולהתחבר אליו מהטלפון באותה רשת:
+
+```bash
+# במחשב, בתיקיית sanegor-backend
+./scripts/serve-lan.sh          # מאזין ל-0.0.0.0 ומדפיס את הכתובת לתת לטלפון
+
+# בתיקיית sanegor-app
+API_BASE_URL=http://192.168.1.20:8000 ./scripts/run-local.sh run
+```
+
+**ב-WSL2 יש מלכודת אחת.** שירות שרץ ב-WSL2 נגיש מ-Windows דרך localhost, אבל
+**לא** ממכשירים אחרים ברשת — כי הטלפון מדבר עם Windows, ו-Windows לא מעביר
+את הפורט פנימה ל-WSL2. `serve-lan.sh` מזהה את זה ומדפיס בדיוק מה לעשות. שתי
+דרכים:
+
+* **networkingMode=mirrored** ב-`%UserProfile%\.wslconfig` — הכי נקי, דורש
+  Windows 11 ו-WSL 2.0+. אחרי השינוי: `wsl --shutdown`.
+* **netsh portproxy** — עובד בכל גרסה, אבל ה-IP של WSL2 מתחלף בכל הפעלה
+  ולכן צריך לחזור על זה.
+
+בשתי הדרכים צריך לפתוח את חומת האש פעם אחת:
+
+```powershell
+New-NetFirewallRule -DisplayName "Sanegor 8000" -Direction Inbound `
+    -LocalPort 8000 -Protocol TCP -Action Allow
+```
+
+**חשוב:** HTTP רגיל לכתובת LAN עובד רק ב-build של debug. ה-release מסרב
+לתעבורה לא מוצפנת לכל מה שאינו loopback, וזה מכוון — ראו
+`android/app/src/debug/AndroidManifest.xml`.
+
+**מגבלה:** זה עובד רק כשהטלפון והמחשב על אותה רשת. יצאת מהבית — אין שרת.
+למצב שעובד מכל מקום בלי לשלם על VPS, ראו את סעיף "שרת ביתי נגיש מבחוץ"
+ב-README של ה-backend.
+
 ### בדיקות
 
 ```bash

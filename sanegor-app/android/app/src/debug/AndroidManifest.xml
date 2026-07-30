@@ -1,0 +1,23 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Debug-only overrides, merged in by Gradle for debug builds and absent
+      from any release build.
+
+      Cleartext HTTP is enabled here so the app can reach a backend running on
+      a development machine over the local network (192.168.x.x, 10.x.x.x).
+      Android's network security config cannot express a subnet — <domain>
+      accepts only literal hosts — so a LAN address cannot be allow-listed in
+      the release config without hard-coding one machine's IP. Scoping the
+      permission to the debug build instead keeps the release build strict:
+      it still refuses plain HTTP to anything but loopback.
+
+      `tools:ignore` silences the lint warning; the whole point of this file is
+      that the relaxation exists only in debug.
+    -->
+    <application
+        android:usesCleartextTraffic="true"
+        tools:ignore="UnusedAttribute"
+        tools:replace="android:usesCleartextTraffic" />
+</manifest>
