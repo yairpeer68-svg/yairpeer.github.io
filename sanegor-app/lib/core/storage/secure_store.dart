@@ -22,6 +22,18 @@ class SecureStore {
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
   static const _userKey = 'current_user';
+  static const _apiKeyKey = 'deepseek_api_key';
+
+  /// The user's own DeepSeek key, used in server-less mode.
+  ///
+  /// It lives in the keystore rather than SharedPreferences because it is a
+  /// billable credential: anyone who reads it can spend the user's balance.
+  Future<String?> readApiKey() => _storage.read(key: _apiKeyKey);
+
+  Future<void> saveApiKey(String key) =>
+      _storage.write(key: _apiKeyKey, value: key.trim());
+
+  Future<void> clearApiKey() => _storage.delete(key: _apiKeyKey);
 
   Future<String?> readAccessToken() => _storage.read(key: _accessTokenKey);
   Future<String?> readRefreshToken() => _storage.read(key: _refreshTokenKey);

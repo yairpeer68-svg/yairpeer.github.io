@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/providers.dart';
+import '../../../core/router/app_router.dart';
+import '../../../core/tier/entitlements.dart';
+import '../../../core/tier/tier.dart';
+import '../../../features/premium/presentation/paywall_sheet.dart';
 import '../../../shared/widgets/states.dart';
 import '../../search/presentation/search_screen.dart';
 
@@ -15,6 +19,8 @@ class SettingsScreen extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final streaming = ref.watch(streamingEnabledProvider);
     final corpus = ref.watch(corpusStatsProvider);
+    final entitlement = ref.watch(entitlementProvider);
+    final hasKey = ref.watch(hasApiKeyProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -29,6 +35,58 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
+          _Section(
+            title: 'המנוי שלי',
+            child: ListTile(
+              leading: Icon(
+                entitlement.isPremium
+                    ? Icons.workspace_premium
+                    : Icons.workspace_premium_outlined,
+                color: entitlement.isPremium ? theme.colorScheme.primary : null,
+              ),
+              title: Text(entitlement.effectiveTier.label),
+              subtitle: Text(
+                entitlement.isPremium
+                    ? 'כל היכולות פתוחות'
+                    : 'מכסות יומיות וחודשיות · ללא ייצוא קבצים',
+              ),
+              trailing: entitlement.isPremium
+                  ? TextButton(
+                      onPressed: () =>
+                          ref.read(entitlementProvider.notifier).revokePremium(),
+                      child: const Text('ביטול'),
+                    )
+                  : FilledButton(
+                      onPressed: () => showPaywall(context),
+                      child: const Text('שדרוג'),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          _Section(
+            title: 'חיבור ל-AI',
+            child: ListTile(
+              leading: Icon(
+                Icons.vpn_key_outlined,
+                color: hasKey.valueOrNull == false
+                    ? theme.colorScheme.error
+                    : null,
+              ),
+              title: const Text('מפתח DeepSeek'),
+              subtitle: Text(
+                switch (hasKey.valueOrNull) {
+                  true => 'מוגדר · השאלות נשלחות ישירות מהמכשיר',
+                  false => 'לא הוגדר — נדרש כדי לקבל תשובות',
+                  null => 'בודק…',
+                },
+              ),
+              trailing: const Icon(Icons.chevron_left, size: 20),
+              onTap: () => context.pushNamed(Routes.apiKey),
+            ),
+          ),
+          const SizedBox(height: 16),
+
           _Section(
             title: 'תצוגה',
             child: Column(

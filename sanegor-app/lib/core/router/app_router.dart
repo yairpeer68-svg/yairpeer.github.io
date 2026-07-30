@@ -17,6 +17,7 @@ import '../../features/home/presentation/home_shell.dart';
 import '../../features/profile/presentation/profile_screen.dart';
 import '../../features/profile/presentation/settings_screen.dart';
 import '../../features/search/presentation/search_screen.dart';
+import '../../features/settings/presentation/api_key_screen.dart';
 import '../../features/splash/presentation/splash_screen.dart';
 
 /// Route names, referenced by `context.goNamed` rather than raw paths.
@@ -36,6 +37,7 @@ abstract final class Routes {
   static const history = 'history';
   static const profile = 'profile';
   static const settings = 'settings';
+  static const apiKey = 'api-key';
 }
 
 /// Bridges a Riverpod provider to `GoRouter.refreshListenable`.
@@ -167,6 +169,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/settings',
         name: Routes.settings,
         builder: (context, state) => const SettingsScreen(),
+      ),
+      GoRoute(
+        path: '/settings/api-key',
+        name: Routes.apiKey,
+        builder: (context, state) => const ApiKeyScreen(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

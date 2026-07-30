@@ -9,6 +9,7 @@ import '../features/documents/data/documents_repository.dart';
 import '../features/drafting/data/drafting_repository.dart';
 import '../features/search/data/search_repository.dart';
 import 'network/api_client.dart';
+import 'network/deepseek_direct.dart';
 import 'network/sse_client.dart';
 import 'storage/secure_store.dart';
 
@@ -34,6 +35,19 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 
 final sseClientProvider = Provider<SseClient>(
   (ref) => SseClient(store: ref.watch(secureStoreProvider)),
+);
+
+/// Direct DeepSeek client, used while the app runs without a backend.
+final deepSeekDirectProvider = Provider<DeepSeekDirectClient>(
+  (ref) => DeepSeekDirectClient(store: ref.watch(secureStoreProvider)),
+);
+
+/// Whether a personal API key has been configured.
+///
+/// The chat screen watches this so a missing key produces a clear prompt
+/// instead of a failed request.
+final hasApiKeyProvider = FutureProvider<bool>(
+  (ref) => ref.watch(deepSeekDirectProvider).hasKey,
 );
 
 final authRepositoryProvider = Provider<AuthRepository>(
