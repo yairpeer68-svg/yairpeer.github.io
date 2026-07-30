@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# ============================================================================
+# Personal build helper.
+#
+#   cp scripts/run-local.sh.example scripts/run-local.sh
+#   # put your key in the copy, then:
+#   ./scripts/run-local.sh run     # run on a connected device
+#   ./scripts/run-local.sh apk     # build an installable APK
+#
+# scripts/run-local.sh is gitignored, so the key stays on your machine.
+#
+# The key ends up as a plain string inside the APK, which is fine for a build
+# only you install and wrong for one you hand to other people. When you
+# distribute, drop the key here and let each user enter their own in the app's
+# settings screen.
+# ============================================================================
+set -euo pipefail
+
+DEEPSEEK_API_KEY="sk-your-key-here"
+
+# Only needed once a backend exists; ignored in server-less mode.
+API_BASE_URL="${API_BASE_URL:-http://10.0.2.2:8000}"
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+DEFINES=(
+  --dart-define=DEEPSEEK_API_KEY="$DEEPSEEK_API_KEY"
+  --dart-define=API_BASE_URL="$API_BASE_URL"
+)
+
+case "${1:-run}" in
+  run)   flutter run "${DEFINES[@]}" ;;
+  apk)   flutter build apk --release --split-per-abi "${DEFINES[@]}"
+         echo "APK: build/app/outputs/flutter-apk/" ;;
+  aab)   flutter build appbundle --release "${DEFINES[@]}" ;;
+  *)     echo "usage: $0 [run|apk|aab]" >&2; exit 1 ;;
+esac

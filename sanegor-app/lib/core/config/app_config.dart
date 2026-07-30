@@ -27,6 +27,17 @@ class AppConfig {
     return '$scheme://$host$apiPrefix/ws/chat';
   }
 
+  /// DeepSeek key baked in at build time via `--dart-define`.
+  ///
+  /// Convenience for a personal build so the key need not be typed on the
+  /// device. It is supplied on the build command line and never committed —
+  /// see `scripts/run-local.sh.example`. A key entered in the app's settings
+  /// takes priority over this one.
+  ///
+  /// Do not use this for a build you distribute: `--dart-define` values are
+  /// plain strings inside the APK and anyone can read them out.
+  static const String bundledApiKey = String.fromEnvironment('DEEPSEEK_API_KEY');
+
   static const bool isProduction = bool.fromEnvironment('dart.vm.product');
 
   /// Network timeouts. Model responses are slow by nature, so the receive

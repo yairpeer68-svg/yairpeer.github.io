@@ -14,6 +14,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 
+import '../config/app_config.dart';
 import '../storage/secure_store.dart';
 import 'api_exception.dart';
 
@@ -45,11 +46,21 @@ class DeepSeekDirectClient {
   /// front to keep the connection warm.
   static const Duration _timeout = Duration(minutes: 5);
 
-  Future<bool> get hasKey async => (await _store.readApiKey())?.isNotEmpty ?? false;
+  /// Resolved key: what the user saved in settings, else the build-time one.
+  ///
+  /// Settings win so a key entered on the device can override a stale value
+  /// compiled into the build.
+  Future<String?> resolveKey() async {
+    final stored = await _store.readApiKey();
+    if (stored != null && stored.isNotEmpty) return stored;
+    return AppConfig.bundledApiKey.isEmpty ? null : AppConfig.bundledApiKey;
+  }
+
+  Future<bool> get hasKey async => (await resolveKey()) != null;
 
   Future<String> _requireKey() async {
-    final key = await _store.readApiKey();
-    if (key == null || key.isEmpty) {
+    final key = await resolveKey();
+    if (key == null) {
       throw const ApiException(
         code: 'no_api_key',
         message: 'לא הוגדר מפתח DeepSeek. היכנס להגדרות והזן מפתח',
