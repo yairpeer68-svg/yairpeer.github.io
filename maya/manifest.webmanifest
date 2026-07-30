@@ -1,0 +1,22 @@
+{
+  "name": "מאיה — המסייעת האישית שלך במחלקה",
+  "short_name": "מאיה",
+  "description": "עוזרת וירטואלית למטופל המאושפז: קריאה לצוות, לו״ז הבדיקות של היום, ותמיכה רגשית — בעברית.",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eaf2f5",
+  "theme_color": "#0d9488",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "קרא לאחות", "short_name": "אחות", "url": "./?call=nurse" },
+    { "name": "תחנת האחיות", "short_name": "תחנה", "url": "./station.html" }
+  ]
+}

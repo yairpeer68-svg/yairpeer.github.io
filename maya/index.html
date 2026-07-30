@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מאיה — המסייעת האישית שלך במחלקה</title>
+<meta name="description" content="מאיה היא עוזרת וירטואלית למטופל המאושפז: מבקשת עזרה מהצוות, מסבירה את הלו״ז של היום, ופשוט נמצאת שם כשצריך מישהו לדבר איתו.">
+<meta property="og:title" content="מאיה — המסייעת האישית שלך במחלקה 👩‍⚕️">
+<meta property="og:description" content="אווטאר קולי למיטת המטופל: קריאה לצוות, לו״ז בדיקות, ותמיכה רגשית — בעברית.">
+<meta name="theme-color" content="#0d9488">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eaf2f5;
+    --glow-1: rgba(13, 148, 136, .13);
+    --glow-2: rgba(129, 178, 214, .18);
+    --card: #ffffff;
+    --card-2: #f2f8fa;
+    --text: #12303c;
+    --muted: #5d7a88;
+    --teal: #0d9488;
+    --teal-ink: #06403a;
+    --teal-soft: #d7f0ec;
+    --rose: #e11d48;
+    --rose-soft: #ffe4e9;
+    --amber: #d97706;
+    --amber-soft: #fef1dc;
+    --blue: #2563eb;
+    --blue-soft: #e3ecfe;
+    --green: #15803d;
+    --border: #d7e4ea;
+    --shadow: 0 10px 30px rgba(18, 48, 60, .09);
+    --radius: 20px;
+  }
+  body.night {
+    --bg: #0a1a22;
+    --glow-1: rgba(13, 148, 136, .16);
+    --glow-2: rgba(30, 70, 100, .3);
+    --card: #122833;
+    --card-2: #17323f;
+    --text: #e6f2f5;
+    --muted: #8fa9b5;
+    --teal: #2dd4bf;
+    --teal-ink: #04302b;
+    --teal-soft: #123c39;
+    --rose: #fb7185;
+    --rose-soft: #3d1a24;
+    --amber: #fbbf24;
+    --amber-soft: #3a2c12;
+    --blue: #7aa5f5;
+    --blue-soft: #16283f;
+    --green: #4ade80;
+    --border: #21414f;
+    --shadow: 0 10px 30px rgba(0, 0, 0, .35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; font-size: 100%; }
+  html.fs-lg { font-size: 112%; }
+  html.fs-xl { font-size: 126%; }
+  body {
+    font-family: "Rubik", -apple-system, "Segoe UI", Arial, sans-serif;
+    background:
+      radial-gradient(720px 480px at 82% -8%, var(--glow-1), transparent 70%),
+      radial-gradient(760px 520px at -12% 30%, var(--glow-2), transparent 72%),
+      var(--bg);
+    color: var(--text);
+    min-height: 100vh; min-height: 100dvh;
+    transition: background-color .4s, color .4s;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 10px 16px calc(28px + env(safe-area-inset-bottom)); }
+
+  /* ---------- top bar ---------- */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 2px 6px; }
+  .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .who .dot { width: 40px; height: 40px; border-radius: 50%; background: var(--teal-soft); display: flex; align-items: center; justify-content: center; font-size: 21px; flex-shrink: 0; }
+  .who b { font-size: 1.06rem; font-weight: 900; display: block; line-height: 1.2; }
+  .tag { font-size: .69rem; font-weight: 700; color: var(--muted); }
+  .tag.live { color: var(--teal); }
+  .top-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .icon-btn {
+    width: 42px; height: 42px; border-radius: 14px; flex-shrink: 0;
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    font-size: 1.06rem; font-family: inherit; cursor: pointer;
+  }
+  .icon-btn:active { transform: scale(.94); }
+
+  /* ---------- avatar stage ---------- */
+  .stage { position: relative; text-align: center; padding: 6px 0 0; }
+  .halo {
+    position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+    width: 240px; height: 240px; border-radius: 50%;
+    background: radial-gradient(circle, var(--glow-1), transparent 64%);
+    pointer-events: none;
+  }
+  .av-frame {
+    position: relative; width: 220px; height: 226px; margin: 0 auto;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .av-ring {
+    position: absolute; inset: -8px 8px 6px 8px; border-radius: 50% 50% 46% 46%;
+    border: 3px solid transparent; transition: border-color .3s;
+  }
+  body.listening .av-ring { border-color: color-mix(in srgb, var(--teal) 55%, transparent); animation: ripple 1.5s ease-out infinite; }
+  @keyframes ripple { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--teal) 32%, transparent); } 100% { box-shadow: 0 0 0 22px transparent; } }
+  #avSvg { width: 220px; height: auto; display: block; filter: drop-shadow(0 12px 22px rgba(18,48,60,.16)); }
+  #avAll { animation: breathe 4.8s ease-in-out infinite; transform-origin: 100px 200px; }
+  @keyframes breathe { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-2px) scale(1.008); } }
+  #avHead { animation: sway 8.5s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 92%; }
+  @keyframes sway { 0%,100% { transform: rotate(-1.1deg); } 50% { transform: rotate(1.1deg); } }
+  body.speaking #avHead { animation: sway 3.4s ease-in-out infinite; }
+  .lid { transform-box: fill-box; transform-origin: top; transform: scaleY(0); animation: blink 6s infinite; }
+  @keyframes blink { 0%,95.6% { transform: scaleY(0); } 97.2% { transform: scaleY(1); } 98.8% { transform: scaleY(0); } }
+  body.listening .lid { animation-duration: 4.2s; }
+
+  .status { font-size: .9rem; font-weight: 700; color: var(--muted); margin-top: 8px; min-height: 1.3em; }
+  .status.live { color: var(--teal); }
+  .bubble {
+    background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow);
+    border-radius: 22px; padding: 16px 18px; margin: 12px auto 0; max-width: 620px;
+    font-size: 1.16rem; line-height: 1.62; font-weight: 500; text-align: start;
+    min-height: 3.4em; position: relative;
+  }
+  .bubble::before {
+    content: ""; position: absolute; top: -8px; right: 40px;
+    width: 16px; height: 16px; background: var(--card);
+    border-inline-start: 1px solid var(--border); border-block-start: 1px solid var(--border);
+    transform: rotate(45deg);
+  }
+  .bubble .heard { display: block; font-size: .8rem; font-weight: 600; color: var(--muted); margin-bottom: 8px; }
+  .dots span { display: inline-block; width: 8px; height: 8px; margin-inline-end: 4px; border-radius: 50%; background: var(--teal); opacity: .35; animation: hop 1.05s infinite; }
+  .dots span:nth-child(2) { animation-delay: .15s; } .dots span:nth-child(3) { animation-delay: .3s; }
+  @keyframes hop { 0%,100% { opacity: .3; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-5px); } }
+
+  /* ---------- controls ---------- */
+  .controls { margin-top: 18px; }
+  .talk-btn {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    width: 100%; padding: 22px; cursor: pointer;
+    background: var(--teal); color: #fff; border: none; border-radius: 22px;
+    font-size: 1.32rem; font-weight: 900; font-family: inherit;
+    box-shadow: 0 10px 28px color-mix(in srgb, var(--teal) 36%, transparent);
+  }
+  .talk-btn:active { transform: scale(.985); }
+  body.night .talk-btn { color: var(--teal-ink); }
+  body.listening .talk-btn { background: var(--rose); box-shadow: 0 10px 28px color-mix(in srgb, var(--rose) 34%, transparent); color: #fff; }
+  .talk-btn .mic { font-size: 1.5rem; }
+  .talk-hint { font-size: .78rem; color: var(--muted); text-align: center; margin-top: 8px; line-height: 1.6; }
+  .talk-hint button { background: none; border: none; color: var(--teal); font-family: inherit; font-size: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; padding: 0; }
+
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 14px; }
+  @media (max-width: 420px) { .chips { grid-template-columns: repeat(2, 1fr); } }
+  .chip {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 13px 8px; font-family: inherit; color: var(--text); cursor: pointer;
+    font-size: .84rem; font-weight: 700; line-height: 1.25; text-align: center;
+  }
+  .chip .e { font-size: 1.36rem; }
+  .chip:active { border-color: var(--teal); background: var(--card-2); }
+
+  .nurse-btn {
+    width: 100%; margin-top: 14px; padding: 19px; cursor: pointer;
+    background: var(--rose-soft); color: var(--rose);
+    border: 2px solid color-mix(in srgb, var(--rose) 40%, transparent); border-radius: 20px;
+    font-size: 1.1rem; font-weight: 900; font-family: inherit;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+  }
+  .nurse-btn:active { transform: scale(.985); }
+  .nurse-btn .e { font-size: 1.26rem; }
+
+  /* ---------- panels ---------- */
+  .panel { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px; margin-top: 18px; }
+  .panel h2 { font-size: .95rem; font-weight: 900; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .panel .sub { font-size: .76rem; color: var(--muted); margin-bottom: 12px; }
+  .sched-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+  .sched-row:first-of-type { border-top: none; }
+  .sched-row .t { font-size: .8rem; font-weight: 800; color: var(--muted); min-width: 58px; font-variant-numeric: tabular-nums; }
+  .sched-row .e { font-size: 1.2rem; }
+  .sched-row .n { flex: 1; font-size: .95rem; font-weight: 600; }
+  .sched-row .st { font-size: .69rem; font-weight: 800; padding: 4px 9px; border-radius: 999px; white-space: nowrap; }
+  .st.done { background: var(--teal-soft); color: var(--teal); }
+  .st.now { background: var(--amber-soft); color: var(--amber); }
+  .st.next { background: var(--card-2); color: var(--muted); }
+  .sched-row.is-done .n { opacity: .58; }
+
+  .call-row { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-top: 1px solid var(--border); }
+  .call-row:first-of-type { border-top: none; }
+  .call-row .bar { width: 4px; align-self: stretch; border-radius: 4px; flex-shrink: 0; }
+  .call-row .info { flex: 1; min-width: 0; }
+  .call-row .n { font-size: .93rem; font-weight: 700; }
+  .call-row .d { font-size: .74rem; color: var(--muted); margin-top: 2px; }
+  .call-row .badge { font-size: .69rem; font-weight: 800; padding: 4px 9px; border-radius: 999px; background: var(--card-2); color: var(--muted); white-space: nowrap; }
+  .call-row .badge.ack { background: var(--blue-soft); color: var(--blue); }
+  .call-row .badge.done { background: var(--teal-soft); color: var(--teal); }
+  .lv-urgent { background: var(--rose); } .lv-nurse { background: var(--amber); }
+  .lv-service { background: var(--blue); } .lv-info { background: var(--muted); }
+  .empty { text-align: center; color: var(--muted); font-size: .86rem; padding: 12px 0; line-height: 1.6; }
+
+  details.tr { margin-top: 18px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  details.tr summary { padding: 14px 18px; font-size: .88rem; font-weight: 800; cursor: pointer; color: var(--muted); }
+  details.tr summary::marker { color: var(--teal); }
+  .tr-body { padding: 0 18px 16px; display: flex; flex-direction: column; gap: 10px; max-height: 340px; overflow-y: auto; }
+  .msg { font-size: .92rem; line-height: 1.55; padding: 10px 13px; border-radius: 14px; max-width: 88%; }
+  .msg.me { align-self: flex-start; background: var(--card-2); border: 1px solid var(--border); }
+  .msg.maya { align-self: flex-end; background: var(--teal-soft); color: var(--teal-ink); }
+  body.night .msg.maya { color: var(--text); }
+
+  footer { text-align: center; font-size: .74rem; color: var(--muted); line-height: 1.75; margin-top: 22px; }
+  footer a { color: var(--teal); }
+  footer .dis { display: block; margin-top: 6px; opacity: .85; }
+
+  /* ---------- listening overlay ---------- */
+  .lo {
+    position: fixed; inset: 0; z-index: 60; display: none;
+    background: color-mix(in srgb, var(--bg) 92%, #000);
+    flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center;
+  }
+  .lo.show { display: flex; }
+  .lo .ttl { font-size: 1.1rem; font-weight: 900; color: var(--teal); }
+  .lo .heard { font-size: 1.4rem; font-weight: 700; line-height: 1.5; margin-top: 18px; max-width: 560px; min-height: 2.2em; }
+  .lo .heard.dim { color: var(--muted); font-weight: 500; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 62px; margin-top: 26px; }
+  .bars i { width: 9px; border-radius: 5px; background: var(--teal); height: 14px; animation: eq .82s ease-in-out infinite; }
+  .bars i:nth-child(2) { animation-delay: .1s; } .bars i:nth-child(3) { animation-delay: .2s; }
+  .bars i:nth-child(4) { animation-delay: .3s; } .bars i:nth-child(5) { animation-delay: .4s; }
+  @keyframes eq { 0%,100% { height: 14px; opacity: .55; } 50% { height: 54px; opacity: 1; } }
+  .lo .stop { margin-top: 34px; padding: 17px 42px; border: none; border-radius: 999px; background: var(--rose); color: #fff; font-size: 1.06rem; font-weight: 900; font-family: inherit; cursor: pointer; }
+
+  /* ---------- call sent overlay ---------- */
+  .co { position: fixed; inset: 0; z-index: 70; display: none; align-items: center; justify-content: center; padding: 22px; background: rgba(6, 22, 30, .55); backdrop-filter: blur(3px); }
+  .co.show { display: flex; }
+  .co-card { background: var(--card); border-radius: 26px; padding: 30px 24px 24px; max-width: 420px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+  .co-ring { width: 92px; height: 92px; margin: 0 auto 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 2.4rem; background: var(--teal-soft); animation: pop .45s cubic-bezier(.2,1.5,.4,1); }
+  .co-card.urgent .co-ring { background: var(--rose-soft); }
+  @keyframes pop { 0% { transform: scale(.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .co-card h3 { font-size: 1.24rem; font-weight: 900; }
+  .co-card p { font-size: .98rem; color: var(--muted); line-height: 1.65; margin-top: 10px; }
+  .co-eta { margin-top: 16px; font-size: .86rem; font-weight: 800; color: var(--teal); background: var(--teal-soft); border-radius: 12px; padding: 11px; }
+  .co-card.urgent .co-eta { color: var(--rose); background: var(--rose-soft); }
+  .co-btns { display: flex; gap: 9px; margin-top: 18px; }
+  .co-btns button { flex: 1; padding: 15px; border-radius: 14px; font-family: inherit; font-size: .96rem; font-weight: 800; cursor: pointer; }
+  .co-ok { border: none; background: var(--teal); color: #fff; }
+  body.night .co-ok { color: var(--teal-ink); }
+  .co-undo { background: var(--card-2); border: 1px solid var(--border); color: var(--muted); }
+
+  /* ---------- breathing overlay ---------- */
+  .bo { position: fixed; inset: 0; z-index: 65; display: none; flex-direction: column; align-items: center; justify-content: center; background: color-mix(in srgb, var(--bg) 94%, #000); padding: 24px; text-align: center; }
+  .bo.show { display: flex; }
+  .bo-circle { width: 180px; height: 180px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--teal) 34%, transparent), color-mix(in srgb, var(--teal) 9%, transparent)); border: 2px solid color-mix(in srgb, var(--teal) 45%, transparent); display: flex; align-items: center; justify-content: center; transition: transform 4s ease-in-out; }
+  .bo-circle span { font-size: 1.14rem; font-weight: 900; color: var(--teal); }
+  .bo .cnt { margin-top: 26px; font-size: .95rem; color: var(--muted); }
+  .bo .stop { margin-top: 30px; padding: 15px 34px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); color: var(--text); font-family: inherit; font-size: 1rem; font-weight: 800; cursor: pointer; }
+
+  /* ---------- dialogs ---------- */
+  dialog {
+    border: 1px solid var(--border); border-bottom: none; background: var(--card); color: var(--text);
+    border-radius: 24px 24px 0 0; padding: 0; width: 100%; max-width: 620px;
+    max-height: 90dvh; overflow-y: auto; margin: auto auto 0; box-shadow: 0 -14px 50px rgba(0,0,0,.28);
+  }
+  dialog::backdrop { background: rgba(6, 22, 30, .6); backdrop-filter: blur(2px); }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 18px 18px 8px; position: sticky; top: 0; background: var(--card); z-index: 2; }
+  .dlg-head h3 { font-size: 1.08rem; font-weight: 900; }
+  .dlg-x { flex-shrink: 0; width: 34px; height: 34px; border-radius: 999px; background: var(--card-2); border: 1px solid var(--border); color: var(--muted); font-family: inherit; font-size: .86rem; cursor: pointer; }
+  .dlg-body { padding: 4px 18px calc(24px + env(safe-area-inset-bottom)); }
+  .fld { margin-bottom: 14px; }
+  .fld label { display: block; font-size: .8rem; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+  .fld input, .fld textarea {
+    width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 13px;
+    background: var(--card-2); color: var(--text); font-size: 1.05rem; font-family: inherit;
+  }
+  .fld textarea { min-height: 90px; resize: vertical; line-height: 1.6; }
+  .fld input:focus, .fld textarea:focus { outline: 2px solid var(--teal); border-color: transparent; }
+  .fld .note { font-size: .74rem; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+  .seg { display: flex; gap: 7px; }
+  .seg button { flex: 1; padding: 12px 8px; border-radius: 12px; border: 1px solid var(--border); background: var(--card-2); color: var(--muted); font-family: inherit; font-size: .88rem; font-weight: 700; cursor: pointer; }
+  .seg button.on { border-color: var(--teal); color: var(--teal); background: var(--teal-soft); }
+  .btn-main { width: 100%; padding: 16px; border: none; border-radius: 14px; background: var(--teal); color: #fff; font-family: inherit; font-size: 1.06rem; font-weight: 900; cursor: pointer; margin-top: 4px; }
+  body.night .btn-main { color: var(--teal-ink); }
+  .btn-ghost { width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--card-2); color: var(--text); font-family: inherit; font-size: .96rem; font-weight: 700; cursor: pointer; margin-top: 9px; }
+  .row2 { display: flex; gap: 9px; }
+  .row2 > * { flex: 1; }
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0; border-top: 1px solid var(--border); }
+  .switch:first-of-type { border-top: none; }
+  .switch .lb { font-size: .95rem; font-weight: 700; }
+  .switch .lb small { display: block; font-weight: 500; color: var(--muted); font-size: .74rem; margin-top: 2px; line-height: 1.5; }
+  .tgl { flex-shrink: 0; width: 52px; height: 30px; border-radius: 999px; border: none; background: var(--border); position: relative; cursor: pointer; transition: background .2s; }
+  .tgl::after { content: ""; position: absolute; top: 3px; inset-inline-start: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; transition: inset-inline-start .2s; }
+  .tgl.on { background: var(--teal); }
+  .tgl.on::after { inset-inline-start: 25px; }
+  .dev-line { font-size: .72rem; color: var(--muted); text-align: center; margin-top: 14px; line-height: 1.7; font-variant-numeric: tabular-nums; }
+
+  .toast { position: fixed; inset-inline: 16px; bottom: calc(18px + env(safe-area-inset-bottom)); margin: 0 auto; max-width: 420px; background: var(--text); color: var(--bg); padding: 14px 18px; border-radius: 14px; font-size: .92rem; font-weight: 700; text-align: center; opacity: 0; transform: translateY(14px); transition: .25s; pointer-events: none; z-index: 90; }
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    #avAll, #avHead, .lid, .bars i { animation: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div class="who">
+      <span class="dot">👩‍⚕️</span>
+      <div>
+        <b>מאיה</b>
+        <span class="tag" id="modeTag">גרסת הדגמה</span>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="btnNight" title="מצב לילה" aria-label="מצב לילה">🌙</button>
+      <button class="icon-btn" id="btnSettings" title="הגדרות" aria-label="הגדרות">⚙️</button>
+    </div>
+  </div>
+
+  <section class="stage">
+    <div class="halo"></div>
+    <div class="av-frame">
+      <div class="av-ring"></div>
+      <svg id="avSvg" viewBox="0 0 200 205" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="מאיה, האווטאר">
+        <defs>
+          <linearGradient id="gSkin" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fbdcc2"/><stop offset="1" stop-color="#f1c7a4"/>
+          </linearGradient>
+          <linearGradient id="gHair" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#4d342a"/><stop offset="1" stop-color="#2c1d17"/>
+          </linearGradient>
+          <linearGradient id="gScrub" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d5efe9"/>
+          </linearGradient>
+        </defs>
+        <g id="avAll">
+          <g id="avHead">
+            <!-- שיער אחורי -->
+            <path d="M100 20c-34 0-55 23-55 57 0 23 3 42 7 65l15 3c-5-25-7-40-7-55 0-25 16-40 40-40s40 15 40 40c0 15-2 30-7 55l15-3c4-23 7-42 7-65 0-34-21-57-55-57z" fill="url(#gHair)"/>
+            <!-- צוואר -->
+            <path d="M87 116h26v22c0 8-26 8-26 0z" fill="#e9b993"/>
+            <!-- אוזניים -->
+            <ellipse cx="57" cy="90" rx="6.5" ry="9.5" fill="#efc3a0"/>
+            <ellipse cx="143" cy="90" rx="6.5" ry="9.5" fill="#efc3a0"/>
+            <!-- פנים -->
+            <ellipse cx="100" cy="85" rx="42" ry="48" fill="url(#gSkin)"/>
+            <!-- פוני -->
+            <path d="M58 73c2-31 20-47 42-47s40 16 42 47c-9-17-19-27-31-27-8 0-12 4-18 4-13 0-24 7-35 23z" fill="url(#gHair)"/>
+            <!-- גבות -->
+            <path id="avBrowL" d="M74 65q10-6 20-1.5" fill="none" stroke="#4a3226" stroke-width="2.8" stroke-linecap="round" opacity=".9"/>
+            <path id="avBrowR" d="M106 63.5q10-4.5 20 1.5" fill="none" stroke="#4a3226" stroke-width="2.8" stroke-linecap="round" opacity=".9"/>
+            <!-- עיניים -->
+            <ellipse cx="84" cy="85" rx="10" ry="7.2" fill="#fdfdfb"/>
+            <ellipse cx="116" cy="85" rx="10" ry="7.2" fill="#fdfdfb"/>
+            <circle id="avPupL" cx="84" cy="85" r="4.6" fill="#3a2a20"/>
+            <circle id="avPupR" cx="116" cy="85" r="4.6" fill="#3a2a20"/>
+            <circle cx="82" cy="83" r="1.6" fill="#fff"/>
+            <circle cx="114" cy="83" r="1.6" fill="#fff"/>
+            <path d="M74 80q10-6 20 0" fill="none" stroke="#4a3226" stroke-width="1.9" stroke-linecap="round"/>
+            <path d="M106 80q10-6 20 0" fill="none" stroke="#4a3226" stroke-width="1.9" stroke-linecap="round"/>
+            <rect class="lid" x="73.5" y="77" width="21" height="16" fill="url(#gSkin)"/>
+            <rect class="lid" x="105.5" y="77" width="21" height="16" fill="url(#gSkin)"/>
+            <!-- אף -->
+            <path d="M100 90q-4.5 9 1 12" fill="none" stroke="#dda67c" stroke-width="2.6" stroke-linecap="round"/>
+            <!-- סומק -->
+            <ellipse cx="73" cy="101" rx="9.5" ry="5.6" fill="#ef8f92" opacity=".32"/>
+            <ellipse cx="127" cy="101" rx="9.5" ry="5.6" fill="#ef8f92" opacity=".32"/>
+            <!-- פה -->
+            <path id="avMouth" d="M85 111q15 12 30 0q-15 6 -30 0z" fill="#c2585a"/>
+            <!-- מסגרת שיער בצדדים -->
+            <path d="M55 66c-7 24-7 45-3 68 7-4 11-11 12-18-4-17-4-33-2-50z" fill="url(#gHair)"/>
+            <path d="M145 66c7 24 7 45 3 68-7-4-11-11-12-18 4-17 4-33 2-50z" fill="url(#gHair)"/>
+          </g>
+          <g id="avBody">
+            <path d="M100 134c-32 5-49 22-53 71h106c-4-49-21-66-53-71z" fill="url(#gScrub)"/>
+            <path d="M82 138l18 22 18-22" fill="none" stroke="#a5dcd2" stroke-width="4.2" stroke-linecap="round"/>
+            <rect x="120" y="172" width="21" height="15" rx="3.5" fill="#0d9488"/>
+            <rect x="123.5" y="176.5" width="14" height="2.6" rx="1.3" fill="#fff" opacity=".9"/>
+            <rect x="123.5" y="181" width="9" height="2.6" rx="1.3" fill="#fff" opacity=".65"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+    <div class="status" id="statusLine">שלום! אני מאיה, ואני כאן בשבילך</div>
+    <div class="bubble" id="bubble" aria-live="polite"></div>
+  </section>
+
+  <section class="controls">
+    <button class="talk-btn" id="btnTalk"><span class="mic">🎙️</span><span id="talkLabel">דבר עם מאיה</span></button>
+    <div class="talk-hint">
+      לחץ, דבר בחופשיות, ומאיה תענה. <button id="btnType">מעדיף להקליד?</button>
+    </div>
+    <div class="chips" id="chips"></div>
+    <button class="nurse-btn" id="btnNurse"><span class="e">🔔</span> קרא לאחות עכשיו</button>
+  </section>
+
+  <section class="panel" id="schedPanel">
+    <h2>🗓️ מה מתוכנן לי היום</h2>
+    <div class="sub" id="schedSub">התוכנית מתעדכנת על ידי הצוות — לפעמים יש עיכובים, וזה בסדר</div>
+    <div id="schedList"></div>
+  </section>
+
+  <section class="panel">
+    <h2>🔔 הקריאות שלי</h2>
+    <div class="sub">כל בקשה שמאיה העבירה לצוות — ומה קרה איתה</div>
+    <div id="callList"></div>
+  </section>
+
+  <details class="tr">
+    <summary>💬 השיחה שלנו</summary>
+    <div class="tr-body" id="trBody"></div>
+  </details>
+
+  <footer>
+    מאיה נמצאת לצידך — ולא מחליפה את הצוות הרפואי. <a href="privacy.html">מדיניות פרטיות</a>
+    <span class="dis">מאיה אינה נותנת אבחון, ייעוץ רפואי או המלצה על תרופות. בכל שאלה רפואית היא קוראת לצוות המטפל.</span>
+  </footer>
+</div>
+
+<!-- האזנה -->
+<div class="lo" id="listenOverlay">
+  <div class="ttl">🎙️ מאיה מקשיבה…</div>
+  <div class="heard dim" id="heardText">דבר בקול רגיל, אין צורך למהר</div>
+  <div class="bars"><i></i><i></i><i></i><i></i><i></i></div>
+  <button class="stop" id="btnStopListen">סיימתי לדבר</button>
+</div>
+
+<!-- אישור קריאה -->
+<div class="co" id="callOverlay">
+  <div class="co-card" id="callCard">
+    <div class="co-ring" id="callIcon">✅</div>
+    <h3 id="callTitle">ההודעה נשלחה לצוות</h3>
+    <p id="callText"></p>
+    <div class="co-eta" id="callEta"></div>
+    <div class="co-btns">
+      <button class="co-undo" id="btnUndoCall">בטל קריאה</button>
+      <button class="co-ok" id="btnCloseCall">תודה, הבנתי</button>
+    </div>
+  </div>
+</div>
+
+<!-- נשימה מרגיעה -->
+<div class="bo" id="breathOverlay">
+  <div class="bo-circle" id="breathCircle"><span id="breathWord">נשום</span></div>
+  <div class="cnt" id="breathCount"></div>
+  <button class="stop" id="btnStopBreath">סיימתי</button>
+</div>
+
+<!-- הקלדה -->
+<dialog id="dlgType">
+  <div class="dlg-head"><h3>⌨️ כתוב למאיה</h3><button class="dlg-x" data-close>✕</button></div>
+  <div class="dlg-body">
+    <div class="fld">
+      <label for="typeInput">מה תרצה לומר?</label>
+      <textarea id="typeInput" placeholder="למשל: אני צמא, או — משעמם לי פה"></textarea>
+    </div>
+    <button class="btn-main" id="btnSendType">שלח למאיה</button>
+  </div>
+</dialog>
+
+<!-- הגדרות -->
+<dialog id="dlgSettings">
+  <div class="dlg-head"><h3>⚙️ הגדרות</h3><button class="dlg-x" data-close>✕</button></div>
+  <div class="dlg-body">
+    <div class="fld">
+      <label for="setName">איך לקרוא לך?</label>
+      <input id="setName" placeholder="השם הפרטי שלך" autocomplete="off">
+    </div>
+    <div class="row2">
+      <div class="fld"><label for="setWard">מחלקה</label><input id="setWard" placeholder="פנימית א׳" autocomplete="off"></div>
+      <div class="fld"><label for="setRoom">חדר / מיטה</label><input id="setRoom" placeholder="12 / 2" autocomplete="off"></div>
+    </div>
+
+    <div class="fld">
+      <label>גודל הכתב</label>
+      <div class="seg" id="segFont">
+        <button data-fs="">רגיל</button><button data-fs="fs-lg">גדול</button><button data-fs="fs-xl">ענק</button>
+      </div>
+    </div>
+
+    <div class="switch">
+      <div class="lb">קול של מאיה <small>מאיה מדברת בקול ולא רק בכתב</small></div>
+      <button class="tgl" id="tglVoice" aria-label="קול"></button>
+    </div>
+    <div class="switch">
+      <div class="lb">מצב לילה <small>מסך כהה ורגוע לשעות החשוכות</small></div>
+      <button class="tgl" id="tglNight" aria-label="מצב לילה"></button>
+    </div>
+    <div class="switch">
+      <div class="lb">קול איכותי מהשרת <small>עברית טבעית יותר. דורש שרת מחובר, ומוסיף מעט זמן תגובה</small></div>
+      <button class="tgl" id="tglServerVoice" aria-label="קול שרת"></button>
+    </div>
+
+    <div class="fld" style="margin-top:16px">
+      <label for="setWebhook">Webhook לתחנת האחיות (אופציונלי)</label>
+      <input id="setWebhook" placeholder="https://…" dir="ltr" autocomplete="off">
+      <div class="note">לצורכי אב-טיפוס: כל קריאה תישלח גם לכתובת הזו (POST‏ JSON). במערכת אמיתית החיבור לתחנה נעשה מהשרת.</div>
+    </div>
+
+    <button class="btn-main" id="btnSaveSettings">שמור</button>
+    <a class="btn-ghost" id="btnStation" href="station.html" style="display:block;text-align:center;text-decoration:none">🖥️ פתח את מסך תחנת האחיות</a>
+    <button class="btn-ghost" id="btnResetDemo">🧹 נקה את ההדגמה (שיחות וקריאות)</button>
+    <div class="dev-line" id="devLine"></div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+/* =========================================================
+   הגדרות שרת — כשמחברים את ה-backend ממלאים את שני אלה,
+   וכל האפליקציה עוברת אוטומטית ממצב הדגמה למצב AI אמיתי.
+   הוראות מלאות: maya-backend/README.md
+   ========================================================= */
+const CONFIG = {
+  SUPABASE_URL: "",       // למשל: https://xxxx.supabase.co
+  SUPABASE_ANON_KEY: "",  // המפתח הציבורי (anon) מלוח הבקרה
+};
+const SERVER_MODE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+
+/* ---------- מקשי אחסון ---------- */
+const K_PROFILE = "maya.profile.v1";
+const K_CALLS   = "maya.calls.v1";
+const K_CHAT    = "maya.chat.v1";
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function loadJSON(k, fb) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fb : v; } catch { return fb; } }
+function saveJSON(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+
+const profile = Object.assign({
+  name: "", ward: "פנימית א׳", room: "12 / 2",
+  voice: true, night: false, serverVoice: false, fs: "", webhook: "",
+}, loadJSON(K_PROFILE, {}));
+
+let calls = loadJSON(K_CALLS, []);
+let chat = loadJSON(K_CHAT, []);
+let lastLatency = null;
+
+/* ---------- לו״ז הדגמה ---------- */
+const SCHEDULE = [
+  { t: "07:30", e: "🩸", n: "בדיקת דם", st: "done" },
+  { t: "08:15", e: "💊", n: "תרופות בוקר", st: "done" },
+  { t: "10:00", e: "👨‍⚕️", n: "סבב רופאים", st: "done" },
+  { t: "13:00", e: "🍽️", n: "ארוחת צהריים", st: "now" },
+  { t: "אחה״צ", e: "🩻", n: "צילום רנטגן", st: "next" },
+  { t: "16:00", e: "💊", n: "תרופות אחר הצהריים", st: "next" },
+  { t: "20:00", e: "🌡️", n: "מדידת חום ולחץ דם", st: "next" },
+];
+const ST_LABEL = { done: "בוצע", now: "עכשיו", next: "בהמשך" };
+
+/* ---------- כפתורי קיצור ---------- */
+const CHIPS = [
+  { e: "💧", t: "אני צמא", say: "אני צמא, אפשר כוס מים?" },
+  { e: "🚻", t: "שירותים", say: "אני צריך להגיע לשירותים" },
+  { e: "🤕", t: "כואב לי", say: "כואב לי" },
+  { e: "🗓️", t: "הלו״ז שלי", say: "מה מתוכנן לי היום?" },
+  { e: "🫁", t: "נשימה מרגיעה", say: "אני רוצה להירגע" },
+  { e: "💬", t: "בוא נדבר", say: "משעמם לי פה" },
+];
+
+/* =========================================================
+   מנוע הכוונות המקומי (מצב הדגמה)
+   מסודר לפי עדיפות: בטיחות ← רפואה ← שירות ← חברה.
+   כל כלל מחזיר: מה מאיה אומרת, איזו קריאה לפתוח, ומה מוצע הלאה.
+   ========================================================= */
+const NAME = () => (profile.name ? profile.name : "");
+const HEY = () => (profile.name ? profile.name + ", " : "");
+
+const RULES = [
+  {
+    id: "emergency", level: "urgent", any: ["לא יכול לנשום", "אין לי אוויר", "קשה לי לנשום", "כאב בחזה", "כואב בחזה", "לוחץ לי בחזה", "אני נופל", "נפלתי", "מסתחרר לי", "הכל מסתובב", "מדמם", "דם"],
+    call: { title: "קריאה דחופה מהמטופל", note: "המטופל מדווח על מצוקה גופנית (נשימה / חזה / נפילה / דימום)" },
+    say: () => `${HEY()}אני קוראת לצוות עכשיו ממש — לא בעוד רגע, עכשיו. אל תזוז ואל תקום, אני נשארת איתך עד שהם מגיעים. תנסה לנשום איטי ורגוע, ואני כאן.`,
+    chips: ["הם באים?", "אני מפחיד", "רוצה לנשום איתך"],
+  },
+  {
+    // תרחיש E — מניעת נפילות
+    id: "bathroom", level: "urgent", any: ["שירותים", "להשתין", "לעשות פיפי", "אסלה", "לקום לבד", "אנסה לקום", "לקום מהמיטה", "להתקלח", "מקלחת"],
+    call: { title: "עזרה בקימה מהמיטה / שירותים", note: "המטופל מבקש להגיע לשירותים — נדרש ליווי כדי למנוע נפילה" },
+    say: () => `רגע אחד, בבקשה אל תקום לבד! הבריאות והבטיחות שלך הכי חשובות. אני קוראת לאחות או לכוח עזר עכשיו ממש כדי שיגיעו ללוות אותך בבטחה. הם אצלך תוך דקה.`,
+    chips: ["תודה", "זה דחוף", "כמה זמן זה ייקח?"],
+  },
+  {
+    // תרחיש B — כאב / חשש רפואי
+    id: "pain", level: "nurse", any: ["כואב", "כאב", "בחילה", "מרגיש רע", "חלש", "חום", "רועד", "צמרמורת", "מקיא", "לא מרגיש טוב"],
+    call: { title: "המטופל מדווח על כאב או מצוקה", note: "נדרשת הערכה של אחות" },
+    say: () => `אני מבינה שזה לא נעים ומלחיץ כשכואב. לגבי כאב וטיפול — הצוות הרפואי הוא היחיד שמוסמך לענות ולהחליט. אני קוראת לאחות התורנית עכשיו כדי שתבוא לבדוק אותך, בסדר? עד שהיא מגיעה, אני כאן איתך.`,
+    chips: ["בסדר, תודה", "רוצה לנשום איתך", "כמה זמן זה ייקח?"],
+  },
+  {
+    id: "meds", level: "nurse", any: ["תרופה", "תרופות", "כמוסה", "גלולה", "זריקה", "אינפוזיה", "עוזר לי", "עובדת", "מנה", "אנטיביוטיקה", "משכך"],
+    call: { title: "שאלה על תרופות", note: "המטופל שואל על התרופות שלו — מצריך מענה של הצוות" },
+    say: () => `${HEY()}שאלה חשובה — ובדיוק בגלל זה אני לא עונה עליה לבד. אני לא רופאה ולא אחות, ואסור לי לומר שום דבר על תרופות או מנות. אני מעבירה את השאלה לאחות התורנית שתסביר לך בדיוק, וזה מגיע לך.`,
+    chips: ["תודה", "מתי היא תבוא?", "בוא נדבר על משהו אחר"],
+  },
+  {
+    id: "doctor", level: "info", any: ["מתי הרופא", "רופא יבוא", "לראות רופא", "מתי משתחרר", "שחרור", "מתי אשתחרר", "תוצאות", "בדיקות שלי"],
+    call: { title: "בקשה לעדכון מהרופא", note: "המטופל מבקש עדכון על מצבו / מועד שחרור / תוצאות" },
+    say: () => `אני מבינה כמה חשוב לך לדעת, וההמתנה הזו לא פשוטה. את התשובות האלה רק הצוות יכול לתת — אני מעבירה עכשיו לתחנת האחיות בקשה שיעדכנו אותך. בינתיים, יש משהו שאני יכולה לעשות כדי שיהיה לך יותר נוח?`,
+    chips: ["הלו״ז שלי", "אני צמא", "בוא נדבר"],
+  },
+  {
+    // תרחיש A — בקשה לוגיסטית
+    id: "water", level: "service", any: ["צמא", "מים", "לשתות", "שתייה", "יבש לי בפה"],
+    call: { title: "בקשה לכוס מים", note: "המטופל ביקש מים" },
+    say: () => `בשביל זה בדיוק אני כאן! אין מה להתבייש. אני מעבירה עכשיו הודעה לצוות שיביאו לך כוס מים קרים. משהו נוסף שיכול להנעים לך בינתיים?`,
+    chips: ["קר לי", "הלו״ז שלי", "בוא נדבר"],
+  },
+  {
+    id: "food", level: "service", any: ["רעב", "אוכל", "ארוחה", "לאכול", "תפריט"],
+    call: { title: "בקשה בנושא אוכל", note: "המטופל שואל על ארוחה / רעב" },
+    say: () => `${HEY()}אני מעבירה לצוות שתשאל לגבי האוכל שלך — לפעמים יש דיאטה מוגדרת ולכן הם צריכים לאשר מה מותר. אני מבקשת שיגיעו לעדכן אותך בהקדם.`,
+    chips: ["תודה", "אני צמא", "הלו״ז שלי"],
+  },
+  {
+    id: "cold", level: "service", any: ["קר לי", "שמיכה", "קפוא", "מקורר"],
+    call: { title: "בקשה לשמיכה", note: "המטופל מדווח שקר לו ומבקש שמיכה" },
+    say: () => `אוי, קר זה מעצבן במיוחד כשקשה לזוז. אני מבקשת מהצוות שיביאו לך שמיכה נוספת. תרצה שאבקש גם משהו חם לשתות?`,
+    chips: ["כן, בבקשה", "לא, תודה", "בוא נדבר"],
+  },
+  {
+    id: "hot", level: "service", any: ["חם לי", "מזגן", "מחניק", "לפתוח חלון"],
+    call: { title: "בקשה בנושא טמפרטורה בחדר", note: "המטופל מדווח שחם לו בחדר" },
+    say: () => `מובן לגמרי, חדר מחניק זה מתיש. אני מעבירה לצוות בקשה לבדוק את המזגן בחדר שלך.`,
+    chips: ["תודה", "אני צמא", "בוא נדבר"],
+  },
+  {
+    id: "comfort", level: "service", any: ["כרית", "לא נוח", "המיטה", "להתיישב", "להרים את המיטה", "לסדר אותי"],
+    call: { title: "בקשה לסידור תנוחה במיטה", note: "המטופל מבקש עזרה בהתיישבות / כרית / מצב המיטה" },
+    say: () => `${HEY()}תנוחה טובה עושה הבדל עצום להרגשה. אני קוראת למי שיבוא לסדר לך את המיטה והכריות — בבקשה אל תנסה להתמרן לבד.`,
+    chips: ["תודה", "כואב לי", "בוא נדבר"],
+  },
+  {
+    // תרחיש D — אי-ודאות לגבי לו״ז
+    id: "schedule", level: "none", any: ["לו״ז", "לוז", "לוח זמנים", "מה יש לי היום", "מתוכנן", "רנטגן", "צילום", "בדיקה", "אף אחד לא בא", "כבר צהריים", "מחכה"],
+    say: () => `מבינה לגמרי את התסכול, ההמתנה הזו באמת מייגעת. הצילום עדיין מופיע בתוכנית להיום, ולפעמים יש עיכובים במחלקה — זה לא אומר ששכחו אותך. רוצה שאשלח תזכורת קטנה לתחנת האחיות כדי שיבדקו מה המצב בלו״ז?`,
+    offer: { yes: "reminder" },
+    chips: ["כן, בבקשה", "לא צריך", "בוא נדבר"],
+    highlight: "sched",
+  },
+  {
+    // תרחיש C — שעמום ובדידות
+    id: "bored", level: "none", any: ["משעמם", "נמאס", "טלוויזיה", "אין מה לעשות", "הזמן לא עובר", "ארוך"],
+    say: () => `מבינה אותך לגמרי, הימים בבית חולים יכולים להרגיש ארוכים מאוד. רוצה שנשחק משחק מילים קצר, שאספר לך סיפור קטן, או שנשמע יחד קצת מוזיקה שקטה להירגע?`,
+    chips: ["משחק מילים", "ספרי לי סיפור", "מוזיקה שקטה"],
+  },
+  {
+    id: "lonely", level: "none", any: ["לבד", "בודד", "מפחיד", "פחד", "מפחד", "חרד", "דואג", "בוכה", "עצוב", "קשה לי", "נמאס לי מהכל", "מיואש"],
+    say: () => `${HEY()}תודה שאמרת לי את זה. זה מובן לחלוטין להרגיש כך כאן — בית חולים הוא מקום זר, ופחד הוא תגובה נורמלית לגמרי ולא חולשה. אני לא הולכת לשום מקום. רוצה שנעשה יחד תרגיל נשימה קצר שמרגיע את הגוף, או שפשוט נדבר?`,
+    chips: ["נשימה מרגיעה", "בוא נדבר", "רוצה לשמוע סיפור"],
+  },
+  {
+    id: "family", level: "service", any: ["משפחה", "אשתי", "בעלי", "הילדים", "הבת שלי", "הבן שלי", "לצלצל", "טלפון", "אמא", "אבא", "נכד"],
+    call: { title: "בקשה ליצירת קשר עם המשפחה", note: "המטופל מבקש עזרה בקשר עם בן משפחה" },
+    say: () => `הקשר עם המשפחה זה חצי מהריפוי. אני מעבירה לצוות בקשה שיעזרו לך ליצור קשר. אם יש טלפון לידך אני יכולה גם להזכיר לך את שעות הביקור.`,
+    chips: ["שעות ביקור", "תודה", "בוא נדבר"],
+  },
+  {
+    id: "visits", level: "none", any: ["שעות ביקור", "מתי מבקרים", "ביקורים"],
+    say: () => `שעות הביקור במחלקה משתנות בין מחלקות, ולכן אני לא רוצה לנחש. אני מבקשת מהצוות את המידע המדויק לחדר שלך. בדרך כלל אחר הצהריים והערב זה הזמן הנפוץ.`,
+    chips: ["תודה", "בוא נדבר", "הלו״ז שלי"],
+  },
+  {
+    id: "sleep", level: "none", any: ["לישון", "לא נרדם", "עייף", "רעש", "אור", "להירדם"],
+    say: () => `שינה בבית חולים היא אתגר אמיתי — רעשים, אורות, ובדיקות בשעות מוזרות. רוצה שאבקש מהצוות להנמיך את האור בחדר, ואולי נעשה תרגיל נשימה שמכין את הגוף לשינה?`,
+    offer: { yes: "dim_light" },
+    chips: ["כן, בבקשה", "נשימה מרגיעה", "מוזיקה שקטה"],
+  },
+  {
+    id: "breath", level: "none", any: ["להירגע", "נשימה", "להרגיע", "מתוח", "לחוץ", "דופק"],
+    say: () => `בוא נעשה את זה יחד, זה לוקח דקה וזה עובד. אני אנחה אותך: שאיפה, החזקה קטנה, ונשימה איטית החוצה. אם תרגיש לא טוב באמצע — עוצרים מיד ואני קוראת לצוות.`,
+    action: "breath",
+    chips: ["תודה", "עוד פעם", "בוא נדבר"],
+  },
+  {
+    id: "game", level: "none", any: ["משחק", "מילים", "לשחק", "חידה"],
+    say: () => wordGame(),
+    chips: ["עוד מילה", "משהו אחר", "תודה"],
+  },
+  {
+    id: "story", level: "none", any: ["סיפור", "ספרי", "תספרי"],
+    say: () => pickStory(),
+    chips: ["עוד סיפור", "מוזיקה שקטה", "תודה"],
+  },
+  {
+    id: "music", level: "none", any: ["מוזיקה", "שיר", "מנגינה", "צלילים"],
+    say: () => `שמתי לך צלילים רכים ברקע — בלי מילים, רק משהו שקט להישען עליו. אם זה מפריע, תגיד לי ואני מכבה מיד.`,
+    action: "music",
+    chips: ["תכבי בבקשה", "נחמד, תודה", "בוא נדבר"],
+  },
+  {
+    id: "music_off", level: "none", any: ["תכבי", "לכבות", "מספיק מוזיקה", "שקט"],
+    say: () => `כיביתי. שקט זה גם דבר טוב.`,
+    action: "music_off",
+    chips: ["תודה", "בוא נדבר", "הלו״ז שלי"],
+  },
+  {
+    id: "thanks", level: "none", any: ["תודה", "מעריך", "אלוף", "מדהים", "יפה מצידך"],
+    say: () => `${HEY()}שמחה לעזור, באמת. זו כל העבודה שלי — ואני לא מתעייפת ולא ממהרת לשום מקום. אני כאן מתי שתצטרך.`,
+    chips: ["בוא נדבר", "הלו״ז שלי", "אני צמא"],
+  },
+  {
+    id: "who", level: "none", any: ["מי את", "מה שמך", "את רובוט", "את אמיתית", "מה את"],
+    say: () => `אני מאיה — עוזרת וירטואלית, מחשב שמדבר, לא בן אדם ולא אחות. מה שאני כן: זמינה 24 שעות, סבלנית לגמרי, ומעבירה כל בקשה שלך לצוות האמיתי. את ההחלטות הרפואיות הם עושים, לא אני.`,
+    chips: ["מה את יכולה לעשות?", "בוא נדבר", "תודה"],
+  },
+  {
+    id: "help_menu", level: "none", any: ["מה את יכולה", "במה את עוזרת", "עזרה", "אפשרויות"],
+    say: () => `הרבה דברים קטנים שעושים הבדל: לבקש מים, שמיכה או כרית; לקרוא לאחות כשכואב או כשצריך ללוות אותך לשירותים; להזכיר לצוות על בדיקה שמתעכבת; לעשות איתך תרגיל נשימה; או פשוט לדבר איתך כשמשעמם. מה מתאים לך עכשיו?`,
+    chips: ["אני צמא", "הלו״ז שלי", "בוא נדבר"],
+  },
+  {
+    id: "no", level: "none", any: ["לא צריך", "לא תודה", "לא עכשיו", "לא רוצה"],
+    say: () => `בסדר גמור, לא מבקשת כלום. אני כאן אם תשנה את דעתך — לחיצה אחת וזה מגיע.`,
+    chips: ["הלו״ז שלי", "בוא נדבר", "תודה"],
+  },
+];
+
+/* משחק מילים פשוט — קטגוריה ומילה, מאיה מעודדת וממשיכה */
+const GAME_ROUNDS = [
+  { cat: "פירות", w: "אפרסק" }, { cat: "ערים בישראל", w: "חיפה" },
+  { cat: "חיות", w: "צבי" }, { cat: "צבעים", w: "תכלת" },
+  { cat: "מקצועות", w: "נגר" }, { cat: "כלי נגינה", w: "כינור" },
+];
+let gameIdx = -1;
+function wordGame() {
+  gameIdx = (gameIdx + 1) % GAME_ROUNDS.length;
+  const g = GAME_ROUNDS[gameIdx];
+  return `יאללה, משחק מילים. הקטגוריה: ${g.cat}. אני מתחילה — ${g.w}. עכשיו תורך, תגיד לי מילה אחרת מאותה קטגוריה. אין נכון ולא נכון, זה רק בשביל להעביר את הזמן.`;
+}
+
+const STORIES = [
+  `יש בישראל עץ זית בגליל שהחוקרים מעריכים שהוא בן יותר מאלפיים שנה. הוא עמד שם בכל המלחמות, בכל הבצורות, ובכל השנים הקשות — ועדיין עושה זיתים כל סתיו. הגננים אומרים שהסוד שלו הוא לא כוח, אלא שהוא פשוט לא ממהר. הוא גדל לאט, שנה אחרי שנה. יש בזה משהו, לא?`,
+  `בכל שנה, ציפורים קטנות בגודל כף יד עוברות מעל ישראל בדרך מאירופה לאפריקה. חלקן טסות אלפי קילומטרים. הן לא יודעות את כל המסלול מראש — הן עפות קטע, נחות, ואז ממשיכות. זה הכל. קטע, מנוחה, ושוב קטע.`,
+  `בשנות החמישים חיפשו בכינרת דגים ומצאו סירת עץ בת אלפיים שנה, שמורה בבוץ. מה ששמר עליה כל הזמן הזה היה בדיוק מה שנראה כמו בוץ סתמי — השכבה שכיסתה אותה הגנה עליה. לפעמים מה שמרגיש כמו תקיעה, הוא בעצם מה ששומר עלינו עד שנהיה מוכנים.`,
+];
+let storyIdx = -1;
+function pickStory() {
+  storyIdx = (storyIdx + 1) % STORIES.length;
+  return STORIES[storyIdx];
+}
+
+const FALLBACKS = [
+  `לא בטוחה שהבנתי נכון, ואני לא רוצה לנחש בדברים שחשובים לך. אתה יכול לומר את זה שוב במילים אחרות? ואם זה משהו שמדאיג אותך גופנית — תגיד לי ואני קוראת לאחות מיד.`,
+  `${""}סליחה, פספסתי את זה. תנסה שוב בבקשה — או פשוט תגיד לי מה אתה צריך: מים, שמיכה, אחות, או שנדבר קצת.`,
+];
+let fbIdx = -1;
+
+/* ניקוי טקסט לצורך התאמה */
+function norm(s) {
+  return String(s || "")
+    .replace(/[֑-ׇ]/g, "")            // ניקוד
+    .replace(/["'`׳״.,!?;:()\-–—]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+let pendingOffer = null;   // הצעה שממתינה ל"כן"
+const YES = ["כן", "בבקשה", "אשמח", "בסדר", "אוקיי", "טוב", "יאללה", "כן בבקשה", "למה לא"];
+
+function matchRule(text) {
+  const t = norm(text);
+  if (!t) return null;
+
+  // תשובת "כן" להצעה קודמת
+  if (pendingOffer && YES.some(y => t === y || t.startsWith(y + " ") || t.includes(y))) {
+    const off = pendingOffer; pendingOffer = null;
+    if (off === "reminder") return {
+      id: "reminder", level: "info",
+      call: { title: "תזכורת: בדיקה שמתעכבת", note: "המטופל ממתין לצילום רנטגן שמופיע בתוכנית להיום ומבקש בדיקת מצב" },
+      text: `שלחתי תזכורת לתחנת האחיות שיבדקו איפה הצילום שלך עומד. ברגע שיהיה לי עדכון אני אומרת לך. אתה לא צריך לשבת ולחשוש שנשכחת — עכשיו זה רשום אצלם.`,
+      chips: ["תודה", "בוא נדבר", "אני צמא"],
+    };
+    if (off === "dim_light") return {
+      id: "dim", level: "service",
+      call: { title: "בקשה להנמכת אור בחדר", note: "המטופל מתקשה להירדם ומבקש להנמיך את האור" },
+      text: `העברתי בקשה להנמיך את האור בחדר שלך. רוצה שנעשה גם תרגיל נשימה קצר לפני השינה?`,
+      chips: ["נשימה מרגיעה", "לא תודה", "מוזיקה שקטה"],
+    };
+  }
+
+  for (const r of RULES) {
+    if (r.any.some(k => t.includes(norm(k)))) {
+      if (r.offer) pendingOffer = r.offer.yes; else pendingOffer = null;
+      return {
+        id: r.id, level: r.level, call: r.call, action: r.action,
+        text: r.say(), chips: r.chips, highlight: r.highlight,
+      };
+    }
+  }
+  fbIdx = (fbIdx + 1) % FALLBACKS.length;
+  return { id: "fallback", level: "none", text: FALLBACKS[fbIdx], chips: ["אני צמא", "כואב לי", "בוא נדבר"] };
+}
+
+/* =========================================================
+   אווטאר: אנימציית פה (Lip-sync) וסנכרון מצבים
+   ========================================================= */
+const VISEMES = [
+  "M85 111q15 12 30 0q-15 6 -30 0z",                    // סגור / חיוך דק
+  "M87 110q13 15 26 0q-13 9 -26 0z",                    // פתוח מעט
+  "M86 108q14 21 28 0q-14 13 -28 0z",                   // פתוח
+  "M84 107q16 25 32 0q-16 15 -32 0z",                   // רחב
+  "M92 107q8-5 16 0q5 10 -8 18q-13 -8 -8 -18z",         // עגול (או/ו)
+];
+const mouth = () => $("avMouth");
+let mouthTimer = null;
+function setMouth(i) { mouth().setAttribute("d", VISEMES[i]); }
+function startMouth() {
+  document.body.classList.add("speaking");
+  clearInterval(mouthTimer);
+  let last = -1;
+  mouthTimer = setInterval(() => {
+    let i;
+    do { i = 1 + Math.floor(Math.random() * 4); } while (i === last);
+    last = i;
+    setMouth(i);
+  }, 115);
+}
+function stopMouth() {
+  document.body.classList.remove("speaking");
+  clearInterval(mouthTimer); mouthTimer = null;
+  setMouth(0);
+}
+
+/* =========================================================
+   קול: דיבור (TTS) והאזנה (STT) דרך הדפדפן.
+   שדרוג אופציונלי: קול איכותי מהשרת (ElevenLabs / OpenAI).
+   ========================================================= */
+let voices = [];
+function pickVoice() {
+  const he = voices.filter(v => /^he/i.test(v.lang) || /hebrew|ivrit/i.test(v.name));
+  const female = he.find(v => /carmit|female|נשי|maya/i.test(v.name));
+  return female || he[0] || null;
+}
+function loadVoices() { voices = window.speechSynthesis ? speechSynthesis.getVoices() : []; }
+if (window.speechSynthesis) {
+  loadVoices();
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+let currentAudio = null;
+function stopSpeaking() {
+  try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch {}
+  if (currentAudio) { try { currentAudio.pause(); } catch {} currentAudio = null; }
+  stopMouth();
+}
+
+async function speak(text) {
+  stopSpeaking();
+  if (!profile.voice || !text) return;
+
+  // מסלול א׳: קול איכותי מהשרת (אופציונלי — איכות עברית טובה יותר)
+  if (SERVER_MODE && profile.serverVoice) {
+    try {
+      const b64 = await serverVoice(text);
+      if (b64) {
+        const a = new Audio("data:audio/mpeg;base64," + b64);
+        currentAudio = a;
+        a.onplay = startMouth;
+        a.onended = a.onerror = stopMouth;
+        await a.play();
+        return;
+      }
+    } catch (e) { console.warn("server voice failed, falling back", e); }
+  }
+
+  // מסלול ב׳: קול הדפדפן — מהיר, מקומי, בלי עלות
+  if (!window.speechSynthesis) return;
+  const u = new SpeechSynthesisUtterance(text);
+  const v = pickVoice();
+  if (v) u.voice = v;
+  u.lang = (v && v.lang) || "he-IL";
+  u.rate = 0.98; u.pitch = 1.1; u.volume = 1;
+  u.onstart = startMouth;
+  u.onend = stopMouth;
+  u.onerror = stopMouth;
+  u.onboundary = () => { /* מסייע ל-lip-sync בדפדפנים שתומכים */ };
+  speechSynthesis.speak(u);
+}
+
+/* ---------- האזנה ----------
+   שני מסלולים: Web Speech API בדפדפן, וגשר מקורי (MayaNative) באפליקציית
+   האנדרואיד — כי ל-WebView אין Web Speech API, ובלי הגשר הקול לא היה עובד
+   דווקא על הטאבלט שליד המיטה. אם שניהם חסרים, נופלים להקלדה. */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const NATIVE = (() => {
+  try { return (window.MayaNative && typeof window.MayaNative.start === "function") ? window.MayaNative : null; }
+  catch { return null; }
+})();
+let recog = null, listening = false, sawResult = false, nativeMode = false;
+
+function showListenUI() {
+  document.body.classList.add("listening");
+  $("listenOverlay").classList.add("show");
+  $("heardText").textContent = "דבר בקול רגיל, אין צורך למהר";
+  $("heardText").classList.add("dim");
+  $("talkLabel").textContent = "מקשיבה… לחץ לסיום";
+  setStatus("מאיה מקשיבה לך", true);
+}
+function setHeard(txt) {
+  if (!txt) return;
+  $("heardText").textContent = txt;
+  $("heardText").classList.remove("dim");
+}
+function heardSoFar() {
+  const el = $("heardText");
+  return el.classList.contains("dim") ? "" : el.textContent.trim();
+}
+function micError(code) {
+  if (code === "not-allowed" || code === "service-not-allowed") {
+    toast("צריך לאשר גישה למיקרופון");
+    say(`לא קיבלתי גישה למיקרופון. אפשר לאשר אותה בהגדרות, או פשוט להקליד לי — זה עובד בדיוק אותו דבר.`);
+  } else if (code === "no-speech") {
+    say(`לא שמעתי כלום. תנסה שוב, או תלחץ על אחד הכפתורים למטה — גם זה עובד.`);
+  } else if (code === "network") {
+    say(`נראה שהחיבור לרשת חלש כרגע. אפשר להקליד לי במקום, וזה יעבוד בדיוק אותו דבר.`);
+  }
+}
+
+/* המסלול המקורי של אנדרואיד */
+function startNative() {
+  let ok = true;
+  try { ok = NATIVE.available(); } catch { ok = false; }
+  if (!ok) {
+    toast("צריך לאשר גישה למיקרופון");
+    openTypeDialog();
+    return;
+  }
+  nativeMode = true;
+  listening = true;
+  showListenUI();
+  try { NATIVE.start(); } catch { endListenUI(); }
+}
+window.__mayaSpeech = function (kind, text) {
+  if (kind === "start") { listening = true; showListenUI(); return; }
+  if (kind === "partial") { setHeard(text); return; }
+  if (kind === "final") {
+    const t = (text || "").trim() || heardSoFar();
+    endListenUI();
+    if (t) handleInput(t); else micError("no-speech");
+    return;
+  }
+  if (kind === "error") {
+    const partial = heardSoFar();
+    endListenUI();
+    // אם כבר שמענו משהו, עדיף לענות עליו מלבקש מהמטופל לחזור על עצמו
+    if (partial) handleInput(partial); else micError(text);
+    return;
+  }
+  if (kind === "permission") {
+    if (text === "granted") toast("המיקרופון אושר — אפשר לדבר איתי");
+  }
+};
+
+function startListening() {
+  if (listening) { stopListening(); return; }
+  stopSpeaking();
+  if (NATIVE) return startNative();
+  if (!SR) { openTypeDialog(); toast("הדפדפן הזה לא תומך בזיהוי דיבור — אפשר להקליד"); return; }
+
+  recog = new SR();
+  recog.lang = "he-IL";
+  recog.interimResults = true;
+  recog.continuous = false;
+  recog.maxAlternatives = 1;
+  sawResult = false;
+
+  recog.onstart = () => { listening = true; showListenUI(); };
+  recog.onresult = e => {
+    let txt = "";
+    for (let i = e.resultIndex; i < e.results.length; i++) txt += e.results[i][0].transcript;
+    txt = txt.trim();
+    setHeard(txt);
+    if (e.results[e.results.length - 1].isFinal && txt) {
+      sawResult = true;
+      endListenUI();
+      handleInput(txt);
+    }
+  };
+  recog.onerror = e => {
+    const partial = heardSoFar();
+    sawResult = true;                 // מונע טיפול כפול ב-onend
+    endListenUI();
+    if (partial) handleInput(partial); else micError(e.error);
+  };
+  recog.onend = () => {
+    if (sawResult) { endListenUI(); return; }
+    const t = heardSoFar();
+    endListenUI();
+    if (t) handleInput(t);
+  };
+
+  try { recog.start(); } catch { endListenUI(); }
+}
+function stopListening() {
+  if (nativeMode) { try { NATIVE.stop(); } catch {} return; }
+  try { recog && recog.stop(); } catch {}
+}
+function endListenUI() {
+  listening = false;
+  nativeMode = false;
+  document.body.classList.remove("listening");
+  $("listenOverlay").classList.remove("show");
+  $("talkLabel").textContent = "דבר עם מאיה";
+}
+
+/* =========================================================
+   מוח: מקומי (הדגמה) או שרת (AI אמיתי)
+   ========================================================= */
+let supabase = null;
+async function initServer() {
+  const mod = await import("https://esm.sh/@supabase/supabase-js@2");
+  supabase = mod.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY);
+  let { data: { session } } = await supabase.auth.getSession();
+  if (!session) await supabase.auth.signInAnonymously();
+}
+
+async function askServer(text) {
+  const t0 = performance.now();
+  const { data, error } = await supabase.functions.invoke("maya-chat", {
+    body: {
+      mode: "chat",
+      message: text,
+      history: chat.slice(-8).map(m => ({ role: m.who === "me" ? "user" : "assistant", content: m.text })),
+      patient: { name: profile.name, ward: profile.ward, room: profile.room },
+      schedule: SCHEDULE.map(s => ({ time: s.t, item: s.n, status: s.st })),
+    },
+  });
+  lastLatency = Math.round(performance.now() - t0);
+  if (error) throw error;
+  return data;
+}
+
+async function serverVoice(text) {
+  const { data, error } = await supabase.functions.invoke("maya-chat", { body: { mode: "tts", text } });
+  if (error) throw error;
+  return data && data.audio;
+}
+
+/* =========================================================
+   זרימת השיחה
+   ========================================================= */
+function setStatus(t, live) {
+  const el = $("statusLine");
+  el.textContent = t;
+  el.classList.toggle("live", !!live);
+}
+function say(text, heard) {
+  $("bubble").innerHTML = (heard ? `<span class="heard">שמעתי: “${esc(heard)}”</span>` : "") + esc(text);
+  chat.push({ who: "maya", text, at: Date.now() });
+  saveJSON(K_CHAT, chat = chat.slice(-60));
+  renderChat();
+  setStatus(profile.voice ? "מאיה מדברת…" : "מאיה ענתה", true);
+  speak(text);
+  setTimeout(() => { if (!document.body.classList.contains("speaking")) setStatus(idleStatus()); }, 600);
+}
+function idleStatus() {
+  return profile.name ? `${profile.name}, אני כאן — לחץ ודבר` : "אני כאן — לחץ ודבר איתי";
+}
+function thinking() {
+  $("bubble").innerHTML = `<span class="dots"><span></span><span></span><span></span></span>`;
+  setStatus("מאיה חושבת…", true);
+}
+
+async function handleInput(text) {
+  const clean = String(text || "").trim();
+  if (!clean) return;
+  chat.push({ who: "me", text: clean, at: Date.now() });
+  saveJSON(K_CHAT, chat = chat.slice(-60));
+  renderChat();
+  thinking();
+
+  let res;
+  if (SERVER_MODE && supabase) {
+    try {
+      const d = await askServer(clean);
+      res = {
+        id: "server", text: d.say, level: d.level || "none",
+        call: d.call_title ? { title: d.call_title, note: d.call_note || clean } : null,
+        chips: Array.isArray(d.chips) ? d.chips.slice(0, 3) : null,
+        action: d.action || null,
+        serverCreated: true,       // הקריאה כבר נפתחה במסד הנתונים על ידי הפונקציה
+      };
+    } catch (e) {
+      console.error(e);
+      res = matchRule(clean);           // נפילה חזרה למנוע המקומי — מאיה לא נשארת שותקת
+      toast("החיבור לשרת נכשל — מאיה עונה במצב מקומי");
+    }
+  } else {
+    // המתנה קצרה כדי שהשיחה תרגיש טבעית (ולא מיידית-רובוטית)
+    await new Promise(r => setTimeout(r, 430));
+    res = matchRule(clean);
+  }
+
+  say(res.text, clean);
+  if (res.chips) renderChips(res.chips.map(c => ({ e: "💬", t: c, say: c })));
+  if (res.call && res.level !== "none") {
+    pushCall(res.level, res.call.title, res.call.note, { serverCreated: !!res.serverCreated });
+  }
+  if (res.action === "breath") setTimeout(startBreathing, 900);
+  if (res.action === "music") startMusic();
+  if (res.action === "music_off") stopMusic();
+  if (res.highlight === "sched") $("schedPanel").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/* =========================================================
+   קריאות לצוות
+   ========================================================= */
+const LEVEL_META = {
+  urgent:  { icon: "🚨", eta: "צוות בדרך אליך — עד דקה", title: "קריאה דחופה נשלחה", cls: "urgent" },
+  nurse:   { icon: "🔔", eta: "האחות התורנית קיבלה את הקריאה", title: "האחות נקראה", cls: "" },
+  service: { icon: "✅", eta: "הבקשה בתור אצל הצוות", title: "ההודעה נשלחה לצוות", cls: "" },
+  info:    { icon: "📨", eta: "נרשם בתחנת האחיות", title: "התזכורת נשלחה", cls: "" },
+};
+let undoTimer = null, lastCallId = null;
+
+function pushCall(level, title, note, opts = {}) {
+  const call = {
+    id: "c" + Date.now() + Math.floor(Math.random() * 99),
+    level, title, note: note || "",
+    patient: profile.name || "מטופל/ת", ward: profile.ward, room: profile.room,
+    status: "sent", at: Date.now(),
+  };
+  calls.unshift(call);
+  saveJSON(K_CALLS, calls = calls.slice(0, 40));
+  renderCalls();
+  broadcast({ type: "call", call });
+  sendWebhook(call);
+  // כשהתשובה הגיעה ממנוע ה-AI, השרת כבר פתח את הקריאה במסד הנתונים.
+  // בכל מסלול אחר (כפתור החירום, או נפילה חזרה למנוע המקומי) פותחים אותה כאן —
+  // דרך השרת, כדי שתחנת האחיות תראה אותה גם היא.
+  if (SERVER_MODE && supabase && !opts.serverCreated) {
+    supabase.functions.invoke("maya-chat", {
+      body: {
+        mode: "call", level, title, note: call.note,
+        patient: { name: profile.name, ward: profile.ward, room: profile.room },
+      },
+    }).then(({ error }) => { if (error) console.warn("open call failed", error); })
+      .catch(e => console.warn("open call failed", e));
+  }
+
+  const m = LEVEL_META[level] || LEVEL_META.service;
+  lastCallId = call.id;
+  $("callCard").className = "co-card" + (m.cls ? " " + m.cls : "");
+  $("callIcon").textContent = m.icon;
+  $("callTitle").textContent = m.title;
+  $("callText").textContent = title;
+  $("callEta").textContent = m.eta;
+  $("callOverlay").classList.add("show");
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(() => { $("btnUndoCall").style.display = "none"; }, 8000);
+  $("btnUndoCall").style.display = "";
+  if (navigator.vibrate) { try { navigator.vibrate(level === "urgent" ? [40, 60, 40] : 30); } catch {} }
+}
+
+function undoCall() {
+  if (!lastCallId) return;
+  calls = calls.filter(c => c.id !== lastCallId);
+  saveJSON(K_CALLS, calls);
+  broadcast({ type: "cancel", id: lastCallId });
+  lastCallId = null;
+  renderCalls();
+  $("callOverlay").classList.remove("show");
+  say("ביטלתי את הקריאה. אם תשנה את דעתך — לחיצה אחת וזה חוזר.");
+}
+
+function sendWebhook(call) {
+  const url = (profile.webhook || "").trim();
+  if (!url) return;
+  // אב-טיפוס: הדגמה של התראה לתחנת האחיות. במערכת אמיתית זה נשלח מהשרת.
+  fetch(url, {
+    method: "POST", mode: "cors", headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      source: "maya", level: call.level, title: call.title, note: call.note,
+      patient: call.patient, ward: call.ward, room: call.room, at: new Date(call.at).toISOString(),
+    }),
+  }).catch(() => {});
+}
+
+/* ערוץ בין המיטה לתחנת האחיות (באותו דפדפן — לצורכי הדגמה) */
+let bc = null;
+try { bc = new BroadcastChannel("maya-station"); } catch {}
+function broadcast(msg) { try { bc && bc.postMessage(msg); } catch {} }
+if (bc) bc.onmessage = e => {
+  const m = e.data || {};
+  if (m.type === "status" && m.id) {
+    const c = calls.find(x => x.id === m.id);
+    if (!c) return;
+    c.status = m.status;
+    // חותמות הזמן נוצרות בתחנה — שומרים אותן גם כאן, אחרת כתיבה מהמיטה תמחק אותן
+    if (m.ackAt) c.ackAt = m.ackAt;
+    if (m.doneAt) c.doneAt = m.doneAt;
+    saveJSON(K_CALLS, calls);
+    renderCalls();
+    if (m.status === "ack") say("עדכון טוב: הצוות ראה את הקריאה שלך ואישר שהם מטפלים בזה.");
+    if (m.status === "done") say("הצוות סימן שהבקשה שלך טופלה. אם משהו עוד חסר — תגיד לי ואני מבקשת שוב.");
+  }
+};
+
+// גיבוי, אם הודעת הערוץ לא הגיעה: משקפים עדכוני סטטוס שנכתבו מכרטיסייה אחרת
+window.addEventListener("storage", e => {
+  if (e.key !== K_CALLS) return;
+  let changed = false;
+  loadJSON(K_CALLS, []).forEach(n => {
+    const c = calls.find(x => x.id === n.id);
+    if (c && c.status !== n.status) {
+      c.status = n.status; c.ackAt = n.ackAt || c.ackAt; c.doneAt = n.doneAt || c.doneAt;
+      changed = true;
+    }
+  });
+  if (changed) renderCalls();
+});
+
+/* =========================================================
+   נשימה מרגיעה (4-7-8 בגרסה עדינה)
+   ========================================================= */
+let breathTimer = null, breathRound = 0;
+function startBreathing() {
+  breathRound = 0;
+  $("breathOverlay").classList.add("show");
+  runBreathPhase();
+}
+function runBreathPhase() {
+  const phases = [
+    { w: "שאיפה דרך האף", s: 4, scale: 1.32 },
+    { w: "החזק בעדינות", s: 4, scale: 1.32 },
+    { w: "נשיפה איטית מהפה", s: 6, scale: 0.82 },
+  ];
+  let pi = 0;
+  const circle = $("breathCircle");
+  const tick = () => {
+    if (!$("breathOverlay").classList.contains("show")) return;
+    const p = phases[pi];
+    $("breathWord").textContent = p.w;
+    circle.style.transitionDuration = p.s + "s";
+    circle.style.transform = `scale(${p.scale})`;
+    if (profile.voice && pi === 0) speak(p.w);
+    $("breathCount").textContent = `סבב ${breathRound + 1} מתוך 4 · אם משהו לא מרגיש טוב, עוצרים מיד`;
+    breathTimer = setTimeout(() => {
+      pi++;
+      if (pi >= phases.length) {
+        pi = 0; breathRound++;
+        if (breathRound >= 4) { stopBreathing(true); return; }
+      }
+      tick();
+    }, p.s * 1000);
+  };
+  tick();
+}
+function stopBreathing(finished) {
+  clearTimeout(breathTimer);
+  $("breathOverlay").classList.remove("show");
+  $("breathCircle").style.transform = "scale(1)";
+  if (finished) say(`סיימנו, וזה היה נהדר. שים לב איך הגוף שקט יותר עכשיו. אנחנו יכולים לחזור על זה בכל פעם שתרצה — פשוט תגיד לי.`);
+}
+
+/* =========================================================
+   צלילים מרגיעים (Web Audio — בלי קבצים חיצוניים)
+   ========================================================= */
+let actx = null, musicNodes = null;
+function startMusic() {
+  stopMusic();
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const master = actx.createGain();
+    master.gain.value = 0;
+    const lp = actx.createBiquadFilter();
+    lp.type = "lowpass"; lp.frequency.value = 900;
+    master.connect(lp); lp.connect(actx.destination);
+    const freqs = [174.6, 220, 261.6, 329.6];   // אקורד רך ופתוח
+    const oscs = freqs.map((f, i) => {
+      const o = actx.createOscillator();
+      o.type = i % 2 ? "sine" : "triangle";
+      o.frequency.value = f;
+      const g = actx.createGain();
+      g.gain.value = 0.16 / (i + 1);
+      // תנודה איטית שגורמת לצליל "לנשום"
+      const lfo = actx.createOscillator();
+      lfo.frequency.value = 0.05 + i * 0.017;
+      const lg = actx.createGain(); lg.gain.value = 0.06;
+      lfo.connect(lg); lg.connect(g.gain);
+      o.connect(g); g.connect(master);
+      o.start(); lfo.start();
+      return [o, lfo];
+    });
+    master.gain.linearRampToValueAtTime(0.5, actx.currentTime + 2.5);
+    musicNodes = { master, oscs };
+  } catch (e) { console.warn("audio", e); }
+}
+function stopMusic() {
+  if (!musicNodes) return;
+  const { master, oscs } = musicNodes;
+  musicNodes = null;
+  try {
+    master.gain.linearRampToValueAtTime(0, actx.currentTime + 0.9);
+    setTimeout(() => oscs.forEach(pair => pair.forEach(o => { try { o.stop(); } catch {} })), 1100);
+  } catch {}
+}
+
+/* =========================================================
+   רינדור
+   ========================================================= */
+function renderSchedule() {
+  $("schedList").innerHTML = SCHEDULE.map(s => `
+    <div class="sched-row${s.st === "done" ? " is-done" : ""}">
+      <span class="t">${esc(s.t)}</span><span class="e">${s.e}</span>
+      <span class="n">${esc(s.n)}</span>
+      <span class="st ${s.st}">${ST_LABEL[s.st]}</span>
+    </div>`).join("");
+}
+const dtFmt = new Intl.DateTimeFormat("he-IL", { hour: "2-digit", minute: "2-digit" });
+const ST_CALL = { sent: ["נשלח", ""], ack: ["הצוות אישר", "ack"], done: ["טופל", "done"] };
+function renderCalls() {
+  if (!calls.length) {
+    $("callList").innerHTML = `<div class="empty">עוד לא ביקשת שום דבר.<br>כשתבקש — כל קריאה תופיע כאן, ותראה מה קרה איתה.</div>`;
+    return;
+  }
+  $("callList").innerHTML = calls.slice(0, 8).map(c => {
+    const st = ST_CALL[c.status] || ST_CALL.sent;
+    return `<div class="call-row">
+      <span class="bar lv-${c.level}"></span>
+      <div class="info"><div class="n">${esc(c.title)}</div>
+        <div class="d">${dtFmt.format(new Date(c.at))} · חדר ${esc(c.room)}</div></div>
+      <span class="badge ${st[1]}">${st[0]}</span>
+    </div>`;
+  }).join("");
+}
+function renderChips(list) {
+  $("chips").innerHTML = (list || CHIPS).map((c, i) =>
+    `<button class="chip" data-i="${i}"><span class="e">${c.e}</span><span>${esc(c.t)}</span></button>`).join("");
+  $("chips")._data = list || CHIPS;
+}
+function renderChat() {
+  $("trBody").innerHTML = chat.slice(-24).map(m =>
+    `<div class="msg ${m.who === "me" ? "me" : "maya"}">${esc(m.text)}</div>`).join("")
+    || `<div class="empty">השיחה תופיע כאן</div>`;
+  const b = $("trBody"); b.scrollTop = b.scrollHeight;
+}
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2800);
+}
+
+/* =========================================================
+   הגדרות
+   ========================================================= */
+function applyProfile() {
+  document.body.classList.toggle("night", !!profile.night);
+  document.documentElement.className = profile.fs || "";
+  $("btnNight").textContent = profile.night ? "☀️" : "🌙";
+  document.querySelector('meta[name=theme-color]').setAttribute("content", profile.night ? "#0a1a22" : "#0d9488");
+}
+function openSettings() {
+  $("setName").value = profile.name;
+  $("setWard").value = profile.ward;
+  $("setRoom").value = profile.room;
+  $("setWebhook").value = profile.webhook;
+  $("tglVoice").classList.toggle("on", !!profile.voice);
+  $("tglNight").classList.toggle("on", !!profile.night);
+  $("tglServerVoice").classList.toggle("on", !!profile.serverVoice);
+  [...$("segFont").children].forEach(b => b.classList.toggle("on", (b.dataset.fs || "") === (profile.fs || "")));
+  const v = pickVoice();
+  $("devLine").innerHTML =
+    `מצב: ${SERVER_MODE ? "שרת מחובר" : "הדגמה מקומית"}` +
+    ` · זיהוי דיבור: ${NATIVE ? "מנוע אנדרואיד" : SR ? "מנוע הדפדפן" : "לא נתמך — הקלדה בלבד"}` +
+    ` · קול עברי: ${v ? esc(v.name) : "לא נמצא בדפדפן"}` +
+    (lastLatency ? ` · תגובה אחרונה: ${lastLatency} ms` : "");
+  $("dlgSettings").showModal();
+}
+function saveSettings() {
+  profile.name = $("setName").value.trim();
+  profile.ward = $("setWard").value.trim() || "פנימית א׳";
+  profile.room = $("setRoom").value.trim() || "—";
+  profile.webhook = $("setWebhook").value.trim();
+  saveJSON(K_PROFILE, profile);
+  applyProfile();
+  setStatus(idleStatus());
+  $("dlgSettings").close();
+  toast("נשמר ✓");
+}
+
+function openTypeDialog() { $("typeInput").value = ""; $("dlgType").showModal(); setTimeout(() => $("typeInput").focus(), 60); }
+
+/* =========================================================
+   חיווט
+   ========================================================= */
+$("modeTag").textContent = SERVER_MODE ? "מחוברת לשרת ●" : "גרסת הדגמה";
+$("modeTag").classList.toggle("live", SERVER_MODE);
+if (SERVER_MODE) initServer().catch(e => { console.error(e); toast("החיבור לשרת נכשל — עובדים במצב מקומי"); });
+
+$("btnTalk").addEventListener("click", startListening);
+$("btnStopListen").addEventListener("click", stopListening);
+$("btnType").addEventListener("click", openTypeDialog);
+$("btnSendType").addEventListener("click", () => {
+  const t = $("typeInput").value.trim();
+  $("dlgType").close();
+  if (t) handleInput(t);
+});
+$("typeInput").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("btnSendType").click(); }
+});
+
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip");
+  if (!b) return;
+  const d = ($("chips")._data || CHIPS)[+b.dataset.i];
+  if (d) handleInput(d.say || d.t);
+});
+
+function callNurseNow() {
+  stopSpeaking();
+  pushCall("urgent", "המטופל לחץ על כפתור קריאה לאחות", "קריאה ישירה מהמיטה דרך מאיה");
+  say(`קראתי לאחות עכשיו, והקריאה שלך מסומנת כדחופה. בבקשה אל תקום ואל תזוז לבד — אני נשארת איתך עד שהם מגיעים. אתה יכול לספר לי מה קורה, וזה יעזור להם להתכונן.`);
+}
+$("btnNurse").addEventListener("click", callNurseNow);
+
+$("btnCloseCall").addEventListener("click", () => $("callOverlay").classList.remove("show"));
+$("btnUndoCall").addEventListener("click", undoCall);
+$("btnStopBreath").addEventListener("click", () => stopBreathing(false));
+
+$("btnNight").addEventListener("click", () => {
+  profile.night = !profile.night; saveJSON(K_PROFILE, profile); applyProfile();
+});
+$("btnSettings").addEventListener("click", openSettings);
+$("btnSaveSettings").addEventListener("click", saveSettings);
+$("tglVoice").addEventListener("click", () => {
+  profile.voice = !profile.voice; saveJSON(K_PROFILE, profile);
+  $("tglVoice").classList.toggle("on", profile.voice);
+  if (!profile.voice) stopSpeaking();
+});
+$("tglNight").addEventListener("click", () => {
+  profile.night = !profile.night; saveJSON(K_PROFILE, profile);
+  $("tglNight").classList.toggle("on", profile.night); applyProfile();
+});
+$("tglServerVoice").addEventListener("click", () => {
+  profile.serverVoice = !profile.serverVoice; saveJSON(K_PROFILE, profile);
+  $("tglServerVoice").classList.toggle("on", profile.serverVoice);
+  if (profile.serverVoice && !SERVER_MODE) toast("קול שרת דורש חיבור ל-backend");
+});
+$("segFont").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  profile.fs = b.dataset.fs || ""; saveJSON(K_PROFILE, profile); applyProfile();
+  [...$("segFont").children].forEach(x => x.classList.toggle("on", x === b));
+});
+$("btnResetDemo").addEventListener("click", () => {
+  calls = []; chat = [];
+  localStorage.removeItem(K_CALLS); localStorage.removeItem(K_CHAT);
+  broadcast({ type: "reset" });
+  renderCalls(); renderChat(); renderChips();
+  $("dlgSettings").close();
+  toast("ההדגמה אופסה");
+});
+document.querySelectorAll("[data-close]").forEach(b =>
+  b.addEventListener("click", () => b.closest("dialog").close()));
+
+// עצירת קול כשמסתירים את האפליקציה — כדי שמאיה לא תדבר לחדר ריק
+document.addEventListener("visibilitychange", () => { if (document.hidden) { stopSpeaking(); stopListening(); } });
+
+/* ---------- הפעלה ---------- */
+renderSchedule();
+renderCalls();
+renderChips();
+renderChat();
+applyProfile();
+setMouth(0);
+
+const greeting = profile.name
+  ? `שלום ${profile.name}, טוב לראות אותך. אני מאיה, ואני כאן כדי לעזור בדברים הקטנים — כוס מים, שמיכה, להבין מה מתוכנן לך היום, או פשוט לדבר. אם משהו כואב או מדאיג אותך — תגיד לי ואני קוראת לצוות מיד.`
+  : `שלום, אני מאיה. אני כאן בשבילך כל היום וכל הלילה — לבקש כוס מים, לקרוא לאחות, להסביר מה מתוכנן לך היום, או פשוט לדבר כשמשעמם. אם משהו כואב או מדאיג אותך — תגיד לי מיד ואני קוראת לצוות.`;
+$("bubble").innerHTML = esc(greeting);
+chat.push({ who: "maya", text: greeting, at: Date.now() });
+saveJSON(K_CHAT, chat = chat.slice(-60));
+renderChat();
+setStatus(idleStatus());
+
+// הקול נדלק רק אחרי אינטראקציה ראשונה (מגבלת דפדפנים) — הלחיצה הראשונה תפעיל אותו
+let greeted = false;
+function greetOnce() {
+  if (greeted) return; greeted = true;
+  if (profile.voice) speak(greeting);
+}
+document.addEventListener("pointerdown", greetOnce, { once: true });
+document.addEventListener("keydown", greetOnce, { once: true });
+
+// קיצור מסך הבית "קרא לאחות" (manifest shortcuts) — פותח קריאה מיד עם הפתיחה
+if (new URLSearchParams(location.search).get("call") === "nurse") {
+  history.replaceState(null, "", location.pathname);
+  setTimeout(callNurseNow, 400);
+}
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
