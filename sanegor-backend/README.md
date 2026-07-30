@@ -95,9 +95,20 @@ sudo apt install tesseract-ocr tesseract-ocr-heb tesseract-ocr-eng \
 
 ## הרצה כשרת ביתי
 
+התקנה חד-פעמית של תלויות המערכת (Debian / Ubuntu / Kali):
+
+```bash
+./scripts/setup-dev-linux.sh
+```
+
+ואז:
+
 ```bash
 ./scripts/serve-lan.sh
 ```
+
+**Linux נייטיב עדיף על WSL2 לפרויקט הזה** — אין מלכודת רשת, Docker רץ ללא
+שכבת VM, וזו אותה סביבה שאליה פורסים. אם יש dual boot, זה הצד לעבוד בו.
 
 מאזין על כל הממשקים, מזהה WSL2 ומדפיס את הכתובת שצריך לתת לאפליקציה, כולל
 מה להגדיר ב-Windows כדי שהטלפון יוכל להגיע.
