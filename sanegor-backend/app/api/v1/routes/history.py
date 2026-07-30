@@ -19,9 +19,7 @@ from app.schemas.common import MessageResponse, Page
 from app.services.audit import AuditService
 from app.services.chat import ChatService
 
-router = APIRouter(
-    prefix="/history", tags=["history"], dependencies=[Depends(rate_limit_default)]
-)
+router = APIRouter(prefix="/history", tags=["history"], dependencies=[Depends(rate_limit_default)])
 
 ChatDep = Annotated[ChatService, Depends(get_chat_service)]
 AuditDep = Annotated[AuditService, Depends(get_audit_service)]
@@ -52,9 +50,7 @@ async def list_conversations(
     )
 
 
-@router.get(
-    "/{conversation_id}", response_model=ConversationDetail, summary="שיחה מלאה"
-)
+@router.get("/{conversation_id}", response_model=ConversationDetail, summary="שיחה מלאה")
 async def get_conversation(
     conversation_id: str,
     user: CurrentUser,
@@ -83,15 +79,11 @@ async def search_conversation(
     q: Annotated[str, Query(min_length=1, max_length=200)],
 ) -> list[MessageOut]:
     """Find messages inside one conversation."""
-    messages = await service.search_messages(
-        conversation_id, user_id=str(user.id), query=q
-    )
+    messages = await service.search_messages(conversation_id, user_id=str(user.id), query=q)
     return [MessageOut.model_validate(m) for m in messages]
 
 
-@router.patch(
-    "/{conversation_id}", response_model=ConversationOut, summary="עדכון שיחה"
-)
+@router.patch("/{conversation_id}", response_model=ConversationOut, summary="עדכון שיחה")
 async def update_conversation(
     conversation_id: str,
     payload: UpdateConversationRequest,
@@ -109,9 +101,7 @@ async def update_conversation(
     return ConversationOut.model_validate(conversation)
 
 
-@router.delete(
-    "/{conversation_id}", response_model=MessageResponse, summary="מחיקת שיחה"
-)
+@router.delete("/{conversation_id}", response_model=MessageResponse, summary="מחיקת שיחה")
 async def delete_conversation(
     conversation_id: str,
     user: CurrentUser,
@@ -129,9 +119,7 @@ async def delete_conversation(
     return MessageResponse(message="השיחה נמחקה")
 
 
-@router.post(
-    "/messages/{message_id}/pin", response_model=MessageOut, summary="נעיצת הודעה"
-)
+@router.post("/messages/{message_id}/pin", response_model=MessageOut, summary="נעיצת הודעה")
 async def pin_message(
     message_id: str,
     payload: PinMessageRequest,

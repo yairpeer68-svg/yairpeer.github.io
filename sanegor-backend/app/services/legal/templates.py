@@ -12,7 +12,7 @@ user as a citation; only retrieved corpus material can be cited.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -92,9 +92,7 @@ class LegalTemplate:
 
 
 # --------------------------------------------------------------- shared fields
-def _party_fields(
-    first_label: str, second_label: str
-) -> tuple[TemplateField, ...]:
+def _party_fields(first_label: str, second_label: str) -> tuple[TemplateField, ...]:
     """The identity block both sides of every agreement need."""
     return (
         TemplateField("party_a_name", f"{first_label} — שם מלא", required=True),
@@ -113,9 +111,7 @@ _JURISDICTION = TemplateField(
     options=("תל אביב", "ירושלים", "חיפה", "באר שבע", "מרכז (לוד)", "בוררות"),
 )
 _SIGN_DATE = TemplateField("sign_date", "תאריך חתימה", FieldType.DATE)
-_EXTRA_TERMS = TemplateField(
-    "extra_terms", "תנאים נוספים שברצונך לכלול", FieldType.MULTILINE
-)
+_EXTRA_TERMS = TemplateField("extra_terms", "תנאים נוספים שברצונך לכלול", FieldType.MULTILINE)
 
 
 # ------------------------------------------------------------------- contracts
@@ -137,9 +133,7 @@ CONTRACT_TEMPLATES: dict[str, LegalTemplate] = {
                 TemplateField("payment_day", "יום התשלום בחודש", FieldType.NUMBER),
                 TemplateField("start_date", "תחילת התקופה", FieldType.DATE, True),
                 TemplateField("end_date", "סיום התקופה", FieldType.DATE, True),
-                TemplateField(
-                    "option_period", "תקופת אופציה (חודשים)", FieldType.NUMBER
-                ),
+                TemplateField("option_period", "תקופת אופציה (חודשים)", FieldType.NUMBER),
                 TemplateField("deposit", "פיקדון / ערבות", FieldType.CURRENCY),
                 TemplateField(
                     "guarantee_type",
@@ -269,13 +263,9 @@ CONTRACT_TEMPLATES: dict[str, LegalTemplate] = {
             icon="lock",
             fields=(
                 *_party_fields("מוסר המידע", "מקבל המידע"),
-                TemplateField(
-                    "mutual", "הדדי (שני הצדדים מוסרים מידע)", FieldType.BOOLEAN
-                ),
+                TemplateField("mutual", "הדדי (שני הצדדים מוסרים מידע)", FieldType.BOOLEAN),
                 TemplateField("purpose", "מטרת מסירת המידע", FieldType.MULTILINE, True),
-                TemplateField(
-                    "confidential_scope", "סוגי המידע החסוי", FieldType.MULTILINE
-                ),
+                TemplateField("confidential_scope", "סוגי המידע החסוי", FieldType.MULTILINE),
                 TemplateField("duration_years", "תקופת הסודיות (שנים)", FieldType.NUMBER),
                 TemplateField("penalty", "פיצוי מוסכם בגין הפרה", FieldType.CURRENCY),
                 _JURISDICTION,
@@ -465,7 +455,11 @@ CONTRACT_TEMPLATES: dict[str, LegalTemplate] = {
                 TemplateField("site_address", "כתובת האתר", required=True),
                 TemplateField("works_description", "תיאור העבודות", FieldType.MULTILINE, True),
                 TemplateField("price", "התמורה הכוללת", FieldType.CURRENCY, True),
-                TemplateField("payment_milestones", "לוח תשלומים לפי אבני דרך", FieldType.MULTILINE),
+                TemplateField(
+                    "payment_milestones",
+                    "לוח תשלומים לפי אבני דרך",
+                    FieldType.MULTILINE,
+                ),
                 TemplateField("start_date", "מועד תחילת עבודות", FieldType.DATE),
                 TemplateField("completion_date", "מועד סיום", FieldType.DATE),
                 TemplateField("delay_penalty", "פיצוי בגין איחור ליום", FieldType.CURRENCY),
@@ -720,8 +714,7 @@ LETTER_TEMPLATES: dict[str, LegalTemplate] = {
             legal_notes=(
                 "תצהיר טעון אימות חתימה בפני עורך דין כדי שיהיה בעל תוקף ראייתי",
                 "הצהרת שקר בתצהיר היא עבירה פלילית",
-                "יש להצהיר רק על עובדות בידיעה אישית ולסמן מפורשות מה נאמר "
-                "על סמך מידע ואמונה",
+                "יש להצהיר רק על עובדות בידיעה אישית ולסמן מפורשות מה נאמר " "על סמך מידע ואמונה",
             ),
         ),
         LegalTemplate(
@@ -748,8 +741,7 @@ LETTER_TEMPLATES: dict[str, LegalTemplate] = {
                 "סיכום והסעד המבוקש",
             ),
             legal_notes=(
-                "לכתב הגנה קיים מועד קצוב מיום ההמצאה; איחור עלול להוביל לפסק דין "
-                "בהיעדר הגנה",
+                "לכתב הגנה קיים מועד קצוב מיום ההמצאה; איחור עלול להוביל לפסק דין " "בהיעדר הגנה",
                 "עובדה בכתב התביעה שלא הוכחשה במפורש עלולה להיחשב כמוכחת",
                 "טענות מקדמיות יש להעלות בהזדמנות הראשונה",
                 "טיוטה זו אינה תחליף לייצוג ומחייבת בדיקה של עורך דין לפני הגשה",

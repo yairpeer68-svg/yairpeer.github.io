@@ -90,7 +90,7 @@ class RagPipeline:
         try:
             embedding = await self._embeddings.embed_one(question)
             dense = await self._retriever.dense_search(embedding, limit=top_k, filters=filters)
-        except Exception as exc:  # noqa: BLE001 - degrade, never fail the answer
+        except Exception as exc:
             logger.warning("rag_dense_failed", error=str(exc))
             dense = []
             degraded_reason: str | None = "dense_unavailable"
@@ -98,10 +98,8 @@ class RagPipeline:
             degraded_reason = None
 
         try:
-            lexical = await self._retriever.lexical_search(
-                question, limit=top_k, filters=filters
-            )
-        except Exception as exc:  # noqa: BLE001
+            lexical = await self._retriever.lexical_search(question, limit=top_k, filters=filters)
+        except Exception as exc:
             logger.warning("rag_lexical_failed", error=str(exc))
             lexical = []
             degraded_reason = degraded_reason or "lexical_unavailable"

@@ -26,7 +26,6 @@ from app.core.config import get_settings
 from app.core.errors import AppError, AuthenticationError
 from app.core.logging import get_logger
 from app.core.security import TokenService
-from app.services.ai.deepseek import DeepSeekClient
 from app.services.auth import AuthService
 from app.services.chat import ChatService
 from app.services.rag.pipeline import RagPipeline
@@ -84,9 +83,7 @@ async def chat_socket(websocket: WebSocket) -> None:
                         {"type": "error", "code": "busy", "message": "תשובה כבר בהפקה"},
                     )
                     continue
-                generation = asyncio.create_task(
-                    _generate(websocket, frame, user_id=user_id)
-                )
+                generation = asyncio.create_task(_generate(websocket, frame, user_id=user_id))
             else:
                 await _send(websocket, {"type": "error", "code": "unknown_frame"})
     except WebSocketDisconnect:
@@ -141,7 +138,7 @@ async def _generate(websocket: WebSocket, frame: dict[str, Any], *, user_id: str
         raise
     except AppError as exc:
         await _send(websocket, {"type": "error", "code": exc.code, "message": exc.message})
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("ws_generation_failed", error=str(exc))
         await _send(websocket, {"type": "error", "code": "internal_error"})
 

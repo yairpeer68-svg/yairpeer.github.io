@@ -33,14 +33,17 @@ os.environ.update(
     }
 )
 
-import httpx  # noqa: E402
-from httpx import ASGITransport  # noqa: E402
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine  # noqa: E402
-
-from app.core.config import get_settings  # noqa: E402
-from app.db.base import Base  # noqa: E402
-from app.db import models  # noqa: E402,F401 - registers tables
-from app.services.ai.embeddings import HashingEmbeddings  # noqa: E402
+import httpx
+from app.core.config import get_settings
+from app.db import models  # noqa: F401 - registers tables
+from app.db.base import Base
+from app.services.ai.embeddings import HashingEmbeddings
+from httpx import ASGITransport
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
 
 @pytest.fixture(scope="session")
@@ -58,7 +61,7 @@ def _storage_dir(tmp_path_factory: pytest.TempPathFactory) -> str:
 
 
 @pytest.fixture
-def settings():  # noqa: ANN201
+def settings():
     get_settings.cache_clear()
     return get_settings()
 
@@ -66,9 +69,7 @@ def settings():  # noqa: ANN201
 @pytest.fixture
 async def engine() -> AsyncIterator[object]:
     """A fresh in-memory database per test."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:", echo=False, future=True
-    )
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False, future=True)
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
     yield engine
@@ -76,7 +77,7 @@ async def engine() -> AsyncIterator[object]:
 
 
 @pytest.fixture
-async def session(engine) -> AsyncIterator[AsyncSession]:  # noqa: ANN001
+async def session(engine) -> AsyncIterator[AsyncSession]:
     factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
     async with factory() as session:
         yield session
@@ -89,11 +90,10 @@ def embeddings() -> HashingEmbeddings:
 
 
 @pytest.fixture
-async def app(engine, settings):  # noqa: ANN001, ANN201
+async def app(engine, settings):
     """A fully wired app whose database points at the test engine."""
-    from sqlalchemy.ext.asyncio import async_sessionmaker
-
     from app.main import create_app
+    from sqlalchemy.ext.asyncio import async_sessionmaker
 
     application = create_app(settings)
 
@@ -105,7 +105,7 @@ async def app(engine, settings):  # noqa: ANN001, ANN201
                 bind=engine, class_=AsyncSession, expire_on_commit=False
             )
 
-        def session(self):  # noqa: ANN202
+        def session(self):
             from contextlib import asynccontextmanager
 
             @asynccontextmanager
@@ -148,7 +148,7 @@ async def app(engine, settings):  # noqa: ANN001, ANN201
 
 
 @pytest.fixture
-async def client(app) -> AsyncIterator[httpx.AsyncClient]:  # noqa: ANN001
+async def client(app) -> AsyncIterator[httpx.AsyncClient]:
     """HTTP client bound to the app, bypassing the lifespan."""
     async with httpx.AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"

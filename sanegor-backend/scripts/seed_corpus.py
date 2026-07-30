@@ -40,19 +40,18 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import func, select  # noqa: E402
-
-from app.core.config import get_settings  # noqa: E402
-from app.core.logging import configure_logging, get_logger  # noqa: E402
-from app.db.models.legal_source import (  # noqa: E402
+from app.core.config import get_settings
+from app.core.logging import configure_logging, get_logger
+from app.db.models.legal_source import (
     CourtLevel,
     LegalDomain,
     LegalSource,
     SourceType,
 )
-from app.db.session import Database  # noqa: E402
-from app.services.ai.embeddings import build_embedding_provider  # noqa: E402
-from app.services.rag.ingest import CorpusIngestor, SourceDraft  # noqa: E402
+from app.db.session import Database
+from app.services.ai.embeddings import build_embedding_provider
+from app.services.rag.ingest import CorpusIngestor, SourceDraft
+from sqlalchemy import func, select
 
 logger = get_logger("seed")
 
@@ -124,15 +123,11 @@ async def report_state() -> None:
         async with database.session() as session:
             rows = (
                 await session.execute(
-                    select(LegalSource.source_type, func.count()).group_by(
-                        LegalSource.source_type
-                    )
+                    select(LegalSource.source_type, func.count()).group_by(LegalSource.source_type)
                 )
             ).all()
             chunks = (
-                await session.execute(
-                    select(func.coalesce(func.sum(LegalSource.chunk_count), 0))
-                )
+                await session.execute(select(func.coalesce(func.sum(LegalSource.chunk_count), 0)))
             ).scalar_one()
 
         total = sum(int(c) for _, c in rows)
@@ -204,9 +199,7 @@ def main() -> int:
     parser.add_argument(
         "--force", action="store_true", help="re-embed sources whose content is unchanged"
     )
-    parser.add_argument(
-        "--check", action="store_true", help="report corpus state and exit"
-    )
+    parser.add_argument("--check", action="store_true", help="report corpus state and exit")
     args = parser.parse_args()
 
     settings = get_settings()
@@ -219,8 +212,7 @@ def main() -> int:
     if not args.files:
         parser.print_help()
         print(
-            "\nלא צורפו מקורות משפטיים למאגר בכוונה — יש לספק חקיקה ופסיקה "
-            "ממקור מורשה ועדכני.",
+            "\nלא צורפו מקורות משפטיים למאגר בכוונה — יש לספק חקיקה ופסיקה " "ממקור מורשה ועדכני.",
             file=sys.stderr,
         )
         return 1

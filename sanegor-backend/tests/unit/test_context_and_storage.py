@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.core.errors import UnsupportedMediaTypeError, ValidationError
 from app.services.ai.context import ContextBuilder, count_tokens, truncate_to_tokens
 from app.services.legal.templates import (
@@ -65,9 +64,7 @@ class TestContextBuilder:
             ("assistant", "תשובה ישנה מאוד " * 200),
             ("user", "קצר"),
         ]
-        messages, report = builder.build(
-            system_prompt="הוראות", history=history, question="שאלה"
-        )
+        messages, report = builder.build(system_prompt="הוראות", history=history, question="שאלה")
         assert report.dropped_messages >= 1
         assert messages[0].role == "system"
         assert messages[-1].content == "שאלה"
@@ -76,9 +73,7 @@ class TestContextBuilder:
 
     def test_budget_report_is_consistent(self) -> None:
         builder = ContextBuilder(10_000, 1_000)
-        _, report = builder.build(
-            system_prompt="הוראות ארוכות " * 50, history=[], question="שאלה"
-        )
+        _, report = builder.build(system_prompt="הוראות ארוכות " * 50, history=[], question="שאלה")
         assert report.used <= report.total
         assert report.remaining == report.total - report.used
 
@@ -121,26 +116,26 @@ class TestUploadValidation:
 
 
 class TestFileStorage:
-    async def test_save_and_read_round_trip(self, tmp_path) -> None:  # noqa: ANN001
+    async def test_save_and_read_round_trip(self, tmp_path) -> None:
         storage = FileStorage(tmp_path)
         stored = await storage.save(b"hello", owner_id="user-1", suffix=".txt")
 
         assert await storage.read(stored.storage_key) == b"hello"
         assert stored.size_bytes == 5
 
-    async def test_traversal_key_is_refused(self, tmp_path) -> None:  # noqa: ANN001
+    async def test_traversal_key_is_refused(self, tmp_path) -> None:
         storage = FileStorage(tmp_path)
         with pytest.raises(ValidationError):
             await storage.read("../../../etc/passwd")
 
-    async def test_delete_is_idempotent(self, tmp_path) -> None:  # noqa: ANN001
+    async def test_delete_is_idempotent(self, tmp_path) -> None:
         storage = FileStorage(tmp_path)
         stored = await storage.save(b"data", owner_id="user-1")
         await storage.delete(stored.storage_key)
         await storage.delete(stored.storage_key)
         assert not await storage.exists(stored.storage_key)
 
-    async def test_empty_upload_rejected(self, tmp_path) -> None:  # noqa: ANN001
+    async def test_empty_upload_rejected(self, tmp_path) -> None:
         with pytest.raises(ValidationError):
             await FileStorage(tmp_path).save(b"", owner_id="user-1")
 

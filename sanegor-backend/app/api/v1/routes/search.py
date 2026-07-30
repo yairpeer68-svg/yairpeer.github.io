@@ -32,9 +32,7 @@ from app.services.ai.embeddings import EmbeddingProvider
 from app.services.rag.pipeline import RagPipeline
 from app.services.rag.retriever import LegalRetriever, RetrievalFilters
 
-router = APIRouter(
-    prefix="/search", tags=["search"], dependencies=[Depends(rate_limit_default)]
-)
+router = APIRouter(prefix="/search", tags=["search"], dependencies=[Depends(rate_limit_default)])
 
 RagDep = Annotated[RagPipeline, Depends(get_rag_pipeline)]
 EmbeddingsDep = Annotated[EmbeddingProvider, Depends(get_embeddings)]
@@ -67,9 +65,7 @@ def _to_source_out(source: LegalSource) -> LegalSourceOut:
 
 
 async def _corpus_is_empty(session: AsyncSession) -> bool:
-    total = (
-        await session.execute(select(func.count()).select_from(LegalSource))
-    ).scalar_one()
+    total = (await session.execute(select(func.count()).select_from(LegalSource))).scalar_one()
     return int(total) == 0
 
 
@@ -145,16 +141,12 @@ async def legal_search(
     response_model=LegalSourceOut,
     summary="פרטי מקור משפטי",
 )
-async def get_source(
-    citation_key: str, _user: CurrentUser, session: SessionDep
-) -> LegalSourceOut:
+async def get_source(citation_key: str, _user: CurrentUser, session: SessionDep) -> LegalSourceOut:
     """Resolve a citation key from an answer back to its source record."""
     from app.core.errors import NotFoundError
 
     source = (
-        await session.execute(
-            select(LegalSource).where(LegalSource.citation_key == citation_key)
-        )
+        await session.execute(select(LegalSource).where(LegalSource.citation_key == citation_key))
     ).scalar_one_or_none()
     if source is None:
         raise NotFoundError("המקור המשפטי לא נמצא במאגר")

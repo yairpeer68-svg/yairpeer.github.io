@@ -21,7 +21,13 @@ logger = get_logger(__name__)
 class CacheService:
     """Namespaced JSON cache."""
 
-    def __init__(self, redis: Redis | None, *, default_ttl: int = 900, prefix: str = "sanegor") -> None:
+    def __init__(
+        self,
+        redis: Redis | None,
+        *,
+        default_ttl: int = 900,
+        prefix: str = "sanegor",
+    ) -> None:
         self._redis = redis
         self._default_ttl = default_ttl
         self._prefix = prefix
@@ -38,7 +44,7 @@ class CacheService:
             return None
         try:
             raw = await self._redis.get(self._key(namespace, key))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("cache_get_failed", error=str(exc))
             return None
         if raw is None:
@@ -48,9 +54,7 @@ class CacheService:
         except (json.JSONDecodeError, TypeError):
             return None
 
-    async def set(
-        self, namespace: str, key: str, value: Any, *, ttl: int | None = None
-    ) -> None:
+    async def set(self, namespace: str, key: str, value: Any, *, ttl: int | None = None) -> None:
         if self._redis is None:
             return
         try:
@@ -59,7 +63,7 @@ class CacheService:
                 json.dumps(value, ensure_ascii=False, default=str),
                 ex=ttl or self._default_ttl,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("cache_set_failed", error=str(exc))
 
     async def delete(self, namespace: str, key: str) -> None:
@@ -67,7 +71,7 @@ class CacheService:
             return
         try:
             await self._redis.delete(self._key(namespace, key))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("cache_delete_failed", error=str(exc))
 
     async def clear_namespace(self, namespace: str) -> int:
@@ -80,10 +84,11 @@ class CacheService:
             return 0
         removed = 0
         try:
-            async for key in self._redis.scan_iter(match=f"{self._prefix}:{namespace}:*", count=200):
+            pattern = f"{self._prefix}:{namespace}:*"
+            async for key in self._redis.scan_iter(match=pattern, count=200):
                 await self._redis.delete(key)
                 removed += 1
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("cache_clear_failed", error=str(exc))
         return removed
 
@@ -92,5 +97,5 @@ class CacheService:
             return False
         try:
             return bool(await self._redis.ping())
-        except Exception:  # noqa: BLE001
+        except Exception:
             return False

@@ -76,7 +76,12 @@ class EmbeddingProvider(ABC):
         return vectors[0]
 
     async def aclose(self) -> None:
-        """Release any held resources."""
+        """Release any held resources.
+
+        Deliberately concrete and empty: a provider with nothing to close
+        (the hashing stub) should not be forced to implement this.
+        """
+        return None
 
 
 class OpenAICompatibleEmbeddings(EmbeddingProvider):
@@ -188,7 +193,11 @@ class HashingEmbeddings(EmbeddingProvider):
 def build_embedding_provider(settings: Settings) -> EmbeddingProvider:
     """Factory selecting the provider named in configuration."""
     if settings.embedding_provider == "openai_compatible":
-        logger.info("embeddings_provider", provider="openai_compatible", model=settings.embedding_model)
+        logger.info(
+            "embeddings_provider",
+            provider="openai_compatible",
+            model=settings.embedding_model,
+        )
         return OpenAICompatibleEmbeddings(settings)
     logger.warning(
         "embeddings_provider_stub",

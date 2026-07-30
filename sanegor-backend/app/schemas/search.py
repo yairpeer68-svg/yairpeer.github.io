@@ -7,8 +7,8 @@ from typing import Annotated
 
 from pydantic import Field
 
-from app.schemas.common import ApiModel
 from app.db.models.legal_source import CourtLevel, LegalDomain, SourceType
+from app.schemas.common import ApiModel
 
 
 class LegalSearchRequest(ApiModel):

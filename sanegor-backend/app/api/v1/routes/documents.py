@@ -125,9 +125,7 @@ async def list_documents(
     dependencies=[Depends(rate_limit_default)],
     summary="פרטי מסמך",
 )
-async def get_document(
-    document_id: str, user: CurrentUser, service: DocumentDep
-) -> DocumentOut:
+async def get_document(document_id: str, user: CurrentUser, service: DocumentDep) -> DocumentOut:
     """Metadata for one document."""
     return DocumentOut.model_validate(await service.get(document_id, user_id=str(user.id)))
 
@@ -159,9 +157,7 @@ async def get_document_text(
     summary="הורדת הקובץ המקורי",
     response_class=Response,
 )
-async def download_document(
-    document_id: str, user: CurrentUser, service: DocumentDep
-) -> Response:
+async def download_document(document_id: str, user: CurrentUser, service: DocumentDep) -> Response:
     """Stream back the originally uploaded bytes."""
     document, data = await service.download(document_id, user_id=str(user.id))
     # RFC 5987 encoding so Hebrew filenames survive the header.

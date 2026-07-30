@@ -166,9 +166,7 @@ class TokenService:
             refresh_jti,
         )
 
-    def create_action_token(
-        self, subject: str, token_type: TokenType, ttl: timedelta
-    ) -> str:
+    def create_action_token(self, subject: str, token_type: TokenType, ttl: timedelta) -> str:
         """Single-purpose token for e-mail verification / password reset."""
         token, _, _ = self._encode(subject, token_type, ttl)
         return token

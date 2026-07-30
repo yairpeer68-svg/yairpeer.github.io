@@ -65,7 +65,7 @@ async def ready(request: Request, response: Response) -> dict[str, Any]:
             "status": "ok",
             "latency_ms": round((time.perf_counter() - started) * 1000, 2),
         }
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("readiness_database_failed", error=str(exc))
         checks["database"] = {"status": "error", "error": str(exc)[:200]}
 

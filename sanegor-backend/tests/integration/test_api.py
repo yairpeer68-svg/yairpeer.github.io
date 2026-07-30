@@ -138,9 +138,7 @@ class TestTokenLifecycle:
             json={"refresh_token": registered_user["refresh_token"]},
         )
         assert response.status_code == 200
-        assert (
-            response.json()["tokens"]["refresh_token"] != registered_user["refresh_token"]
-        )
+        assert response.json()["tokens"]["refresh_token"] != registered_user["refresh_token"]
 
     async def test_refresh_token_is_single_use(
         self, client: httpx.AsyncClient, registered_user: dict[str, str]
@@ -191,9 +189,7 @@ class TestTemplateEndpoints:
     async def test_contract_templates_listed(
         self, client: httpx.AsyncClient, auth_headers: dict[str, str]
     ) -> None:
-        response = await client.get(
-            "/api/v1/contracts/templates", headers=auth_headers
-        )
+        response = await client.get("/api/v1/contracts/templates", headers=auth_headers)
         assert response.status_code == 200
         templates = response.json()
         assert len(templates) == 9
@@ -206,9 +202,7 @@ class TestTemplateEndpoints:
         assert response.status_code == 200
         assert len(response.json()) == 10
 
-    async def test_templates_require_authentication(
-        self, client: httpx.AsyncClient
-    ) -> None:
+    async def test_templates_require_authentication(self, client: httpx.AsyncClient) -> None:
         assert (await client.get("/api/v1/contracts/templates")).status_code == 401
 
 
@@ -236,9 +230,7 @@ class TestSearch:
     async def test_unknown_citation_key_is_404(
         self, client: httpx.AsyncClient, auth_headers: dict[str, str]
     ) -> None:
-        response = await client.get(
-            "/api/v1/search/sources/does-not-exist", headers=auth_headers
-        )
+        response = await client.get("/api/v1/search/sources/does-not-exist", headers=auth_headers)
         assert response.status_code == 404
 
 
@@ -269,12 +261,8 @@ class TestAuthorisation:
                 "full_name": "אחר",
             },
         )
-        other_headers = {
-            "Authorization": f"Bearer {other.json()['tokens']['access_token']}"
-        }
-        response = await client.get(
-            f"/api/v1/documents/{document_id}", headers=other_headers
-        )
+        other_headers = {"Authorization": f"Bearer {other.json()['tokens']['access_token']}"}
+        response = await client.get(f"/api/v1/documents/{document_id}", headers=other_headers)
         assert response.status_code == 404
 
 
@@ -304,9 +292,7 @@ class TestDocumentUpload:
             files={"file": ("note.txt", content.encode(), "text/plain")},
         )
         document_id = upload.json()["document"]["id"]
-        response = await client.get(
-            f"/api/v1/documents/{document_id}/text", headers=auth_headers
-        )
+        response = await client.get(f"/api/v1/documents/{document_id}/text", headers=auth_headers)
         assert response.status_code == 200
         assert content in response.json()["text"]
 

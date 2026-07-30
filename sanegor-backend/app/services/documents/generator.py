@@ -112,7 +112,7 @@ class DocxExporter:
         return buffer.getvalue()
 
     # ------------------------------------------------------------- rendering
-    def _add_line(self, document: object, line: str, Pt: object, align: object) -> None:  # noqa: N803
+    def _add_line(self, document: object, line: str, Pt: object, align: object) -> None:
         stripped = line.strip()
         if not stripped:
             document.add_paragraph()  # type: ignore[attr-defined]
@@ -176,7 +176,7 @@ class DocxExporter:
         return qn(tag)
 
     @staticmethod
-    def _configure_styles(document: object, Pt: object) -> None:  # noqa: N803
+    def _configure_styles(document: object, Pt: object) -> None:
         style = document.styles["Normal"]  # type: ignore[index]
         style.font.name = "Arial"
         style.font.size = Pt(11)  # type: ignore[operator]
@@ -188,14 +188,14 @@ class DocxExporter:
         from docx.oxml import OxmlElement
 
         for section in document.sections:  # type: ignore[attr-defined]
-            properties = section._sectPr  # noqa: SLF001 - python-docx has no public API
+            properties = section._sectPr
             bidi = OxmlElement("w:bidi")
             properties.append(bidi)
 
     def _set_paragraph_rtl(self, paragraph: object) -> None:
         from docx.oxml import OxmlElement
 
-        properties = paragraph._p.get_or_add_pPr()  # noqa: SLF001
+        properties = paragraph._p.get_or_add_pPr()
         bidi = OxmlElement("w:bidi")
         bidi.set(self._qn("w:val"), "1")
         properties.append(bidi)
@@ -203,7 +203,7 @@ class DocxExporter:
     def _set_run_rtl(self, run: object) -> None:
         from docx.oxml import OxmlElement
 
-        properties = run._element.get_or_add_rPr()  # noqa: SLF001
+        properties = run._element.get_or_add_rPr()
         rtl = OxmlElement("w:rtl")
         rtl.set(self._qn("w:val"), "1")
         properties.append(rtl)
@@ -211,7 +211,7 @@ class DocxExporter:
     def _add_bottom_border(self, paragraph: object) -> None:
         from docx.oxml import OxmlElement
 
-        properties = paragraph._p.get_or_add_pPr()  # noqa: SLF001
+        properties = paragraph._p.get_or_add_pPr()
         borders = OxmlElement("w:pBdr")
         bottom = OxmlElement("w:bottom")
         bottom.set(self._qn("w:val"), "single")
@@ -370,7 +370,7 @@ class PdfExporter:
                 continue
             try:
                 pdfmetrics.registerFont(TTFont(self._FONT_NAME, str(path)))
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 logger.warning("pdf_font_failed", path=str(path), error=str(exc))
                 continue
             self._font_registered = True

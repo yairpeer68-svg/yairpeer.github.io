@@ -142,9 +142,7 @@ async def logout(
     """Revoke one session, or every session when ``all_devices`` is set."""
     if payload.all_devices:
         count = await service.revoke_all_tokens(str(user.id))
-        await audit.record(
-            AuditAction.LOGOUT, user_id=str(user.id), metadata={"revoked": count}
-        )
+        await audit.record(AuditAction.LOGOUT, user_id=str(user.id), metadata={"revoked": count})
         return MessageResponse(message="התנתקת מכל המכשירים")
 
     await service.logout(payload.refresh_token, user_id=str(user.id))
@@ -152,9 +150,7 @@ async def logout(
     return MessageResponse(message="התנתקת בהצלחה")
 
 
-@router.post(
-    "/forgot-password", response_model=MessageResponse, summary="בקשת איפוס סיסמה"
-)
+@router.post("/forgot-password", response_model=MessageResponse, summary="בקשת איפוס סיסמה")
 async def forgot_password(
     payload: ForgotPasswordRequest, service: AuthDep, audit: AuditDep
 ) -> MessageResponse:
@@ -171,9 +167,7 @@ async def forgot_password(
             token=service.create_reset_token(user),
         )
         await audit.record(AuditAction.PASSWORD_RESET_REQUEST, user_id=str(user.id))
-    return MessageResponse(
-        message="אם הכתובת רשומה במערכת, נשלח אליה קישור לאיפוס סיסמה"
-    )
+    return MessageResponse(message="אם הכתובת רשומה במערכת, נשלח אליה קישור לאיפוס סיסמה")
 
 
 @router.post("/reset-password", response_model=MessageResponse, summary="איפוס סיסמה")
@@ -186,9 +180,7 @@ async def reset_password(
     return MessageResponse(message="הסיסמה עודכנה. יש להתחבר מחדש")
 
 
-@router.post(
-    "/change-password", response_model=MessageResponse, summary="שינוי סיסמה"
-)
+@router.post("/change-password", response_model=MessageResponse, summary="שינוי סיסמה")
 async def change_password(
     payload: ChangePasswordRequest,
     user: CurrentUser,
@@ -204,9 +196,7 @@ async def change_password(
 
 
 @router.post("/verify-email", response_model=UserOut, summary="אימות כתובת דוא״ל")
-async def verify_email(
-    payload: VerifyEmailRequest, service: AuthDep, audit: AuditDep
-) -> UserOut:
+async def verify_email(payload: VerifyEmailRequest, service: AuthDep, audit: AuditDep) -> UserOut:
     """Mark an address verified from an e-mail token."""
     user = await service.verify_email(payload.token)
     await audit.record(AuditAction.EMAIL_VERIFIED, user_id=str(user.id))

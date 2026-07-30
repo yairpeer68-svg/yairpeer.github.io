@@ -20,9 +20,7 @@ from app.services.ai.prompts import DISCLAIMER_HE
 from app.services.audit import AuditService
 from app.services.legal.analysis import AnalysisOutcome, AnalysisService
 
-router = APIRouter(
-    prefix="/analysis", tags=["analysis"], dependencies=[Depends(rate_limit_ai)]
-)
+router = APIRouter(prefix="/analysis", tags=["analysis"], dependencies=[Depends(rate_limit_ai)])
 
 AnalysisDep = Annotated[AnalysisService, Depends(get_analysis_service)]
 AuditDep = Annotated[AuditService, Depends(get_audit_service)]

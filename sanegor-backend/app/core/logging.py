@@ -35,9 +35,7 @@ _SENSITIVE_KEYS = frozenset(
 )
 
 
-def _inject_context(
-    _logger: Any, _method: str, event_dict: dict[str, Any]
-) -> dict[str, Any]:
+def _inject_context(_logger: Any, _method: str, event_dict: dict[str, Any]) -> dict[str, Any]:
     """Attach request-scoped identifiers to every event."""
     if (request_id := request_id_ctx.get()) is not None:
         event_dict.setdefault("request_id", request_id)

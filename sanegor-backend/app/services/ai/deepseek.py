@@ -83,9 +83,7 @@ class DeepSeekClient:
     # ------------------------------------------------------------------ internals
     def _require_key(self) -> None:
         if not self.enabled:
-            raise FeatureDisabledError(
-                "מפתח DeepSeek אינו מוגדר בשרת. יש להגדיר DEEPSEEK_API_KEY"
-            )
+            raise FeatureDisabledError("מפתח DeepSeek אינו מוגדר בשרת. יש להגדיר DEEPSEEK_API_KEY")
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._settings.deepseek_api_key}"}

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.db.models.legal_source import LegalDomain, SourceType
 from app.services.ai.embeddings import HashingEmbeddings, cosine_similarity, l2_normalise
 from app.services.rag.ingest import CorpusIngestor, SourceDraft, chunk_text
@@ -124,7 +123,7 @@ class TestRanking:
 
 
 class TestRetrieverAgainstDatabase:
-    async def test_ingested_source_is_retrievable(self, session, embeddings) -> None:  # noqa: ANN001
+    async def test_ingested_source_is_retrievable(self, session, embeddings) -> None:
         ingestor = CorpusIngestor(session, embeddings, chunk_tokens=300, overlap_tokens=50)
         await ingestor.ingest(
             SourceDraft(
@@ -145,9 +144,7 @@ class TestRetrieverAgainstDatabase:
         assert results
         assert any("תום לב" in r.content for r in results)
 
-    async def test_reingesting_identical_content_is_a_no_op(
-        self, session, embeddings
-    ) -> None:  # noqa: ANN001
+    async def test_reingesting_identical_content_is_a_no_op(self, session, embeddings) -> None:
         ingestor = CorpusIngestor(session, embeddings)
         draft = SourceDraft(
             citation_key="חוק-לדוגמה-2026",
@@ -163,7 +160,7 @@ class TestRetrieverAgainstDatabase:
         assert second.id == first.id
         assert second.chunk_count == chunk_count
 
-    async def test_lexical_search_finds_exact_terms(self, session, embeddings) -> None:  # noqa: ANN001
+    async def test_lexical_search_finds_exact_terms(self, session, embeddings) -> None:
         ingestor = CorpusIngestor(session, embeddings)
         await ingestor.ingest(
             SourceDraft(

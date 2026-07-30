@@ -237,9 +237,5 @@ def build_document_context(text: str, max_chars: int = 60_000) -> str:
     else:
         head = int(max_chars * 0.6)
         tail = max_chars - head
-        body = (
-            f"{text[:head]}\n\n"
-            "[... חלק מהמסמך הושמט בשל אורכו ...]\n\n"
-            f"{text[-tail:]}"
-        )
+        body = f"{text[:head]}\n\n" "[... חלק מהמסמך הושמט בשל אורכו ...]\n\n" f"{text[-tail:]}"
     return f"להלן תוכן המסמך לניתוח:\n\n<<<DOCUMENT\n{body}\nDOCUMENT>>>"

@@ -26,9 +26,7 @@ from app.services.chat import ChatService
 from app.services.documents.generator import DocxExporter, ExportMetadata, PdfExporter
 from app.services.legal.drafting import DraftingService
 
-router = APIRouter(
-    prefix="/export", tags=["export"], dependencies=[Depends(rate_limit_default)]
-)
+router = APIRouter(prefix="/export", tags=["export"], dependencies=[Depends(rate_limit_default)])
 
 ChatDep = Annotated[ChatService, Depends(get_chat_service)]
 DraftDep = Annotated[DraftingService, Depends(get_drafting_service)]
@@ -58,16 +56,12 @@ async def export_document(
     """
     sources = [payload.conversation_id, payload.generated_document_id, payload.content]
     if sum(1 for s in sources if s) != 1:
-        raise ValidationError(
-            "יש לציין בדיוק מקור אחד לייצוא: שיחה, מסמך שנוצר, או תוכן"
-        )
+        raise ValidationError("יש לציין בדיוק מקור אחד לייצוא: שיחה, מסמך שנוצר, או תוכן")
 
     if payload.conversation_id:
         title, body = await _conversation_body(chat, payload.conversation_id, str(user.id))
     elif payload.generated_document_id:
-        record = await drafting.get_generated(
-            payload.generated_document_id, user_id=str(user.id)
-        )
+        record = await drafting.get_generated(payload.generated_document_id, user_id=str(user.id))
         title, body = record.title, record.body_markdown
     else:
         title, body = (payload.title or "מסמך"), (payload.content or "")

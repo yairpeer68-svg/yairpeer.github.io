@@ -60,15 +60,13 @@ class AuditService:
                 )
             )
             await self._session.flush()
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("audit_write_failed", action=action, error=str(exc))
 
     @staticmethod
     def _scrub(metadata: dict[str, Any]) -> dict[str, Any]:
         return {
-            key: value
-            for key, value in metadata.items()
-            if key.lower() not in _FORBIDDEN_METADATA
+            key: value for key, value in metadata.items() if key.lower() not in _FORBIDDEN_METADATA
         }
 
     async def list_for_user(
@@ -84,12 +82,16 @@ class AuditService:
             ).scalar_one()
         )
         rows = (
-            await self._session.execute(
-                select(AuditLog)
-                .where(condition)
-                .order_by(AuditLog.created_at.desc())
-                .limit(limit)
-                .offset(offset)
+            (
+                await self._session.execute(
+                    select(AuditLog)
+                    .where(condition)
+                    .order_by(AuditLog.created_at.desc())
+                    .limit(limit)
+                    .offset(offset)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return list(rows), total

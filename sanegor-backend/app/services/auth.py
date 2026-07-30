@@ -252,9 +252,7 @@ class AuthService:
         claims = self._tokens.decode(refresh_token, "refresh")
 
         record = (
-            await self._session.execute(
-                select(RefreshToken).where(RefreshToken.jti == claims.jti)
-            )
+            await self._session.execute(select(RefreshToken).where(RefreshToken.jti == claims.jti))
         ).scalar_one_or_none()
 
         if record is None or not record.is_valid:
@@ -290,13 +288,17 @@ class AuthService:
     async def revoke_all_tokens(self, user_id: str) -> int:
         """Revoke every live refresh token for a user. Returns the count."""
         records = (
-            await self._session.execute(
-                select(RefreshToken).where(
-                    RefreshToken.user_id == uuid.UUID(user_id),
-                    RefreshToken.revoked_at.is_(None),
+            (
+                await self._session.execute(
+                    select(RefreshToken).where(
+                        RefreshToken.user_id == uuid.UUID(user_id),
+                        RefreshToken.revoked_at.is_(None),
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         now = utcnow()
         for record in records:
             record.revoked_at = now
@@ -311,9 +313,7 @@ class AuthService:
         user = await self.get_by_id(user_id)
         if user is None:
             raise NotFoundError("המשתמש לא נמצא")
-        if not user.hashed_password or not verify_password(
-            current_password, user.hashed_password
-        ):
+        if not user.hashed_password or not verify_password(current_password, user.hashed_password):
             raise AuthenticationError("הסיסמה הנוכחית שגויה")
         if current_password == new_password:
             raise ValidationError("הסיסמה החדשה זהה לנוכחית")
@@ -347,9 +347,7 @@ class AuthService:
 
     # ------------------------------------------------------- email verification
     def create_verification_token(self, user: User) -> str:
-        return self._tokens.create_action_token(
-            str(user.id), "verify_email", timedelta(days=3)
-        )
+        return self._tokens.create_action_token(str(user.id), "verify_email", timedelta(days=3))
 
     async def verify_email(self, token: str) -> User:
         claims = self._tokens.decode(token, "verify_email")

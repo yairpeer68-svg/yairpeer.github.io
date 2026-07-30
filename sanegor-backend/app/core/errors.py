@@ -139,9 +139,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(exc.to_payload(), status_code=exc.status_code, headers=headers)
 
     @app.exception_handler(RequestValidationError)
-    async def _request_validation(
-        _request: Request, exc: RequestValidationError
-    ) -> JSONResponse:
+    async def _request_validation(_request: Request, exc: RequestValidationError) -> JSONResponse:
         fields = [
             {
                 "field": ".".join(str(part) for part in err.get("loc", ())[1:]),
@@ -153,9 +151,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(error.to_payload(), status_code=error.status_code)
 
     @app.exception_handler(StarletteHTTPException)
-    async def _http_exception(
-        _request: Request, exc: StarletteHTTPException
-    ) -> JSONResponse:
+    async def _http_exception(_request: Request, exc: StarletteHTTPException) -> JSONResponse:
         error = AppError(
             str(exc.detail),
             code={401: "unauthenticated", 403: "forbidden", 404: "not_found"}.get(
@@ -163,9 +159,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             ),
         )
         error.status_code = exc.status_code
-        return JSONResponse(
-            error.to_payload(), status_code=exc.status_code, headers=exc.headers
-        )
+        return JSONResponse(error.to_payload(), status_code=exc.status_code, headers=exc.headers)
 
     @app.exception_handler(Exception)
     async def _unhandled(_request: Request, exc: Exception) -> JSONResponse:

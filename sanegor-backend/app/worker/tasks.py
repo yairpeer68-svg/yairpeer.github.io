@@ -28,7 +28,7 @@ def _run(coro: Any) -> Any:
 
 
 @celery_app.task(name="app.worker.tasks.process_document", bind=True, max_retries=2)
-def process_document(self: Any, document_id: str) -> dict[str, str]:  # noqa: ANN401
+def process_document(self: Any, document_id: str) -> dict[str, str]:
     """Extract text (and run OCR) for an uploaded document."""
     settings = get_settings()
 
@@ -53,7 +53,7 @@ def process_document(self: Any, document_id: str) -> dict[str, str]:  # noqa: AN
 
     try:
         _run(_work())
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("task_process_document_failed", document_id=document_id, error=str(exc))
         raise self.retry(exc=exc, countdown=30) from exc
     return {"document_id": document_id, "status": "processed"}

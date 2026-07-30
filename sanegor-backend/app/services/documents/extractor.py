@@ -129,9 +129,7 @@ class DocumentExtractor:
     def _finalise(result: ExtractionResult) -> ExtractionResult:
         result.text = normalise_text(result.text)
         if result.is_empty:
-            raise ValidationError(
-                "לא הצלחנו לחלץ טקסט מהקובץ. נסה קובץ ברור יותר או קובץ טקסט"
-            )
+            raise ValidationError("לא הצלחנו לחלץ טקסט מהקובץ. נסה קובץ ברור יותר או קובץ טקסט")
         result.word_count = len(result.text.split())
         result.language = detect_language(result.text)
         return result
@@ -150,7 +148,7 @@ class DocumentExtractor:
         if reader.is_encrypted:
             try:
                 reader.decrypt("")  # empty-owner-password PDFs are common
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 raise ValidationError("קובץ ה-PDF מוגן בסיסמה") from exc
 
         warnings: list[str] = []
@@ -158,7 +156,7 @@ class DocumentExtractor:
         for number, page in enumerate(reader.pages, start=1):
             try:
                 parts.append(page.extract_text() or "")
-            except Exception as exc:  # noqa: BLE001 - skip the bad page, keep the rest
+            except Exception as exc:
                 logger.warning("pdf_page_failed", page=number, error=str(exc))
                 warnings.append(f"עמוד {number} לא נקרא במלואו")
 

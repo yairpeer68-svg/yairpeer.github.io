@@ -141,9 +141,7 @@ async def get_current_user(
     request: Request,
     session: SessionDep,
     settings: SettingsDep,
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
-    ] = None,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)] = None,
 ) -> User:
     """Resolve the bearer token to an active user."""
     if credentials is None or not credentials.credentials:
@@ -168,9 +166,7 @@ async def get_optional_user(
     request: Request,
     session: SessionDep,
     settings: SettingsDep,
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
-    ] = None,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)] = None,
 ) -> User | None:
     """Like :func:`get_current_user` but tolerates an anonymous caller."""
     if credentials is None or not credentials.credentials:
@@ -185,7 +181,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 
 
-def RequireRole(minimum: UserRole):  # noqa: N802 - reads as a dependency factory
+def RequireRole(minimum: UserRole):
     """Build a dependency that enforces a minimum role.
 
     Returns a closure rather than a callable class: FastAPI resolves a
@@ -233,7 +229,7 @@ def _rate_limit_identity(request: Request) -> str:
     return f"ip:{address}"
 
 
-def RateLimit(bucket: str):  # noqa: N802 - reads as a dependency factory
+def RateLimit(bucket: str):
     """Build a dependency applying the named rate-limit bucket.
 
     A closure for the same reason as :func:`RequireRole`.
@@ -244,9 +240,7 @@ def RateLimit(bucket: str):  # noqa: N802 - reads as a dependency factory
         settings: SettingsDep,
         limiter: Annotated[RateLimiter, Depends(get_rate_limiter)],
     ) -> None:
-        await limiter.check(
-            _rate_limit_identity(request), bucket, settings.rate_limit(bucket)
-        )
+        await limiter.check(_rate_limit_identity(request), bucket, settings.rate_limit(bucket))
 
     return dependency
 

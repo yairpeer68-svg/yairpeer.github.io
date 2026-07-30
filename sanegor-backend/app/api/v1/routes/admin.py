@@ -130,17 +130,13 @@ async def ingest_source(
     )
 
 
-@router.delete(
-    "/corpus/{citation_key}", response_model=MessageResponse, summary="מחיקת מקור"
-)
+@router.delete("/corpus/{citation_key}", response_model=MessageResponse, summary="מחיקת מקור")
 async def delete_source(
     citation_key: str, session: SessionDep, admin: CurrentUser, audit: AuditDep
 ) -> MessageResponse:
     """Remove a source and its chunks from the corpus."""
     source = (
-        await session.execute(
-            select(LegalSource).where(LegalSource.citation_key == citation_key)
-        )
+        await session.execute(select(LegalSource).where(LegalSource.citation_key == citation_key))
     ).scalar_one_or_none()
     if source is None:
         raise NotFoundError("המקור לא נמצא")
@@ -174,14 +170,18 @@ async def list_users(
         ).scalar_one()
     )
     rows = (
-        await session.execute(
-            select(User)
-            .where(User.deleted_at.is_(None))
-            .order_by(User.created_at.desc())
-            .limit(min(limit, 100))
-            .offset(offset)
+        (
+            await session.execute(
+                select(User)
+                .where(User.deleted_at.is_(None))
+                .order_by(User.created_at.desc())
+                .limit(min(limit, 100))
+                .offset(offset)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return Page[UserOut](
         items=[UserOut.model_validate(u) for u in rows],
         total=total,
@@ -213,9 +213,7 @@ async def change_role(
     except ValueError as exc:
         raise NotFoundError("המשתמש לא נמצא") from exc
 
-    user = (
-        await session.execute(select(User).where(User.id == identifier))
-    ).scalar_one_or_none()
+    user = (await session.execute(select(User).where(User.id == identifier))).scalar_one_or_none()
     if user is None:
         raise NotFoundError("המשתמש לא נמצא")
 

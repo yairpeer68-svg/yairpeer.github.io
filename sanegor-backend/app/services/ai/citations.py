@@ -193,6 +193,4 @@ class StreamingCitationGuard:
             return False
         prefix = "[מקור "
         shorter = min(len(candidate), len(prefix))
-        if candidate[:shorter] != prefix[:shorter]:
-            return False
-        return True
+        return candidate[:shorter] == prefix[:shorter]

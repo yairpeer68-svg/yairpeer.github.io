@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
-
 from app.core.config import Settings
 from app.core.errors import AuthenticationError, ValidationError
 from app.core.security import (
@@ -92,9 +91,7 @@ class TestTokenService:
 
     def test_expired_token_rejected(self, settings: Settings) -> None:
         service = TokenService(settings)
-        token = service.create_action_token(
-            "user-123", "reset_password", timedelta(seconds=-10)
-        )
+        token = service.create_action_token("user-123", "reset_password", timedelta(seconds=-10))
         with pytest.raises(AuthenticationError):
             service.decode(token, "reset_password")
 

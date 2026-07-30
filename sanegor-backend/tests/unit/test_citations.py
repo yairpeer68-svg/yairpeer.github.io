@@ -41,9 +41,7 @@ def _citations(count: int) -> dict[int, Citation]:
 
 class TestValidateAndCollect:
     def test_keeps_valid_markers(self) -> None:
-        outcome = validate_and_collect(
-            "לפי הדין [מקור 1] וגם [מקור 2].", _blocks(2), _citations(2)
-        )
+        outcome = validate_and_collect("לפי הדין [מקור 1] וגם [מקור 2].", _blocks(2), _citations(2))
         assert "[מקור 1]" in outcome.text
         assert "[מקור 2]" in outcome.text
         assert [c.index for c in outcome.citations] == [1, 2]
@@ -61,9 +59,7 @@ class TestValidateAndCollect:
         assert [c.index for c in outcome.citations] == [1]
 
     def test_partially_valid_group_keeps_only_real_indices(self) -> None:
-        outcome = validate_and_collect(
-            "ראו [מקור 1, 9].", _blocks(2), _citations(2)
-        )
+        outcome = validate_and_collect("ראו [מקור 1, 9].", _blocks(2), _citations(2))
         assert "[מקור 1]" in outcome.text
         assert "9" not in outcome.text
         assert outcome.removed_markers == [9]
@@ -76,9 +72,7 @@ class TestValidateAndCollect:
         assert outcome.removed_markers == [1]
 
     def test_deduplicates_repeated_citations(self) -> None:
-        outcome = validate_and_collect(
-            "[מקור 1] וגם שוב [מקור 1].", _blocks(1), _citations(1)
-        )
+        outcome = validate_and_collect("[מקור 1] וגם שוב [מקור 1].", _blocks(1), _citations(1))
         assert len(outcome.citations) == 1
 
     def test_plain_text_is_untouched(self) -> None:

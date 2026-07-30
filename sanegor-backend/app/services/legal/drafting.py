@@ -99,9 +99,7 @@ class DraftingService:
         builder = ContextBuilder(
             self._settings.ai_context_token_budget, self._settings.deepseek_max_tokens
         )
-        messages, _ = builder.build(
-            system_prompt=system_prompt, history=[], question=user_message
-        )
+        messages, _ = builder.build(system_prompt=system_prompt, history=[], question=user_message)
 
         result = await self._deepseek.complete(
             list(messages), temperature=0.25, max_tokens=self._settings.deepseek_max_tokens
@@ -165,17 +163,13 @@ class DraftingService:
             value = inputs.get(field.key)
             if value is None or str(value).strip() == "":
                 continue
-            if field.type == "boolean":
-                rendered = "כן" if value else "לא"
-            else:
-                rendered = str(value).strip()
+            rendered = ("כן" if value else "לא") if field.type == "boolean" else str(value).strip()
             lines.append(f"- {field.label}: {rendered}")
 
         if missing:
             lines += [
                 "",
-                "פרטים חיוניים שהמשתמש לא סיפק — סמן אותם במסמך כ-______ "
-                "ואל תמציא אותם:",
+                "פרטים חיוניים שהמשתמש לא סיפק — סמן אותם במסמך כ-______ " "ואל תמציא אותם:",
                 *[f"- {label}" for label in missing],
             ]
         lines += ["", f"תאריך היום: {date.today().isoformat()}", "", "נסח כעת את המסמך המלא."]
@@ -229,14 +223,18 @@ class DraftingService:
             conditions.append(GeneratedDocument.category == category)
 
         rows = (
-            await self._session.execute(
-                select(GeneratedDocument)
-                .where(*conditions)
-                .order_by(GeneratedDocument.created_at.desc())
-                .limit(limit)
-                .offset(offset)
+            (
+                await self._session.execute(
+                    select(GeneratedDocument)
+                    .where(*conditions)
+                    .order_by(GeneratedDocument.created_at.desc())
+                    .limit(limit)
+                    .offset(offset)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return list(rows)
 
     async def get_generated(self, document_id: str, *, user_id: str) -> GeneratedDocument:

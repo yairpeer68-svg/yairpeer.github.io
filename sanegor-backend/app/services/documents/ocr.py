@@ -73,7 +73,7 @@ class OcrService:
                 logger.warning("ocr_languages_missing", missing=sorted(missing))
             logger.info("ocr_available", version=str(version))
             return True
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("ocr_unavailable", error=str(exc))
             return False
 
@@ -93,9 +93,7 @@ class OcrService:
             warnings.append("איכות הסריקה נמוכה — מומלץ לצלם שוב באור טוב")
         if page.tables_detected:
             warnings.append(f"זוהו {page.tables_detected} טבלאות במסמך")
-        return ExtractionResult(
-            text=page.text, page_count=1, used_ocr=True, warnings=warnings
-        )
+        return ExtractionResult(text=page.text, page_count=1, used_ocr=True, warnings=warnings)
 
     async def extract_from_pdf(self, data: bytes, *, max_pages: int = 40) -> ExtractionResult:
         """Rasterise a scanned PDF page by page and OCR each page."""
@@ -116,9 +114,7 @@ class OcrService:
         warnings = ["הטקסט חולץ באמצעות OCR"]
         if average and average < 60:
             warnings.append("איכות הסריקה נמוכה — ייתכנו שגיאות בזיהוי")
-        return ExtractionResult(
-            text=text, page_count=len(pages), used_ocr=True, warnings=warnings
-        )
+        return ExtractionResult(text=text, page_count=len(pages), used_ocr=True, warnings=warnings)
 
     # --------------------------------------------------------------- internals
     @staticmethod
@@ -145,7 +141,7 @@ class OcrService:
     @staticmethod
     def _pdf_to_images_poppler(data: bytes, max_pages: int) -> list[bytes]:
         import shutil
-        import subprocess  # noqa: S404 - fixed argv, no shell
+        import subprocess
         import tempfile
         from pathlib import Path
 
@@ -160,9 +156,16 @@ class OcrService:
             try:
                 subprocess.run(  # noqa: S603 - argv list, no shell interpolation
                     [
-                        binary, "-png", "-r", "200",
-                        "-f", "1", "-l", str(max_pages),
-                        str(source), str(Path(tmp) / "page"),
+                        binary,
+                        "-png",
+                        "-r",
+                        "200",
+                        "-f",
+                        "1",
+                        "-l",
+                        str(max_pages),
+                        str(source),
+                        str(Path(tmp) / "page"),
                     ],
                     check=True,
                     capture_output=True,
@@ -255,7 +258,10 @@ class OcrService:
         """Rotate the page so text lines are horizontal."""
         inverted = cv2.bitwise_not(gray)  # type: ignore[attr-defined]
         _, threshold = cv2.threshold(  # type: ignore[attr-defined]
-            inverted, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU  # type: ignore[attr-defined]
+            inverted,
+            0,
+            255,
+            cv2.THRESH_BINARY | cv2.THRESH_OTSU,  # type: ignore[attr-defined]
         )
         coords = np.column_stack(np.where(threshold > 0))  # type: ignore[attr-defined]
         if coords.size == 0:
@@ -283,17 +289,21 @@ class OcrService:
         height, width = inverted.shape[:2]  # type: ignore[attr-defined]
 
         horizontal_kernel = cv2.getStructuringElement(  # type: ignore[attr-defined]
-            cv2.MORPH_RECT, (max(width // 30, 10), 1)  # type: ignore[attr-defined]
+            cv2.MORPH_RECT,
+            (max(width // 30, 10), 1),  # type: ignore[attr-defined]
         )
         vertical_kernel = cv2.getStructuringElement(  # type: ignore[attr-defined]
-            cv2.MORPH_RECT, (1, max(height // 30, 10))  # type: ignore[attr-defined]
+            cv2.MORPH_RECT,
+            (1, max(height // 30, 10)),  # type: ignore[attr-defined]
         )
         horizontal = cv2.morphologyEx(inverted, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)  # type: ignore[attr-defined]
         vertical = cv2.morphologyEx(inverted, cv2.MORPH_OPEN, vertical_kernel, iterations=2)  # type: ignore[attr-defined]
 
         grid = cv2.bitwise_and(horizontal, vertical)  # type: ignore[attr-defined]
         contours, _ = cv2.findContours(  # type: ignore[attr-defined]
-            grid, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE  # type: ignore[attr-defined]
+            grid,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE,  # type: ignore[attr-defined]
         )
         # A table needs several line intersections; a few stray marks do not.
         return 1 if len(contours) >= 4 else 0

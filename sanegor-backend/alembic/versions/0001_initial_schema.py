@@ -11,9 +11,8 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
-
 from app.core.config import get_settings
+from sqlalchemy.dialects import postgresql
 
 revision: str = "0001"
 down_revision: str | None = None
@@ -32,12 +31,8 @@ def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
     op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
-    user_role = sa.Enum(
-        "guest", "user", "lawyer", "admin", name="user_role", create_type=True
-    )
-    auth_provider = sa.Enum(
-        "local", "google", "apple", name="auth_provider", create_type=True
-    )
+    user_role = sa.Enum("guest", "user", "lawyer", "admin", name="user_role", create_type=True)
+    auth_provider = sa.Enum("local", "google", "apple", name="auth_provider", create_type=True)
 
     # ------------------------------------------------------------------ users
     op.create_table(
@@ -51,15 +46,11 @@ def upgrade() -> None:
         sa.Column("provider", auth_provider, nullable=False, server_default="local"),
         sa.Column("provider_subject", sa.String(255)),
         sa.Column("is_active", sa.Boolean, nullable=False, server_default=sa.true()),
-        sa.Column(
-            "is_email_verified", sa.Boolean, nullable=False, server_default=sa.false()
-        ),
+        sa.Column("is_email_verified", sa.Boolean, nullable=False, server_default=sa.false()),
         sa.Column("last_login_at", sa.DateTime(timezone=True)),
         sa.Column("failed_login_count", sa.Integer, nullable=False, server_default="0"),
         sa.Column("locked_until", sa.DateTime(timezone=True)),
-        sa.Column(
-            "preferences", postgresql.JSONB, nullable=False, server_default="{}"
-        ),
+        sa.Column("preferences", postgresql.JSONB, nullable=False, server_default="{}"),
         sa.Column(
             "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
         ),
@@ -126,12 +117,8 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True)),
     )
     op.create_index("ix_conversations_user_id", "conversations", ["user_id"])
-    op.create_index(
-        "ix_conversations_user_updated", "conversations", ["user_id", "updated_at"]
-    )
-    op.create_index(
-        "ix_conversations_user_pinned", "conversations", ["user_id", "is_pinned"]
-    )
+    op.create_index("ix_conversations_user_updated", "conversations", ["user_id", "updated_at"])
+    op.create_index("ix_conversations_user_pinned", "conversations", ["user_id", "is_pinned"])
     op.create_index("ix_conversations_created_at", "conversations", ["created_at"])
     op.create_index("ix_conversations_deleted_at", "conversations", ["deleted_at"])
 
@@ -167,8 +154,7 @@ def upgrade() -> None:
     op.create_index("ix_messages_created_at", "messages", ["created_at"])
     # Trigram index so in-conversation ILIKE search stays fast as history grows.
     op.execute(
-        "CREATE INDEX ix_messages_content_trgm ON messages "
-        "USING gin (content gin_trgm_ops)"
+        "CREATE INDEX ix_messages_content_trgm ON messages " "USING gin (content gin_trgm_ops)"
     )
 
     # -------------------------------------------------------------- documents

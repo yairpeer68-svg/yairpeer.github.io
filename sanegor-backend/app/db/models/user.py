@@ -99,9 +99,7 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     def is_locked(self) -> bool:
         from app.db.base import utcnow
 
-        return (
-            self.locked_until is not None and as_aware(self.locked_until) > utcnow()
-        )
+        return self.locked_until is not None and as_aware(self.locked_until) > utcnow()
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<User {self.email} role={self.role.value}>"

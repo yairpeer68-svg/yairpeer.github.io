@@ -91,7 +91,7 @@ async def _build_redis(settings: Settings) -> object | None:
         await client.ping()
         logger.info("redis_connected")
         return client
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning(
             "redis_unavailable",
             error=str(exc),
@@ -107,9 +107,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     app.state.database = Database(settings)
     app.state.redis = await _build_redis(settings)
-    app.state.cache = CacheService(
-        app.state.redis, default_ttl=settings.cache_ttl_seconds
-    )
+    app.state.cache = CacheService(app.state.redis, default_ttl=settings.cache_ttl_seconds)
     app.state.rate_limiter = RateLimiter(app.state.redis)
     app.state.deepseek = DeepSeekClient(settings)
     app.state.embeddings = build_embedding_provider(settings)
@@ -178,7 +176,7 @@ async def _bootstrap_admin(app: FastAPI, settings: Settings) -> None:
             user.role = UserRole.ADMIN
             user.is_email_verified = True
             logger.info("bootstrap_admin_ready", user_id=str(user.id))
-    except Exception as exc:  # noqa: BLE001 - must not block start-up
+    except Exception as exc:
         logger.error("bootstrap_admin_failed", error=str(exc))
 
 

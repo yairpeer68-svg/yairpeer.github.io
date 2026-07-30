@@ -29,8 +29,8 @@ celery_app.conf.update(
     task_track_started=True,
     task_time_limit=900,
     task_soft_time_limit=840,
-    worker_prefetch_multiplier=1,      # long tasks: don't hoard the queue
-    worker_max_tasks_per_child=50,     # bound leaks from native OCR libraries
+    worker_prefetch_multiplier=1,  # long tasks: don't hoard the queue
+    worker_max_tasks_per_child=50,  # bound leaks from native OCR libraries
     broker_connection_retry_on_startup=True,
     beat_schedule={
         "purge-expired-refresh-tokens": {

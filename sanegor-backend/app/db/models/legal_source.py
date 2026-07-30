@@ -30,23 +30,23 @@ EMBEDDING_DIMENSIONS = get_settings().embedding_dimensions
 class SourceType(str, enum.Enum):
     """Kind of primary material."""
 
-    LEGISLATION = "legislation"      # חקיקה ראשית
-    REGULATION = "regulation"        # תקנות
-    RULING = "ruling"                # פסיקה
-    GUIDELINE = "guideline"          # הנחיות רשות
-    FORM = "form"                    # טפסים רשמיים
+    LEGISLATION = "legislation"  # חקיקה ראשית
+    REGULATION = "regulation"  # תקנות
+    RULING = "ruling"  # פסיקה
+    GUIDELINE = "guideline"  # הנחיות רשות
+    FORM = "form"  # טפסים רשמיים
 
 
 class CourtLevel(str, enum.Enum):
     """Israeli court hierarchy, for filtering rulings."""
 
-    SUPREME = "supreme"              # בית המשפט העליון
-    DISTRICT = "district"            # מחוזי
-    MAGISTRATE = "magistrate"        # שלום
+    SUPREME = "supreme"  # בית המשפט העליון
+    DISTRICT = "district"  # מחוזי
+    MAGISTRATE = "magistrate"  # שלום
     LABOR_NATIONAL = "labor_national"  # ארצי לעבודה
     LABOR_REGIONAL = "labor_regional"  # אזורי לעבודה
-    FAMILY = "family"                # לענייני משפחה
-    TRAFFIC = "traffic"              # תעבורה
+    FAMILY = "family"  # לענייני משפחה
+    TRAFFIC = "traffic"  # תעבורה
     ADMINISTRATIVE = "administrative"  # לעניינים מנהליים
     OTHER = "other"
 

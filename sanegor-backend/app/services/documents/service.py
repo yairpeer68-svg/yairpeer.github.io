@@ -116,7 +116,7 @@ class DocumentService:
             result = await self._extractor.extract(
                 payload, document.content_type, document.filename
             )
-        except Exception as exc:  # noqa: BLE001 - surfaced through the record
+        except Exception as exc:
             document.status = DocumentStatus.FAILED
             document.error = str(exc)[:500]
             await self._session.flush()
@@ -179,14 +179,18 @@ class DocumentService:
             ).scalar_one()
         )
         rows = (
-            await self._session.execute(
-                select(Document)
-                .where(*conditions)
-                .order_by(Document.created_at.desc())
-                .limit(limit)
-                .offset(offset)
+            (
+                await self._session.execute(
+                    select(Document)
+                    .where(*conditions)
+                    .order_by(Document.created_at.desc())
+                    .limit(limit)
+                    .offset(offset)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return list(rows), total
 
     async def download(self, document_id: str, *, user_id: str) -> tuple[Document, bytes]:
@@ -227,9 +231,7 @@ async def process_document_task(
     """
     async with session_factory() as session:
         document = (
-            await session.execute(
-                select(Document).where(Document.id == uuid.UUID(document_id))
-            )
+            await session.execute(select(Document).where(Document.id == uuid.UUID(document_id)))
         ).scalar_one_or_none()
         if document is None:
             logger.warning("background_document_missing", document_id=document_id)

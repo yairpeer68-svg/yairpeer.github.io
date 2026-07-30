@@ -81,10 +81,13 @@ class AnalysisService:
         """
         document = await self._load_document(document_id, user_id)
 
-        if not refresh and not focus:
-            if (cached := await self._cached(document.id, kind)) is not None:
-                logger.info("analysis_cache_hit", document_id=document_id, kind=kind.value)
-                return cached
+        if (
+            not refresh
+            and not focus
+            and (cached := await self._cached(document.id, kind)) is not None
+        ):
+            logger.info("analysis_cache_hit", document_id=document_id, kind=kind.value)
+            return cached
 
         text = self._plaintext(document)
         started = time.perf_counter()
@@ -103,9 +106,7 @@ class AnalysisService:
         builder = ContextBuilder(
             self._settings.ai_context_token_budget, self._settings.deepseek_max_tokens
         )
-        messages, _ = builder.build(
-            system_prompt=system_prompt, history=[], question=user_message
-        )
+        messages, _ = builder.build(system_prompt=system_prompt, history=[], question=user_message)
 
         # Case summaries are prose; the other two are structured JSON.
         json_mode = kind is not AnalysisKind.CASE_SUMMARY

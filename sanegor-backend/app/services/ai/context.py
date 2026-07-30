@@ -26,7 +26,7 @@ def _encoder() -> object | None:
         import tiktoken
 
         return tiktoken.get_encoding("cl100k_base")
-    except Exception as exc:  # noqa: BLE001 - optional dependency / no network
+    except Exception as exc:
         logger.warning("tiktoken_unavailable", error=str(exc))
         return None
 

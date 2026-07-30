@@ -24,8 +24,8 @@ from app.db.models.legal_source import (
     LegalSource,
     SourceType,
 )
-from app.services.ai.embeddings import EmbeddingProvider
 from app.services.ai.context import count_tokens
+from app.services.ai.embeddings import EmbeddingProvider
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 # character split would.
 _SECTION_PATTERNS = [
     r"^\s*(?:סימן|פרק|חלק)\s+[֐-׿\w'\"]+\s*[:.\-–]?\s*$",
-    r"^\s*\d+[א-ת]?\s*\.\s",          # "12. " / "12א. "
+    r"^\s*\d+[א-ת]?\s*\.\s",  # "12. " / "12א. "
     r"^\s*סעיף\s+\d+",
     r"^\s*תקנה\s+\d+",
 ]
@@ -95,9 +95,7 @@ def split_into_sections(text: str) -> list[tuple[str | None, str]]:
     return [(heading, "\n".join(body).strip()) for heading, body in sections if any(body)]
 
 
-def chunk_text(
-    text: str, *, max_tokens: int, overlap_tokens: int
-) -> list[tuple[str | None, str]]:
+def chunk_text(text: str, *, max_tokens: int, overlap_tokens: int) -> list[tuple[str | None, str]]:
     """Chunk ``text`` for embedding, preferring section boundaries.
 
     Sections shorter than the budget are emitted whole. Oversized sections are
@@ -198,9 +196,7 @@ class CorpusIngestor:
         await self._session.flush()
 
         # Replace chunks wholesale — partial updates would leave stale vectors.
-        await self._session.execute(
-            delete(LegalChunk).where(LegalChunk.source_id == source.id)
-        )
+        await self._session.execute(delete(LegalChunk).where(LegalChunk.source_id == source.id))
 
         pieces = chunk_text(
             draft.content,
@@ -219,9 +215,7 @@ class CorpusIngestor:
         ]
         vectors = await self._embeddings.embed(embed_inputs)
 
-        for ordinal, ((heading, body), vector) in enumerate(
-            zip(pieces, vectors, strict=True)
-        ):
+        for ordinal, ((heading, body), vector) in enumerate(zip(pieces, vectors, strict=True)):
             self._session.add(
                 LegalChunk(
                     source_id=source.id,
@@ -235,9 +229,7 @@ class CorpusIngestor:
 
         source.chunk_count = len(pieces)
         await self._session.flush()
-        logger.info(
-            "corpus_ingested", citation_key=draft.citation_key, chunks=len(pieces)
-        )
+        logger.info("corpus_ingested", citation_key=draft.citation_key, chunks=len(pieces))
         return source
 
     async def ingest_many(

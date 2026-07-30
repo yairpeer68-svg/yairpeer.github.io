@@ -99,9 +99,7 @@ async def chat(
     )
 
 
-async def _guarded_stream(
-    source: AsyncIterator[str], request: Request
-) -> AsyncIterator[str]:
+async def _guarded_stream(source: AsyncIterator[str], request: Request) -> AsyncIterator[str]:
     """Stop generating as soon as the client goes away.
 
     Without this check a user closing the app would leave the model call

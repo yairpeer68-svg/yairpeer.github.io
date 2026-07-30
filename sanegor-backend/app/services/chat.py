@@ -167,16 +167,12 @@ class ChatService:
     ) -> ChatTurn:
         """Answer without streaming."""
         started = time.perf_counter()
-        conversation = await self.get_or_create_conversation(
-            conversation_id, user_id=user_id
-        )
+        conversation = await self.get_or_create_conversation(conversation_id, user_id=user_id)
         await self._append_user_message(conversation, question, attachments or [])
 
         messages, context = await self._prepare(conversation, question)
         result = await self._deepseek.complete(messages)
-        outcome = validate_and_collect(
-            result.content, context.blocks, context.citations_by_index
-        )
+        outcome = validate_and_collect(result.content, context.blocks, context.citations_by_index)
 
         latency_ms = int((time.perf_counter() - started) * 1000)
         message = await self._append_assistant_message(
@@ -212,9 +208,7 @@ class ChatService:
         started = time.perf_counter()
 
         try:
-            conversation = await self.get_or_create_conversation(
-                conversation_id, user_id=user_id
-            )
+            conversation = await self.get_or_create_conversation(conversation_id, user_id=user_id)
             await self._append_user_message(conversation, question, attachments or [])
             messages, context = await self._prepare(conversation, question)
         except AppError as exc:
@@ -246,7 +240,7 @@ class ChatService:
                 yield sse("delta", {"text": tail})
         except AppError as exc:
             failure = exc
-        except Exception as exc:  # noqa: BLE001 - stream must not kill the worker
+        except Exception as exc:
             logger.exception("chat_stream_failed", error=str(exc))
             failure = UpstreamError()
 
@@ -363,8 +357,8 @@ class ChatService:
                 temperature=0.3,
                 max_tokens=32,
             )
-            title = " ".join(result.content.split()).strip(' "\'.:،')[:60]
-        except Exception as exc:  # noqa: BLE001
+            title = " ".join(result.content.split()).strip(" \"'.:،")[:60]
+        except Exception as exc:
             logger.warning("conversation_title_failed", error=str(exc))
             title = ""
 
@@ -400,14 +394,18 @@ class ChatService:
             ).scalar_one()
         )
         rows = (
-            await self._session.execute(
-                select(Conversation)
-                .where(*conditions)
-                .order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
-                .limit(limit)
-                .offset(offset)
+            (
+                await self._session.execute(
+                    select(Conversation)
+                    .where(*conditions)
+                    .order_by(Conversation.is_pinned.desc(), Conversation.updated_at.desc())
+                    .limit(limit)
+                    .offset(offset)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return list(rows), total
 
     async def list_messages(
@@ -425,14 +423,18 @@ class ChatService:
             ).scalar_one()
         )
         rows = (
-            await self._session.execute(
-                select(Message)
-                .where(Message.conversation_id == conversation.id)
-                .order_by(Message.created_at)
-                .limit(limit)
-                .offset(offset)
+            (
+                await self._session.execute(
+                    select(Message)
+                    .where(Message.conversation_id == conversation.id)
+                    .order_by(Message.created_at)
+                    .limit(limit)
+                    .offset(offset)
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return conversation, list(rows), total
 
     async def search_messages(
@@ -444,16 +446,20 @@ class ChatService:
         if not needle:
             return []
         rows = (
-            await self._session.execute(
-                select(Message)
-                .where(
-                    Message.conversation_id == conversation.id,
-                    Message.content.ilike(f"%{needle}%"),
+            (
+                await self._session.execute(
+                    select(Message)
+                    .where(
+                        Message.conversation_id == conversation.id,
+                        Message.content.ilike(f"%{needle}%"),
+                    )
+                    .order_by(Message.created_at)
+                    .limit(limit)
                 )
-                .order_by(Message.created_at)
-                .limit(limit)
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         return list(rows)
 
     async def delete_conversation(self, conversation_id: str, *, user_id: str) -> None:
@@ -484,9 +490,7 @@ class ChatService:
         await self._session.flush()
         return conversation
 
-    async def set_message_pinned(
-        self, message_id: str, *, user_id: str, pinned: bool
-    ) -> Message:
+    async def set_message_pinned(self, message_id: str, *, user_id: str, pinned: bool) -> Message:
         """Pin or unpin a single message."""
         try:
             identifier = uuid.UUID(message_id)

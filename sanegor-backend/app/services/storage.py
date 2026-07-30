@@ -79,9 +79,7 @@ def sniff_content_type(data: bytes, declared: str) -> str:
                 raise UnsupportedMediaTypeError("הקובץ אינו קובץ טקסט תקין") from exc
         return declared
 
-    raise UnsupportedMediaTypeError(
-        "לא ניתן לאמת את סוג הקובץ", details={"declared": declared}
-    )
+    raise UnsupportedMediaTypeError("לא ניתן לאמת את סוג הקובץ", details={"declared": declared})
 
 
 def sanitise_filename(filename: str) -> str:

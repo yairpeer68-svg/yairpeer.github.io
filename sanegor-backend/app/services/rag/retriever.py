@@ -81,9 +81,7 @@ class RetrievedChunk:
     final_score: float = 0.0
 
     @classmethod
-    def from_row(
-        cls, chunk: LegalChunk, source: LegalSource, **scores: float
-    ) -> RetrievedChunk:
+    def from_row(cls, chunk: LegalChunk, source: LegalSource, **scores: float) -> RetrievedChunk:
         return cls(
             chunk_id=str(chunk.id),
             source_id=str(source.id),
@@ -207,9 +205,7 @@ class LegalRetriever:
         self, query: str, limit: int, filters: RetrievalFilters | None
     ) -> list[RetrievedChunk]:
         tsquery = func.websearch_to_tsquery("simple", query)
-        rank = func.ts_rank_cd(
-            func.to_tsvector("simple", LegalChunk.content), tsquery
-        )
+        rank = func.ts_rank_cd(func.to_tsvector("simple", LegalChunk.content), tsquery)
         stmt = (
             select(LegalChunk, LegalSource, rank.label("rank"))
             .join(LegalSource, LegalChunk.source_id == LegalSource.id)
@@ -249,9 +245,7 @@ class LegalRetriever:
         results: list[RetrievedChunk] = []
         for chunk, source in rows:
             hits = sum(1 for term in terms if term in chunk.content)
-            results.append(
-                RetrievedChunk.from_row(chunk, source, lexical_score=hits / len(terms))
-            )
+            results.append(RetrievedChunk.from_row(chunk, source, lexical_score=hits / len(terms)))
         results.sort(key=lambda c: c.lexical_score, reverse=True)
         return results
 

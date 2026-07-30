@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches AppColors.parchment so the launch frame does not flash. -->
+    <color name="launch_background">#FBF8F3</color>
+    <!-- Adaptive-icon background: AppColors.indigo. -->
+    <color name="ic_launcher_background">#3F3D91</color>
+</resources>

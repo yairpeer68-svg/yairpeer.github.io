@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Sanegor mark: a geometric scales-of-justice drawn as a vector so it
+  stays crisp at every density and can be tinted for themed icons.
+  Original artwork — nothing here is derived from another product.
+  Drawn inside the 72dp adaptive-icon safe zone of the 108dp canvas.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Central column -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M52.4,32 h3.2 v46 h-3.2 z" />
+
+    <!-- Beam -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,33.4 h44 v3.2 h-44 z" />
+
+    <!-- Base -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,76.4 h28 v3.4 h-28 z" />
+
+    <!-- Apex -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,26 m-4.2,0 a4.2,4.2 0 1,0 8.4,0 a4.2,4.2 0 1,0 -8.4,0" />
+
+    <!-- Right hanger and pan -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M74.4,36 h1.9 v9 h-1.9 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M63,45 h24 a12,12 0 0,1 -24,0 z" />
+
+    <!-- Left hanger and pan -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31.7,36 h1.9 v9 h-1.9 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M20.6,45 h24 a12,12 0 0,1 -24,0 z" />
+</vector>

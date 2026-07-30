@@ -1,0 +1,141 @@
+name: Sanegor App CI
+
+on:
+  push:
+    branches: ["main", "claude/israeli-legal-ai-system-stm1oa"]
+    paths: ["sanegor-app/**", ".github/workflows/sanegor-app.yml"]
+  pull_request:
+    paths: ["sanegor-app/**"]
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "Backend base URL to compile into the APK"
+        required: false
+        default: "https://api.example.com"
+
+defaults:
+  run:
+    working-directory: sanegor-app
+
+env:
+  FLUTTER_VERSION: "3.32.0"
+
+jobs:
+  analyze:
+    name: Analyze & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze --no-pub
+
+      - name: Test
+        run: flutter test --no-pub --coverage
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-coverage
+          path: sanegor-app/coverage/lcov.info
+          retention-days: 7
+
+  build-apk:
+    name: Build APK
+    runs-on: ubuntu-latest
+    needs: analyze
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        # No release keystore is configured in CI, so the Gradle config falls
+        # back to debug signing. The artifact is installable for testing but
+        # is not suitable for distribution.
+        run: |
+          flutter build apk --release --split-per-abi \
+            --dart-define=API_BASE_URL=${{ github.event.inputs.api_base_url || 'https://api.example.com' }}
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanegor-apk
+          path: sanegor-app/build/app/outputs/flutter-apk/*.apk
+          retention-days: 14
+
+  build-aab:
+    name: Build App Bundle
+    runs-on: ubuntu-latest
+    needs: analyze
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Restore signing keystore
+        # Optional: set these repository secrets to produce a signed bundle.
+        # Without them the build still succeeds using debug signing.
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storeFile=upload-keystore.jks
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          EOF
+
+      - name: Build App Bundle
+        run: |
+          flutter build appbundle --release \
+            --dart-define=API_BASE_URL=${{ github.event.inputs.api_base_url || 'https://api.example.com' }}
+
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanegor-aab
+          path: sanegor-app/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 14

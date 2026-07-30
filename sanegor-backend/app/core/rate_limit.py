@@ -53,7 +53,7 @@ class RateLimiter:
         key = f"ratelimit:{bucket}:{identity}"
         try:
             current, ttl = await self._script(keys=[key], args=[rule.window])
-        except Exception as exc:  # noqa: BLE001 - fail open, but shout about it
+        except Exception as exc:
             logger.warning("rate_limit_unavailable", error=str(exc), bucket=bucket)
             return
 
@@ -67,5 +67,5 @@ class RateLimiter:
             return
         try:
             await self._redis.delete(f"ratelimit:{bucket}:{identity}")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning("rate_limit_reset_failed", error=str(exc))
