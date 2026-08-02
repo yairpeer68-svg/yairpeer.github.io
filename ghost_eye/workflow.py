@@ -463,9 +463,14 @@ def intelligence_report(results, target: str = "",
     technologies, cloud footprint, email posture, certificates, leak indicators,
     an organization profile and the attack-surface graph — assembled from the
     output of every module that ran."""
-    from .intelligence import build_graph, correlate, organization_profile
+    from .intelligence import (analyze, build_graph, build_timeline,
+                               correlate, entity_correlation,
+                               knowledge_graph, organization_profile)
     intel = correlate(results, target)
     profile = organization_profile(intel, results)
+    kg = knowledge_graph(results, intel["target"], intel)
+    corr = entity_correlation(kg)
+    tline = build_timeline(results, intel["target"])
     a = attack_score(results)
     out = {
         "target": intel["target"],
@@ -476,10 +481,25 @@ def intelligence_report(results, target: str = "",
         "intelligence": intel,
         "organization": profile,
         "graph": build_graph(intel),
+        "knowledge_graph": kg,
+        "correlation": corr,
+        "timeline": tline,
     }
+    # the rule-based AI analyst reasons over the fully assembled picture
+    out["analysis"] = analyze(out)
     if exploit is not None:
         out["exploitable_cves"] = exploit.get("exploitable", [])
     return out
+
+
+def platform_report(results, target: str = "",
+                    exploit: Optional[dict] = None) -> dict:
+    """Personal Cyber Intelligence Platform view — the full intelligence
+    picture plus the typed Knowledge Graph, smart entity correlation, the
+    Intelligence Timeline and the rule-based AI-analyst write-up. Alias of the
+    enriched intelligence_report(); kept as a named entry point for the CLI/API
+    and reports."""
+    return intelligence_report(results, target, exploit=exploit)
 
 
 def trend(store, target: str) -> dict:

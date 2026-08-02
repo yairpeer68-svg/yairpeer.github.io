@@ -1,8 +1,9 @@
 # 👁 Ghost Eye
 
-**Modular reconnaissance / OSINT / exposure-detection toolkit** with a browser
-dashboard, exploit-intelligence correlation, executive reporting and a CI/CD
-security gate.
+**Modular reconnaissance / OSINT / exposure-detection toolkit** — a Personal
+Cyber Intelligence Platform with a browser dashboard, a typed Knowledge Graph,
+an intelligence timeline, a rule-based AI analyst, exploit-intelligence
+correlation, executive reporting and a CI/CD security gate.
 
 A ground-up rewrite of the original single-file *Ghost Eye* by
 [Jolanda de Koff (BullsEye0)](https://github.com/BullsEye0). The original was
@@ -15,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **379 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **386 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -169,7 +170,7 @@ Define your own in a YAML/JSON file and load with `--recipes myrecipes.yaml`.
 
 ---
 
-## Intelligence layer
+## Intelligence layer — a Personal Cyber Intelligence Platform
 
 Ghost Eye doesn't just list findings — the `intelligence/` layer **correlates
 the output of every module that ran into one ASM-style picture**, without any
@@ -181,22 +182,46 @@ extra scanning:
 - **Email posture** — an SPF/DKIM/DMARC/MTA-STS score out of 100.
 - **Certificates** — issuers, SAN domains, wildcard/related domains.
 - **Leak indicators** — public breach/leak signals surfaced by OSINT modules.
-- **Organization profile** — a plain-language "uses …" + "main risks …" summary
-  (rule-based, no LLM).
+- **Organization profile** — a plain-language "uses …" + "main risks …" summary.
 - **Attack-surface graph** — a self-contained SVG of the target and everything
   connected to it.
 - **Visual recon** — screenshots of the target and its subdomains (Shodan/Censys
   style thumbnails) embedded in the report and the dashboard gallery.
+
+On top of that correlation, four layers turn it from a *scanner* into a
+**Personal Cyber Intelligence Platform** — all **rule-based, deterministic and
+offline (no LLM, no external API)**:
+
+- **🕸 Knowledge Graph** — a full **typed entity/relationship** graph (not just a
+  star): `subdomain_of`, `resolves_to`, `in_netblock`, `hosted_on`, `uses`,
+  `issued_for`, `mx_for`, `ns_for`, `affected_by`, `exposes`, `registered_to`.
+  Entities are typed (target, subdomain, ip, asn, cloud, tech, cert-issuer,
+  email, org, cve, leak, mail/name-server) and rendered as an interactive SVG
+  with real edges between them.
+- **🔗 Smart entity correlation** — **pivot points** (the most connected
+  entities an attacker/analyst moves through), **shared infrastructure** (one IP
+  / netblock / cloud that ties many hosts together) and **clusters** (assets that
+  provably belong together, via connected components of the graph).
+- **🕓 Intelligence Timeline** — dated events extracted from WHOIS, certificates,
+  breach data and HTTP, ordered chronologically, with insights (upcoming/expired
+  certs, domain age, most-recent breach, last infrastructure change).
+- **🧠 AI analyst** — a rule-based analyst write-up: a **headline, executive
+  summary, prioritised assessment, an attack narrative** ("how this surface would
+  be approached"), **recommendations** and a stated **confidence** — the shape of
+  a human analyst's report, fully deterministic and private.
 
 ```bash
 python3 ghost_eye.py -t example.com --all --intel                 # console summary
 python3 ghost_eye.py -t example.com --all --intel-report intel.html
 python3 ghost_eye.py -t example.com -p perimeter --screenshots 15 --intel-report intel.html
 # dashboard: GET /api/job/<id>/intel   ·   GET /api/job/<id>/risk
+# the /intel payload now carries knowledge_graph, correlation, timeline & analysis
 ```
 
-Produces a single **Ghost Eye Intelligence Report** HTML page (assets, graph,
-**visual gallery**, org profile, tech, cloud, email score, certificates, leaks).
+Produces a single **Ghost Eye Intelligence Report** HTML page: the analyst
+assessment, attack-surface graph, **knowledge graph**, pivot points & shared
+infrastructure, the **intelligence timeline**, visual gallery, org profile,
+tech, cloud, email score, certificates and leaks.
 
 **Screenshots** (`--screenshots [N]`, and the `screenshot` module) render each
 asset headless. Backends, in order: **Playwright/Chromium** (desktop/server),
@@ -456,11 +481,13 @@ pip install pytest && python3 -m pytest -q
 - **Engine tests** — the shared `execute_module` / `run_scan` contract
   (crash → error Result + logged, non-Result coercion, order, parallelism, cancel).
 - **Intelligence tests** — correlation, classifier precision (no false positives),
-  organization profile, graph, screenshot pipeline.
+  organization profile, graph, screenshot pipeline, the **typed knowledge graph
+  + entity correlation**, the **intelligence timeline**, and the **rule-based AI
+  analyst** (asserting it composes a narrative offline, with no LLM).
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**379 tests** pass in ~6s. A single **verification gate** runs the whole thing:
+**386 tests** pass in ~7s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
@@ -536,7 +563,12 @@ ghost_eye/
   reporting.py     JSON/CSV/HTML/PDF exporters + SQLite history
   reporting_ext.py Markdown/SARIF/Prometheus/dashboard + executive report
   inventory.py     asset correlation, host rollup, deep-scan asset collection
-  intelligence/    correlation + organization profile + attack-surface graph
+  intelligence/    the Personal Cyber Intelligence Platform layer:
+    correlation.py   assets, tech/cloud classification, email posture, certs
+    entities.py      typed Knowledge Graph + smart entity correlation
+    timeline.py      Intelligence Timeline (dated events + insights)
+    analyst.py       rule-based AI analyst write-up (no LLM / no external API)
+    graph.py         attack-surface + knowledge-graph SVG renderers
   modules/         ~49 files, 308 self-registering Module subclasses
   web_static/      the single-file dashboard (Hebrew/RTL + Intelligence panel)
 tests/             unit + smoke + behavioural + engine + intelligence + integration

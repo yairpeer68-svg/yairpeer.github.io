@@ -567,6 +567,34 @@ def _print_intel(results, target):
         Console.kv("uses", ", ".join(rep["organization"]["uses"][:10]))
     if c["leak_indicators"]:
         Console.kv("leak indicators", c["leak_indicators"])
+
+    kg = rep.get("knowledge_graph", {}).get("counts", {})
+    if kg:
+        Console.kv("knowledge graph", f"{kg.get('entities', 0)} entities · "
+                                      f"{kg.get('relationships', 0)} relationships")
+    corr = rep.get("correlation", {})
+    for p in corr.get("pivot_points", [])[:3]:
+        Console.kv("pivot", f"{p['entity']} ({p['kind']}, degree {p['degree']})")
+    for s in corr.get("shared_infrastructure", [])[:2]:
+        Console.kv("shared infra", f"{s['hub']} — {s['connects']} hosts")
+
+    tl = rep.get("timeline", {})
+    if tl.get("insights") and tl["insights"][0] != "no dated intelligence available in this scan":
+        Console.rule("Timeline")
+        for i in tl["insights"][:5]:
+            Console.info(i)
+
+    an = rep.get("analysis", {})
+    if an:
+        Console.rule(f"Analyst assessment  (confidence {an.get('confidence', '?')})")
+        Console.info(an.get("headline", ""))
+        for line in an.get("assessment", [])[:5]:
+            Console.warn(f"• {line}")
+        if an.get("recommendations"):
+            Console.rule("Recommendations")
+            for r in an["recommendations"][:5]:
+                Console.good(f"→ {r}")
+
     Console.rule("Main risks")
     for r in rep["organization"]["main_risks"]:
         Console.warn(f"• {r}")

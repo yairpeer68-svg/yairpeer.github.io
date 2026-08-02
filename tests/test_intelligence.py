@@ -141,6 +141,110 @@ def test_graph_build_and_render():
     assert svg.startswith("<svg") and "</svg>" in svg
 
 
+def _rich_sample():
+    """A sample with DNS, WHOIS, cert and CVE data for the platform layer."""
+    return _sample() + [
+        Result("DNS records", "api.example.com", "ok",
+               {"a": ["93.184.216.34"]}),
+        Result("DNS records", "www.example.com", "ok",
+               {"a": ["93.184.216.34"], "mx": "mail.example.com",
+                "ns": "ns1.example.com ns2.example.com"}),
+        Result("WHOIS", "example.com", "ok",
+               {"created": "1995-08-14", "expires": "2026-08-13",
+                "registrant org": "Example Inc", "updated": "2024-03-01"}),
+        Result("SSL certificate analysis", "example.com", "ok",
+               {"not_after": "2025-09-01", "not_before": "2025-06-01"}),
+        Result("CVE lookup", "example.com", "ok",
+               {"cve": "CVE-2021-44228 in log4j"}),
+    ]
+
+
+def test_knowledge_graph_typed_entities_and_relationships():
+    from ghost_eye.intelligence import correlate, knowledge_graph
+    intel = correlate(_rich_sample(), "example.com")
+    kg = knowledge_graph(_rich_sample(), "example.com", intel)
+    kinds = {e["kind"] for e in kg["entities"]}
+    # a real knowledge graph has many typed entity kinds, not just hosts
+    assert {"target", "subdomain", "ip", "tech", "cve"} <= kinds
+    # relationships are typed and directed
+    rtypes = {r["type"] for r in kg["relationships"]}
+    assert "subdomain_of" in rtypes and "uses" in rtypes
+    # DNS output produced a real resolves_to edge to the shared IP
+    assert any(r["type"] == "resolves_to" for r in kg["relationships"])
+    assert kg["counts"]["entities"] == len(kg["entities"])
+
+
+def test_entity_correlation_pivots_and_shared_infra():
+    from ghost_eye.intelligence import (correlate, entity_correlation,
+                                        knowledge_graph)
+    intel = correlate(_rich_sample(), "example.com")
+    kg = knowledge_graph(_rich_sample(), "example.com", intel)
+    corr = entity_correlation(kg)
+    # the apex is the most connected pivot
+    assert corr["pivot_points"][0]["entity"] == "example.com"
+    # two subdomains share one IP -> a shared-infrastructure hub
+    hubs = {s["hub"] for s in corr["shared_infrastructure"]}
+    assert "93.184.216.34" in hubs
+
+
+def test_timeline_orders_events_and_flags_expiry():
+    from ghost_eye.intelligence import build_timeline
+    tl = build_timeline(_rich_sample(), "example.com")
+    dates = [e["date"] for e in tl["events"]]
+    assert dates == sorted(dates)                     # chronological
+    kinds = {e["kind"] for e in tl["events"]}
+    assert "registration" in kinds and "expiry" in kinds
+    joined = " ".join(tl["insights"]).lower()
+    assert "expir" in joined and "registered" in joined
+
+
+def test_analyst_writes_narrative_without_llm():
+    from ghost_eye import workflow
+    rep = workflow.platform_report(_rich_sample(), "example.com")
+    an = rep["analysis"]
+    assert "no LLM" in an["method"]
+    assert "example.com" in an["headline"] and an["confidence"] in (
+        "low", "medium", "high")
+    # the narrative names a concrete first foothold and gives recommendations
+    assert "dev.example.com" in an["attack_narrative"]
+    assert any("DMARC" in r or "MFA" in r or "TLS" in r
+               for r in an["recommendations"])
+    # good grammar: no naive 'technologys'
+    assert "technologys" not in an["summary"]
+
+
+def test_platform_report_bundles_every_layer():
+    from ghost_eye import workflow
+    rep = workflow.platform_report(_rich_sample(), "example.com")
+    for key in ("knowledge_graph", "correlation", "timeline", "analysis",
+                "intelligence", "organization", "graph"):
+        assert key in rep
+
+
+def test_knowledge_graph_svg_renders():
+    from ghost_eye.intelligence import (correlate, knowledge_graph,
+                                        render_knowledge_svg)
+    intel = correlate(_rich_sample(), "example.com")
+    kg = knowledge_graph(_rich_sample(), "example.com", intel)
+    svg = render_knowledge_svg(kg)
+    assert svg.startswith("<svg") and "</svg>" in svg
+    # empty graph degrades gracefully
+    empty = render_knowledge_svg({"entities": [], "relationships": []})
+    assert "<svg" in empty
+
+
+def test_intel_html_has_platform_sections(tmp_path):
+    from ghost_eye import reporting_ext
+    p = reporting_ext.export_intel_report(_rich_sample(),
+                                          str(tmp_path / "p.html"),
+                                          "example.com")
+    html = open(p, encoding="utf-8").read()
+    for token in ("Analyst assessment", "Knowledge graph",
+                  "Intelligence timeline", "Pivot points",
+                  "Recommendations"):
+        assert token in html
+
+
 def test_intelligence_report_and_html(tmp_path):
     from ghost_eye import reporting_ext, workflow
     rep = workflow.intelligence_report(_sample(), "example.com")

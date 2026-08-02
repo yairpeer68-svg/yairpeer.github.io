@@ -470,7 +470,7 @@ def export_intel_report(results: List[Result], path: str, target: str = "",
     an attack-surface graph, the organization profile, technologies by category,
     email posture, certificates and leak indicators."""
     from .workflow import intelligence_report
-    from .intelligence.graph import render_svg
+    from .intelligence.graph import render_knowledge_svg, render_svg
 
     rep = intelligence_report(results, target, exploit=exploit)
     intel = rep["intelligence"]
@@ -538,6 +538,72 @@ def export_intel_report(results: List[Result], path: str, target: str = "",
                        f'<figcaption>{cap}</figcaption></figure>')
     graph_svg = render_svg(rep["graph"])
 
+    # ---- Knowledge Graph + entity correlation + timeline + AI analyst ---- #
+    kg = rep.get("knowledge_graph", {})
+    corr = rep.get("correlation", {})
+    tline = rep.get("timeline", {})
+    analysis = rep.get("analysis", {})
+    kg_svg = render_knowledge_svg(kg) if kg.get("entities") else ""
+    kgc = kg.get("counts", {})
+
+    def _pill(txt):
+        return f'<span class="chip">{esc(str(txt))}</span>'
+
+    pivots_html = "".join(
+        f'<li><b>{esc(p["entity"])}</b> <span class="muted">({esc(p["kind"])}, '
+        f'degree {p["degree"]})</span></li>'
+        for p in corr.get("pivot_points", [])[:8]) or \
+        '<li class="muted">no strong pivot points</li>'
+    shared_html = "".join(
+        f'<li><b>{esc(s["hub"])}</b> <span class="muted">({esc(s["kind"])})</span>'
+        f' ties {s["connects"]} hosts: {esc(", ".join(s["hosts"][:6]))}</li>'
+        for s in corr.get("shared_infrastructure", [])[:6]) or \
+        '<li class="muted">no shared infrastructure hubs</li>'
+    clusters_html = "".join(
+        f'<li>{c["size"]} entities around <b>{esc(c["anchor"])}</b> '
+        f'<span class="muted">({esc(c["anchor_kind"])})</span></li>'
+        for c in corr.get("clusters", [])[:6]) or \
+        '<li class="muted">single cluster</li>'
+
+    _SEVC = {"high": "#f85149", "medium": "#d29922", "info": "#58a6ff",
+             "low": "#3fb950"}
+    tl_events = tline.get("events", [])
+    tl_rows = "".join(
+        f'<div class="tlrow"><span class="tldot" style="background:'
+        f'{_SEVC.get(e["severity"], "#8b949e")}"></span>'
+        f'<span class="tldate">{esc(e["date"])}</span>'
+        f'<span class="tlbody"><b>{esc(e["label"])}</b> '
+        f'<span class="muted">· {esc(e["host"])} · {esc(e["module"])}</span>'
+        f'<br><span class="muted">{esc(e["detail"])}</span></span></div>'
+        for e in tl_events[:40])
+    tl_insights = "".join(f"<li>{esc(i)}</li>"
+                          for i in tline.get("insights", []))
+    timeline_html = (
+        ('<ul>' + tl_insights + '</ul>' if tl_insights else '')
+        + ('<div class="timeline">' + tl_rows + '</div>' if tl_rows
+           else '<p class="muted">no dated intelligence in this scan</p>'))
+
+    conf = analysis.get("confidence", "?")
+    conf_c = {"high": "#3fb950", "medium": "#d29922", "low": "#f85149"}.get(
+        conf, "#8b949e")
+    analyst_html = ""
+    if analysis:
+        assess = "".join(f"<li>{esc(x)}</li>"
+                         for x in analysis.get("assessment", []))
+        recs = "".join(f"<li>{esc(x)}</li>"
+                       for x in analysis.get("recommendations", []))
+        analyst_html = (
+            f'<div class="headline">{esc(analysis.get("headline", ""))}</div>'
+            f'<p>{esc(analysis.get("summary", ""))}</p>'
+            f'<h2 style="margin-top:14px">Assessment</h2><ul>{assess}</ul>'
+            f'<h2 style="margin-top:14px">How this surface would be approached'
+            f'</h2><p class="muted">{esc(analysis.get("attack_narrative", ""))}'
+            f'</p>'
+            f'<h2 style="margin-top:14px">Recommendations</h2><ol>{recs}</ol>'
+            f'<div class="muted" style="margin-top:10px">Confidence: '
+            f'<b style="color:{conf_c}">{esc(conf)}</b> · '
+            f'{esc(analysis.get("method", ""))}</div>')
+
     head = ('<!doctype html><html lang="' + esc(lang) + '"><head>'
             '<meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -574,6 +640,13 @@ def export_intel_report(results: List[Result], path: str, target: str = "",
             '.shot{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}'
             '.shot img{width:100%;display:block;aspect-ratio:16/10;object-fit:cover;object-position:top}'
             '.shot figcaption{font-size:11px;color:var(--muted);padding:6px 8px;word-break:break-all}'
+            '.headline{font-size:16px;font-weight:800;margin:2px 0 10px}'
+            '.timeline{border-left:2px solid var(--line);margin:10px 0 2px;padding-left:4px}'
+            '.tlrow{display:flex;gap:10px;padding:8px 0 8px 12px;position:relative}'
+            '.tldot{width:9px;height:9px;border-radius:50%;flex:0 0 9px;margin-top:4px;'
+            'margin-left:-19px;box-shadow:0 0 0 3px var(--panel)}'
+            '.tldate{color:var(--muted);font-size:12px;min-width:78px;font-variant-numeric:tabular-nums}'
+            '.tlbody{font-size:13px}ol{margin:6px 0;padding-left:20px}'
             'footer{color:var(--muted);text-align:center;font-size:12px;padding:20px}'
             '</style></head><body><div class="wrap">')
 
@@ -584,8 +657,20 @@ def export_intel_report(results: List[Result], path: str, target: str = "",
         ' · risk ' + esc(rep["risk_level"]) + ' · ' + str(rep["score"]) + '/100</div>'
         '</div></header>'
         '<div class="tiles">' + tiles + '</div>'
-        '<div class="graph"><h2 style="margin:2px 6px 8px">Attack surface</h2>'
+        + ('<section><h2>🧠 Analyst assessment</h2>' + analyst_html + '</section>'
+           if analyst_html else '')
+        + '<div class="graph"><h2 style="margin:2px 6px 8px">Attack surface</h2>'
         + graph_svg + '</div>'
+        + ('<div class="graph"><h2 style="margin:2px 6px 8px">Knowledge graph — '
+           + str(kgc.get("entities", 0)) + ' entities · '
+           + str(kgc.get("relationships", 0)) + ' relationships</h2>'
+           + kg_svg + '</div>' if kg_svg else '')
+        + '<div class="two">'
+        '<section><h2>Pivot points</h2><ul>' + pivots_html + '</ul></section>'
+        '<section><h2>Shared infrastructure</h2><ul>' + shared_html +
+        '</ul><h2 style="margin-top:14px">Correlation clusters</h2><ul>'
+        + clusters_html + '</ul></section></div>'
+        '<section><h2>🕓 Intelligence timeline</h2>' + timeline_html + '</section>'
         + ('<section><h2>Visual recon (' + str(len(shots)) + ')</h2>'
            '<div class="gallery">' + shots_html + '</div></section>' if shots_html else '')
         + '<div class="two">'

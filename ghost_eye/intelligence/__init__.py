@@ -1,14 +1,27 @@
 """Intelligence layer — correlates the raw output of the 307 scan modules into
 a single, unified attack-surface picture: assets, technologies (classified),
 cloud footprint, email posture, certificate relationships, leak indicators, an
-organization profile and a node/edge graph.
+organization profile, a full typed Knowledge Graph with smart entity
+correlation, an Intelligence Timeline and a rule-based AI-analyst write-up.
 
-This is the layer that turns "a list of module results" into an ASM-style
-intelligence report. Correlation only — it never scans anything itself, it
-reasons over what the modules already found.
+This is the layer that turns "a list of module results" into a Personal Cyber
+Intelligence Platform. Correlation only — it never scans anything itself, it
+reasons over what the modules already found (no LLM, no external calls).
 """
 
+from .analyst import analyze  # noqa: F401
 from .correlation import correlate, organization_profile  # noqa: F401
-from .graph import build_graph, render_svg  # noqa: F401
+from .entities import entity_correlation, knowledge_graph  # noqa: F401
+from .graph import (  # noqa: F401
+    build_graph,
+    render_knowledge_svg,
+    render_svg,
+)
+from .timeline import build_timeline  # noqa: F401
 
-__all__ = ["correlate", "organization_profile", "build_graph", "render_svg"]
+__all__ = [
+    "correlate", "organization_profile",
+    "build_graph", "render_svg", "render_knowledge_svg",
+    "knowledge_graph", "entity_correlation",
+    "build_timeline", "analyze",
+]
