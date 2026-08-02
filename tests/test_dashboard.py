@@ -21,7 +21,7 @@ from pathlib import Path
 
 from ghost_eye.config import Config
 from ghost_eye.core import Result
-from ghost_eye.webapp import Handler, JobManager
+from ghost_eye.webapp import Handler, JobManager, Scheduler
 
 _INDEX = (Path(__file__).resolve().parent.parent
           / "ghost_eye" / "web_static" / "index.html")
@@ -62,9 +62,11 @@ def test_static_app_wires_action_panels():
     for act in ("exploits", "risk", "compliance", "screenshots", "trend"):
         assert f'data-act="{act}"' in html, f"missing button {act}"
     assert "function loadTrend(" in html and "function trendChart(" in html
-    # change-alert monitoring: an alert-webhook option wired into the scan
+    # change-alert monitoring: an alert-webhook option wired into the scan,
+    # and into the schedule form for continuous monitoring
     assert 'id="o-alert"' in html
     assert "alert_webhook:" in html
+    assert 'id="schedAlert"' in html
     for fmt in ("exec", "intel"):
         assert f'data-fmt="{fmt}"' in html, f"missing report button {fmt}"
     for fn in ("function loadExploits(", "function loadRisk(",
@@ -115,6 +117,32 @@ def test_persist_fires_surface_alert_on_change(tmp_path, monkeypatch):
             "options": {"alert_webhook": "https://hooks.slack.com/services/x"}}
     jm._persist(job2)
     assert not sent, "first scan must not fire a change alert"
+
+
+def test_schedule_forwards_alert_webhook_for_monitoring():
+    """A monitored schedule must pass its alert webhook into every job it fires,
+    so continuous re-scans emit change alerts (no real scan is run)."""
+    jm = JobManager(Config())
+    sched = Scheduler(jm)
+    captured = {}
+
+    def fake_create(target, modules, options):
+        captured["target"] = target
+        captured["options"] = options
+        return "jid1"
+    jm.create = fake_create  # type: ignore[assignment]
+
+    sid = sched.add("x.com", 60, {"mode": "modules", "value": ["headers"]},
+                    {"alert_webhook": "https://hooks.slack.com/services/x"})
+    try:
+        stored = [s for s in sched.list_all() if s["id"] == sid][0]
+        assert stored["options"]["alert_webhook"]
+        sched._fire(sid)  # simulate the interval firing
+        assert captured.get("target") == "x.com"
+        assert captured["options"].get("alert_webhook") == \
+            "https://hooks.slack.com/services/x"
+    finally:
+        sched.remove(sid)
 
 
 def _seed(jm) -> str:

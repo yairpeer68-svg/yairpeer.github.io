@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **397 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **398 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -308,13 +308,17 @@ python3 ghost_eye.py -t example.com --all \
 ```
 
 **🔔 Change-alert monitoring** — turn periodic re-scans into an active monitor.
-Set a **change-alert webhook** in the dashboard's scan options (or wire it into a
-schedule): every dashboard scan is saved, and when a re-scan **adds new exposure**
-— a new subdomain, IP, open service/port, CVE, technology or leak indicator —
-Ghost Eye diffs the attack surface against the previous scan and fires an alert
-with the exact diff to Slack / Discord / Telegram. Growth-only, rule-based; a
-first scan (no history) never alerts. The dashboard also shows a live banner and
-the full diff in the Trend panel.
+Set a **change-alert webhook** in the dashboard's scan options, and when a re-scan
+**adds new exposure** — a new subdomain, IP, open service/port, CVE, technology or
+leak indicator — Ghost Eye diffs the attack surface against the previous scan and
+fires an alert with the exact diff to Slack / Discord / Telegram. Growth-only,
+rule-based; a first scan (no history) never alerts. The dashboard also shows a
+live banner and the full diff in the Trend panel.
+
+**Continuous monitoring** — add the same webhook to a **schedule** (dashboard →
+Schedules) and Ghost Eye re-scans the target every N minutes and pings you *only
+when the surface changes* — hands-off drift monitoring. Scheduled runs carry the
+alert webhook automatically, so no manual re-runs are needed.
 
 ---
 
@@ -525,7 +529,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**397 tests** pass in ~9s. A single **verification gate** runs the whole thing:
+**398 tests** pass in ~8s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
