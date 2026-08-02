@@ -91,11 +91,15 @@ def test_capture_surface_screenshots_subdomains(monkeypatch):
            "AAABAAEAAAIBRAA7")
     seen = []
 
-    def fake_capture(url, timeout=15):
-        seen.append(url)
-        return {"final_url": url, "title": "x", "screenshot": img,
-                "backend": "mock"}
-    monkeypatch.setattr("ghost_eye.modules.screenshot.capture", fake_capture)
+    def fake_capture_many(urls, timeout=15):
+        out = {}
+        for u in urls:
+            seen.append(u)
+            out[u] = {"final_url": u, "title": "x", "screenshot": img,
+                      "backend": "mock"}
+        return out
+    monkeypatch.setattr("ghost_eye.modules.screenshot.capture_many",
+                        fake_capture_many)
     results = [Result("Subdomain enumeration", "acme.com", "ok",
                       {"subdomains": ["api.acme.com", "dev.acme.com"]})]
     shots = workflow.capture_surface(results, "acme.com", max_shots=5)

@@ -416,11 +416,9 @@ def capture_surface(results, target: str = "", max_shots: int = 10,
     'screenshot' Result objects that merge straight into the intelligence
     gallery — a full visual sweep of the attack surface. Uses whatever headless
     Chromium backend is available (Playwright, or the Termux `chromium` CLI)."""
-    from concurrent.futures import ThreadPoolExecutor
-
     from .core import Result
     from .inventory import build_inventory
-    from .modules.screenshot import capture
+    from .modules.screenshot import capture_many
 
     inv = build_inventory(results, target)
     tgt = (target or inv.get("target", "")).lower().rstrip(".")
@@ -429,25 +427,33 @@ def capture_surface(results, target: str = "", max_shots: int = 10,
     if tgt and tgt not in hosts:
         hosts.insert(0, tgt)
     hosts = hosts[:max(1, max_shots)]
+    if not hosts:
+        return []
 
-    def shoot(host):
-        res = capture("https://" + host, timeout=timeout)
-        if not res.get("screenshot", "").startswith("data:"):
-            res = capture("http://" + host, timeout=timeout)
-        return host, res
+    def sweep(scheme):
+        by_url = {f"{scheme}://{h}": h for h in hosts_todo}
+        res = capture_many(list(by_url), timeout=timeout)
+        return {by_url[u]: r for u, r in res.items()}
+
+    hosts_todo = hosts
+    got = sweep("https")                     # one browser for all HTTPS
+    hosts_todo = [h for h in hosts
+                  if not got.get(h, {}).get("screenshot", "").startswith("data:")]
+    if hosts_todo:                           # retry the failures over plain HTTP
+        for host, res in sweep("http").items():
+            if res.get("screenshot", "").startswith("data:"):
+                got[host] = res
 
     shots = []
-    if not hosts:
-        return shots
-    with ThreadPoolExecutor(max_workers=max(1, parallel)) as ex:
-        for host, res in ex.map(shoot, hosts):
-            if res.get("screenshot", "").startswith("data:"):
-                shots.append(Result(
-                    "Website screenshot (visual recon)", host, "ok",
-                    {"final_url": res.get("final_url"),
-                     "title": res.get("title"),
-                     "backend": res.get("backend"),
-                     "screenshot": res["screenshot"]}))
+    for host in hosts:
+        res = got.get(host, {})
+        if res.get("screenshot", "").startswith("data:"):
+            shots.append(Result(
+                "Website screenshot (visual recon)", host, "ok",
+                {"final_url": res.get("final_url"),
+                 "title": res.get("title"),
+                 "backend": res.get("backend"),
+                 "screenshot": res["screenshot"]}))
     return shots
 
 

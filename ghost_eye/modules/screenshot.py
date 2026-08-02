@@ -153,6 +153,51 @@ def capture(url: str, timeout: int = 15) -> dict:
     return cli if "no chromium" not in cli.get("error", "") else res
 
 
+def capture_many(urls, timeout: int = 15) -> dict:
+    """Screenshot many URLs, reusing ONE browser instance (Playwright) instead
+    of launching one per URL — much faster for a visual sweep of a whole attack
+    surface. Falls back to the per-URL Chromium CLI. Returns {url: result}."""
+    urls = list(urls)
+    results: dict = {}
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:  # noqa: BLE001 - no playwright: per-URL CLI fallback
+        return {u: _capture_cli(u, timeout) for u in urls}
+    exe = _find_chromium()
+    try:
+        with sync_playwright() as p:
+            launch = {"headless": True,
+                      "args": ["--no-sandbox", "--disable-dev-shm-usage"]}
+            if exe:
+                launch["executable_path"] = exe
+            browser = p.chromium.launch(**launch)
+            try:
+                for url in urls:
+                    try:
+                        page = browser.new_page(viewport=_VIEWPORT,
+                                                ignore_https_errors=True)
+                        resp = page.goto(url, timeout=timeout * 1000,
+                                         wait_until="domcontentloaded")
+                        page.wait_for_timeout(800)   # brief settle; sweep is many
+                        png = page.screenshot(full_page=False)
+                        results[url] = {
+                            "url": url,
+                            "status": resp.status if resp else None,
+                            "final_url": page.url,
+                            "title": (page.title() or "")[:120],
+                            "screenshot": _to_thumbnail(png) or "thumbnail too large",
+                            "backend": "playwright",
+                        }
+                        page.close()
+                    except Exception as exc:  # noqa: BLE001
+                        results[url] = {"url": url, "error": str(exc)[:160]}
+            finally:
+                browser.close()
+    except Exception:  # noqa: BLE001 - launch failed (e.g. Termux): CLI fallback
+        return {u: _capture_cli(u, timeout) for u in urls}
+    return results
+
+
 @register
 class WebScreenshot(Module):
     id, name, category = "screenshot", "Website screenshot (visual recon)", "Assets"
