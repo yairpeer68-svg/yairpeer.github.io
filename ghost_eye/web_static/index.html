@@ -345,6 +345,12 @@ a{color:var(--cyan);text-decoration:none}
                autocomplete="off" spellcheck="false"
                style="width:100%;background:var(--panel);border:1px solid var(--line2);color:var(--ink);padding:9px 10px;border-radius:8px;outline:none">
       </div>
+      <div style="margin-top:10px">
+        <label class="eyebrow" style="display:block;margin-bottom:6px">🔔 Change-alert webhook <span style="color:#5d6b80;text-transform:none;letter-spacing:0">— Slack / Discord / Telegram; alerts when a re-scan adds a subdomain/IP/port/CVE/leak</span></label>
+        <input id="o-alert" placeholder="(optional) https://hooks.slack.com/…  ·  https://discord.com/api/webhooks/…"
+               autocomplete="off" spellcheck="false"
+               style="width:100%;background:var(--panel);border:1px solid var(--line2);color:var(--ink);padding:9px 10px;border-radius:8px;outline:none">
+      </div>
     </div>
 
     <button class="run" id="runbtn">Run scan</button>
@@ -569,6 +575,7 @@ async function startOne(target, label){
     deep:($("o-deep")?$("o-deep").checked:false),
     deep_max:+($("o-deep-max")?($("o-deep-max").value||25):25),
     user_agent:($("o-ua").value||"").trim() || undefined,
+    alert_webhook:($("o-alert")?($("o-alert").value||"").trim():""),
   };
   stopping=false; MISSES=0;
   clearBanner(); if(label) showBanner(label);
@@ -627,6 +634,15 @@ function finishUI(s){
   $("statustxt").textContent=`${txt} — ${s.target}`;
   if(s.status==="error" && s.error) showBanner("Backend error: "+s.error);
   document.querySelectorAll(".exp").forEach(b=>b.disabled=false);
+  // surface-change alert is computed during persist; re-fetch once to show it
+  if(s.status==="done"){ setTimeout(async()=>{
+    try{ const j=await api(`/api/job/${JOB}`); const d=j.surface_change;
+      if(d&&d.changed&&!d.first_scan){
+        const items=[...(d.new_subdomains||[]),...(d.new_ips||[]),...(d.new_services||[]),...(d.new_cves||[]),...(d.new_leaks||[])];
+        showBanner(`🔔 Attack surface changed — +${d.total_new} new: ${items.slice(0,5).map(esc).join(", ")}${items.length>5?"…":""}  ·  open Trend for the full diff`);
+      }
+    }catch(e){}
+  }, 700); }
 }
 
 /* ---------- render ---------- */

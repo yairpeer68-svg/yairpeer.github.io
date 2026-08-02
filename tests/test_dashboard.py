@@ -62,6 +62,9 @@ def test_static_app_wires_action_panels():
     for act in ("exploits", "risk", "compliance", "screenshots", "trend"):
         assert f'data-act="{act}"' in html, f"missing button {act}"
     assert "function loadTrend(" in html and "function trendChart(" in html
+    # change-alert monitoring: an alert-webhook option wired into the scan
+    assert 'id="o-alert"' in html
+    assert "alert_webhook:" in html
     for fmt in ("exec", "intel"):
         assert f'data-fmt="{fmt}"' in html, f"missing report button {fmt}"
     for fn in ("function loadExploits(", "function loadRisk(",
@@ -72,6 +75,46 @@ def test_static_app_wires_action_panels():
                   'b.dataset.act==="compliance"',
                   'b.dataset.act==="screenshots"'):
         assert route in html, f"click handler missing {route}"
+
+
+def test_persist_fires_surface_alert_on_change(tmp_path, monkeypatch):
+    """A re-scan whose surface grew must compute the diff and fire the alert;
+    a first scan (no history) must not. Transport is stubbed."""
+    from ghost_eye import reporting, workflow
+    db = str(tmp_path / "alert.db")
+    monkeypatch.setenv("GHOSTEYE_DB", db)
+    # seed a previous scan for the target
+    st = reporting.Store(db)
+    st.save_scan("old", "x.com",
+                 [Result("Subdomain enumeration", "x.com", "ok",
+                         {"subdomains": ["api.x.com"]})], "LOW", 5)
+    st.close()
+
+    sent = []
+    monkeypatch.setattr(workflow, "notify_change",
+                        lambda diff, url, **k: sent.append((diff, url)) or True)
+
+    jm = JobManager(Config())
+    job = {"id": "new", "target": "x.com", "status": "done",
+           "_results_obj": [Result("Subdomain enumeration", "x.com", "ok",
+                                   {"subdomains": ["api.x.com", "dev.x.com"]})],
+           "results": [], "risk": {},
+           "options": {"alert_webhook": "https://hooks.slack.com/services/x"}}
+    jm._persist(job)
+    assert sent, "alert was not fired on a changed surface"
+    diff, url = sent[0]
+    assert "dev.x.com" in diff["new_subdomains"]
+    assert job["surface_change"]["changed"] is True
+
+    # a brand-new target (no history) must NOT alert
+    sent.clear()
+    job2 = {"id": "first", "target": "brandnew.com", "status": "done",
+            "_results_obj": [Result("Subdomain enumeration", "brandnew.com",
+                                    "ok", {"subdomains": ["a.brandnew.com"]})],
+            "results": [], "risk": {},
+            "options": {"alert_webhook": "https://hooks.slack.com/services/x"}}
+    jm._persist(job2)
+    assert not sent, "first scan must not fire a change alert"
 
 
 def _seed(jm) -> str:

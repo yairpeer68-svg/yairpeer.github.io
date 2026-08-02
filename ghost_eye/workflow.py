@@ -941,25 +941,23 @@ def _summary_text(results, target: str, exploit: Optional[dict] = None) -> str:
     return "\n".join(lines)
 
 
-def notify(results, target: str = "", url: str = "", service: str = "auto",
-           exploit: Optional[dict] = None, session=None) -> bool:
-    """Push a scan summary to Slack / Discord / Telegram / a generic webhook.
+def _detect_service(url: str) -> str:
+    if "hooks.slack.com" in url:
+        return "slack"
+    if "discord" in url:
+        return "discord"
+    if "api.telegram.org" in url:
+        return "telegram"
+    return "webhook"
 
-    `service` auto-detects from the URL host; override with slack/discord/
-    telegram/webhook. Telegram URLs must already carry ?chat_id=…"""
+
+def _send_webhook(url: str, text: str, service: str = "auto",
+                  session=None, extra: Optional[dict] = None) -> bool:
+    """Post `text` to Slack / Discord / Telegram / a generic webhook. Shared
+    transport for scan-summary and surface-change alerts."""
     if not url:
         return False
-    text = _summary_text(results, target, exploit)
-    svc = service
-    if svc == "auto":
-        if "hooks.slack.com" in url:
-            svc = "slack"
-        elif "discord" in url:
-            svc = "discord"
-        elif "api.telegram.org" in url:
-            svc = "telegram"
-        else:
-            svc = "webhook"
+    svc = _detect_service(url) if service == "auto" else service
     try:
         import requests as _req
         s = session or _req.Session()
@@ -970,15 +968,98 @@ def notify(results, target: str = "", url: str = "", service: str = "auto",
         elif svc == "telegram":
             # chat_id is expected in the URL query; we add the message body
             r = s.post(url, data={"text": text, "parse_mode": "HTML"}, timeout=15)
-        else:  # generic webhook — send both text and structured payload
-            r = s.post(url, json={"text": text, "target": target,
-                                  "summary": _summary_text(results, target, exploit),
-                                  "grade": attack_score(results)}, timeout=15)
+        else:  # generic webhook — send both text and a structured payload
+            r = s.post(url, json={"text": text, **(extra or {})}, timeout=15)
         return getattr(r, "status_code", 500) < 300
     except Exception as exc:  # noqa: BLE001
         from .core import record_error
-        record_error(f"notify {svc}", target, exc)
+        record_error(f"notify {svc}", "", exc)
         return False
+
+
+def notify(results, target: str = "", url: str = "", service: str = "auto",
+           exploit: Optional[dict] = None, session=None) -> bool:
+    """Push a scan summary to Slack / Discord / Telegram / a generic webhook.
+
+    `service` auto-detects from the URL host; override with slack/discord/
+    telegram/webhook. Telegram URLs must already carry ?chat_id=…"""
+    if not url:
+        return False
+    text = _summary_text(results, target, exploit)
+    return _send_webhook(url, text, service, session,
+                         extra={"target": target,
+                                "grade": attack_score(results)})
+
+
+def _entity_sets(results, target: str) -> dict:
+    """Map the notable knowledge-graph entities of a scan by kind, plus open
+    services — the surface an active monitor watches for growth."""
+    from .intelligence import correlate, knowledge_graph
+    from .inventory import build_inventory
+    intel = correlate(results, target)
+    kg = knowledge_graph(results, target, intel)
+    by_kind: dict = {}
+    for e in kg["entities"]:
+        by_kind.setdefault(e["kind"], set()).add(e["label"])
+    by_kind["service"] = set(build_inventory(results, target).get("services", []))
+    return by_kind
+
+
+def surface_diff(prev_results, curr_results, target: str = "") -> dict:
+    """What NEW exposure appeared on the attack surface between two scans:
+    new subdomains, IPs, technologies, CVEs, leaks, emails and open services.
+    Growth only — the signal an active monitor should alert on. Rule-based."""
+    prev = _entity_sets(prev_results, target) if prev_results else {}
+    curr = _entity_sets(curr_results, target)
+
+    def added(kind):
+        return sorted(curr.get(kind, set()) - prev.get(kind, set()))
+
+    diff = {
+        "target": target,
+        "new_subdomains": added("subdomain"),
+        "new_ips": added("ip"),
+        "new_technologies": added("tech"),
+        "new_cves": added("cve"),
+        "new_leaks": added("leak"),
+        "new_emails": added("email"),
+        "new_services": added("service"),
+        "new_cloud": added("cloud"),
+    }
+    diff["total_new"] = sum(len(v) for k, v in diff.items()
+                            if k.startswith("new_"))
+    diff["changed"] = diff["total_new"] > 0
+    diff["first_scan"] = not prev_results
+    return diff
+
+
+def _change_text(diff: dict) -> str:
+    """Human-readable surface-change alert."""
+    tgt = diff.get("target") or "target"
+    lines = [f"🚨 Ghost Eye — attack surface changed on {tgt}",
+             f"{diff['total_new']} new item(s) since the last scan:"]
+    labels = [
+        ("new_subdomains", "subdomains"), ("new_ips", "IPs"),
+        ("new_services", "open services"), ("new_cves", "CVEs"),
+        ("new_technologies", "technologies"), ("new_leaks", "leak indicators"),
+        ("new_cloud", "cloud"), ("new_emails", "emails"),
+    ]
+    for key, label in labels:
+        vals = diff.get(key) or []
+        if vals:
+            lines.append(f"  + {label}: {', '.join(str(v) for v in vals[:12])}"
+                         + (f" (+{len(vals) - 12} more)" if len(vals) > 12 else ""))
+    return "\n".join(lines)
+
+
+def notify_change(diff: dict, url: str = "", service: str = "auto",
+                  session=None) -> bool:
+    """Send a surface-change alert (only when something new appeared)."""
+    if not url or not diff.get("changed"):
+        return False
+    return _send_webhook(url, _change_text(diff), service, session,
+                         extra={"target": diff.get("target"),
+                                "change": diff})
 
 
 # --------------------------------------------------------------------------- #

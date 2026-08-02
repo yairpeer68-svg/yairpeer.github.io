@@ -282,6 +282,55 @@ def test_intelligence_trend_tracks_surface_growth():
     assert trend["direction"] in ("worsening", "improving", "stable")
 
 
+def test_surface_diff_detects_new_exposure():
+    from ghost_eye import workflow
+    prev = [Result("Subdomain enumeration", "x.com", "ok",
+                   {"subdomains": ["api.x.com", "www.x.com"]}),
+            Result("Tech", "x.com", "ok", {"cms": "WordPress"})]
+    curr = prev + [
+        Result("Subdomain enumeration", "x.com", "ok",
+               {"subdomains": ["api.x.com", "www.x.com", "dev.x.com"]}),
+        Result("Port scan", "x.com", "ok", {"services": "6379/redis"}),
+        Result("CVE", "x.com", "ok", {"cve": "CVE-2021-44228"})]
+    diff = workflow.surface_diff(prev, curr, "x.com")
+    assert diff["changed"] and not diff["first_scan"]
+    assert "dev.x.com" in diff["new_subdomains"]
+    assert "6379/redis" in diff["new_services"]
+    assert "CVE-2021-44228" in diff["new_cves"]
+    # an unchanged surface must not be flagged
+    assert workflow.surface_diff(curr, curr, "x.com")["changed"] is False
+    # first-ever scan is not a "change"
+    assert workflow.surface_diff([], curr, "x.com")["first_scan"] is True
+
+
+def test_notify_change_only_sends_on_change():
+    from ghost_eye import workflow
+
+    class _Resp:
+        status_code = 200
+
+    class _Sess:
+        def __init__(self):
+            self.calls = []
+
+        def post(self, url, **kw):
+            self.calls.append((url, kw))
+            return _Resp()
+
+    diff = {"target": "x.com", "changed": True, "total_new": 1,
+            "new_subdomains": ["dev.x.com"], "new_ips": [], "new_services": [],
+            "new_cves": [], "new_technologies": [], "new_leaks": [],
+            "new_cloud": [], "new_emails": []}
+    s = _Sess()
+    assert workflow.notify_change(
+        diff, "https://hooks.slack.com/services/T/B/z", session=s) is True
+    assert s.calls and "dev.x.com" in s.calls[0][1]["json"]["text"]
+    # no webhook / no change → no send
+    assert workflow.notify_change(diff, "", session=s) is False
+    assert workflow.notify_change(
+        {"changed": False}, "https://hooks.slack.com/x", session=s) is False
+
+
 def test_intelligence_report_and_html(tmp_path):
     from ghost_eye import reporting_ext, workflow
     rep = workflow.intelligence_report(_sample(), "example.com")

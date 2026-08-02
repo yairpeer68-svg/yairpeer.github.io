@@ -188,6 +188,11 @@ class JobManager:
     def _persist(self, job: dict) -> None:
         try:
             store = reporting.Store(self.cfg.get("db", "ghosteye.db"))
+            # active monitoring: if an alert webhook is configured, diff the new
+            # surface against the previous saved scan BEFORE persisting this one,
+            # and fire an alert when new exposure appeared (new subdomain / IP /
+            # port / CVE / leak). Turns periodic re-scans into a change monitor.
+            self._maybe_alert(job, store)
             risk = job.get("risk") or {}
             store.save_scan(job["id"], job["target"], job["_results_obj"],
                             risk.get("risk_level", ""), int(risk.get("risk_score", 0)))
@@ -196,6 +201,26 @@ class JobManager:
             store.close()
         except Exception:
             pass
+
+    def _maybe_alert(self, job: dict, store) -> None:
+        url = (job.get("options") or {}).get("alert_webhook", "").strip()
+        if not url or job.get("status") == "error":
+            return
+        try:
+            from .core import Result as _R
+            prev = store.scans_for(job["target"])   # oldest-first, pre-save
+            prev_results = []
+            if prev:
+                prev_results = [_R(x.get("module", ""), x.get("target", ""),
+                                   x.get("status", "ok"), x.get("data", {}) or {})
+                                for x in prev[-1]["results"]]
+            diff = workflow.surface_diff(prev_results, job["_results_obj"],
+                                         job["target"])
+            job["surface_change"] = diff        # surfaced via the job snapshot
+            if diff.get("changed") and not diff.get("first_scan"):
+                workflow.notify_change(diff, url)
+        except Exception as exc:  # noqa: BLE001
+            record_error("surface alert", job.get("target", ""), exc)
 
     def snapshot(self, jid: str) -> Optional[dict]:
         with self.lock:
