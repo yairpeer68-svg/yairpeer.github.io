@@ -209,6 +209,12 @@ a{color:var(--cyan);text-decoration:none}
 .chips{display:flex;flex-wrap:wrap;gap:5px}
 .chip{font-family:var(--mono);font-size:11px;background:#141c2b;border:1px solid #24304353;color:#c4d2e6;padding:2px 8px;border-radius:6px;word-break:break-all}
 .chip.muted{color:#5d6b80;background:transparent}
+.itiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(72px,1fr));gap:8px;margin:6px 0 12px}
+.itile{background:#141c2b;border:1px solid #24304353;border-radius:8px;padding:9px;text-align:center}
+.itile b{display:block;font-size:20px;color:var(--ink);font-family:var(--mono)}
+.itile span{font-size:10px;color:#5d6b80;text-transform:uppercase;letter-spacing:.04em}
+.intel-graph{background:#0b1019;border:1px solid #161f2e;border-radius:8px;padding:8px;margin:8px 0}
+.intel-risks{margin:4px 0;padding-left:18px}.intel-risks li{margin:3px 0;color:#d3ba7f}
 .hist-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #161f2e;flex-wrap:wrap}
 .hist-row .hist-t{font-family:var(--mono);font-size:12px;color:#dfe8f4}
 .hist-row .hist-m{font-size:11px;color:#5d6b80;flex:1}
@@ -336,6 +342,7 @@ a{color:var(--cyan);text-decoration:none}
         <button class="exp" data-fmt="csv" disabled>CSV</button>
         <button class="exp" data-fmt="prometheus" disabled>Prom</button>
         <span style="width:1px;height:18px;background:#26303f;margin:0 2px;display:inline-block"></span>
+        <button class="exp intelbtn" data-act="intel" disabled>Intelligence</button>
         <button class="exp intelbtn" data-act="inventory" disabled>Inventory</button>
         <button class="exp intelbtn" data-act="rollup" disabled>Rollup</button>
         <button class="exp intelbtn" data-act="history" disabled>History / Diff</button>
@@ -674,7 +681,8 @@ function refresh(){ if(JOB) api(`/api/job/${JOB}`).then(render).catch(()=>{}); }
 $("exportbar").addEventListener("click",e=>{
   const b=e.target.closest(".exp"); if(!b||b.disabled||!JOB) return;
   if(b.classList.contains("intelbtn")){
-    if(b.dataset.act==="inventory") loadInventory();
+    if(b.dataset.act==="intel") loadIntel();
+    else if(b.dataset.act==="inventory") loadInventory();
     else if(b.dataset.act==="rollup") loadRollup();
     else if(b.dataset.act==="compare") loadCompare();
     else if(b.dataset.act==="schedules") loadSchedules();
@@ -688,6 +696,56 @@ $("exportbar").addEventListener("click",e=>{
 function renderIntel(html){ $("intel").innerHTML=`<div class="intel-pane">${html}</div>`; }
 function chips(arr){ return (arr&&arr.length)? arr.map(x=>`<span class="chip">${esc(x)}</span>`).join("") : `<span class="chip muted">none</span>`; }
 function isec(title,arr){ return (arr&&arr.length)? `<div class="intel-sec"><h4>${esc(title)} <em>${arr.length}</em></h4><div class="chips">${chips(arr)}</div></div>` : ""; }
+
+function intelGraph(g){
+  if(!g||!g.nodes||!g.nodes.length) return "";
+  const W=600,H=380,cx=W/2,cy=H/2;
+  const col={target:"#e5484d",subdomain:"#5fc6d4",ip:"#3d9f74",cloud:"#e9a23b",tech:"#a371f7"};
+  const rad={tech:70,cloud:120,ip:165,subdomain:205};
+  const byk={}; let center=null;
+  g.nodes.forEach(n=>{ if(n.kind==="target") center=n; else (byk[n.kind]=byk[n.kind]||[]).push(n); });
+  let edges="",dots="",labs="";
+  Object.keys(byk).forEach(kind=>{
+    const arr=byk[kind], r=rad[kind]||150, c=col[kind]||"#8b949e";
+    arr.forEach((n,i)=>{
+      const a=(2*Math.PI*i/arr.length)-Math.PI/2;
+      const x=cx+r*Math.cos(a), y=cy+r*Math.sin(a);
+      edges+=`<line x1="${cx}" y1="${cy}" x2="${x.toFixed(0)}" y2="${y.toFixed(0)}" stroke="${c}" stroke-opacity="0.25"/>`;
+      dots+=`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="4" fill="${c}"/>`;
+      const anc=x>=cx?"start":"end", dx=x>=cx?6:-6;
+      labs+=`<text x="${(x+dx).toFixed(0)}" y="${(y+3).toFixed(0)}" font-size="9" fill="#8b949e" text-anchor="${anc}">${esc(String(n.label).slice(0,22))}</text>`;
+    });
+  });
+  const cl=esc((center&&center.label||"").slice(0,32));
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${edges}${dots}
+    <circle cx="${cx}" cy="${cy}" r="8" fill="#e5484d"/>
+    <text x="${cx}" y="${cy-14}" font-size="12" font-weight="700" fill="#dbe2ec" text-anchor="middle">${cl}</text>${labs}</svg>`;
+}
+
+async function loadIntel(){
+  renderIntel("Correlating intelligence…");
+  let d; try{ d=await api(`/api/job/${JOB}/intel`); }
+  catch(e){ renderIntel("Intelligence unavailable: "+esc(e.message)); return; }
+  const c=d.counts||{}, intel=d.intelligence||{}, org=d.organization||{}, em=intel.email_security||{};
+  const tile=(l,v)=>`<div class="itile"><b>${v}</b><span>${esc(l)}</span></div>`;
+  const tiles=[["assets",c.assets],["subdomains",c.subdomains],["related",c.domains],
+    ["IPs",c.ips],["tech",c.technologies],["emails",c.emails],["leaks",c.leak_indicators]]
+    .map(([l,v])=>tile(l,v==null?0:v)).join("");
+  let tech="";
+  Object.keys(intel.technologies||{}).forEach(k=>{ tech+=`<div class="intel-sec"><h4>${esc(k)}</h4><div class="chips">${chips(intel.technologies[k])}</div></div>`; });
+  const risks=(org.main_risks||[]).map(r=>`<li>${esc(r)}</li>`).join("")||"<li class='muted'>none</li>";
+  renderIntel(`<div class="intel-head">Intelligence — ${esc(d.target||"")} · grade ${esc(d.grade||"?")} · risk ${esc(d.risk_level||"")}</div>
+    <div class="itiles">${tiles}</div>
+    <div class="intel-graph">${intelGraph(d.graph)}</div>
+    <div class="intel-sec"><h4>Organization uses</h4><div class="chips">${chips(org.uses)}</div></div>
+    <div class="intel-sec"><h4>Cloud footprint</h4><div class="chips">${chips(intel.cloud)}</div></div>
+    <div class="intel-sec"><h4>Email security <em>${em.score==null?"?":em.score}/100 ${esc(em.grade||"")}</em></h4>
+      <div class="chips">${chips(em.issues)}</div></div>
+    ${tech}
+    <div class="intel-sec"><h4>Main risks</h4><ul class="intel-risks">${risks}</ul></div>
+    <div class="intel-sec"><h4>Leak indicators <em>${(intel.leak_indicators||[]).length}</em></h4>
+      <div class="chips">${chips(intel.leak_indicators)}</div></div>`);
+}
 
 async function loadInventory(){
   renderIntel("Building asset inventory…");
@@ -826,7 +884,7 @@ init();
     "Options":"אפשרויות","Target":"יעד","Run scan":"הפעל סריקה","Stop scan":"עצור סריקה",
     "Idle — configure a scan":"ממתין — הגדר סריקה","Stopping scan…":"עוצר סריקה…",
     "Controls":"בקרות","▤ Controls":"▤ בקרות",
-    "Inventory":"מלאי נכסים","Rollup":"ריכוז לפי מארח","History / Diff":"היסטוריה / השוואה",
+    "Intelligence":"מודיעין","Inventory":"מלאי נכסים","Rollup":"ריכוז לפי מארח","History / Diff":"היסטוריה / השוואה",
     "Compare":"השוואה","Schedules":"תזמונים","Add schedule ▸":"הוסף תזמון ▸",
     "Compare ▸":"השווה ▸","Delete":"מחק","Diff vs current":"השוואה לנוכחי",
     "The eye is closed":"העין עצומה",
