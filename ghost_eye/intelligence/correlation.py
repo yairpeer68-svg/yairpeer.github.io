@@ -144,6 +144,20 @@ def _leak_indicators(results: List[Result], blob: str) -> List[str]:
     return hits[:20]
 
 
+def _screenshots(results: List[Result]) -> List[Dict[str, str]]:
+    """Collect any visual-recon thumbnails captured during the scan."""
+    shots = []
+    for r in results:
+        data = getattr(r, "data", {}) or {}
+        img = data.get("screenshot")
+        if isinstance(img, str) and img.startswith("data:image"):
+            shots.append({"host": r.target,
+                          "title": str(data.get("title", ""))[:80],
+                          "url": data.get("final_url") or "",
+                          "image": img})
+    return shots[:24]
+
+
 def _cert_intel(results: List[Result]) -> Dict[str, Any]:
     issuers, sans, related = set(), set(), set()
     for r in results:
@@ -184,6 +198,7 @@ def correlate(results: List[Result], target: str = "") -> Dict[str, Any]:
     email = _email_posture(blob)
     certs = _cert_intel(results)
     leaks = _leak_indicators(results, blob)
+    screenshots = _screenshots(results)
 
     assets = (len(hosts) + len(inv["ips"]) + len(inv["services"])
               + len(inv["emails"]) + len(inv["urls"]))
@@ -200,6 +215,7 @@ def correlate(results: List[Result], target: str = "") -> Dict[str, Any]:
             "emails": len(inv["emails"]),
             "urls": len(inv["urls"]),
             "leak_indicators": len(leaks),
+            "screenshots": len(screenshots),
         },
         "subdomains": subdomains[:200],
         "related_domains": other_domains[:100],
@@ -211,6 +227,7 @@ def correlate(results: List[Result], target: str = "") -> Dict[str, Any]:
         "email_security": email,
         "certificates": certs,
         "leak_indicators": leaks,
+        "screenshots": screenshots,
         "note": "correlated from module output only — no additional scanning",
     }
 

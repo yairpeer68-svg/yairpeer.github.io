@@ -101,6 +101,13 @@ def _no_network(monkeypatch):
     # binaries and subprocesses: pretend nothing is installed / no output
     monkeypatch.setattr(core, "have_binary", lambda name: False)
     monkeypatch.setattr(core, "run_cmd", lambda *a, **k: "")
+    # never launch a real browser during the smoke test
+    try:
+        from ghost_eye.modules import screenshot
+        monkeypatch.setattr(screenshot, "capture",
+                            lambda *a, **k: {"error": "disabled in smoke test"})
+    except Exception:  # noqa: BLE001
+        pass
 
     def _boom(*a, **k):
         raise OSError("network disabled in smoke test")

@@ -215,6 +215,10 @@ a{color:var(--cyan);text-decoration:none}
 .itile span{font-size:10px;color:#5d6b80;text-transform:uppercase;letter-spacing:.04em}
 .intel-graph{background:#0b1019;border:1px solid #161f2e;border-radius:8px;padding:8px;margin:8px 0}
 .intel-risks{margin:4px 0;padding-left:18px}.intel-risks li{margin:3px 0;color:#d3ba7f}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:6px}
+.shot{margin:0;border:1px solid #24304353;border-radius:8px;overflow:hidden;background:#0b1019}
+.shot img{width:100%;display:block;aspect-ratio:16/10;object-fit:cover;object-position:top}
+.shot figcaption{font-size:9.5px;color:#5d6b80;padding:4px 6px;word-break:break-all;font-family:var(--mono)}
 .hist-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #161f2e;flex-wrap:wrap}
 .hist-row .hist-t{font-family:var(--mono);font-size:12px;color:#dfe8f4}
 .hist-row .hist-m{font-size:11px;color:#5d6b80;flex:1}
@@ -733,10 +737,18 @@ async function loadIntel(){
     .map(([l,v])=>tile(l,v==null?0:v)).join("");
   let tech="";
   Object.keys(intel.technologies||{}).forEach(k=>{ tech+=`<div class="intel-sec"><h4>${esc(k)}</h4><div class="chips">${chips(intel.technologies[k])}</div></div>`; });
+  const shots=intel.screenshots||[];
+  let gallery="";
+  if(shots.length){
+    gallery=`<div class="intel-sec"><h4>Visual recon <em>${shots.length}</em></h4><div class="gallery">`
+      + shots.slice(0,12).map(s=>`<figure class="shot"><img loading="lazy" src="${s.image}" alt="${esc(s.host||"")}"><figcaption>${esc(s.host||s.url||"")}</figcaption></figure>`).join("")
+      + `</div></div>`;
+  }
   const risks=(org.main_risks||[]).map(r=>`<li>${esc(r)}</li>`).join("")||"<li class='muted'>none</li>";
   renderIntel(`<div class="intel-head">Intelligence — ${esc(d.target||"")} · grade ${esc(d.grade||"?")} · risk ${esc(d.risk_level||"")}</div>
     <div class="itiles">${tiles}</div>
     <div class="intel-graph">${intelGraph(d.graph)}</div>
+    ${gallery}
     <div class="intel-sec"><h4>Organization uses</h4><div class="chips">${chips(org.uses)}</div></div>
     <div class="intel-sec"><h4>Cloud footprint</h4><div class="chips">${chips(intel.cloud)}</div></div>
     <div class="intel-sec"><h4>Email security <em>${em.score==null?"?":em.score}/100 ${esc(em.grade||"")}</em></h4>

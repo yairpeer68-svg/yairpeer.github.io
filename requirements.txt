@@ -63,3 +63,7 @@ requests[socks]>=2.31
 
 # --- optional: store API keys in the OS secret store instead of the config file ---
 keyring>=24.0        # Secret Service / macOS Keychain / Windows Credential Manager
+
+# --- optional: visual recon (screenshot module) ---
+playwright>=1.40     # headless Chromium screenshots
+Pillow>=10.0         # thumbnail downscaling

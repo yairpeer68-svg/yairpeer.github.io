@@ -57,6 +57,32 @@ def test_organization_profile_uses_and_risks():
     assert "tls" in risks                       # outdated TLS flagged
 
 
+def test_correlate_collects_screenshots():
+    from ghost_eye.intelligence import correlate
+    # a 1x1 gif data URI stands in for a captured thumbnail
+    img = ("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAA"
+           "AAABAAEAAAIBRAA7")
+    res = _sample() + [
+        Result("Website screenshot (visual recon)", "www.example.com", "ok",
+               {"final_url": "https://www.example.com", "title": "Example",
+                "screenshot": img})]
+    intel = correlate(res, "example.com")
+    assert intel["counts"]["screenshots"] == 1
+    assert intel["screenshots"][0]["host"] == "www.example.com"
+    assert intel["screenshots"][0]["image"].startswith("data:image")
+
+
+def test_screenshot_thumbnail_encoder():
+    from ghost_eye.modules.screenshot import _to_thumbnail
+    # a tiny valid PNG (1x1) — encoder must return a data URI
+    import base64
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk"
+        "+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
+    uri = _to_thumbnail(png)
+    assert uri.startswith("data:image/")
+
+
 def test_graph_build_and_render():
     from ghost_eye.intelligence import build_graph, correlate, render_svg
     g = build_graph(correlate(_sample(), "example.com"))

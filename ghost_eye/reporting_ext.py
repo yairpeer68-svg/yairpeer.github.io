@@ -550,6 +550,13 @@ def export_intel_report(results: List[Result], path: str, target: str = "",
     leak_html = ("".join(f"<li>{esc(str(x))}</li>" for x in leaks)
                  if leaks else '<li class="muted">no public leak indicators</li>')
     cloud_html = chips(intel["cloud"])
+    shots = intel.get("screenshots", [])
+    shots_html = ""
+    for s in shots[:12]:
+        cap = esc(s.get("host", "") or s.get("url", ""))
+        shots_html += (f'<figure class="shot"><img loading="lazy" '
+                       f'src="{s["image"]}" alt="{cap}"/>'
+                       f'<figcaption>{cap}</figcaption></figure>')
     graph_svg = render_svg(rep["graph"])
 
     head = ('<!doctype html><html lang="' + esc(lang) + '"><head>'
@@ -584,6 +591,10 @@ def export_intel_report(results: List[Result], path: str, target: str = "",
             '.graph{background:var(--panel);border:1px solid var(--line);border-radius:14px;'
             'padding:12px;margin-bottom:16px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}'
             '@media(max-width:700px){.two{grid-template-columns:1fr}}'
+            '.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}'
+            '.shot{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}'
+            '.shot img{width:100%;display:block;aspect-ratio:16/10;object-fit:cover;object-position:top}'
+            '.shot figcaption{font-size:11px;color:var(--muted);padding:6px 8px;word-break:break-all}'
             'footer{color:var(--muted);text-align:center;font-size:12px;padding:20px}'
             '</style></head><body><div class="wrap">')
 
@@ -596,7 +607,9 @@ def export_intel_report(results: List[Result], path: str, target: str = "",
         '<div class="tiles">' + tiles + '</div>'
         '<div class="graph"><h2 style="margin:2px 6px 8px">Attack surface</h2>'
         + graph_svg + '</div>'
-        '<div class="two">'
+        + ('<section><h2>Visual recon (' + str(len(shots)) + ')</h2>'
+           '<div class="gallery">' + shots_html + '</div></section>' if shots_html else '')
+        + '<div class="two">'
         '<section><h2>Organization profile — uses</h2>' +
         (uses_html or '<span class="muted">n/a</span>') +
         '<h2 style="margin-top:14px">Cloud footprint</h2>' +
