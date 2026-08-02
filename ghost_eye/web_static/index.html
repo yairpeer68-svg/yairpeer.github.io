@@ -234,6 +234,13 @@ a{color:var(--cyan);text-decoration:none}
 .kg-legend{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px}
 .kg-legend span{font-size:10px;color:#8fa3bd;display:flex;align-items:center;gap:4px}
 .kg-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.kg-controls{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin:2px 0 6px}
+.kgf{display:flex;align-items:center;gap:4px;font-size:10.5px;color:#9fb0c8;cursor:pointer;user-select:none}
+.kgf input{accent-color:#5fc6d4;width:12px;height:12px;cursor:pointer}
+.kgf i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.kgf em{font-style:normal;color:#5d6b80}
+.kg-hint{font-size:10px;color:#5d6b80;margin:0 0 4px;font-family:var(--mono)}
+.kgnode:hover{stroke:#fff;stroke-opacity:.6}
 .timeline{border-left:2px solid #24304f;margin:6px 0 2px;padding-left:2px}
 .tlrow{display:flex;gap:10px;padding:7px 0 7px 12px;position:relative}
 .tldot{width:9px;height:9px;border-radius:50%;flex:0 0 9px;margin-top:4px;margin-left:-18px;box-shadow:0 0 0 3px #0e1320}
@@ -747,41 +754,78 @@ function intelGraph(g){
     <text x="${cx}" y="${cy-14}" font-size="12" font-weight="700" fill="#dbe2ec" text-anchor="middle">${cl}</text>${labs}</svg>`;
 }
 
-/* full typed Knowledge Graph — real relationship edges between typed entities */
+/* full typed Knowledge Graph — real relationship edges between typed entities,
+   interactive: filter by entity kind + click a node to focus its relationships */
 const KGCOL={target:"#e5484d",subdomain:"#5fc6d4",ip:"#3d9f74",cloud:"#e9a23b",
   tech:"#a371f7",cert_issuer:"#56d364",email:"#db61a2",org:"#f0883e",cve:"#e5484d",
   leak:"#ff7b72",asn:"#3d9f74",mailserver:"#a5d6ff",nameserver:"#a5d6ff",domain:"#6fb3ff",service:"#e3b341"};
 const KGRINGS=["target","subdomain","ip","tech","cloud","cert_issuer","email","org","asn","cve","leak","domain","mailserver","nameserver","service"];
-function kgraph(kg){
-  if(!kg||!kg.entities||!kg.entities.length) return "<div class='chip muted'>no entities correlated</div>";
+let KGSTATE={kg:null, hidden:new Set(), focus:null};
+
+/* pure renderer: builds the SVG honouring hidden kinds + a focused node */
+function kgSvg(kg, hidden, focus){
   const W=640,H=480,cx=W/2,cy=H/2;
-  const byk={}; kg.entities.forEach(e=>(byk[e.kind]=byk[e.kind]||[]).push(e));
+  const vis=kg.entities.filter(e=>!hidden.has(e.kind));
+  if(!vis.length) return `<svg viewBox="0 0 ${W} 60" width="100%"><text x="12" y="34" fill="#5d6b80" font-size="12">all kinds filtered out</text></svg>`;
+  const byk={}; vis.forEach(e=>(byk[e.kind]=byk[e.kind]||[]).push(e));
   let order=KGRINGS.filter(k=>byk[k]); Object.keys(byk).forEach(k=>{if(!order.includes(k))order.push(k);});
   const rings=order.filter(k=>k!=="target");
   const step=(Math.min(W,H)/2-50)/Math.max(1,rings.length);
-  const pos={}; let dots="",labs="";
+  const pos={}, kind={}; vis.forEach(e=>kind[e.id]=e.kind);
   if(byk.target) pos[byk.target[0].id]=[cx,cy];
-  rings.forEach((kind,ri)=>{
-    const arr=byk[kind], r=45+step*(ri+1), c=KGCOL[kind]||"#8b949e", n=arr.length;
+  rings.forEach((k,ri)=>{
+    const arr=byk[k], r=45+step*(ri+1), n=arr.length;
     arr.forEach((node,i)=>{
       let a=(2*Math.PI*i/n)-Math.PI/2+((ri+1)%2)*(Math.PI/Math.max(1,n));
-      const x=cx+r*Math.cos(a), y=cy+r*Math.sin(a); pos[node.id]=[x,y];
-      dots+=`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="4" fill="${c}"><title>${esc(kind)}: ${esc(node.label)}</title></circle>`;
-      if(n<=26||i%2===0){ const anc=x>=cx?"start":"end", dx=x>=cx?6:-6;
-        labs+=`<text x="${(x+dx).toFixed(0)}" y="${(y+3).toFixed(0)}" font-size="8.5" fill="#8b949e" text-anchor="${anc}">${esc(String(node.label).slice(0,20))}</text>`; }
+      pos[node.id]=[cx+r*Math.cos(a), cy+r*Math.sin(a)];
     });
   });
-  let edges="";
+  // focus: which ids/edges are lit
+  let nbr=null;
+  if(focus && pos[focus]){ nbr=new Set([focus]);
+    (kg.relationships||[]).forEach(rel=>{ if(rel.from===focus&&pos[rel.to])nbr.add(rel.to); if(rel.to===focus&&pos[rel.from])nbr.add(rel.from); }); }
+  let edges="",dots="",labs="";
   (kg.relationships||[]).forEach(rel=>{
     const a=pos[rel.from], b=pos[rel.to]; if(!a||!b) return;
-    const op={high:.5,medium:.3,low:.16}[rel.confidence]||.25;
-    edges+=`<line x1="${a[0].toFixed(0)}" y1="${a[1].toFixed(0)}" x2="${b[0].toFixed(0)}" y2="${b[1].toFixed(0)}" stroke="#8b949e" stroke-opacity="${op}"><title>${esc(rel.label||rel.type)}</title></line>`;
+    const lit=!nbr||(rel.from===focus||rel.to===focus);
+    const base={high:.5,medium:.3,low:.16}[rel.confidence]||.25;
+    const op=nbr?(lit?.85:.05):base;
+    const col=lit&&nbr?"#e9a23b":"#8b949e", w=lit&&nbr?1.6:1;
+    edges+=`<line x1="${a[0].toFixed(0)}" y1="${a[1].toFixed(0)}" x2="${b[0].toFixed(0)}" y2="${b[1].toFixed(0)}" stroke="${col}" stroke-opacity="${op}" stroke-width="${w}"><title>${esc(rel.label||rel.type)}</title></line>`;
+  });
+  vis.forEach(node=>{
+    const p=pos[node.id]; if(!p) return;
+    const c=KGCOL[node.kind]||"#8b949e", isT=node.kind==="target";
+    const dim=nbr&&!nbr.has(node.id), r=isT?7:(nbr&&nbr.has(node.id)&&node.id===focus?6:4);
+    const ring=(node.id===focus)?`<circle cx="${p[0].toFixed(0)}" cy="${p[1].toFixed(0)}" r="${r+4}" fill="none" stroke="${c}" stroke-opacity="0.9"/>`:"";
+    dots+=`${ring}<circle class="kgnode" data-kgnode="${esc(node.id)}" cx="${p[0].toFixed(0)}" cy="${p[1].toFixed(0)}" r="${r}" fill="${c}" fill-opacity="${dim?0.18:1}" style="cursor:pointer"><title>${esc(node.kind)}: ${esc(node.label)}</title></circle>`;
+    const showLab=isT||node.id===focus||(nbr&&nbr.has(node.id))||(!nbr&&(byk[node.kind].length<=26||byk[node.kind].indexOf(node)%2===0));
+    if(showLab && !isT){ const anc=p[0]>=cx?"start":"end", dx=p[0]>=cx?6:-6;
+      labs+=`<text x="${(p[0]+dx).toFixed(0)}" y="${(p[1]+3).toFixed(0)}" font-size="8.5" fill="${dim?'#3a4658':'#9fb0c8'}" text-anchor="${anc}">${esc(String(node.label).slice(0,20))}</text>`; }
   });
   const tgt=(byk.target&&byk.target[0])||{}, cl=esc(String(tgt.label||"target").slice(0,32));
-  const legend=`<div class="kg-legend">`+rings.slice(0,10).map(k=>`<span><i style="background:${KGCOL[k]||"#8b949e"}"></i>${esc(k)} ${byk[k].length}</span>`).join("")+`</div>`;
-  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${edges}${dots}
-    <circle cx="${cx}" cy="${cy}" r="7" fill="#e5484d"/>
-    <text x="${cx}" y="${cy-13}" font-size="12" font-weight="700" fill="#dbe2ec" text-anchor="middle">${cl}</text>${labs}</svg>${legend}`;
+  const ct=byk.target?`<text x="${cx}" y="${cy-13}" font-size="12" font-weight="700" fill="#dbe2ec" text-anchor="middle" pointer-events="none">${cl}</text>`:"";
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${edges}${dots}${ct}</svg>`;
+}
+
+/* re-render just the SVG box from current KGSTATE (after filter/click) */
+function kgUpdate(){
+  const box=$("kgsvg"); if(!box||!KGSTATE.kg) return;
+  box.innerHTML=kgSvg(KGSTATE.kg, KGSTATE.hidden, KGSTATE.focus);
+  const hint=$("kghint");
+  if(hint){ const f=KGSTATE.focus;
+    hint.textContent=f?`focused: ${f.split(":").slice(1).join(":")} — click it again or "reset" to clear`:"tip: click a node to highlight its relationships"; }
+}
+
+function kgraph(kg){
+  if(!kg||!kg.entities||!kg.entities.length) return "<div class='chip muted'>no entities correlated</div>";
+  KGSTATE={kg, hidden:new Set(), focus:null};
+  const byk={}; kg.entities.forEach(e=>(byk[e.kind]=byk[e.kind]||[]).push(e));
+  let order=KGRINGS.filter(k=>byk[k]); Object.keys(byk).forEach(k=>{if(!order.includes(k))order.push(k);});
+  const filters=order.map(k=>`<label class="kgf"><input type="checkbox" class="kgfilter" data-kind="${esc(k)}" checked><i style="background:${KGCOL[k]||"#8b949e"}"></i>${esc(k)} <em>${byk[k].length}</em></label>`).join("");
+  return `<div class="kg-controls">${filters}<button class="exp small" id="kgreset" data-kgreset="1">reset</button></div>
+    <div id="kghint" class="kg-hint">tip: click a node to highlight its relationships</div>
+    <div id="kgsvg">${kgSvg(kg, KGSTATE.hidden, null)}</div>`;
 }
 function renderAnalyst(a){
   if(!a) return "";
@@ -909,6 +953,20 @@ async function runDiff(id){
     <div class="intel-sec"><h4 class="dn">Gone <em>${(d.removed_modules||[]).length}</em></h4><div class="chips">${chips(d.removed_modules)}</div></div>`);
 }
 $("intel").addEventListener("click",e=>{ const b=e.target.closest("[data-diff]"); if(b) runDiff(b.dataset.diff); });
+/* knowledge-graph interactivity: click a node to focus, reset to clear */
+$("intel").addEventListener("click",e=>{
+  if(e.target.closest("[data-kgreset]")){ KGSTATE.focus=null; kgUpdate(); return; }
+  const n=e.target.closest("[data-kgnode]");
+  if(n){ const id=n.getAttribute("data-kgnode"); KGSTATE.focus=(KGSTATE.focus===id)?null:id; kgUpdate(); }
+});
+/* filter by entity kind */
+$("intel").addEventListener("change",e=>{
+  const f=e.target.closest(".kgfilter"); if(!f||!KGSTATE.kg) return;
+  const k=f.getAttribute("data-kind");
+  if(f.checked) KGSTATE.hidden.delete(k); else KGSTATE.hidden.add(k);
+  if(KGSTATE.focus && KGSTATE.hidden.has(KGSTATE.focus.split(":")[0])) KGSTATE.focus=null;
+  kgUpdate();
+});
 
 /* ---------- compare two saved scans ---------- */
 async function loadCompare(){

@@ -41,6 +41,21 @@ def test_static_app_wires_platform_renderers():
         assert call in seg, f"loadIntel does not call {call}"
 
 
+def test_knowledge_graph_is_interactive():
+    """The knowledge graph must be filterable by entity kind and focusable by
+    clicking a node — assert the wiring is present in the static app."""
+    html = _INDEX.read_text(encoding="utf-8")
+    # pure renderer + state + updater exist
+    for tok in ("function kgSvg(", "function kgUpdate(",
+                "let KGSTATE=", "data-kgnode=", 'class="kgfilter"',
+                "data-kgreset="):
+        assert tok in html, f"missing interactive piece: {tok}"
+    # click handler toggles focus; change handler filters by kind
+    assert 'e.target.closest("[data-kgnode]")' in html
+    assert "KGSTATE.focus" in html and "KGSTATE.hidden" in html
+    assert 'e.target.closest(".kgfilter")' in html
+
+
 def _seed(jm) -> str:
     res = [
         Result("Subdomain enumeration", "example.com", "ok",
