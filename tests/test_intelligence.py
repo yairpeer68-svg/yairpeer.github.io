@@ -1,0 +1,81 @@
+"""Tests for the intelligence / correlation layer."""
+
+from __future__ import annotations
+
+from ghost_eye.core import Result
+
+
+def _sample():
+    return [
+        Result("Subdomain enumeration", "example.com", "ok",
+               {"subdomains": ["api.example.com", "dev.example.com",
+                               "www.example.com"]}),
+        Result("Technology fingerprint / CMS", "example.com", "ok",
+               {"cms": "WordPress", "server": "nginx", "cdn": "Cloudflare",
+                "js": "React"}),
+        Result("Cloud provider", "example.com", "ok",
+               {"provider": "AWS amazonaws.com"}),
+        Result("SSL certificate analysis", "example.com", "ok",
+               {"issuer": "Let's Encrypt",
+                "san": "example.com, api.example.com, *.example.com"}),
+        Result("Email auth", "example.com", "ok",
+               {"spf": "v=spf1 include:_spf.google.com",
+                "dmarc": "v=DMARC1; p=none"}),
+        Result("TLS", "example.com", "ok",
+               {"tlsv1.0": "legacy protocol enabled"}),
+        Result("Leaked credentials check", "example.com", "ok",
+               {"breach": "3 credentials found in public leak"}),
+        Result("DNS", "example.com", "ok", {"a": ["93.184.216.34"]}),
+    ]
+
+
+def test_correlate_counts_and_classification():
+    from ghost_eye.intelligence import correlate
+    intel = correlate(_sample(), "example.com")
+    assert "api.example.com" in intel["subdomains"]
+    # tech is classified into buckets
+    assert "WordPress" in intel["technologies"]["cms"]
+    assert "React" in intel["technologies"]["framework"]
+    assert "nginx" in intel["technologies"]["server"]
+    # cloud detected
+    assert "AWS" in intel["cloud"] and "Cloudflare" in intel["cloud"]
+    # email posture reads DMARC p=none as a weakness
+    assert intel["email_security"]["dmarc"] is True
+    assert "p=none" in " ".join(intel["email_security"]["issues"]).lower()
+    # leak indicator surfaced
+    assert intel["counts"]["leak_indicators"] >= 1
+    assert intel["counts"]["subdomains"] >= 3
+
+
+def test_organization_profile_uses_and_risks():
+    from ghost_eye.intelligence import correlate, organization_profile
+    intel = correlate(_sample(), "example.com")
+    prof = organization_profile(intel, _sample())
+    assert "WordPress" in prof["uses"] and "AWS" in prof["uses"]
+    risks = " ".join(prof["main_risks"]).lower()
+    assert "dev.example.com" in risks          # exposed non-prod subdomain
+    assert "tls" in risks                       # outdated TLS flagged
+
+
+def test_graph_build_and_render():
+    from ghost_eye.intelligence import build_graph, correlate, render_svg
+    g = build_graph(correlate(_sample(), "example.com"))
+    kinds = {n["kind"] for n in g["nodes"]}
+    assert "target" in kinds and "subdomain" in kinds
+    assert len(g["edges"]) == len(g["nodes"]) - 1     # star from the target
+    svg = render_svg(g)
+    assert svg.startswith("<svg") and "</svg>" in svg
+
+
+def test_intelligence_report_and_html(tmp_path):
+    from ghost_eye import reporting_ext, workflow
+    rep = workflow.intelligence_report(_sample(), "example.com")
+    assert rep["target"] == "example.com"
+    assert rep["counts"]["assets"] > 0
+    assert rep["grade"] in ("A+", "A", "B", "C", "D", "F")
+    p = reporting_ext.export_intel_report(_sample(), str(tmp_path / "i.html"),
+                                          "example.com")
+    html = open(p, encoding="utf-8").read()
+    assert "<svg" in html
+    assert "Intelligence Report" in html
+    assert "WordPress" in html and "AWS" in html

@@ -144,7 +144,7 @@ def run_modules(mods: List[Module], target: str, ctx: Context,
 
 
 _EXT_FORMATS = {"md", "markdown", "sarif", "prom", "prometheus", "dashboard",
-                "dash", "exec", "execreport", "executive"}
+                "dash", "exec", "execreport", "executive", "intel", "intelligence"}
 
 
 def handle_reports(results: List[Result], target: str, args) -> None:
@@ -189,6 +189,14 @@ def handle_reports(results: List[Result], target: str, args) -> None:
             Console.good(f"executive report: {p}")
         except Exception as exc:  # noqa: BLE001
             Console.err(f"exec report failed: {exc}")
+
+    if getattr(args, "intel_report", None):
+        try:
+            p = reporting_ext.export_intel_report(results, args.intel_report,
+                                                  target, lang=args.lang)
+            Console.good(f"intelligence report: {p}")
+        except Exception as exc:  # noqa: BLE001
+            Console.err(f"intel report failed: {exc}")
 
     if args.notify:
         exploit = None
@@ -398,6 +406,11 @@ def build_parser() -> argparse.ArgumentParser:
                      help="write a polished self-contained executive HTML report "
                           "(risk grade, attack-surface graph, exploit intel); "
                           "honours --lang he for a Hebrew RTL report")
+    out.add_argument("--intel-report", metavar="FILE",
+                     help="write the unified intelligence report (assets, org "
+                          "profile, attack-surface graph, tech, cloud, leaks) as HTML")
+    out.add_argument("--intel", action="store_true",
+                     help="print a unified intelligence summary after the scan")
     out.add_argument("--ci", action="store_true",
                      help="CI/CD mode: exit non-zero if findings breach --fail-on")
     out.add_argument("--fail-on", choices=["critical", "high", "medium", "low"],
@@ -524,7 +537,29 @@ def _run_once(mods, target, cfg, args):
         _print_rollup(results, target)
     if getattr(args, "exploit_intel", False):
         _print_exploit_intel(results)
+    if getattr(args, "intel", False):
+        _print_intel(results, target)
     return results
+
+
+def _print_intel(results, target):
+    rep = workflow.intelligence_report(results, target)
+    c = rep["counts"]
+    Console.rule(f"Intelligence — {rep['target']}  (grade {rep['grade']}, "
+                 f"risk {rep['risk_level']})")
+    Console.kv("assets", f"{c['assets']}  (subdomains {c['subdomains']}, "
+                         f"related {c['domains']}, IPs {c['ips']}, "
+                         f"emails {c['emails']})")
+    Console.kv("cloud", ", ".join(rep["intelligence"]["cloud"]))
+    Console.kv("email security", f"{rep['intelligence']['email_security']['score']}"
+                                 f"/100 ({rep['intelligence']['email_security']['grade']})")
+    if rep["organization"]["uses"]:
+        Console.kv("uses", ", ".join(rep["organization"]["uses"][:10]))
+    if c["leak_indicators"]:
+        Console.kv("leak indicators", c["leak_indicators"])
+    Console.rule("Main risks")
+    for r in rep["organization"]["main_risks"]:
+        Console.warn(f"• {r}")
 
 
 def _print_exploit_intel(results):

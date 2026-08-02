@@ -410,6 +410,31 @@ _EXPOSURE_WORDS = ("open", "public", "no auth", "unauth", "exposed", "anonymous"
                    "no password", "default cred", "listing", "disclosed")
 
 
+def intelligence_report(results, target: str = "",
+                        exploit: Optional[dict] = None) -> dict:
+    """The unified ASM-style intelligence picture: correlated assets, classified
+    technologies, cloud footprint, email posture, certificates, leak indicators,
+    an organization profile and the attack-surface graph — assembled from the
+    output of every module that ran."""
+    from .intelligence import build_graph, correlate, organization_profile
+    intel = correlate(results, target)
+    profile = organization_profile(intel, results)
+    a = attack_score(results)
+    out = {
+        "target": intel["target"],
+        "grade": a["grade"],
+        "risk_level": a["risk_level"],
+        "score": a["normalized"],
+        "counts": intel["counts"],
+        "intelligence": intel,
+        "organization": profile,
+        "graph": build_graph(intel),
+    }
+    if exploit is not None:
+        out["exploitable_cves"] = exploit.get("exploitable", [])
+    return out
+
+
 def trend(store, target: str) -> dict:
     """Build a security trend for a target from the SQLite scan history: per
     saved scan the re-scored risk + finding counts, the modules that appeared

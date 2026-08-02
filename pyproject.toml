@@ -46,7 +46,7 @@ ghost-eye = "ghost_eye.cli:main"
 ghost-eye-web = "ghost_eye.webapp:main"
 
 [tool.setuptools]
-packages = ["ghost_eye", "ghost_eye.modules"]
+packages = ["ghost_eye", "ghost_eye.modules", "ghost_eye.intelligence"]
 
 [tool.setuptools.package-data]
 ghost_eye = ["web_static/*.html", "py.typed"]

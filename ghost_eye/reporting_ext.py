@@ -276,6 +276,8 @@ def export_ext(results: List[Result], path: str, fmt: str, target: str = "") -> 
         return export_dashboard(results, path, target)
     if fmt in ("exec", "execreport", "executive"):
         return export_exec_report(results, path, target)
+    if fmt in ("intel", "intelligence"):
+        return export_intel_report(results, path, target)
     raise ValueError(f"unknown extended format: {fmt}")
 
 
@@ -478,4 +480,135 @@ footer{{color:var(--muted);text-align:center;font-size:12px;padding:20px}}
 <footer>{L['foot']} · {ts}</footer>
 </div></body></html>"""
     Path(path).write_text(doc, encoding="utf-8")
+    return path
+
+
+def export_intel_report(results: List[Result], path: str, target: str = "",
+                        exploit: Optional[Dict[str, Any]] = None,
+                        lang: str = "en") -> str:
+    """The 'GHOST EYE INTELLIGENCE REPORT' — a single self-contained HTML page
+    that fuses every module's output into an ASM-style picture: asset counts,
+    an attack-surface graph, the organization profile, technologies by category,
+    email posture, certificates and leak indicators."""
+    from .workflow import intelligence_report
+    from .intelligence.graph import render_svg
+
+    rep = intelligence_report(results, target, exploit=exploit)
+    intel = rep["intelligence"]
+    org = rep["organization"]
+    em = intel["email_security"]
+    c = intel["counts"]
+    gcolor = _GRADE_COLORS.get(rep["grade"], "#8b949e")
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    esc = _html.escape
+
+    def tile(label, value, color="#e6edf3"):
+        return (f'<div class="tile"><div class="tv" style="color:{color}">{value}'
+                f'</div><div class="tl">{esc(label)}</div></div>')
+
+    tiles = "".join([
+        tile("assets", c["assets"]),
+        tile("subdomains", c["subdomains"], "#58a6ff"),
+        tile("related domains", c["domains"], "#79c0ff"),
+        tile("IPs", c["ips"], "#3fb950"),
+        tile("technologies", c["technologies"], "#a371f7"),
+        tile("emails", c["emails"]),
+        tile("leak indicators", c["leak_indicators"],
+             "#f85149" if c["leak_indicators"] else "#3fb950"),
+    ])
+
+    def chips(items):
+        return "".join(f'<span class="chip">{esc(str(x))}</span>' for x in items)
+
+    tech_html = ""
+    for kind, items in intel["technologies"].items():
+        tech_html += (f'<div class="row"><span class="k">{esc(kind)}</span>'
+                      f'<span>{chips(items)}</span></div>')
+    tech_html = tech_html or '<p class="muted">none fingerprinted</p>'
+
+    uses_html = chips(org["uses"])
+    risks_html = "".join(f"<li>{esc(str(r))}</li>" for r in org["main_risks"])
+
+    em_color = _GRADE_COLORS.get(em.get("grade", "F"), "#8b949e")
+    email_html = (f'<div class="score" style="color:{em_color}">'
+                  f'{em["score"]}<span>/100 · {esc(em.get("grade","?"))}</span></div>'
+                  f'<div class="muted">SPF {em["spf"]} · DKIM {em["dkim"]} · '
+                  f'DMARC {em["dmarc"]} · MTA-STS {em["mta_sts"]}</div>'
+                  f'<div class="muted">{esc(", ".join(em.get("issues", [])))}</div>')
+
+    certs = intel["certificates"]
+    if certs.get("issuers") or certs.get("san_domains"):
+        cert_html = (f'<div class="muted">issuers: '
+                     f'{esc(", ".join(certs["issuers"]) or "?")}</div>'
+                     f'<div class="row"><span class="k">SAN domains '
+                     f'({len(certs["san_domains"])})</span>'
+                     f'<span>{chips(certs["san_domains"][:40])}</span></div>')
+    else:
+        cert_html = '<p class="muted">no certificate data</p>'
+
+    leaks = intel["leak_indicators"]
+    leak_html = ("".join(f"<li>{esc(str(x))}</li>" for x in leaks)
+                 if leaks else '<li class="muted">no public leak indicators</li>')
+    cloud_html = chips(intel["cloud"])
+    graph_svg = render_svg(rep["graph"])
+
+    head = ('<!doctype html><html lang="' + esc(lang) + '"><head>'
+            '<meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            '<title>Ghost Eye Intelligence — ' + esc(target) + '</title><style>'
+            ':root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--ink:#e6edf3;--muted:#8b949e}'
+            '@media(prefers-color-scheme:light){:root{--bg:#f6f8fa;--panel:#fff;'
+            '--line:#d0d7de;--ink:#1f2328;--muted:#57606a}}'
+            '*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);'
+            'font:14px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif}'
+            '.wrap{max-width:1000px;margin:0 auto;padding:24px}'
+            'header{display:flex;flex-wrap:wrap;align-items:center;gap:20px;'
+            'border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:20px}'
+            '.grade{width:92px;height:92px;border-radius:16px;display:flex;'
+            'align-items:center;justify-content:center;font-size:42px;font-weight:800;'
+            'color:#fff;background:' + gcolor + ';box-shadow:0 6px 24px ' + gcolor + '55}'
+            'h1{margin:0 0 4px;font-size:21px}.meta{color:var(--muted);font-size:13px}'
+            '.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(105px,1fr));'
+            'gap:10px;margin:18px 0}.tile{background:var(--panel);border:1px solid var(--line);'
+            'border-radius:12px;padding:13px;text-align:center}'
+            '.tv{font-size:24px;font-weight:800}.tl{color:var(--muted);font-size:11px;margin-top:3px}'
+            'section{background:var(--panel);border:1px solid var(--line);border-radius:14px;'
+            'padding:18px;margin-bottom:16px}h2{margin:0 0 12px;font-size:15px}'
+            '.chip{display:inline-block;background:var(--line);border-radius:14px;'
+            'padding:3px 10px;margin:2px;font-size:12px}'
+            '.row{display:flex;gap:10px;padding:6px 0;border-top:1px solid var(--line);'
+            'align-items:baseline}.row .k{color:var(--muted);min-width:120px;font-size:12px}'
+            '.muted{color:var(--muted);font-size:12px;margin:4px 0}'
+            '.score{font-size:34px;font-weight:800}.score span{font-size:15px;'
+            'color:var(--muted);font-weight:600}ul{margin:6px 0;padding-left:20px}li{margin:3px 0}'
+            '.graph{background:var(--panel);border:1px solid var(--line);border-radius:14px;'
+            'padding:12px;margin-bottom:16px}.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}'
+            '@media(max-width:700px){.two{grid-template-columns:1fr}}'
+            'footer{color:var(--muted);text-align:center;font-size:12px;padding:20px}'
+            '</style></head><body><div class="wrap">')
+
+    body = (
+        '<header><div class="grade">' + rep["grade"] + '</div><div>'
+        '<h1>👁 Ghost Eye — Intelligence Report</h1>'
+        '<div class="meta">Target: <b>' + esc(rep["target"]) + '</b> · ' + ts +
+        ' · risk ' + esc(rep["risk_level"]) + ' · ' + str(rep["score"]) + '/100</div>'
+        '</div></header>'
+        '<div class="tiles">' + tiles + '</div>'
+        '<div class="graph"><h2 style="margin:2px 6px 8px">Attack surface</h2>'
+        + graph_svg + '</div>'
+        '<div class="two">'
+        '<section><h2>Organization profile — uses</h2>' +
+        (uses_html or '<span class="muted">n/a</span>') +
+        '<h2 style="margin-top:14px">Cloud footprint</h2>' +
+        (cloud_html or '<span class="muted">unknown</span>') + '</section>'
+        '<section><h2>Main risks</h2><ul>' + risks_html + '</ul></section></div>'
+        '<div class="two">'
+        '<section><h2>Email security</h2>' + email_html + '</section>'
+        '<section><h2>Technologies</h2>' + tech_html + '</section></div>'
+        '<section><h2>Certificates</h2>' + cert_html + '</section>'
+        '<section><h2>Leak indicators</h2><ul>' + leak_html + '</ul></section>'
+        '<footer>Ghost Eye · correlation/detection only · authorised testing only · '
+        + ts + '</footer></div></body></html>')
+
+    Path(path).write_text(head + body, encoding="utf-8")
     return path

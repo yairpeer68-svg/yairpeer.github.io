@@ -35,9 +35,10 @@ _CONTENT_TYPES = {
     "pdf": "application/pdf", "md": "text/markdown", "markdown": "text/markdown",
     "prometheus": "text/plain", "prom": "text/plain",
     "exec": "text/html", "execreport": "text/html", "executive": "text/html",
+    "intel": "text/html", "intelligence": "text/html",
 }
 _EXT_FORMATS = {"md", "markdown", "sarif", "prometheus", "prom", "dashboard",
-                "exec", "execreport", "executive"}
+                "exec", "execreport", "executive", "intel", "intelligence"}
 
 
 # --------------------------------------------------------------------------- #
@@ -385,6 +386,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_exploits(jid, parsed)
         if sub == "risk":
             return self._job_risk(jid)
+        if sub == "intel":
+            return self._job_intel(jid)
         snap = self.server.jobs.snapshot(jid)
         if snap is None:
             return self._json({"error": "unknown job"}, 404)
@@ -459,6 +462,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": f"risk intel failed: {exc}"}, 500)
         return self._json(report)
 
+    def _job_intel(self, jid: str):
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        try:
+            report = workflow.intelligence_report(results, target)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"intelligence failed: {exc}"}, 500)
+        return self._json(report)
+
     def _job_exploits(self, jid: str, parsed):
         results = self.server.jobs.results_obj(jid)
         if not results:
@@ -500,7 +515,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "export produced no file"}, 500)
         data = tmp.read_bytes()
         ctype = _CONTENT_TYPES.get(fmt, "application/octet-stream")
-        dl = fmt not in ("html", "dashboard", "exec", "execreport", "executive")
+        dl = fmt not in ("html", "dashboard", "exec", "execreport", "executive",
+                         "intel", "intelligence")
         safe = "".join(c for c in target if c.isalnum() or c in ".-_") or "report"
         fname = f"ghosteye_{safe}.{tmp.suffix.lstrip('.')}" if dl else None
         return self._bytes(data, ctype, filename=fname)
