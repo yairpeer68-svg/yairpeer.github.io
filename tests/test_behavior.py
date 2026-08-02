@@ -298,3 +298,85 @@ def test_print_rollup_runs():
            Result("TCP port scan", "api.acme.com", "ok",
                   {"open_ports": {"443/https": "open"}})]
     cli._print_rollup(res, "acme.com")   # prints via Console, must not raise
+
+
+# --------------------------------------------------------------------------- #
+#  More module behaviour
+# --------------------------------------------------------------------------- #
+def test_protopollute_flags_vulnerable_jquery():
+    def router(url, k):
+        if url.endswith(".js"):
+            return FakeResp(text="$.extend(true,{}); __proto__")
+        return FakeResp(text='<script src="/j.js"></script> jquery-3.2.1.min.js')
+    r = REGISTRY["protopollute"].run("example.com", ctx(FakeSession(router)))
+    assert any("jquery" in v for v in r.data["vulnerable_libraries"])
+    assert r.data["risk"] in ("high", "medium")
+
+
+def test_promptinject_scores_llm_surface():
+    def router(url, k):
+        return FakeResp(text="AI assistant powered by GPT-4 "
+                             '<textarea name="chatPrompt"></textarea>')
+    r = REGISTRY["promptinject"].run("example.com", ctx(FakeSession(router)))
+    assert r.data["surface_score"] >= 2
+    assert r.data["prompt_input_fields"] >= 1
+
+
+def test_osfp_maps_ttl_to_os():
+    from ghost_eye import core, modules  # noqa: F401
+    m = REGISTRY["osfp"]
+    import ghost_eye.modules.network_v4 as nv
+    # 64 -> *nix, 128 -> Windows via the module's TTL map
+    fam = dict((init, label) for init, label in m._TTL_MAP)
+    assert "Linux" in fam[64] and "Windows" in fam[128]
+    assert nv  # module import sanity
+
+
+def test_ipmi_reports_not_exposed_on_no_reply(monkeypatch):
+    import socket as _s
+
+    class _Sock:
+        def __init__(self, *a, **k): pass
+        def settimeout(self, *a, **k): pass
+        def sendto(self, *a, **k): pass
+        def recvfrom(self, *a, **k): raise _s.timeout()
+        def close(self): pass
+    monkeypatch.setattr(_s, "socket", _Sock)
+    monkeypatch.setattr(_s, "gethostbyname", lambda h: "192.0.2.10")
+    r = REGISTRY["ipmi"].run("192.0.2.10", ctx())
+    assert r.data["exposed"] is False
+
+
+def test_mxfingerprint_identifies_google(monkeypatch):
+    import ghost_eye.modules.email_v3 as e
+
+    class _RR:
+        preference = 10
+        exchange = "aspmx.l.google.com."
+    monkeypatch.setattr(e, "_resolver",
+                        lambda ctx: SimpleNamespace(resolve=lambda h, t: [_RR()]))
+    r = REGISTRY["mxfingerprint"].run("example.com", ctx())
+    assert "Google Workspace" in r.data["gateway_detected"]
+
+
+def test_compliance_check_frameworks():
+    from ghost_eye import workflow
+    res = _high_findings()
+    rep = workflow.compliance_check(res, "owasp_top10")
+    assert isinstance(rep, dict) and rep
+
+
+def test_exec_report_english_is_ltr(tmp_path):
+    from ghost_eye import reporting_ext
+    p = reporting_ext.export_exec_report(_high_findings(),
+                                         str(tmp_path / "en.html"), "acme.com",
+                                         lang="en")
+    html = open(p, encoding="utf-8").read()
+    assert 'dir="ltr"' in html and "<svg" in html
+
+
+def test_notify_and_ci_gate_empty_url_and_clean():
+    from ghost_eye import workflow
+    assert workflow.notify(_high_findings(), "x", "") is False   # no URL -> no-op
+    clean = [Result("info", "x", "ok", {"note": "advertised"})]
+    assert workflow.ci_gate(clean, "critical")["passed"] is True

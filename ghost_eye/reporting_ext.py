@@ -7,7 +7,7 @@ import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .core import Console, Result, log
 from .reporting import _flatten
@@ -348,7 +348,8 @@ def _svg_attack_graph(inv: Dict[str, Any], target: str) -> str:
 
 
 def export_exec_report(results: List[Result], path: str, target: str = "",
-                       exploit: Dict[str, Any] = None, lang: str = "en") -> str:
+                       exploit: Optional[Dict[str, Any]] = None,
+                       lang: str = "en") -> str:
     """Render a polished, self-contained executive HTML report."""
     from .workflow import attack_score  # lazy: avoids an import cycle
     L = _LABELS.get(lang, _LABELS["en"])

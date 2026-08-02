@@ -40,3 +40,8 @@ jobs:
 
       - name: Lint (non-blocking)
         run: ruff check ghost_eye || true
+
+      - name: Type-check (advisory, non-blocking)
+        run: |
+          pip install mypy || true
+          mypy ghost_eye/core.py ghost_eye/config.py || true

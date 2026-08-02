@@ -49,7 +49,7 @@ ghost-eye-web = "ghost_eye.webapp:main"
 packages = ["ghost_eye", "ghost_eye.modules"]
 
 [tool.setuptools.package-data]
-ghost_eye = ["web_static/*.html"]
+ghost_eye = ["web_static/*.html", "py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -62,3 +62,13 @@ target-version = "py39"
 # bug-catching subset only (syntax errors, undefined names) so CI stays green
 # on the existing style; tighten locally with `ruff check --select E,F,W,I`.
 select = ["E9", "F63", "F7", "F82"]
+
+[tool.mypy]
+# advisory type-checking: run `mypy ghost_eye` locally / in CI (non-blocking).
+# The package ships a py.typed marker so downstream users get the annotations.
+python_version = "3.9"
+ignore_missing_imports = true
+warn_unused_ignores = false
+no_implicit_optional = true
+# module bodies are largely un-annotated by design; check signatures, not bodies
+check_untyped_defs = false
