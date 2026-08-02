@@ -69,3 +69,16 @@ def test_run_scan_cancel_stops_early():
     res = engine.run_scan([_Good()] * 5, "x", _ctx(), parallel=1,
                           should_cancel=lambda: True)
     assert res == []
+
+
+def test_benchmark_harness_runs():
+    import importlib.util
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(__file__)),
+                        "scripts", "benchmark.py")
+    spec = importlib.util.spec_from_file_location("ghosteye_bench", path)
+    bench = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bench)
+    r = bench._run(targets=3, modules=4, parallel=2, latency=0.0)
+    assert r["module_runs"] == 12 and r["results_held"] == 12
+    assert r["runs_per_s"] > 0 and r["rss_mb"] > 0

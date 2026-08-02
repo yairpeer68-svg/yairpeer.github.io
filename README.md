@@ -15,7 +15,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **354 automated tests** (unit + all-module smoke + behavioural), CI on
+- **362 automated tests** (unit + all-module smoke + behavioural), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -384,8 +384,38 @@ pip install pytest && python3 -m pytest -q
   RSA keys, exploit-intel verdict logic, deep-scan asset scoping, CI gate,
   attack score, notifications, executive-report structure, config round-trip.
 
-**354 tests** pass. CI (`.github/workflows/ci.yml`) runs an import check,
-`compileall`, the full suite and a ruff bug-rule lint on Python 3.9/3.11/3.12.
+- **Engine tests** — the shared `execute_module` / `run_scan` contract
+  (crash → error Result + logged, non-Result coercion, order, parallelism, cancel).
+
+**362 tests** pass in ~1.7s. CI (`.github/workflows/ci.yml`) runs an import
+check, `compileall`, the full suite and a ruff bug-rule lint on Python
+3.9/3.11/3.12.
+
+---
+
+## Performance
+
+Measured with `scripts/benchmark.py` (synthetic modules, no network — isolates
+the engine + result pipeline from remote latency), 100 targets × 15 modules =
+1500 module-runs:
+
+| scenario | runs/s | process RAM (peak RSS) |
+|----------|-------:|-----------------------:|
+| engine overhead, sequential (no I/O) | ~150,000 | ~25 MB |
+| 20 ms simulated I/O, sequential | ~49 | ~26 MB |
+| 20 ms simulated I/O, `parallel=3` | ~145 | ~26 MB |
+| 20 ms simulated I/O, `parallel=10` | ~336 | ~26 MB |
+
+Takeaways: orchestration overhead is negligible (~150k runs/s); thread-based
+parallelism scales throughput ~3× at `parallel=3` and ~7× at `parallel=10`
+**when there is real I/O latency to hide** (with zero latency, thread overhead
+makes parallelism slower — as expected for a GIL-bound, I/O-oriented design);
+and memory stays flat (~26 MB RSS holding all 1500 results). Real network scans
+are dominated by remote latency, not by Ghost Eye.
+
+```bash
+python3 scripts/benchmark.py --targets 100 --modules 15 --latency-ms 20
+```
 
 ---
 
