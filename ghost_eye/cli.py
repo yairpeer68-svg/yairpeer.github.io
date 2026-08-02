@@ -555,7 +555,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.config_init:
         path = cfg.write_template()
         Console.good(f"wrote config template: {path}")
-        Console.info("fill in your API keys, then re-run")
+        Console.info("adjust the [settings] section as needed, then re-run")
         return 0
 
     if args.plugins:
