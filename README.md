@@ -15,7 +15,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **366 automated tests** (unit + all-module smoke + behavioural), CI on
+- **370 automated tests** (unit + all-module smoke + behavioural), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -117,6 +117,8 @@ python3 ghost_eye_web.py --open
 | `-o, --output <file>` | write a report (format inferred from extension) |
 | `--format <fmt>` | `json`, `csv`, `html`, `md`, `sarif`, `prometheus`, `dashboard`, `exec` |
 | `--exec-report <file>` | polished executive HTML report (grade + graph + exploits); honours `--lang he` |
+| `--intel-report <file>` | unified **intelligence report** (assets, org profile, attack-surface graph, tech, cloud, leaks) |
+| `--intel` | print an intelligence summary after the scan |
 | `--risk` | print a prioritised risk summary |
 | `--inventory`, `--rollup` | asset inventory / per-host rollup |
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
@@ -163,6 +165,34 @@ python3 ghost_eye.py -t example.com -p exploit --exploit-intel
 ```
 
 Define your own in a YAML/JSON file and load with `--recipes myrecipes.yaml`.
+
+---
+
+## Intelligence layer
+
+Ghost Eye doesn't just list findings — the `intelligence/` layer **correlates
+the output of every module that ran into one ASM-style picture**, without any
+extra scanning:
+
+- **Assets** — subdomains, related domains, IPs, services, emails (de-duplicated).
+- **Technologies** classified into CMS / framework / server / CDN / WAF.
+- **Cloud footprint** — AWS / Azure / GCP / Cloudflare / … detection.
+- **Email posture** — an SPF/DKIM/DMARC/MTA-STS score out of 100.
+- **Certificates** — issuers, SAN domains, wildcard/related domains.
+- **Leak indicators** — public breach/leak signals surfaced by OSINT modules.
+- **Organization profile** — a plain-language "uses …" + "main risks …" summary
+  (rule-based, no LLM).
+- **Attack-surface graph** — a self-contained SVG of the target and everything
+  connected to it.
+
+```bash
+python3 ghost_eye.py -t example.com --all --intel                 # console summary
+python3 ghost_eye.py -t example.com --all --intel-report intel.html
+# dashboard: GET /api/job/<id>/intel   ·   GET /api/job/<id>/risk
+```
+
+Produces a single **Ghost Eye Intelligence Report** HTML page (assets, graph,
+org profile, tech, cloud, email score, certificates, leaks).
 
 ---
 
@@ -410,7 +440,7 @@ pip install pytest && python3 -m pytest -q
 - **Engine tests** — the shared `execute_module` / `run_scan` contract
   (crash → error Result + logged, non-Result coercion, order, parallelism, cancel).
 
-**366 tests** pass in ~1.7s. CI (`.github/workflows/ci.yml`) runs an import
+**370 tests** pass in ~1.7s. CI (`.github/workflows/ci.yml`) runs an import
 check, `compileall`, the full suite and a ruff bug-rule lint on Python
 3.9/3.11/3.12.
 
