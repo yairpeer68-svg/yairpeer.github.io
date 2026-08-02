@@ -36,6 +36,25 @@ _ENV_MAP = {
     "deepseek": ("DEEPSEEK_API_KEY", "api_keys", "deepseek"),
 }
 
+_KEYRING_SERVICE = "ghosteye"
+
+
+def _keyring():
+    """Return the `keyring` module if it is installed and usable, else None.
+
+    Set GHOSTEYE_NO_KEYRING=1 to force the plaintext-file backend. When keyring
+    is available the OS secret store (Secret Service / Keychain / Credential
+    Manager) is used in preference to the config file."""
+    if os.environ.get("GHOSTEYE_NO_KEYRING"):
+        return None
+    try:
+        import keyring
+        # a broken/headless backend raises on use; probe cheaply
+        keyring.get_keyring()
+        return keyring
+    except Exception:  # noqa: BLE001
+        return None
+
 # friendly labels shown in the interactive key prompt.
 _KEY_LABELS = {
     "virustotal": "VirusTotal",
@@ -95,15 +114,28 @@ class Config:
 
     # ---- api keys ---------------------------------------------------------
     def api_key(self, name: str) -> Optional[str]:
+        # resolution order: env var  >  OS keyring  >  config file
         if name not in _ENV_MAP:
             return None
         env_name, section, option = _ENV_MAP[name]
         if os.environ.get(env_name):
             return os.environ[env_name]
+        kr = _keyring()
+        if kr is not None:
+            try:
+                val = kr.get_password(_KEYRING_SERVICE, name)
+                if val:
+                    return val
+            except Exception:  # noqa: BLE001
+                pass
         if self._cp.has_option(section, option):
             val = self._cp.get(section, option)
             return val or None
         return None
+
+    def key_backend(self) -> str:
+        """Which backend stores keys: 'keyring' (OS secret store) or 'file'."""
+        return "keyring" if _keyring() is not None else "file"
 
     def require(self, name: str) -> str:
         key = self.api_key(name)
@@ -132,13 +164,22 @@ class Config:
             pass
 
     def set_api_key(self, name: str, value: str) -> None:
-        """Persist an API key to the config file (creates it if needed)."""
+        """Persist an API key. Uses the OS keyring when available (nothing
+        written to disk), otherwise the 0600 config file."""
         if name not in _ENV_MAP:
             raise KeyError(f"unknown api key: {name}")
+        value = value.strip()
+        kr = _keyring()
+        if kr is not None:
+            try:
+                kr.set_password(_KEYRING_SERVICE, name, value)
+                return
+            except Exception:  # noqa: BLE001
+                pass  # fall back to the file backend
         _, section, option = _ENV_MAP[name]
         if not self._cp.has_section(section):
             self._cp.add_section(section)
-        self._cp.set(section, option, value.strip())
+        self._cp.set(section, option, value)
         self._write_config(self._cp)
 
     def all_api_keys(self) -> Dict[str, str]:

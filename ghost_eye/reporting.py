@@ -210,6 +210,22 @@ class Store:
             return None
         return {"target": row[0], "results": _json.loads(row[1])}
 
+    def scans_for(self, target: str, limit: int = 100):
+        """Every stored scan for a target, oldest first — powers trend()."""
+        import json as _json
+        cur = self.conn.execute(
+            "SELECT id,ts,risk,score,modules,results FROM scans "
+            "WHERE target=? ORDER BY ts ASC LIMIT ?", (target, limit))
+        out = []
+        for i, ts, rk, sc, m, res in cur.fetchall():
+            try:
+                results = _json.loads(res)
+            except Exception:  # noqa: BLE001
+                results = []
+            out.append({"id": i, "ts": ts, "risk": rk, "score": sc,
+                        "modules": m, "results": results})
+        return out
+
 
     def save(self, result: Result) -> None:
         self.conn.execute(

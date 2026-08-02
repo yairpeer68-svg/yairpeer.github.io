@@ -410,6 +410,55 @@ _EXPOSURE_WORDS = ("open", "public", "no auth", "unauth", "exposed", "anonymous"
                    "no password", "default cred", "listing", "disclosed")
 
 
+def trend(store, target: str) -> dict:
+    """Build a security trend for a target from the SQLite scan history: per
+    saved scan the re-scored risk + finding counts, the modules that appeared
+    or disappeared since the previous scan, and the overall direction. Turns the
+    tool from a point-in-time scanner into a change tracker."""
+    from .core import Result
+    from .reporting_ext import score_findings
+
+    scans = store.scans_for(target)
+    timeline = []
+    prev_mods = None
+    prev_score = None
+    for s in scans:
+        results = [Result(x.get("module", ""), x.get("target", target),
+                          x.get("status", "ok"), x.get("data", {}) or {})
+                   for x in s["results"]]
+        scored = score_findings(results)
+        mods = {x.get("module", "") for x in s["results"]}
+        entry = {
+            "scan_id": s["id"], "ts": s["ts"],
+            "risk_level": scored["risk_level"],
+            "risk_score": scored["risk_score"],
+            "counts": scored["counts"],
+            "modules": len(mods),
+        }
+        if prev_mods is not None:
+            entry["new_modules"] = sorted(mods - prev_mods)
+            entry["gone_modules"] = sorted(prev_mods - mods)
+            entry["score_delta"] = scored["risk_score"] - prev_score
+        timeline.append(entry)
+        prev_mods, prev_score = mods, scored["risk_score"]
+
+    direction = "n/a"
+    if len(timeline) >= 2:
+        delta = timeline[-1]["risk_score"] - timeline[0]["risk_score"]
+        direction = ("worsening" if delta > 0 else
+                     "improving" if delta < 0 else "stable")
+    return {
+        "target": target,
+        "scans": len(timeline),
+        "direction": direction,
+        "first_ts": timeline[0]["ts"] if timeline else None,
+        "last_ts": timeline[-1]["ts"] if timeline else None,
+        "timeline": timeline,
+        "note": "risk re-scored from stored findings; 'direction' compares the "
+                "first and latest scan. Save scans with --save-db to build history.",
+    }
+
+
 def module_report() -> dict:
     """A quality / capability report for every registered module: category,
     target kind, declared dependencies (needs), whether it is documented, and

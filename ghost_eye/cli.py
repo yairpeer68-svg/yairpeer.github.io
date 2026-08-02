@@ -316,7 +316,7 @@ def interactive(cfg: Config, args) -> None:
         if needed:
             saved = cfg.ensure_keys(needed)
             if saved:
-                Console.good(f"saved keys: {', '.join(saved)} -> {cfg.path}")
+                Console.good(f"saved keys: {', '.join(saved)} -> {cfg.key_backend()} backend")
 
     ctx = make_context(cfg, args)
     results = run_modules(mods, target, ctx, args)
@@ -443,6 +443,8 @@ def build_parser() -> argparse.ArgumentParser:
                       help="show the persistent error log (crashes/failures) and exit")
     misc.add_argument("--module-report", action="store_true",
                       help="print a quality/capability report for every module and exit")
+    misc.add_argument("--trend", action="store_true",
+                      help="show the security trend for -t <target> from --db history and exit")
     misc.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     misc.add_argument("--logfile", help="write logs to this file")
     misc.add_argument("--no-color", action="store_true", help="disable colours")
@@ -627,6 +629,38 @@ def main(argv: Optional[List[str]] = None) -> int:
         Console.info("run with --set-keys to enter your API keys, then re-run")
         return 0
 
+    if getattr(args, "trend", False):
+        if not args.target:
+            Console.err("--trend needs a target: -t <target>")
+            return 2
+        target = args.target
+        try:
+            store = reporting.Store(args.db)
+            rep = workflow.trend(store, target)
+            store.close()
+        except Exception as exc:  # noqa: BLE001
+            Console.err(f"trend unavailable: {exc}")
+            return 2
+        Console.rule(f"Security trend — {target}  ({rep['scans']} scans, "
+                     f"{rep['direction']})")
+        for e in rep["timeline"]:
+            c = e["counts"]
+            line = (f"{e['ts'][:19]}  risk {e['risk_level']:<8} "
+                    f"score {e['risk_score']:<4} "
+                    f"C{c.get('critical',0)} H{c.get('high',0)} "
+                    f"M{c.get('medium',0)}")
+            if "score_delta" in e:
+                d = e["score_delta"]
+                line += f"  Δ{'+' if d >= 0 else ''}{d}"
+                if e.get("new_modules"):
+                    line += f"  +{len(e['new_modules'])} new"
+                if e.get("gone_modules"):
+                    line += f"  -{len(e['gone_modules'])} gone"
+            Console.kv("scan", line)
+        if not rep["timeline"]:
+            Console.info("no saved scans for this target — run with --save-db first")
+        return 0
+
     if getattr(args, "module_report", False):
         rep = workflow.module_report()
         Console.rule(f"Module quality report — {rep['total']} modules, "
@@ -655,7 +689,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.set_keys:
         saved = cfg.interactive_setup()
         if saved:
-            Console.good(f"saved keys: {', '.join(saved)} -> {cfg.path}")
+            Console.good(f"saved keys: {', '.join(saved)} -> {cfg.key_backend()} backend")
         else:
             Console.info("no keys entered")
         return 0
@@ -681,7 +715,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         if needed:
             saved = cfg.ensure_keys(needed)
             if saved:
-                Console.good(f"saved keys: {', '.join(saved)} -> {cfg.path}")
+                Console.good(f"saved keys: {', '.join(saved)} -> {cfg.key_backend()} backend")
 
     # batch mode: -T / --targets file
     if args.targets:

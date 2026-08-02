@@ -15,7 +15,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **362 automated tests** (unit + all-module smoke + behavioural), CI on
+- **366 automated tests** (unit + all-module smoke + behavioural), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -144,6 +144,8 @@ python3 ghost_eye_web.py --open
 | `--no-keys` | never prompt for API keys during a scan |
 | `--config-init` | write a config template to `~/.ghosteye/config.ini` |
 | `--errors` | print the persistent error log |
+| `--module-report` | per-module quality/capability report |
+| `--trend` | security trend for `-t <target>` from `--db` history |
 | `--doctor` | check installed dependencies + binaries |
 
 ---
@@ -267,10 +269,31 @@ python3 ghost_eye.py --set-keys          # enter & save all keys up front
 ```
 
 When a scan includes a module that needs a key and none is set, it prompts and
-saves your answer to `~/.ghosteye/config.ini` under `[api_keys]`. Keys can also
-come from environment variables (`VT_API_KEY`, `ABUSEIPDB_API_KEY`,
-`DEEPSEEK_API_KEY`). The key file stays local and is never committed. Use
-`--no-keys` for unattended runs.
+saves your answer. Resolution order is **env var → OS keyring → config file**:
+
+- **OS keyring** — if the optional [`keyring`](https://pypi.org/project/keyring/)
+  package is installed, keys go to the OS secret store (Secret Service / macOS
+  Keychain / Windows Credential Manager) and **nothing is written to disk**.
+  Force the file backend with `GHOSTEYE_NO_KEYRING=1`.
+- **Config file** — otherwise `~/.ghosteye/config.ini` under `[api_keys]`,
+  written `0600` (owner-only).
+- **Env vars** — `VT_API_KEY`, `ABUSEIPDB_API_KEY`, `DEEPSEEK_API_KEY` always win.
+
+Keys stay local and are never committed. Use `--no-keys` for unattended runs.
+
+---
+
+## Security trend / history
+
+Save scans with `--save-db`, then track how a target's exposure changes over
+time — re-scored risk per scan, and the modules that appeared or disappeared
+between scans:
+
+```bash
+python3 ghost_eye.py -t example.com -p perimeter --save-db    # build history
+python3 ghost_eye.py -t example.com --trend                   # show the timeline
+# dashboard: history/diff via the /api/job/<id>/diff endpoint
+```
 
 ---
 
@@ -387,7 +410,7 @@ pip install pytest && python3 -m pytest -q
 - **Engine tests** — the shared `execute_module` / `run_scan` contract
   (crash → error Result + logged, non-Result coercion, order, parallelism, cancel).
 
-**362 tests** pass in ~1.7s. CI (`.github/workflows/ci.yml`) runs an import
+**366 tests** pass in ~1.7s. CI (`.github/workflows/ci.yml`) runs an import
 check, `compileall`, the full suite and a ruff bug-rule lint on Python
 3.9/3.11/3.12.
 

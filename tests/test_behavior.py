@@ -224,11 +224,35 @@ def test_exec_report_html_structure(tmp_path):
 # --------------------------------------------------------------------------- #
 def test_config_api_key_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setenv("GHOSTEYE_CONFIG", str(tmp_path / "cfg.ini"))
+    monkeypatch.setenv("GHOSTEYE_NO_KEYRING", "1")   # force the file backend
     from ghost_eye.config import Config
     c = Config()
+    assert c.key_backend() == "file"
     assert c.api_key("virustotal") is None
     c.set_api_key("virustotal", "SECRET123")
     assert Config().api_key("virustotal") == "SECRET123"     # persisted to file
+
+
+def test_config_uses_os_keyring_when_available(tmp_path, monkeypatch):
+    import sys
+    import types
+    store = {}
+    fake = types.ModuleType("keyring")
+    fake.get_keyring = lambda: object()
+    fake.get_password = lambda service, name: store.get((service, name))
+    fake.set_password = lambda service, name, val: store.__setitem__(
+        (service, name), val)
+    monkeypatch.setitem(sys.modules, "keyring", fake)
+    monkeypatch.delenv("GHOSTEYE_NO_KEYRING", raising=False)
+    cfg_path = tmp_path / "cfg.ini"
+    monkeypatch.setenv("GHOSTEYE_CONFIG", str(cfg_path))
+    from ghost_eye.config import Config
+    c = Config()
+    assert c.key_backend() == "keyring"
+    c.set_api_key("virustotal", "KR-SECRET")
+    assert store[("ghosteye", "virustotal")] == "KR-SECRET"
+    assert not cfg_path.exists()                  # nothing written to disk
+    assert Config().api_key("virustotal") == "KR-SECRET"
 
 
 # --------------------------------------------------------------------------- #
@@ -380,6 +404,27 @@ def test_notify_and_ci_gate_empty_url_and_clean():
     assert workflow.notify(_high_findings(), "x", "") is False   # no URL -> no-op
     clean = [Result("info", "x", "ok", {"note": "advertised"})]
     assert workflow.ci_gate(clean, "critical")["passed"] is True
+
+
+def test_trend_tracks_worsening_over_scans(tmp_path):
+    from ghost_eye import reporting, workflow
+    db = str(tmp_path / "h.db")
+    st = reporting.Store(db)
+    st.save_scan("s1", "acme.com",
+                 [Result("CORS", "acme.com", "ok",
+                         {"acao": "reflects origin WITH credentials"})])
+    st.save_scan("s2", "acme.com",
+                 [Result("CORS", "acme.com", "ok",
+                         {"acao": "reflects origin WITH credentials"}),
+                  Result("DB", "acme.com", "ok", {"redis": "OPEN with no auth"})])
+    st.close()
+    st2 = reporting.Store(db)
+    t = workflow.trend(st2, "acme.com")
+    st2.close()
+    assert t["scans"] == 2
+    assert t["direction"] == "worsening"
+    assert t["timeline"][-1]["score_delta"] > 0
+    assert "DB" in t["timeline"][-1]["new_modules"]
 
 
 def test_module_report_metadata():

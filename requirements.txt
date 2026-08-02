@@ -60,3 +60,6 @@ requests[socks]>=2.31
 #   dot (graphviz) - render the network-map DOT output to an image
 #   etherape    - the original tool's live graphical monitor (root, optional)
 # ---------------------------------------------------------------------------
+
+# --- optional: store API keys in the OS secret store instead of the config file ---
+keyring>=24.0        # Secret Service / macOS Keychain / Windows Credential Manager
