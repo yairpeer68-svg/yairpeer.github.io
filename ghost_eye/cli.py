@@ -203,14 +203,6 @@ def handle_reports(results: List[Result], target: str, args) -> None:
         Console.good("notification sent") if ok else Console.warn("notification failed")
 
 
-def _summary_text(results: List[Result], target: str) -> str:
-    lines = [f"Ghost Eye scan of {target}:"]
-    for r in results:
-        flag = {"ok": "+", "empty": "-", "error": "x"}.get(r.status, "?")
-        lines.append(f"[{flag}] {r.module} ({r.status})")
-    return "\n".join(lines)
-
-
 # --------------------------------------------------------------------------- #
 #  Selection helpers
 # --------------------------------------------------------------------------- #

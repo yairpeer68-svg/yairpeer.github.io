@@ -8,16 +8,11 @@ from typing import Dict, List
 
 from ..core import (Console, Context, Module, Result, clean_host, have_binary,
                     is_ip, register, run_cmd)
+from ..core import dns_resolver as _resolver
 
 _RECORD_TYPES = ["A", "AAAA", "MX", "NS", "TXT", "SOA", "CNAME", "CAA", "SRV", "PTR"]
 
 
-def _resolver(ctx: Context):
-    import dns.resolver
-    r = dns.resolver.Resolver()
-    r.lifetime = ctx.timeout
-    r.timeout = ctx.timeout
-    return r
 
 
 @register

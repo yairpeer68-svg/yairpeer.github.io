@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import socket
 import ssl
+import warnings
 from datetime import datetime, timezone
 from typing import Dict, List, Tuple
 
@@ -121,8 +122,12 @@ class TlsProtocols(Module):
             c.check_hostname = False
             c.verify_mode = ssl.CERT_NONE
             try:
-                c.minimum_version = version
-                c.maximum_version = version
+                # probing legacy TLS is intentional here; silence the stdlib
+                # DeprecationWarning it raises for TLSv1/TLSv1.1
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", DeprecationWarning)
+                    c.minimum_version = version
+                    c.maximum_version = version
             except (ValueError, OSError):
                 supported[label] = False
                 continue

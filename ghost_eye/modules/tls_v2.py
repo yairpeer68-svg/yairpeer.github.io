@@ -355,12 +355,13 @@ class SctsValidation(Module):
     def run(self, target, ctx):
         try:
             host = clean_host(target)
-            from cryptography import x509
-            from cryptography.x509.oid import ExtensionOID
-        except ImportError:
-            return self.fail(target, "requires cryptography")
         except ValueError as e:
             return self.fail(target, str(e))
+        try:
+            from cryptography import x509
+            from cryptography.x509.oid import ExtensionOID
+        except BaseException as e:  # noqa: BLE001 - broken cffi backend panics (BaseException)
+            return self.fail(host, f"requires a working 'cryptography' install ({type(e).__name__})")
         try:
             der, cert_dict, _ = _peercert(host, 443, ctx.timeout)
             cert = x509.load_der_x509_certificate(der)

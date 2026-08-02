@@ -6,14 +6,9 @@ import socket
 from typing import List
 
 from ..core import Context, Module, Result, clean_host, register
+from ..core import dns_resolver as _resolver
 
 
-def _resolver(ctx: Context):
-    import dns.resolver
-    r = dns.resolver.Resolver()
-    r.lifetime = ctx.timeout
-    r.timeout = ctx.timeout
-    return r
 
 
 def _ns_ips(host: str, ctx) -> List[str]:

@@ -188,7 +188,9 @@ def run_cmd(args: List[str], timeout: int = 60) -> str:
     if not args:
         return ""
     if not have_binary(args[0]):
-        raise FileNotFoundError(f"required binary not found: {args[0]}")
+        # degrade gracefully: a missing optional binary yields no output rather
+        # than crashing the module (callers treat empty output as "no data").
+        return ""
     try:
         proc = subprocess.run(
             args,
@@ -203,6 +205,17 @@ def run_cmd(args: List[str], timeout: int = 60) -> str:
     if proc.stderr:
         out += ("\n" + proc.stderr) if out else proc.stderr
     return out.strip()
+
+
+def dns_resolver(ctx: "Context"):
+    """A dnspython resolver honouring the scan timeout. Imported lazily so the
+    package loads even when dnspython is not installed (the caller then fails
+    gracefully). Shared by every DNS/email module."""
+    import dns.resolver
+    r = dns.resolver.Resolver()
+    r.lifetime = ctx.timeout
+    r.timeout = ctx.timeout
+    return r
 
 
 # --------------------------------------------------------------------------- #
