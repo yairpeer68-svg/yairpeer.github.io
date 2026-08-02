@@ -25,7 +25,7 @@ from urllib.parse import parse_qs, urlparse
 from .config import Config
 from .core import (Colors, Console, Context, REGISTRY, Result, build_session,
                    modules_by_category, record_error)
-from . import reporting, reporting_ext, workflow
+from . import engine, reporting, reporting_ext, workflow
 
 STATIC_DIR = Path(__file__).parent / "web_static"
 
@@ -181,12 +181,8 @@ class JobManager:
 
     @staticmethod
     def _run_one(module, target: str, ctx: Context) -> Result:
-        try:
-            return module.run(target, ctx)
-        except Exception as exc:  # noqa: BLE001
-            record_error(f"module {getattr(module, 'id', '?')}", target, exc)
-            return Result(module=getattr(module, "id", "?"), target=target,
-                          status="error", data={}, error=str(exc))
+        # single shared execution path (crash -> error Result + error-log)
+        return engine.execute_module(module, target, ctx)
 
     def _persist(self, job: dict) -> None:
         try:

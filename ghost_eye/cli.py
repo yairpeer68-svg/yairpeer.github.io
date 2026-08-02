@@ -25,8 +25,9 @@ from typing import List, Optional
 
 from .config import Config, MODULE_KEYS
 from .core import (Colors, Console, Context, Module, REGISTRY, Result,
-                   build_session, modules_by_category, record_error,
+                   build_session, modules_by_category,
                    errorlog_path, setup_logging)
+from . import engine
 from . import reporting
 from . import reporting_ext
 from . import workflow
@@ -117,13 +118,10 @@ def run_modules(mods: List[Module], target: str, ctx: Context,
             Console.kv("requires", ", ".join(mod.needs))
         t0 = time.time()
         try:
-            res = mod.run(target, ctx)
+            res = engine.execute_module(mod, target, ctx)
         except KeyboardInterrupt:
             Console.warn("interrupted by user")
             break
-        except Exception as exc:  # noqa: BLE001 - never let one module kill the run
-            record_error(f"module {mod.id}", target, exc)
-            res = Result(mod.name, target, status="error", error=str(exc))
         res.render()
         Console.kv("took", f"{time.time() - t0:.1f}s")
 
