@@ -13,7 +13,7 @@ import re
 import time
 from typing import Dict, List
 
-from ..core import Context, Module, Result, clean_host, ensure_scheme, register
+from ..core import Module, clean_host, ensure_scheme, register
 
 _NVD = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 _VER_RE = re.compile(r"([A-Za-z][A-Za-z0-9_\-]{1,30})[/ ]([0-9]+\.[0-9][0-9A-Za-z.\-]*)")

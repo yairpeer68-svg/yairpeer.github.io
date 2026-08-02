@@ -484,7 +484,7 @@ def _run_deep(initial, target, cfg, args):
 
 
 def _print_rollup(results, target):
-    roll = inventory.build_host_rollup(results, target)
+    roll = reporting_ext.build_host_rollup(results, target)
     if not roll:
         return
     Console.rule("Per-host rollup")

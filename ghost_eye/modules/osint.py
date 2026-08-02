@@ -11,7 +11,7 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Set
 
-from ..core import (Console, Context, Module, Result, clean_host, ensure_scheme,
+from ..core import (Context, Module, Result, clean_host, ensure_scheme,
                     register)
 
 _EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")

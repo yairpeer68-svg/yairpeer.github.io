@@ -19,7 +19,7 @@ import os
 import socket
 import time
 
-from ..core import Module, Result, clean_host, register
+from ..core import Module, clean_host, register
 
 # a fixed, representative modern client offer (so the fingerprint is stable)
 _CIPHERS = [0x1302, 0x1303, 0x1301, 0xc02c, 0xc02b, 0xc030, 0xc02f,

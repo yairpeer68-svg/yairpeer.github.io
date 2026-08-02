@@ -10,7 +10,7 @@ import re
 import zipfile
 from typing import Dict, List
 
-from ..core import Context, Module, Result, clean_host, ensure_scheme, register
+from ..core import Module, clean_host, ensure_scheme, register
 
 _MAX_APK = 25 * 1024 * 1024          # do not download packages larger than 25 MB
 

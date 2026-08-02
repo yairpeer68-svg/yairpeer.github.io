@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import re
 import socket
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List
+from typing import List
 
-from ..core import Context, Module, Result, clean_host, register
+from ..core import Module, clean_host, register
 from ..core import dns_resolver as _resolver
 
 

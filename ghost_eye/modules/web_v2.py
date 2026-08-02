@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import re
-import struct
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Set
 from urllib.parse import urljoin
 
-from ..core import Context, Module, Result, clean_host, ensure_scheme, register
+from ..core import Module, clean_host, ensure_scheme, register
 
 
 def _get(ctx, url, **kw):

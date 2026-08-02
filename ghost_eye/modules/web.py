@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Set
+from typing import Dict, Set
 from urllib.parse import urljoin, urlsplit
 
 from ..core import (Console, Context, Module, Result, clean_host, ensure_scheme,

@@ -4,9 +4,8 @@ Passive = no active scanning of the target; queries third-party datasets."""
 from __future__ import annotations
 
 import socket
-from typing import Dict, List
 
-from ..core import Context, Module, Result, clean_host, is_ip, register
+from ..core import Module, clean_host, is_ip, register
 
 
 def _to_ip(host: str) -> str:

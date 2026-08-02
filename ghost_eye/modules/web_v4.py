@@ -8,7 +8,7 @@ import re
 from typing import Dict, List
 from urllib.parse import urljoin, urlparse, parse_qs
 
-from ..core import Context, Module, Result, clean_host, ensure_scheme, register
+from ..core import Context, Module, clean_host, ensure_scheme, register
 
 
 def _fetch(ctx: Context, host: str):

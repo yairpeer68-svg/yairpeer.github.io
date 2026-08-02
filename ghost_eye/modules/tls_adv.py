@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import socket
 import ssl
-from datetime import datetime, timezone
-from typing import List
 
-from ..core import Context, Module, Result, clean_host, register
+from ..core import Module, clean_host, register
 
 _HSTS_PRELOAD_HINT = "https://hstspreload.org/api/v2/status?domain="
 

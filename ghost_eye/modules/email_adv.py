@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import socket
-import ssl
 from typing import List
 
-from ..core import Context, Module, Result, clean_host, ensure_scheme, register
+from ..core import Context, Module, clean_host, register
 
 _DISPOSABLE = {
     "mailinator.com", "guerrillamail.com", "10minutemail.com", "tempmail.com",

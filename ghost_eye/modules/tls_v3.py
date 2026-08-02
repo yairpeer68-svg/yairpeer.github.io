@@ -5,7 +5,7 @@ from __future__ import annotations
 import socket
 import ssl
 
-from ..core import Context, Module, Result, clean_host, register
+from ..core import Module, clean_host, register
 
 
 # --------------------------------------------------------------------------- #

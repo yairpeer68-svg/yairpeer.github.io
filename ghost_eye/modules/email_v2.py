@@ -6,7 +6,7 @@ import re
 import socket
 from typing import List
 
-from ..core import Context, Module, Result, clean_host, register
+from ..core import Context, Module, clean_host, register
 
 
 def _txt(name: str, ctx: Context) -> List[str]:

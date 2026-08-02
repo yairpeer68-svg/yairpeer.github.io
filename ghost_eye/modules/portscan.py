@@ -9,7 +9,7 @@ import ssl
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Tuple
 
-from ..core import Context, Module, Result, clean_host, register
+from ..core import Module, clean_host, register
 
 # curated common ports -> service label
 COMMON_PORTS: Dict[int, str] = {

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import socket
 
-from ..core import (Context, Module, Result, clean_host, have_binary, is_ip,
+from ..core import (Module, clean_host, have_binary, is_ip,
                     run_cmd, register)
 
 

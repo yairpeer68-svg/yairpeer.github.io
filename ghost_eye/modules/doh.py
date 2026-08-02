@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Dict, List
 
-from ..core import Context, Module, Result, clean_host, register
+from ..core import Module, clean_host, register
 
 _PROVIDERS = [
     ("Cloudflare", "https://cloudflare-dns.com/dns-query"),

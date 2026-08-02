@@ -7,11 +7,10 @@ import importlib.util
 import json
 import os
 import pickle
-import shutil
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from .core import Colors, Console, have_binary, REGISTRY
 

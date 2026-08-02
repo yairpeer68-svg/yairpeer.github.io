@@ -5,9 +5,8 @@ from __future__ import annotations
 import re
 import socket
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List
 
-from ..core import Context, Module, Result, clean_host, have_binary, is_ip, register, run_cmd
+from ..core import Module, clean_host, have_binary, is_ip, register, run_cmd
 
 
 @register

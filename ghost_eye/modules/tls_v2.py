@@ -7,9 +7,8 @@ import re
 import socket
 import ssl
 from datetime import datetime, timezone
-from typing import Dict, List
 
-from ..core import Context, Module, Result, clean_host, ensure_scheme, register
+from ..core import Module, clean_host, ensure_scheme, register
 
 
 def _peercert(host: str, port: int, timeout: int):

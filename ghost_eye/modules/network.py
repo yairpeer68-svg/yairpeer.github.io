@@ -13,7 +13,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List
 
-from ..core import (Console, Context, Module, Result, clean_host, have_binary,
+from ..core import (Context, Module, Result, clean_host, have_binary,
                     is_ip, register, run_cmd)
 
 _NMAP_PROFILES = {

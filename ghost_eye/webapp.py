@@ -16,7 +16,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import (FIRST_COMPLETED, ThreadPoolExecutor,
-                                as_completed, wait)
+                                wait)
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Dict, List, Optional

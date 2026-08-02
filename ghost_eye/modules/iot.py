@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import re
 import socket
-import struct
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict
 
-from ..core import Context, Module, Result, clean_host, ensure_scheme, register
+from ..core import Module, clean_host, ensure_scheme, register
 
 
 @register

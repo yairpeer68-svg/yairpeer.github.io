@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import socket
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List
 
-from ..core import (Console, Context, Module, Result, clean_host, have_binary,
-                    is_ip, register, run_cmd)
+from ..core import (Console, Context, Module, Result, clean_host, is_ip, register)
 from ..core import dns_resolver as _resolver
 
 _RECORD_TYPES = ["A", "AAAA", "MX", "NS", "TXT", "SOA", "CNAME", "CAA", "SRV", "PTR"]
