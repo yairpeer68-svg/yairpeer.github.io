@@ -23,7 +23,7 @@ import sys
 import time
 from typing import List, Optional
 
-from .config import Config
+from .config import Config, MODULE_KEYS
 from .core import (Colors, Console, Context, Module, REGISTRY, Result,
                    build_session, modules_by_category, setup_logging)
 from . import reporting
@@ -299,6 +299,13 @@ def interactive(cfg: Config, args) -> None:
         Console.err("no target given")
         return
 
+    if not getattr(args, "no_keys", False):
+        needed = sorted({MODULE_KEYS[m.id] for m in mods if m.id in MODULE_KEYS})
+        if needed:
+            saved = cfg.ensure_keys(needed)
+            if saved:
+                Console.good(f"saved keys: {', '.join(saved)} -> {cfg.path}")
+
     ctx = make_context(cfg, args)
     results = run_modules(mods, target, ctx, args)
     handle_reports(results, target, args)
@@ -404,6 +411,10 @@ def build_parser() -> argparse.ArgumentParser:
     misc = p.add_argument_group("misc")
     misc.add_argument("--config-init", action="store_true",
                       help="write a template config to ~/.ghosteye/config.ini")
+    misc.add_argument("--set-keys", action="store_true",
+                      help="interactively enter & save your API keys, then exit")
+    misc.add_argument("--no-keys", action="store_true",
+                      help="never prompt for API keys during a scan")
     misc.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     misc.add_argument("--logfile", help="write logs to this file")
     misc.add_argument("--no-color", action="store_true", help="disable colours")
@@ -555,7 +566,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.config_init:
         path = cfg.write_template()
         Console.good(f"wrote config template: {path}")
-        Console.info("adjust the [settings] section as needed, then re-run")
+        Console.info("run with --set-keys to enter your API keys, then re-run")
+        return 0
+
+    if args.set_keys:
+        saved = cfg.interactive_setup()
+        if saved:
+            Console.good(f"saved keys: {', '.join(saved)} -> {cfg.path}")
+        else:
+            Console.info("no keys entered")
         return 0
 
     if args.plugins:
@@ -572,6 +591,14 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     mods = select_modules(args)
+
+    # ask for any API keys the selected modules need, and remember them
+    if mods and not args.no_keys:
+        needed = sorted({MODULE_KEYS[m.id] for m in mods if m.id in MODULE_KEYS})
+        if needed:
+            saved = cfg.ensure_keys(needed)
+            if saved:
+                Console.good(f"saved keys: {', '.join(saved)} -> {cfg.path}")
 
     # batch mode: -T / --targets file
     if args.targets:
