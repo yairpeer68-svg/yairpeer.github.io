@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **386 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **388 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -373,8 +373,16 @@ python3 ghost_eye_web.py --host 0.0.0.0 --port 9000 --scope scope.txt
 A single-page console: configure a scan (profile / category / modules / all),
 watch findings stream in live with a running risk score, filter by
 severity/module, and export to any format. Includes asset inventory, per-host
-rollup, an **Intelligence** panel (correlated assets + attack-surface graph +
-screenshot gallery), scan history/diff, and a **🌐 Hebrew / RTL toggle**.
+rollup, scan history/diff, and a **🌐 Hebrew / RTL toggle**.
+
+The **Intelligence** panel renders the whole Personal Cyber Intelligence
+Platform right in the browser: the **🧠 AI-analyst assessment** (headline,
+summary, prioritised assessment, attack narrative, recommendations, confidence),
+the attack-surface graph, the **🕸 typed Knowledge Graph** (real relationship
+edges + a legend), **🔗 entity correlation** (pivot points, shared
+infrastructure, clusters), the **🕓 intelligence timeline**, the screenshot
+gallery, org profile, tech, cloud, email score and leak indicators — all from
+the single `/api/job/<id>/intel` payload.
 
 **Auth:** localhost-only by default (no friction). The moment you bind
 off-localhost (`--host 0.0.0.0`) an **API token is auto-generated** and required
@@ -487,7 +495,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**386 tests** pass in ~7s. A single **verification gate** runs the whole thing:
+**388 tests** pass in ~7s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

@@ -219,6 +219,26 @@ a{color:var(--cyan);text-decoration:none}
 .shot{margin:0;border:1px solid #24304353;border-radius:8px;overflow:hidden;background:#0b1019}
 .shot img{width:100%;display:block;aspect-ratio:16/10;object-fit:cover;object-position:top}
 .shot figcaption{font-size:9.5px;color:#5d6b80;padding:4px 6px;word-break:break-all;font-family:var(--mono)}
+/* analyst / knowledge graph / correlation / timeline */
+.analyst{background:linear-gradient(180deg,#101a2b,#0c1220);border:1px solid #24304f;border-radius:10px;padding:14px 16px;margin:8px 0 14px}
+.analyst .a-head{font-size:14px;font-weight:700;color:#eaf1fb;margin-bottom:6px}
+.analyst .a-sum{font-size:12.5px;color:#c4d2e6;line-height:1.55}
+.analyst h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:#8fa3bd;margin:12px 0 5px}
+.analyst ul,.analyst ol{margin:4px 0;padding-left:18px}.analyst li{margin:3px 0;font-size:12px;color:#d3ddea;line-height:1.5}
+.analyst .a-narr{font-size:12px;color:#9fb0c8;line-height:1.55;font-style:italic}
+.a-conf{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;margin-left:6px;text-transform:uppercase;letter-spacing:.04em}
+.a-conf.high{background:#0f2a1a;color:#3fb950}.a-conf.medium{background:#2a230f;color:#e9a23b}.a-conf.low{background:#2a1113;color:#e5484d}
+.corr-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:640px){.corr-grid{grid-template-columns:1fr}}
+.corr-list{margin:4px 0;padding-left:16px}.corr-list li{margin:4px 0;font-size:11.5px;color:#c4d2e6;line-height:1.45}
+.corr-list b{color:#eaf1fb}
+.kg-legend{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 2px}
+.kg-legend span{font-size:10px;color:#8fa3bd;display:flex;align-items:center;gap:4px}
+.kg-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.timeline{border-left:2px solid #24304f;margin:6px 0 2px;padding-left:2px}
+.tlrow{display:flex;gap:10px;padding:7px 0 7px 12px;position:relative}
+.tldot{width:9px;height:9px;border-radius:50%;flex:0 0 9px;margin-top:4px;margin-left:-18px;box-shadow:0 0 0 3px #0e1320}
+.tldate{color:#8fa3bd;font-size:11px;min-width:74px;font-family:var(--mono)}
+.tlbody{font-size:12px;color:#d3ddea}.tlbody .tlmeta{color:#5d6b80;font-size:10.5px}
 .hist-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid #161f2e;flex-wrap:wrap}
 .hist-row .hist-t{font-family:var(--mono);font-size:12px;color:#dfe8f4}
 .hist-row .hist-m{font-size:11px;color:#5d6b80;flex:1}
@@ -727,6 +747,76 @@ function intelGraph(g){
     <text x="${cx}" y="${cy-14}" font-size="12" font-weight="700" fill="#dbe2ec" text-anchor="middle">${cl}</text>${labs}</svg>`;
 }
 
+/* full typed Knowledge Graph — real relationship edges between typed entities */
+const KGCOL={target:"#e5484d",subdomain:"#5fc6d4",ip:"#3d9f74",cloud:"#e9a23b",
+  tech:"#a371f7",cert_issuer:"#56d364",email:"#db61a2",org:"#f0883e",cve:"#e5484d",
+  leak:"#ff7b72",asn:"#3d9f74",mailserver:"#a5d6ff",nameserver:"#a5d6ff",domain:"#6fb3ff",service:"#e3b341"};
+const KGRINGS=["target","subdomain","ip","tech","cloud","cert_issuer","email","org","asn","cve","leak","domain","mailserver","nameserver","service"];
+function kgraph(kg){
+  if(!kg||!kg.entities||!kg.entities.length) return "<div class='chip muted'>no entities correlated</div>";
+  const W=640,H=480,cx=W/2,cy=H/2;
+  const byk={}; kg.entities.forEach(e=>(byk[e.kind]=byk[e.kind]||[]).push(e));
+  let order=KGRINGS.filter(k=>byk[k]); Object.keys(byk).forEach(k=>{if(!order.includes(k))order.push(k);});
+  const rings=order.filter(k=>k!=="target");
+  const step=(Math.min(W,H)/2-50)/Math.max(1,rings.length);
+  const pos={}; let dots="",labs="";
+  if(byk.target) pos[byk.target[0].id]=[cx,cy];
+  rings.forEach((kind,ri)=>{
+    const arr=byk[kind], r=45+step*(ri+1), c=KGCOL[kind]||"#8b949e", n=arr.length;
+    arr.forEach((node,i)=>{
+      let a=(2*Math.PI*i/n)-Math.PI/2+((ri+1)%2)*(Math.PI/Math.max(1,n));
+      const x=cx+r*Math.cos(a), y=cy+r*Math.sin(a); pos[node.id]=[x,y];
+      dots+=`<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="4" fill="${c}"><title>${esc(kind)}: ${esc(node.label)}</title></circle>`;
+      if(n<=26||i%2===0){ const anc=x>=cx?"start":"end", dx=x>=cx?6:-6;
+        labs+=`<text x="${(x+dx).toFixed(0)}" y="${(y+3).toFixed(0)}" font-size="8.5" fill="#8b949e" text-anchor="${anc}">${esc(String(node.label).slice(0,20))}</text>`; }
+    });
+  });
+  let edges="";
+  (kg.relationships||[]).forEach(rel=>{
+    const a=pos[rel.from], b=pos[rel.to]; if(!a||!b) return;
+    const op={high:.5,medium:.3,low:.16}[rel.confidence]||.25;
+    edges+=`<line x1="${a[0].toFixed(0)}" y1="${a[1].toFixed(0)}" x2="${b[0].toFixed(0)}" y2="${b[1].toFixed(0)}" stroke="#8b949e" stroke-opacity="${op}"><title>${esc(rel.label||rel.type)}</title></line>`;
+  });
+  const tgt=(byk.target&&byk.target[0])||{}, cl=esc(String(tgt.label||"target").slice(0,32));
+  const legend=`<div class="kg-legend">`+rings.slice(0,10).map(k=>`<span><i style="background:${KGCOL[k]||"#8b949e"}"></i>${esc(k)} ${byk[k].length}</span>`).join("")+`</div>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%">${edges}${dots}
+    <circle cx="${cx}" cy="${cy}" r="7" fill="#e5484d"/>
+    <text x="${cx}" y="${cy-13}" font-size="12" font-weight="700" fill="#dbe2ec" text-anchor="middle">${cl}</text>${labs}</svg>${legend}`;
+}
+function renderAnalyst(a){
+  if(!a) return "";
+  const assess=(a.assessment||[]).map(x=>`<li>${esc(x)}</li>`).join("");
+  const recs=(a.recommendations||[]).map(x=>`<li>${esc(x)}</li>`).join("");
+  const cc=(a.confidence||"low");
+  return `<div class="analyst">
+    <div class="a-head">🧠 ${esc(a.headline||"Analyst assessment")}<span class="a-conf ${esc(cc)}">${esc(cc)}</span></div>
+    <div class="a-sum">${esc(a.summary||"")}</div>
+    <h4>Assessment</h4><ul>${assess||"<li class='muted'>none</li>"}</ul>
+    <h4>How this surface would be approached</h4><div class="a-narr">${esc(a.attack_narrative||"")}</div>
+    <h4>Recommendations</h4><ol>${recs}</ol></div>`;
+}
+function renderCorr(corr){
+  if(!corr) return "";
+  const pv=(corr.pivot_points||[]).slice(0,8).map(p=>`<li><b>${esc(p.entity)}</b> <span class="muted">(${esc(p.kind)}, degree ${p.degree})</span></li>`).join("")||"<li class='muted'>none</li>";
+  const sh=(corr.shared_infrastructure||[]).slice(0,6).map(s=>`<li><b>${esc(s.hub)}</b> <span class="muted">(${esc(s.kind)})</span> ties ${s.connects} hosts</li>`).join("")||"<li class='muted'>none</li>";
+  const cl=(corr.clusters||[]).slice(0,6).map(c=>`<li>${c.size} around <b>${esc(c.anchor)}</b> <span class="muted">(${esc(c.anchor_kind)})</span></li>`).join("")||"<li class='muted'>single cluster</li>";
+  return `<div class="intel-sec"><h4>Entity correlation</h4><div class="corr-grid">
+    <div><h4>Pivot points</h4><ul class="corr-list">${pv}</ul></div>
+    <div><h4>Shared infrastructure</h4><ul class="corr-list">${sh}</ul>
+      <h4 style="margin-top:8px">Clusters</h4><ul class="corr-list">${cl}</ul></div></div></div>`;
+}
+function renderTimeline(tl){
+  if(!tl) return "";
+  const sevc={high:"#e5484d",medium:"#e9a23b",info:"#5fc6d4",low:"#3fb950"};
+  const ins=(tl.insights||[]).filter(i=>i&&!i.startsWith("no dated")).map(i=>`<li>${esc(i)}</li>`).join("");
+  const ev=(tl.events||[]).slice(0,30).map(e=>`<div class="tlrow">
+    <span class="tldot" style="background:${sevc[e.severity]||"#8b949e"}"></span>
+    <span class="tldate">${esc(e.date)}</span>
+    <span class="tlbody"><b>${esc(e.label)}</b><br><span class="tlmeta">${esc(e.host)} · ${esc(e.module)} · ${esc((e.detail||"").slice(0,60))}</span></span></div>`).join("");
+  const body=(ev||ins)?`${ins?`<ul class="intel-risks">${ins}</ul>`:""}${ev?`<div class="timeline">${ev}</div>`:""}`:"<div class='chip muted'>no dated intelligence in this scan</div>";
+  return `<div class="intel-sec"><h4>🕓 Intelligence timeline ${tl.span?`<em>${esc(tl.span.from)} → ${esc(tl.span.to)}</em>`:""}</h4>${body}</div>`;
+}
+
 async function loadIntel(){
   renderIntel("Correlating intelligence…");
   let d; try{ d=await api(`/api/job/${JOB}/intel`); }
@@ -746,9 +836,15 @@ async function loadIntel(){
       + `</div></div>`;
   }
   const risks=(org.main_risks||[]).map(r=>`<li>${esc(r)}</li>`).join("")||"<li class='muted'>none</li>";
+  const kg=d.knowledge_graph||{}, kgc=kg.counts||{};
+  const kgblock=(kg.entities&&kg.entities.length)?`<div class="intel-sec"><h4>🕸 Knowledge graph <em>${kgc.entities||0} entities · ${kgc.relationships||0} relationships</em></h4><div class="intel-graph">${kgraph(kg)}</div></div>`:"";
   renderIntel(`<div class="intel-head">Intelligence — ${esc(d.target||"")} · grade ${esc(d.grade||"?")} · risk ${esc(d.risk_level||"")}</div>
+    ${renderAnalyst(d.analysis)}
     <div class="itiles">${tiles}</div>
     <div class="intel-graph">${intelGraph(d.graph)}</div>
+    ${kgblock}
+    ${renderCorr(d.correlation)}
+    ${renderTimeline(d.timeline)}
     ${gallery}
     <div class="intel-sec"><h4>Organization uses</h4><div class="chips">${chips(org.uses)}</div></div>
     <div class="intel-sec"><h4>Cloud footprint</h4><div class="chips">${chips(intel.cloud)}</div></div>
