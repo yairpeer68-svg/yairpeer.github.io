@@ -10,12 +10,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **307 modules** across 19 categories
+- **308 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **375 automated tests** (unit + all-module smoke + behavioural), CI on
+- **379 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -119,6 +119,7 @@ python3 ghost_eye_web.py --open
 | `--exec-report <file>` | polished executive HTML report (grade + graph + exploits); honours `--lang he` |
 | `--intel-report <file>` | unified **intelligence report** (assets, org profile, attack-surface graph, tech, cloud, leaks) |
 | `--intel` | print an intelligence summary after the scan |
+| `--screenshots [N]` | screenshot the target + N discovered subdomains into the gallery |
 | `--risk` | print a prioritised risk summary |
 | `--inventory`, `--rollup` | asset inventory / per-host rollup |
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
@@ -347,10 +348,16 @@ python3 ghost_eye_web.py --host 0.0.0.0 --port 9000 --scope scope.txt
 A single-page console: configure a scan (profile / category / modules / all),
 watch findings stream in live with a running risk score, filter by
 severity/module, and export to any format. Includes asset inventory, per-host
-rollup, scan history/diff, and a **🌐 Hebrew / RTL toggle**. Localhost-only by
-default; bind wider only on trusted networks.
+rollup, an **Intelligence** panel (correlated assets + attack-surface graph +
+screenshot gallery), scan history/diff, and a **🌐 Hebrew / RTL toggle**.
 
-REST endpoints per job: `/api/job/<id>/{score,compliance,exploits,inventory,rollup,report,diff}`.
+**Auth:** localhost-only by default (no friction). The moment you bind
+off-localhost (`--host 0.0.0.0`) an **API token is auto-generated** and required
+for every `/api/*` route — it is printed in the dashboard URL (`?token=…`) and
+the frontend sends it automatically. Set your own with `--auth-token` or
+`GHOSTEYE_TOKEN`. Without the token, `/api/*` returns `401`.
+
+REST endpoints per job: `/api/job/<id>/{score,compliance,exploits,risk,intel,inventory,rollup,report,diff}`.
 
 ---
 
@@ -438,7 +445,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 307 modules
+- **All-module smoke test** — runs `run()` for every one of the 308 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions.
@@ -448,10 +455,21 @@ pip install pytest && python3 -m pytest -q
 
 - **Engine tests** — the shared `execute_module` / `run_scan` contract
   (crash → error Result + logged, non-Result coercion, order, parallelism, cancel).
+- **Intelligence tests** — correlation, classifier precision (no false positives),
+  organization profile, graph, screenshot pipeline.
+- **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
+  local server and assert the JSON + intelligence HTML reports it produces.
 
-**375 tests** pass in ~1.8s. CI (`.github/workflows/ci.yml`) runs an import
-check, `compileall`, the full suite and a ruff bug-rule lint on Python
-3.9/3.11/3.12.
+**379 tests** pass in ~6s. A single **verification gate** runs the whole thing:
+
+```bash
+bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
+```
+
+The live smoke actually starts the dashboard (checks the `401`→`200` auth gate)
+and runs a real CLI report. CI (`.github/workflows/ci.yml`) runs the import
+check, `compileall`, the full suite, the verification gate and advisory
+ruff/mypy on Python 3.9/3.11/3.12.
 
 ---
 
@@ -509,17 +527,21 @@ Any setting is overridable via `GHOSTEYE_<OPTION>` environment variables
 ```
 ghost_eye/
   core.py          validators, Module/Result, session, run_cmd, error log
-  config.py        settings + optional API-key management
+  config.py        settings + API-key management (env / OS keyring / 0600 file)
+  engine.py        the single scan-execution path (used by CLI, dashboard, API)
   cli.py           argument parsing, scan orchestration, output
-  webapp.py        localhost browser dashboard + JSON API
-  workflow.py      profiles, deep-plan, scoring, CI gate, notify, exploit-intel
+  webapp.py        browser dashboard + JSON API (token auth off-localhost)
+  workflow.py      profiles, deep-plan, scoring, CI gate, notify, exploit-intel,
+                   risk-intelligence, trend, module-report, screenshot sweep
   reporting.py     JSON/CSV/HTML/PDF exporters + SQLite history
   reporting_ext.py Markdown/SARIF/Prometheus/dashboard + executive report
   inventory.py     asset correlation, host rollup, deep-scan asset collection
-  modules/         ~48 files, 307 self-registering Module subclasses
-  web_static/      the single-file dashboard (with Hebrew/RTL)
-tests/             unit + smoke + behavioural
-.github/workflows/ CI
+  intelligence/    correlation + organization profile + attack-surface graph
+  modules/         ~49 files, 308 self-registering Module subclasses
+  web_static/      the single-file dashboard (Hebrew/RTL + Intelligence panel)
+tests/             unit + smoke + behavioural + engine + intelligence + integration
+scripts/           verify.sh (release gate) + benchmark.py
+.github/workflows/ CI (runs the verification gate)
 ```
 
 ---
