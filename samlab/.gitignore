@@ -1,0 +1,15 @@
+# תוצרי בנייה והרצה
+build/
+dist/
+__pycache__/
+*.spec
+*.pyc
+
+# הגדרות מקומיות וקושחה שהורדה
+samlab_config.json
+firmware/
+_extracted/
+
+# כלים בינאריים שהמשתמש מוריד בעצמו
+tools/*.exe
+tools/*.dll

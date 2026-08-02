@@ -1,0 +1,12 @@
+הנח בתיקייה הזו את הכלים החיצוניים, והתוכנה תזהה אותם אוטומטית:
+
+  heimdall.exe   — מנוע הפלאש (פרוטוקול Odin/LOKE הפתוח)
+                   הורדה: https://glassechidna.com.au/heimdall/  (או פורק מתוחזק ב-GitHub)
+
+  adb.exe        — ADB מתוך Android platform-tools
+                   הורדה: https://developer.android.com/tools/releases/platform-tools
+                   (העתק גם את AdbWinApi.dll ו-AdbWinUsbApi.dll לצד adb.exe)
+
+samloader מותקן דרך pip (ראה requirements.txt) ולכן אינו נדרש כאן.
+
+אם אתה מעדיף, אפשר להשאיר את התיקייה ריקה ולהגדיר נתיבים ידנית בטאב "הגדרות".

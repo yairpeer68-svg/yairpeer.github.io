@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>אבחון — בדיקת מכשיר אנדרואיד דרך ADB</title>
+<meta name="description" content="כלי מעבדה לאבחון טלפוני אנדרואיד: מידע מכשיר, בריאות סוללה, אחסון, חיישנים ורכיבים — דרך ADB ו-WebUSB, בלי התקנות.">
+<meta name="theme-color" content="#0a0e14">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#0a0e14; --card:#111826; --card-2:#172234; --text:#eef4fb; --muted:#8a9bb2; --cyan:#38bdf8; --blue:#2563eb; --teal:#10b981; --ok:#34d399; --warn:#fbbf24; --bad:#fb5f7d; --border:#24344b; --radius:16px; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:"Rubik",-apple-system,"Segoe UI",Arial,sans-serif; background:radial-gradient(650px 420px at 88% -6%,rgba(139,92,246,.2),transparent 70%),radial-gradient(520px 400px at -12% 26%,rgba(16,185,129,.14),transparent 70%),var(--bg); color:var(--text); min-height:100vh; min-height:100dvh; line-height:1.5; }
+  .wrap { max-width:620px; margin:0 auto; padding:14px 16px 60px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; padding:8px 2px 4px; }
+  .brand { display:flex; align-items:center; gap:8px; font-weight:900; font-size:19px; }
+  .brand .logo { font-size:22px; }
+  .icon-btn { width:38px; height:38px; border-radius:12px; background:var(--card); border:1px solid var(--border); color:var(--text); font-size:17px; cursor:pointer; }
+  #btnInstall { display:none; }
+  .hero { position:relative; overflow:hidden; background:linear-gradient(135deg,#7c3aed,#6366f1 55%,#10b981); border-radius:22px; padding:22px 18px; text-align:center; margin-top:12px; box-shadow:0 12px 40px rgba(124,58,237,.3); }
+  .hero h1 { font-size:24px; font-weight:900; }
+  .hero p { color:#eef; font-size:14px; margin-top:6px; opacity:.95; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; border:1px solid var(--border); border-radius:13px; padding:12px 18px; font-family:inherit; font-weight:800; font-size:15px; cursor:pointer; background:var(--card-2); color:var(--text); width:100%; }
+  .btn:hover { border-color:var(--cyan); }
+  .btn:disabled { opacity:.45; cursor:not-allowed; }
+  .btn.primary { background:#fff; color:#3b1e78; border:none; font-size:16px; margin-top:14px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:16px; margin-top:14px; }
+  .card h2 { font-size:15px; font-weight:800; display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+  .sub { color:var(--muted); font-size:13px; margin-bottom:10px; }
+  #statusChip { display:inline-flex; align-items:center; gap:7px; padding:6px 12px; border-radius:999px; font-size:13px; font-weight:700; background:var(--card-2); border:1px solid var(--border); color:var(--muted); }
+  #statusChip .dot { width:9px; height:9px; border-radius:50%; background:var(--muted); }
+  #statusChip.on { color:var(--ok); border-color:rgba(52,211,153,.4); } #statusChip.on .dot { background:var(--ok); box-shadow:0 0 8px var(--ok); }
+  #statusChip.busy { color:var(--warn); } #statusChip.busy .dot { background:var(--warn); animation:pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  @media (max-width:420px){ .grid2 { grid-template-columns:1fr; } }
+  dl.info { display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:13.5px; }
+  dl.info dt { color:var(--muted); } dl.info dd { font-weight:700; word-break:break-all; text-align:left; direction:ltr; }
+  .bar { height:10px; background:var(--card-2); border-radius:999px; overflow:hidden; margin-top:6px; }
+  .bar > i { display:block; height:100%; border-radius:999px; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:800; }
+  .badge.ok{background:rgba(52,211,153,.15);color:var(--ok)} .badge.warn{background:rgba(251,191,36,.15);color:var(--warn)} .badge.bad{background:rgba(251,95,125,.15);color:var(--bad)}
+  #console { background:#060a10; border:1px solid var(--border); border-radius:12px; padding:12px; height:180px; overflow-y:auto; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; direction:ltr; text-align:left; white-space:pre-wrap; word-break:break-word; }
+  #console .l{display:block} .info{color:#8a9bb2}.cmd{color:#c4b5fd}.ok{color:#6ee7b7}.err{color:#fca5b5}.warn{color:#fcd34d}
+  .warnbox { background:rgba(251,191,36,.08); border:1px solid rgba(251,191,36,.35); border-radius:12px; padding:12px 14px; font-size:13px; color:#fde68a; margin-top:12px; }
+  details { margin-top:14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--card); }
+  details > summary { cursor:pointer; padding:14px 16px; font-weight:800; list-style:none; }
+  details .body { padding:0 16px 16px; font-size:13.5px; color:var(--muted); }
+  details code { background:var(--card-2); padding:1px 6px; border-radius:6px; color:var(--cyan); direction:ltr; display:inline-block; }
+  .footer { text-align:center; color:var(--muted); font-size:12px; margin-top:24px; } .footer a{color:var(--cyan);text-decoration:none}
+  .disabled-block{opacity:.4;pointer-events:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand"><span class="logo">🩺</span><span>אבחון</span></div>
+    <button class="icon-btn" id="btnInstall" title="התקנה">⬇️</button>
+  </div>
+
+  <div class="hero">
+    <h1>אבחון מכשיר</h1>
+    <p>בדיקת אנדרואיד דרך ADB ישירות מהדפדפן — מידע, סוללה, אחסון וחיישנים</p>
+    <button class="btn primary" id="btnConnect">🔌 חבר מכשיר (ADB)</button>
+  </div>
+
+  <div id="unsupported" class="warnbox" style="display:none">⚠️ הדפדפן לא תומך ב-WebUSB. השתמש ב-<b>Chrome</b>/<b>Edge</b> על מחשב או אנדרואיד.</div>
+
+  <div class="card">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <h2>מצב חיבור</h2>
+      <span id="statusChip"><span class="dot"></span><span id="statusText">לא מחובר</span></span>
+    </div>
+    <p class="sub" id="hint" style="margin-top:8px;margin-bottom:0">הפעל <b>ניפוי USB</b> בטלפון (הגדרות → אפשרויות מפתחים), חבר כבל, לחץ "חבר מכשיר", ו<b>אשר את ההרשאה על מסך הטלפון</b>.</p>
+  </div>
+
+  <div id="actions" class="disabled-block">
+    <div class="card">
+      <h2>🩺 בדיקות</h2>
+      <p class="sub">כל הבדיקות הן קריאה בלבד — לא משנות דבר במכשיר.</p>
+      <button class="btn primary" id="btnFull" style="margin-top:4px">▶️ הרץ אבחון מלא</button>
+      <div class="grid2" style="margin-top:10px">
+        <button class="btn" data-check="info">📱 מידע מכשיר</button>
+        <button class="btn" data-check="battery">🔋 סוללה</button>
+        <button class="btn" data-check="storage">💾 אחסון</button>
+        <button class="btn" data-check="sensors">🧭 חיישנים</button>
+        <button class="btn" data-check="thermal">🌡️ טמפרטורה</button>
+        <button class="btn" data-check="security">🔒 אבטחה/root</button>
+      </div>
+    </div>
+
+    <div class="card" id="reportCard" style="display:none">
+      <h2>📋 דוח אבחון</h2>
+      <div id="report"></div>
+      <button class="btn" id="btnCopy" style="margin-top:12px">📋 העתק דוח</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🖥️ יומן</h2>
+    <div id="console"><span class="l info">// מוכן. חבר מכשיר כדי להתחיל.</span></div>
+  </div>
+
+  <details>
+    <summary>📖 איך מכינים את הטלפון?</summary>
+    <div class="body">
+      <p><b>1.</b> הגדרות → אודות הטלפון → הקש 7 פעמים על "מספר Build" כדי לפתוח את "אפשרויות מפתחים".</p>
+      <p><b>2.</b> הגדרות → מערכת → אפשרויות מפתחים → הפעל <b>ניפוי USB (USB debugging)</b>.</p>
+      <p><b>3.</b> חבר כבל USB ולחץ "חבר מכשיר". במסך "לאפשר ניפוי USB?" — סמן "אפשר תמיד" ואשר.</p>
+      <p><b>Windows:</b> אם המכשיר לא מזוהה, ייתכן שתצטרך להתקין WinUSB לממשק ה-ADB דרך Zadig, או את דרייבר ה-ADB של גוגל.</p>
+      <p class="warnbox">כלי זה קורא מידע בלבד ואינו משנה נתונים. הפעולות מתבצעות מקומית; שום דבר לא נשלח לשרת.</p>
+    </div>
+  </details>
+
+  <div class="footer">אבחון · פועל 100% במכשיר שלך · <a href="../">שאר האפליקציות</a></div>
+</div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   BigInt helpers for ADB RSA auth
+   ============================================================ */
+function modpow(base, exp, mod) {
+  base %= mod; let result = 1n;
+  while (exp > 0n) { if (exp & 1n) result = (result * base) % mod; exp >>= 1n; base = (base * base) % mod; }
+  return result;
+}
+function modinv(a, m) {
+  let [old_r, r] = [a % m, m], [old_s, s] = [1n, 0n];
+  while (r !== 0n) { const q = old_r / r; [old_r, r] = [r, old_r - q * r]; [old_s, s] = [s, old_s - q * s]; }
+  return ((old_s % m) + m) % m;
+}
+function bytesToBigInt(bytes) { let n = 0n; for (const b of bytes) n = (n << 8n) | BigInt(b); return n; }
+function bigIntToBytes(n, len) { const out = new Uint8Array(len); for (let i = len - 1; i >= 0; i--) { out[i] = Number(n & 0xffn); n >>= 8n; } return out; }
+function b64urlToBigInt(s) { s = s.replace(/-/g, "+").replace(/_/g, "/"); const bin = atob(s); const b = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i); return bytesToBigInt(b); }
+
+/* Android RSA public key blob (mincrypt format) + base64 */
+function androidPublicKey(nBig) {
+  const KLEN = 2048, WORDS = KLEN / 32;
+  const r32 = 0x100000000n;
+  const n0inv = (r32 - modinv(nBig % r32, r32)) % r32;   // -1/n[0] mod 2^32
+  const rr = modpow(2n, BigInt(KLEN * 2), nBig);          // R^2 mod n
+  const buf = new ArrayBuffer(524); const dv = new DataView(buf); let o = 0;
+  dv.setUint32(o, WORDS, true); o += 4;
+  dv.setUint32(o, Number(n0inv), true); o += 4;
+  let nn = nBig; for (let i = 0; i < WORDS; i++) { dv.setUint32(o, Number(nn & 0xffffffffn), true); o += 4; nn >>= 32n; }
+  let rrv = rr; for (let i = 0; i < WORDS; i++) { dv.setUint32(o, Number(rrv & 0xffffffffn), true); o += 4; rrv >>= 32n; }
+  dv.setUint32(o, 65537, true); o += 4;
+  let bin = ""; const u8 = new Uint8Array(buf); for (const b of u8) bin += String.fromCharCode(b);
+  return btoa(bin) + " diag@webusb\0";
+}
+/* Sign the 20-byte ADB auth token: PKCS#1 v1.5 with SHA-1 DigestInfo, raw RSA */
+const SHA1_PREFIX = [0x30,0x21,0x30,0x09,0x06,0x05,0x2b,0x0e,0x03,0x02,0x1a,0x05,0x00,0x04,0x14];
+function signToken(tokenBytes, nBig, dBig) {
+  const K = 256; // 2048-bit
+  const T = SHA1_PREFIX.concat(Array.from(tokenBytes)); // 15 + 20 = 35
+  const em = new Uint8Array(K); em[0] = 0x00; em[1] = 0x01;
+  for (let i = 2; i < K - T.length - 1; i++) em[i] = 0xff;
+  em[K - T.length - 1] = 0x00;
+  em.set(T, K - T.length);
+  const sig = modpow(bytesToBigInt(em), dBig, nBig);
+  return bigIntToBytes(sig, K);
+}
+
+/* ============================================================
+   ADB protocol over WebUSB
+   ============================================================ */
+const A_CNXN = 0x4e584e43, A_AUTH = 0x48545541, A_OPEN = 0x4e45504f,
+      A_OKAY = 0x59414b4f, A_WRTE = 0x45545257, A_CLSE = 0x45534c43;
+const A_VERSION = 0x01000001, MAXDATA = 256 * 1024;
+
+function adbChecksum(data) { let s = 0; for (const b of data) s = (s + b) >>> 0; return s; }
+function enc(str) { return new TextEncoder().encode(str); }
+
+class Adb {
+  constructor(log) { this.log = log; this.dev = null; this.epIn = null; this.epOut = null; this.iface = null; this.nextId = 1; this.key = null; }
+  static supported() { return !!(navigator.usb && navigator.usb.requestDevice); }
+
+  async loadKey() {
+    let jwk = null;
+    try { jwk = JSON.parse(localStorage.getItem("diag_adbkey") || "null"); } catch {}
+    if (!jwk) {
+      const kp = await crypto.subtle.generateKey({ name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1,0,1]), hash: "SHA-1" }, true, ["sign", "verify"]);
+      jwk = await crypto.subtle.exportKey("jwk", kp.privateKey);
+      localStorage.setItem("diag_adbkey", JSON.stringify(jwk));
+    }
+    this.key = { n: b64urlToBigInt(jwk.n), d: b64urlToBigInt(jwk.d) };
+  }
+
+  async connect() {
+    const filters = [{ classCode: 0xff, subclassCode: 0x42, protocolCode: 0x01 }];
+    this.dev = await navigator.usb.requestDevice({ filters });
+    await this.dev.open();
+    if (this.dev.configuration === null) await this.dev.selectConfiguration(1);
+    let alt = null, ifaceNum = null;
+    for (const cfg of this.dev.configurations)
+      for (const intf of cfg.interfaces)
+        for (const a of intf.alternates)
+          if (a.interfaceClass === 0xff && a.interfaceSubclass === 0x42 && a.interfaceProtocol === 0x01) { alt = a; ifaceNum = intf.interfaceNumber; }
+    if (!alt) { await this.dev.close(); this.dev = null; throw new Error("לא נמצא ממשק ADB. ודא שניפוי USB פעיל ושהמכשיר דלוק (לא במצב fastboot)."); }
+    for (const ep of alt.endpoints) { if (ep.type === "bulk" && ep.direction === "in") this.epIn = ep.endpointNumber; if (ep.type === "bulk" && ep.direction === "out") this.epOut = ep.endpointNumber; }
+    await this.dev.claimInterface(ifaceNum); this.iface = ifaceNum;
+    await this.loadKey();
+    await this._auth();
+  }
+
+  async _send(cmd, arg0, arg1, data) {
+    const payload = data ? (typeof data === "string" ? enc(data) : data) : new Uint8Array(0);
+    const h = new DataView(new ArrayBuffer(24));
+    h.setUint32(0, cmd, true); h.setUint32(4, arg0, true); h.setUint32(8, arg1, true);
+    h.setUint32(12, payload.length, true); h.setUint32(16, adbChecksum(payload), true);
+    h.setUint32(20, (cmd ^ 0xffffffff) >>> 0, true);
+    await this.dev.transferOut(this.epOut, h.buffer);
+    if (payload.length) await this.dev.transferOut(this.epOut, payload);
+  }
+  async _recv() {
+    const hr = await this.dev.transferIn(this.epIn, 24);
+    const dv = new DataView(hr.data.buffer);
+    const cmd = dv.getUint32(0, true), arg0 = dv.getUint32(4, true), arg1 = dv.getUint32(8, true), len = dv.getUint32(12, true);
+    let data = new Uint8Array(0);
+    if (len) { let got = new Uint8Array(len), off = 0; while (off < len) { const r = await this.dev.transferIn(this.epIn, len - off); got.set(new Uint8Array(r.data.buffer), off); off += r.data.byteLength; } data = got; }
+    return { cmd, arg0, arg1, data };
+  }
+
+  async _auth() {
+    await this._send(A_CNXN, A_VERSION, MAXDATA, "host::features=cmd,shell_v2\0");
+    let signatureSent = false, pubkeySent = false;
+    for (let i = 0; i < 10; i++) {
+      const m = await this._recv();
+      if (m.cmd === A_CNXN) { this.log("✓ מחובר: " + new TextDecoder().decode(m.data).trim(), "ok"); return; }
+      if (m.cmd === A_AUTH && m.arg0 === 1) {              // TOKEN
+        if (!signatureSent) {                              // 1) try to sign with our stored key (no prompt)
+          signatureSent = true;
+          await this._send(A_AUTH, 2, 0, signToken(m.data, this.key.n, this.key.d));
+        } else if (!pubkeySent) {                          // 2) signature unknown → send public key (device prompts user)
+          pubkeySent = true;
+          await this._send(A_AUTH, 3, 0, enc(androidPublicKey(this.key.n)));
+          this.log("נשלח מפתח ציבורי — אשר את ההרשאה על מסך הטלפון…", "warn");
+        } else {
+          throw new Error("האימות נדחה. אשר את ההרשאה על מסך הטלפון ונסה שוב.");
+        }
+      }
+    }
+    throw new Error("תם הזמן לאימות. ודא שאישרת את ההרשאה על מסך הטלפון.");
+  }
+
+  /* Run a shell command, return combined output */
+  async shell(command) {
+    const localId = this.nextId++;
+    await this._send(A_OPEN, localId, 0, "shell:" + command + "\0");
+    let out = "", remoteId = 0;
+    for (let i = 0; i < 100000; i++) {
+      const m = await this._recv();
+      if (m.arg1 !== localId && m.cmd !== A_OKAY && m.cmd !== A_CLSE) continue;
+      if (m.cmd === A_OKAY) { remoteId = m.arg0; }
+      else if (m.cmd === A_WRTE) { out += new TextDecoder().decode(m.data); await this._send(A_OKAY, localId, m.arg0, null); }
+      else if (m.cmd === A_CLSE) { await this._send(A_CLSE, localId, m.arg0, null); break; }
+    }
+    return out;
+  }
+
+  async close() { try { if (this.dev) { await this.dev.releaseInterface(this.iface); await this.dev.close(); } } catch {} this.dev = null; }
+  get connected() { return !!this.dev; }
+}
+
+/* ============================================================
+   UI + diagnostics
+   ============================================================ */
+const $ = s => document.querySelector(s);
+const consoleEl = $("#console");
+function log(msg, cls = "info") { const l = document.createElement("span"); l.className = "l " + cls; l.textContent = msg; consoleEl.appendChild(l); consoleEl.scrollTop = consoleEl.scrollHeight; }
+function setStatus(st, txt) { const c = $("#statusChip"); c.className = st; $("#statusText").textContent = txt; }
+
+const adb = new Adb(log);
+let reportText = "";
+
+function onConnected() { $("#actions").classList.remove("disabled-block"); setStatus("on", "מחובר"); $("#btnConnect").textContent = "🔌 נתק"; $("#hint").style.display = "none"; }
+function onDisconnected() { $("#actions").classList.add("disabled-block"); setStatus("", "לא מחובר"); $("#btnConnect").textContent = "🔌 חבר מכשיר (ADB)"; $("#hint").style.display = "block"; }
+
+$("#btnConnect").addEventListener("click", async () => {
+  if (adb.connected) { await adb.close(); onDisconnected(); log("נותק.", "warn"); return; }
+  try {
+    setStatus("busy", "מתחבר…"); log("מבקש מכשיר…", "info");
+    await adb.connect();
+    onConnected();
+  } catch (e) {
+    if (e && e.name === "NotFoundError") log("לא נבחר מכשיר.", "warn"); else log("✗ " + (e.message || e), "err");
+    setStatus("", "לא מחובר");
+  }
+});
+
+let busy = false;
+async function guarded(fn) {
+  if (!adb.connected) { log("אין חיבור.", "err"); return; }
+  if (busy) { log("בדיקה אחרת רצה…", "warn"); return; }
+  busy = true; setStatus("busy", "בודק…");
+  try { await fn(); } catch (e) { log("✗ " + (e.message || e), "err"); }
+  finally { busy = false; if (adb.connected) setStatus("on", "מחובר"); else onDisconnected(); }
+}
+
+function prop(text, key) { const m = text.match(new RegExp("\\[" + key.replace(/\./g, "\\.") + "\\]:\\s*\\[(.*?)\\]")); return m ? m[1] : null; }
+function dumpVal(text, key) { const m = text.match(new RegExp(key + ":\\s*(.+)")); return m ? m[1].trim() : null; }
+
+async function checkInfo() {
+  log("$ getprop", "cmd");
+  const p = await adb.shell("getprop");
+  const rows = [["דגם", prop(p, "ro.product.model")], ["יצרן", prop(p, "ro.product.manufacturer")], ["Android", prop(p, "ro.build.version.release")], ["רמת אבטחה", prop(p, "ro.build.version.security_patch")], ["Build", prop(p, "ro.build.display.id")], ["מספר סידורי", prop(p, "ro.serialno")], ["שבב", prop(p, "ro.board.platform")]];
+  renderInfo("📱 מידע מכשיר", rows);
+}
+async function checkBattery() {
+  log("$ dumpsys battery", "cmd");
+  const b = await adb.shell("dumpsys battery");
+  const level = dumpVal(b, "level"), health = dumpVal(b, "health"), temp = dumpVal(b, "temperature"), volt = dumpVal(b, "voltage"), status = dumpVal(b, "status");
+  const HEALTH = { "1": "לא ידוע", "2": "תקין ✅", "3": "חום יתר ⚠️", "4": "מת ❌", "5": "מתח יתר ⚠️", "6": "כשל", "7": "קר" };
+  const rows = [["רמה", level ? level + "%" : "—"], ["בריאות", HEALTH[health] || health || "—"], ["טמפרטורה", temp ? (temp / 10).toFixed(1) + "°C" : "—"], ["מתח", volt ? volt + " mV" : "—"], ["סטטוס", status || "—"]];
+  let extra = "";
+  const cc = await adb.shell("cat /sys/class/power_supply/battery/cycle_count 2>/dev/null");
+  if (cc.trim() && /^\d+$/.test(cc.trim())) rows.push(["מחזורי טעינה", cc.trim()]);
+  renderInfo("🔋 סוללה", rows, level ? { pct: +level, color: level > 40 ? "var(--ok)" : level > 15 ? "var(--warn)" : "var(--bad)" } : null);
+}
+async function checkStorage() {
+  log("$ df", "cmd");
+  const d = await adb.shell("df /data");
+  const line = d.split("\n").find(l => /\/data/.test(l)) || "";
+  renderInfo("💾 אחסון", [["/data", line.trim() || "—"]]);
+}
+async function checkSensors() {
+  log("$ dumpsys sensorservice", "cmd");
+  const s = await adb.shell("dumpsys sensorservice | grep -iE 'accel|gyro|magnet|proximit|light|fingerprint' | head -20");
+  renderMono("🧭 חיישנים", s.trim() || "לא נמצאו נתונים");
+}
+async function checkThermal() {
+  log("$ thermal", "cmd");
+  const s = await adb.shell("for z in /sys/class/thermal/thermal_zone*; do echo \"$(cat $z/type 2>/dev/null): $(cat $z/temp 2>/dev/null)\"; done 2>/dev/null | head -20");
+  renderMono("🌡️ טמפרטורה (thermal zones)", s.trim() || "—");
+}
+async function checkSecurity() {
+  log("$ security", "cmd");
+  const su = await adb.shell("which su || echo none");
+  const enc2 = await adb.shell("getprop ro.crypto.state");
+  const verify = await adb.shell("getprop ro.boot.verifiedbootstate");
+  renderInfo("🔒 אבטחה", [["Root (su)", /none/.test(su) ? "לא מזוהה ✅" : "מזוהה ⚠️ " + su.trim()], ["הצפנה", enc2.trim() || "—"], ["Verified boot", verify.trim() || "—"]]);
+}
+
+function renderInfo(title, rows, bar) {
+  $("#reportCard").style.display = "block";
+  const card = document.createElement("div"); card.className = "card"; card.style.marginTop = "10px"; card.style.background = "var(--card-2)";
+  card.innerHTML = `<h2>${title}</h2>${bar ? `<div class="bar"><i style="width:${bar.pct}%;background:${bar.color}"></i></div>` : ""}<dl class="info">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v == null ? "—" : String(v)}</dd>`).join("")}</dl>`;
+  $("#report").appendChild(card);
+  reportText += "\n== " + title + " ==\n" + rows.map(([k, v]) => k + ": " + (v == null ? "—" : v)).join("\n") + "\n";
+}
+function renderMono(title, text) {
+  $("#reportCard").style.display = "block";
+  const card = document.createElement("div"); card.className = "card"; card.style.marginTop = "10px"; card.style.background = "var(--card-2)";
+  card.innerHTML = `<h2>${title}</h2><pre style="font-size:12px;direction:ltr;text-align:left;white-space:pre-wrap;word-break:break-word;color:var(--muted)">${text.replace(/[<>&]/g, "")}</pre>`;
+  $("#report").appendChild(card);
+  reportText += "\n== " + title + " ==\n" + text + "\n";
+}
+function clearReport() { $("#report").innerHTML = ""; reportText = ""; }
+
+const CHECKS = { info: checkInfo, battery: checkBattery, storage: checkStorage, sensors: checkSensors, thermal: checkThermal, security: checkSecurity };
+document.querySelectorAll("[data-check]").forEach(btn => btn.addEventListener("click", () => guarded(async () => { clearReport(); await CHECKS[btn.dataset.check](); log("✓ הבדיקה הסתיימה.", "ok"); })));
+$("#btnFull").addEventListener("click", () => guarded(async () => {
+  clearReport();
+  for (const fn of [checkInfo, checkBattery, checkStorage, checkThermal, checkSecurity, checkSensors]) { try { await fn(); } catch (e) { log("✗ " + (e.message || e), "err"); } }
+  log("✓ אבחון מלא הסתיים.", "ok");
+}));
+$("#btnCopy").addEventListener("click", () => { navigator.clipboard && navigator.clipboard.writeText(reportText.trim()); log("הדוח הועתק.", "ok"); });
+
+if (Adb.supported()) {
+  navigator.usb.addEventListener("disconnect", e => { if (adb.dev && e.device === adb.dev) { adb.dev = null; onDisconnected(); log("⚠ המכשיר נותק.", "warn"); } });
+} else { $("#unsupported").style.display = "block"; $("#btnConnect").disabled = true; }
+
+let deferredPrompt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferredPrompt = e; $("#btnInstall").style.display = "block"; });
+$("#btnInstall").addEventListener("click", async () => { if (!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt = null; $("#btnInstall").style.display = "none"; });
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+</script>
+</body>
+</html>
