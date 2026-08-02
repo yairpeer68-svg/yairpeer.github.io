@@ -15,7 +15,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **346 automated tests** (unit + all-module smoke + behavioural), CI on
+- **354 automated tests** (unit + all-module smoke + behavioural), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -384,7 +384,7 @@ pip install pytest && python3 -m pytest -q
   RSA keys, exploit-intel verdict logic, deep-scan asset scoping, CI gate,
   attack score, notifications, executive-report structure, config round-trip.
 
-**346 tests** pass. CI (`.github/workflows/ci.yml`) runs an import check,
+**354 tests** pass. CI (`.github/workflows/ci.yml`) runs an import check,
 `compileall`, the full suite and a ruff bug-rule lint on Python 3.9/3.11/3.12.
 
 ---
