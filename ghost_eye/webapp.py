@@ -434,6 +434,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(_meta())
         if path == "/api/history":
             return self._json({"history": self._history()})
+        if path == "/api/keys":
+            return self._keys_get()
         if path == "/api/trend":
             return self._trend(parsed)
         if path == "/api/compare":
@@ -455,6 +457,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._scan_start()
         if path == "/api/schedule":
             return self._schedule_create()
+        if path == "/api/keys":
+            return self._keys_set()
         if path.startswith("/api/job/") and path.endswith("/cancel"):
             jid = path.split("/")[3]
             ok = self.server.jobs.cancel(jid)
@@ -709,6 +713,32 @@ class Handler(BaseHTTPRequestHandler):
                                  "score": (j["risk"] or {}).get("risk_score") if j["risk"] else None,
                                  "status": j["status"]})
         return rows
+
+    def _keys_get(self):
+        """Which optional API keys are configured (never returns values)."""
+        from .config import _ENV_MAP, _KEY_LABELS
+        cfg = self.server.jobs.cfg
+        keys = [{"name": n, "label": _KEY_LABELS.get(n, n),
+                 "set": bool(cfg.api_key(n))} for n in _ENV_MAP]
+        return self._json({"backend": cfg.key_backend(), "keys": keys})
+
+    def _keys_set(self):
+        """Save an API key from the dashboard (persists to OS keyring or the
+        0600 config file, exactly like --set-keys)."""
+        from .config import _ENV_MAP
+        payload = self._body()
+        name = (payload.get("name") or "").strip().lower()
+        value = (payload.get("value") or "").strip()
+        if name not in _ENV_MAP:
+            return self._json({"error": f"unknown key '{name}'"}, 400)
+        if not value:
+            return self._json({"error": "empty value"}, 400)
+        try:
+            self.server.jobs.cfg.set_api_key(name, value)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"save failed: {exc}"}, 500)
+        return self._json({"ok": True, "name": name, "set": True,
+                           "backend": self.server.jobs.cfg.key_backend()})
 
     def _trend(self, parsed):
         """Intelligence trend for a target across its saved-scan history:

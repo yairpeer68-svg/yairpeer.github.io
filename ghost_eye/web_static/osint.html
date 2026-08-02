@@ -90,7 +90,14 @@ a{color:var(--cyan);text-decoration:none}
 .canvasnote p{max-width:320px;font-size:12.5px;margin:0;line-height:1.6}
 .spinner{width:38px;height:38px;border:3px solid var(--line2);border-top-color:var(--cyan);border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.cbar{position:absolute;left:14px;top:12px;display:flex;gap:7px;z-index:6;flex-wrap:wrap;max-width:calc(100% - 28px)}
+.cbar input{background:var(--panel);border:1px solid var(--line2);color:var(--ink);border-radius:20px;padding:8px 14px;width:210px;max-width:46vw;outline:none;font-size:12px}
+.cbar input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,225,214,.14)}
+.cbtn{background:var(--panel);border:1px solid var(--line2);color:var(--muted);border-radius:20px;padding:8px 12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase}
+.cbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.cbtn.on{border-color:var(--cyan);color:var(--cyan);background:rgba(56,225,214,.12)}
 .node-label{font-family:var(--mono);font-size:9px;fill:#aeb9cc;pointer-events:none;paint-order:stroke;stroke:#06080d;stroke-width:3px;stroke-linejoin:round}
+.nodeg.match circle.core{stroke:#38e1d6;stroke-width:2.5}
 .edge{stroke:#3a4860;stroke-opacity:.5}
 .edge.lit{stroke:var(--cyan);stroke-opacity:.9}
 .nodeg{cursor:pointer}
@@ -137,6 +144,25 @@ a{color:var(--cyan);text-decoration:none}
 .conn .rel{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
 .hidden{display:none!important}
 .banner{background:rgba(255,91,97,.1);border:1px solid rgba(255,91,97,.4);color:#ffb3b5;padding:10px 13px;border-radius:10px;font-family:var(--mono);font-size:12px;margin:10px 14px}
+/* keys modal */
+.modal{position:fixed;inset:0;background:rgba(4,7,12,.7);backdrop-filter:blur(3px);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-card{background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:0 30px 70px -20px rgba(0,0,0,.8);width:min(440px,94vw);max-height:86vh;overflow-y:auto;padding:18px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.modal-head b{font-size:15px}
+.modal-head .x{width:30px;height:30px;border-radius:9px;border:1px solid var(--line2);color:var(--muted);font-size:14px}
+.modal-head .x:hover{color:var(--red);border-color:var(--red)}
+.modal-note{font-size:11px;color:var(--faint);line-height:1.55;margin:8px 0}
+.keyrow{border-top:1px solid var(--line);padding:12px 0}
+.keyrow .kh{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.keyrow .kh b{font-size:13px}
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:20px}
+.badge.on{background:rgba(55,211,154,.14);color:var(--green)} .badge.off{background:var(--panel2);color:var(--faint)}
+.keyrow .kin{display:flex;gap:7px}
+.keyrow input{flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:10px;padding:10px 12px;outline:none;font-family:var(--mono);font-size:12px}
+.keyrow input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,225,214,.14)}
+.keyrow .save{background:linear-gradient(180deg,var(--cyan),#1fbfb4);color:#052723;font-weight:700;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:0 15px;border-radius:10px}
+.keyrow .save:disabled{opacity:.5;cursor:default}
+.keyrow .ok{color:var(--green);font-size:11px;font-family:var(--mono);margin-top:6px}
 
 @media (max-width:960px){
   .stage{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
@@ -164,9 +190,19 @@ a{color:var(--cyan);text-decoration:none}
   </div>
   <div class="topright">
     <div class="status"><span class="dot" id="dot"></span><span id="statustxt">idle</span></div>
+    <button class="navlink" id="keysbtn">🔑 Keys</button>
     <a class="navlink" href="/" id="consolelink">▤ Console</a>
   </div>
 </header>
+
+<div id="keysmodal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head"><b>🔑 API keys</b><button class="x" id="keysclose">✕</button></div>
+    <p class="modal-note" id="keysbackend"></p>
+    <div id="keyslist"></div>
+    <p class="modal-note">Optional — only needed by a few modules (VirusTotal, AbuseIPDB, DeepSeek). Saved locally on this machine; keys are never shown back or sent anywhere.</p>
+  </div>
+</div>
 
 <div class="stage">
   <!-- left rail: entity filters -->
@@ -180,6 +216,11 @@ a{color:var(--cyan);text-decoration:none}
   <!-- center: graph canvas -->
   <div class="canvaswrap">
     <svg id="net"><g id="cam"><g id="edges"></g><g id="nodes"></g></g></svg>
+    <div class="cbar">
+      <input id="gsearch" placeholder="🔍 search graph…" autocomplete="off" spellcheck="false">
+      <button class="cbtn" id="cluster" title="cluster nodes by type">◱ Cluster</button>
+      <button class="cbtn" id="export" title="export the graph as a PNG image">⤓ PNG</button>
+    </div>
     <div class="zoombar">
       <button id="zin" title="zoom in">+</button>
       <button id="zout" title="zoom out">−</button>
@@ -235,6 +276,7 @@ let REP=null;        // last /intel report
 let G={nodes:[],edges:[],byId:{}};
 let hidden=new Set(), selected=null;
 let cam={k:1,x:0,y:0}, W=1000, H=700;
+let clustered=false, searchSet=null;
 
 /* ---------------- investigate ---------------- */
 async function investigate(){
@@ -293,9 +335,17 @@ function buildGraph(d){
   cam={k:1,x:0,y:0}; render(); fit();
   $("note").classList.add("hidden");
 }
+function kindCenters(nodes){
+  const kinds=[...new Set(nodes.map(n=>n.kind))].filter(k=>k!=="target");
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.37, c={target:[cx,cy]};
+  kinds.forEach((k,i)=>{ const a=2*Math.PI*i/Math.max(1,kinds.length)-Math.PI/2;
+    c[k]=[cx+R*Math.cos(a), cy+R*Math.sin(a)]; });
+  return c;
+}
 function layout(nodes,edges){
   const idx={}; nodes.forEach((n,i)=>{idx[n.id]=i; if(n.x==null){n.x=W/2+(Math.random()-.5)*W*.55; n.y=H/2+(Math.random()-.5)*H*.55;}});
-  const k=Math.sqrt((W*H)/Math.max(1,nodes.length))*0.72;
+  const kc=clustered?kindCenters(nodes):null;
+  const k=Math.sqrt((W*H)/Math.max(1,nodes.length))*(clustered?0.5:0.72);
   let temp=W*0.12;
   for(let it=0;it<220;it++){
     const dsp=nodes.map(()=>({x:0,y:0}));
@@ -311,7 +361,8 @@ function layout(nodes,edges){
     });
     nodes.forEach((n,i)=>{ if(n.pin)return; let dx=dsp[i].x,dy=dsp[i].y,d=Math.hypot(dx,dy)||0.01;
       n.x+=dx/d*Math.min(d,temp); n.y+=dy/d*Math.min(d,temp);
-      n.x+=(W/2-n.x)*0.012; n.y+=(H/2-n.y)*0.012;
+      if(kc){ const cc=kc[n.kind]||[W/2,H/2]; n.x+=(cc[0]-n.x)*0.09; n.y+=(cc[1]-n.y)*0.09; }
+      else { n.x+=(W/2-n.x)*0.012; n.y+=(H/2-n.y)*0.012; }
     });
     temp*=0.965;
   }
@@ -333,11 +384,12 @@ function render(){
   G.nodes.forEach(nd=>{ if(hidden.has(nd.kind))return;
     const m=km(nd.kind), isT=nd.kind==="target";
     const r=isT?13:Math.min(11,6+Math.sqrt(nd.deg||1)*1.4);
-    const dim=nbr&&nd.id!==foc&&!nbr.has(nd.id);
-    const op=dim?0.2:1;
+    const isMatch=searchSet&&searchSet.has(nd.id);
+    const dim=(nbr&&nd.id!==foc&&!nbr.has(nd.id))||(searchSet&&!isMatch);
+    const op=dim?0.16:1;
     const ring=(nd.id===foc)?`<circle r="${r+5}" fill="none" stroke="${m.c}" stroke-opacity=".9" stroke-width="1.5"/>`:"";
-    const showLabel=isT||nd.id===foc||(nbr&&nbr.has(nd.id))|| nd.deg>=2 || G.nodes.length<40;
-    n+=`<g class="nodeg" data-id="${esc(nd.id)}" transform="translate(${nd.x.toFixed(1)},${nd.y.toFixed(1)})" opacity="${op}">
+    const showLabel=isT||nd.id===foc||isMatch||(nbr&&nbr.has(nd.id))|| nd.deg>=2 || G.nodes.length<40;
+    n+=`<g class="nodeg${isMatch?" match":""}" data-id="${esc(nd.id)}" transform="translate(${nd.x.toFixed(1)},${nd.y.toFixed(1)})" opacity="${op}">
       ${ring}
       <circle class="core" r="${r}" fill="${m.c}" fill-opacity="${isT?1:.9}" stroke="#06080d" stroke-width="1.5"/>
       <text text-anchor="middle" dy="${r*0.34}" font-size="${(r*0.9).toFixed(1)}" pointer-events="none">${m.i}</text>
@@ -491,6 +543,92 @@ function renderEntity(id){
   $("back").onclick=()=>{ selected=null; render(); renderProfile(REP); };
   $("side").querySelectorAll("[data-sel]").forEach(el=>el.addEventListener("click",()=>{const i=el.dataset.sel;selectNode(i);fitNode(i);}));
 }
+
+/* graph search: highlight matching nodes, Enter selects the first */
+$("gsearch").addEventListener("input",e=>{
+  const q=e.target.value.trim().toLowerCase();
+  searchSet=q?new Set(G.nodes.filter(n=>String(n.label).toLowerCase().includes(q)||n.kind.includes(q)).map(n=>n.id)):null;
+  render();
+});
+$("gsearch").addEventListener("keydown",e=>{ if(e.key==="Enter"&&searchSet&&searchSet.size){
+  const id=[...searchSet][0]; selectNode(id); fitNode(id); } });
+
+/* cluster toggle: regroup nodes spatially by entity type */
+$("cluster").addEventListener("click",()=>{
+  if(!G.nodes.length)return;
+  clustered=!clustered; $("cluster").classList.toggle("on",clustered);
+  G.nodes.forEach(n=>{ if(n.kind!=="target") n.pin=false; });
+  layout(G.nodes,G.edges); render(); fit();
+});
+
+/* export the current graph as a PNG */
+$("export").addEventListener("click",exportPNG);
+function exportPNG(){
+  if(!G.nodes.length)return;
+  const s0=selected, ss0=searchSet; selected=null; searchSet=null; render();   // clean frame
+  const svg=$("net").cloneNode(true);
+  const cam2=svg.querySelector("g");                    // <g id="cam">
+  let xs=G.nodes.map(n=>n.x), ys=G.nodes.map(n=>n.y);
+  const minx=Math.min(...xs)-50,maxx=Math.max(...xs)+50,miny=Math.min(...ys)-50,maxy=Math.max(...ys)+50;
+  const gw=maxx-minx,gh=maxy-miny,kk=Math.min(W/gw,H/gh);
+  cam2.setAttribute("transform",`translate(${W/2-(minx+maxx)/2*kk},${H/2-(miny+maxy)/2*kk}) scale(${kk})`);
+  svg.setAttribute("width",W); svg.setAttribute("height",H);
+  svg.setAttribute("xmlns","http://www.w3.org/2000/svg");
+  const st=document.createElementNS("http://www.w3.org/2000/svg","style");
+  st.textContent=".edge{stroke:#3a4860;stroke-opacity:.55}.node-label{font-family:monospace;font-size:9px;fill:#aeb9cc;paint-order:stroke;stroke:#06080d;stroke-width:3px}";
+  const bg=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  bg.setAttribute("width",W);bg.setAttribute("height",H);bg.setAttribute("fill","#06080d");
+  svg.insertBefore(st,svg.firstChild); svg.insertBefore(bg,svg.firstChild);
+  const data=new XMLSerializer().serializeToString(svg);
+  const img=new Image();
+  img.onload=()=>{ const c=document.createElement("canvas"),sc=2; c.width=W*sc;c.height=H*sc;
+    const ctx=c.getContext("2d"); ctx.scale(sc,sc); ctx.drawImage(img,0,0);
+    c.toBlob(bl=>{ const a=document.createElement("a"); a.href=URL.createObjectURL(bl);
+      a.download=`ghosteye_osint_${(REP&&REP.target||"graph")}.png`; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),3000); });
+    selected=s0; searchSet=ss0; render();
+  };
+  img.onerror=()=>{ selected=s0; searchSet=ss0; render(); alert("PNG export failed in this browser"); };
+  img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(data);
+}
+
+/* ---------------- API keys modal ---------------- */
+async function openKeys(){
+  $("keysmodal").classList.remove("hidden");
+  $("keyslist").innerHTML=`<p class="modal-note">loading…</p>`;
+  let d; try{ d=await api("/api/keys"); }
+  catch(e){ $("keyslist").innerHTML=`<p class="modal-note" style="color:var(--red)">${esc(e.message)}</p>`; return; }
+  $("keysbackend").textContent="Stored via: "+(d.backend||"config file");
+  $("keyslist").innerHTML=(d.keys||[]).map(k=>`
+    <div class="keyrow" data-name="${esc(k.name)}">
+      <div class="kh"><b>${esc(k.label)}</b>
+        <span class="badge ${k.set?"on":"off"}">${k.set?"set":"not set"}</span></div>
+      <div class="kin">
+        <input type="password" placeholder="${k.set?"•••••• (enter a new key to replace)":"paste your "+esc(k.label)+" key"}" autocomplete="off">
+        <button class="save">Save</button>
+      </div>
+      <div class="ok hidden">✓ saved</div>
+    </div>`).join("");
+  $("keyslist").querySelectorAll(".keyrow").forEach(row=>{
+    const inp=row.querySelector("input"), btn=row.querySelector(".save"), ok=row.querySelector(".ok");
+    const save=async()=>{ const value=inp.value.trim(); if(!value)return;
+      btn.disabled=true; btn.textContent="…";
+      try{ const r=await api("/api/keys",{method:"POST",headers:{"Content-Type":"application/json"},
+             body:JSON.stringify({name:row.dataset.name,value})});
+        inp.value=""; inp.placeholder="•••••• (saved)";
+        row.querySelector(".badge").className="badge on"; row.querySelector(".badge").textContent="set";
+        ok.classList.remove("hidden"); $("keysbackend").textContent="Stored via: "+(r.backend||"config file");
+        setTimeout(()=>ok.classList.add("hidden"),2500);
+      }catch(e){ ok.textContent="✗ "+e.message; ok.style.color="var(--red)"; ok.classList.remove("hidden"); }
+      btn.disabled=false; btn.textContent="Save";
+    };
+    btn.addEventListener("click",save);
+    inp.addEventListener("keydown",e=>{ if(e.key==="Enter") save(); });
+  });
+}
+$("keysbtn").addEventListener("click",openKeys);
+$("keysclose").addEventListener("click",()=>$("keysmodal").classList.add("hidden"));
+$("keysmodal").addEventListener("click",e=>{ if(e.target===$("keysmodal")) $("keysmodal").classList.add("hidden"); });
 
 /* wire the search */
 $("go").addEventListener("click",investigate);

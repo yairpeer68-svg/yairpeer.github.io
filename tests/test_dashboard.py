@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -117,6 +118,67 @@ def test_osint_static_graph_wiring():
         assert tok in html, f"osint.html missing {tok}"
     # console ↔ osint cross-links exist
     assert 'href="/osint"' in _INDEX.read_text(encoding="utf-8")
+
+
+def test_osint_graph_polish_and_keys_wiring():
+    """The OSINT page has graph search / cluster / PNG export and the API-keys
+    modal wired in."""
+    html = (_INDEX.parent / "osint.html").read_text(encoding="utf-8")
+    for tok in ('id="gsearch"', 'id="cluster"', 'id="export"',
+                "function exportPNG(", "function kindCenters(",
+                'id="keysbtn"', 'id="keysmodal"', "function openKeys(",
+                '/api/keys'):
+        assert tok in html, f"osint.html missing {tok}"
+
+
+def test_keys_endpoints_save_and_report(tmp_path, monkeypatch):
+    """The dashboard can save an API key (persisted) and query which keys are
+    set — without ever returning the value."""
+    monkeypatch.setenv("GHOSTEYE_CONFIG", str(tmp_path / "cfg.ini"))
+    monkeypatch.setenv("GHOSTEYE_NO_KEYRING", "1")   # deterministic file backend
+    httpd = _make_server()
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+
+    def call(path, method="GET", body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(f"http://127.0.0.1:{port}{path}",
+                                     data=data, method=method)
+        if data:
+            req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.getcode(), json.loads(r.read())
+    try:
+        code, listing = call("/api/keys")
+        assert code == 200
+        names = {k["name"] for k in listing["keys"]}
+        assert {"virustotal", "abuseipdb", "deepseek"} <= names
+        assert all(k["set"] is False for k in listing["keys"])
+        # no key values are ever present in the listing
+        assert "SECRET123" not in json.dumps(listing)
+
+        code, saved = call("/api/keys", "POST",
+                           {"name": "virustotal", "value": "SECRET123"})
+        assert code == 200 and saved["ok"] is True
+
+        code, listing2 = call("/api/keys")
+        vt = [k for k in listing2["keys"] if k["name"] == "virustotal"][0]
+        assert vt["set"] is True
+        assert "SECRET123" not in json.dumps(listing2)     # still never returned
+
+        # an unknown key name is rejected
+        try:
+            call("/api/keys", "POST", {"name": "nope", "value": "x"})
+            bad = 200
+        except urllib.error.HTTPError as e:
+            bad = e.code
+        assert bad == 400
+    finally:
+        httpd.shutdown()
+
+    # the value actually persisted to the config
+    from ghost_eye.config import Config
+    assert Config().api_key("virustotal") == "SECRET123"
 
 
 def test_static_app_has_mobile_drawer():
