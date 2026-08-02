@@ -61,6 +61,16 @@ a{color:var(--cyan);text-decoration:none}
 .chip.s-critical .n{color:var(--crit)} .chip.s-high .n{color:var(--high)}
 .chip.s-medium .n{color:var(--med)} .chip.s-low .n{color:var(--ok)}
 
+/* ---- RTL / Hebrew ---- */
+[dir="rtl"] body{direction:rtl}
+[dir="rtl"] .hud{margin-left:0;margin-right:auto;justify-content:flex-start}
+[dir="rtl"] .panel{border-right:none;border-left:1px solid var(--line)}
+[dir="rtl"] .target-row input,[dir="rtl"] .search input,[dir="rtl"] #filter,
+[dir="rtl"] .sel-body select{text-align:right}
+[dir="rtl"] .cathead,[dir="rtl"] .catgrp,[dir="rtl"] .intel-sec{text-align:right}
+[dir="rtl"] .eyebrow{letter-spacing:normal}
+#langtoggle{cursor:pointer}
+
 /* ---- layout ---- */
 .wrap{display:grid;grid-template-columns:344px 1fr;height:calc(100vh - 63px)}
 .panel{border-right:1px solid var(--line);background:var(--bg2);overflow-y:auto;padding:18px}
@@ -232,6 +242,7 @@ a{color:var(--cyan);text-decoration:none}
   </div>
   <button class="panel-toggle" id="ptoggle">▤ Controls</button>
   <div class="hud">
+    <button class="chip" id="langtoggle" title="Language / שפה">🌐 <span id="langlbl">עברית</span></button>
     <div class="status"><span class="dot" id="dot"></span><span id="statustxt">Idle — configure a scan</span></div>
     <div class="risk hidden" id="riskbox">
       <span class="riskpill" id="riskpill">—</span>
@@ -798,12 +809,88 @@ async function loadSchedules(){
 
 /* ---------- misc ---------- */
 $("ptoggle").addEventListener("click",()=>$("panel").classList.toggle("collapsed"));
+$("langtoggle") && $("langtoggle").addEventListener("click",()=>window.__setLang(document.documentElement.lang==="he"?"en":"he"));
 $("target").addEventListener("keydown",e=>{ if(e.key==="Enter" && !scanning) startScan(); });
 function esc(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
 function showBanner(msg){ $("banner").innerHTML=`<div class="banner">${esc(msg)}</div>`; }
 function clearBanner(){ $("banner").innerHTML=""; }
 
 init();
+</script>
+<script>
+/* ---- self-contained Hebrew / RTL layer (does not touch scan logic) ---- */
+(function(){
+  // exact-text -> Hebrew for static chrome + dynamic status/button phrases
+  var DICT = {
+    "Profile":"פרופיל","Category":"קטגוריה","Modules":"מודולים","All":"הכל",
+    "Options":"אפשרויות","Target":"יעד","Run scan":"הפעל סריקה","Stop scan":"עצור סריקה",
+    "Idle — configure a scan":"ממתין — הגדר סריקה","Stopping scan…":"עוצר סריקה…",
+    "Controls":"בקרות","▤ Controls":"▤ בקרות",
+    "Inventory":"מלאי נכסים","Rollup":"ריכוז לפי מארח","History / Diff":"היסטוריה / השוואה",
+    "Compare":"השוואה","Schedules":"תזמונים","Add schedule ▸":"הוסף תזמון ▸",
+    "Compare ▸":"השווה ▸","Delete":"מחק","Diff vs current":"השוואה לנוכחי",
+    "The eye is closed":"העין עצומה",
+    "Set a target on the left, choose a scope, and run a scan. Findings stream in here as each module reports. Authorised testing only.":
+      "הגדר יעד מימין, בחר טווח, והפעל סריקה. הממצאים יזרמו לכאן ככל שכל מודול מדווח. בדיקות מורשות בלבד.",
+    "New modules":"מודולים חדשים","Changed findings":"ממצאים שהשתנו","Gone":"נעלמו",
+    "Added":"נוספו","Removed":"הוסרו","Changed":"השתנו","Unchanged":"ללא שינוי","none":"אין",
+  };
+  var PH = {
+    "target":"example.com  /  192.0.2.10  /  אחד בכל שורה או מופרד בפסיקים לאצווה",
+    "modsearch":"סנן מודולים…","filter":"סנן ממצאים…","schedTarget":"example.com",
+    "o-ua":"(ברירת מחדל) — או הדבק User-Agent מותאם",
+  };
+  var EN_PH = {};   // remember original placeholders to restore
+  function tr(s){ s=(s||"").trim(); return DICT[s]||null; }
+
+  // translate a set of static nodes by walking their text once
+  function translateStatic(he){
+    document.querySelectorAll(
+      ".tab, .exp, .eyebrow, .empty h2, .empty p, #langlbl, .intel-sec h4, button"
+    ).forEach(function(el){
+      // only translate pure-text nodes — never clobber elements with child tags
+      var hasEl=[].slice.call(el.childNodes).some(n=>n.nodeType===1);
+      if(hasEl) return;
+      var key=el.getAttribute("data-en")|| el.textContent.trim();
+      if(!el.getAttribute("data-en")) el.setAttribute("data-en", key);
+      if(he){ var t=tr(key); if(t) el.textContent=t; }
+      else { el.textContent=el.getAttribute("data-en"); }
+    });
+    // placeholders
+    Object.keys(PH).forEach(function(id){
+      var el=document.getElementById(id); if(!el) return;
+      if(!(id in EN_PH)) EN_PH[id]=el.getAttribute("placeholder")||"";
+      el.setAttribute("placeholder", he?PH[id]:EN_PH[id]);
+    });
+    document.getElementById("langlbl").textContent = he?"English":"עברית";
+  }
+
+  // live-translate the dynamic status line + run button as the app rewrites them
+  function watch(){
+    var obs=new MutationObserver(function(){
+      if(document.documentElement.lang!=="he") return;
+      ["statustxt","runbtn"].forEach(function(id){
+        var el=document.getElementById(id); if(!el) return;
+        var t=tr(el.textContent); if(t && el.textContent.trim()!==t) el.textContent=t;
+      });
+    });
+    ["statustxt","runbtn"].forEach(function(id){
+      var el=document.getElementById(id);
+      if(el) obs.observe(el,{childList:true,characterData:true,subtree:true});
+    });
+  }
+
+  window.__setLang=function(lang){
+    var he=lang==="he";
+    document.documentElement.lang=he?"he":"en";
+    document.documentElement.dir=he?"rtl":"ltr";
+    translateStatic(he);
+    try{ localStorage.setItem("ge_lang", lang); }catch(e){}
+  };
+  watch();
+  var saved="en"; try{ saved=localStorage.getItem("ge_lang")||"en"; }catch(e){}
+  window.__setLang(saved);
+})();
 </script>
 </body>
 </html>
