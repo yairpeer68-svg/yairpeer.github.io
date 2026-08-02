@@ -288,7 +288,6 @@ from .inventory import build_inventory, build_host_rollup, collect_assets  # noq
 # =========================================================================== #
 #  Executive HTML report — the shareable "finished product" deliverable
 # =========================================================================== #
-import math as _math
 
 _GRADE_COLORS = {"A+": "#2ea043", "A": "#2ea043", "B": "#3fb950",
                  "C": "#d29922", "D": "#db6d28", "F": "#f85149"}
@@ -316,37 +315,17 @@ _LABELS = {
 
 
 def _svg_attack_graph(inv: Dict[str, Any], target: str) -> str:
-    """A self-contained radial attack-surface graph (no JS, no external libs)."""
-    W, H, cx, cy = 820, 560, 410, 280
-    rings = [("hosts", inv.get("hosts", [])[:18], 215, "#58a6ff"),
-             ("ips", inv.get("ips", [])[:14], 145, "#3fb950"),
-             ("services", inv.get("services", [])[:10], 78, "#d29922")]
-    edges, circles, labels = [], [], []
-    for _kind, items, radius, color in rings:
-        n = len(items)
-        for i, item in enumerate(items):
-            ang = (2 * _math.pi * i / n) - _math.pi / 2 if n else 0
-            x = cx + radius * _math.cos(ang)
-            y = cy + radius * _math.sin(ang)
-            edges.append(f'<line x1="{cx}" y1="{cy}" x2="{x:.0f}" y2="{y:.0f}" '
-                         f'stroke="{color}" stroke-opacity="0.25" stroke-width="1"/>')
-            circles.append(f'<circle cx="{x:.0f}" cy="{y:.0f}" r="5" fill="{color}"/>')
-            lab = _html.escape(str(item)[:22])
-            anchor = "start" if x >= cx else "end"
-            dx = 8 if x >= cx else -8
-            labels.append(f'<text x="{x + dx:.0f}" y="{y + 3:.0f}" font-size="10" '
-                          f'fill="#8b949e" text-anchor="{anchor}">{lab}</text>')
-    center = (f'<circle cx="{cx}" cy="{cy}" r="9" fill="#f85149"/>'
-              f'<text x="{cx}" y="{cy - 16}" font-size="13" font-weight="700" '
-              f'fill="#e6edf3" text-anchor="middle">{_html.escape(target[:40])}</text>')
-    legend = ('<g font-size="11" fill="#8b949e">'
-              '<circle cx="16" cy="18" r="5" fill="#58a6ff"/><text x="28" y="22">hosts</text>'
-              '<circle cx="16" cy="38" r="5" fill="#3fb950"/><text x="28" y="42">IPs</text>'
-              '<circle cx="16" cy="58" r="5" fill="#d29922"/><text x="28" y="62">services</text></g>')
-    return (f'<svg viewBox="0 0 {W} {H}" width="100%" role="img" '
-            f'aria-label="attack surface graph">'
-            + "".join(edges) + "".join(circles) + center
-            + "".join(labels) + legend + "</svg>")
+    """Attack-surface graph from an inventory — delegates to the single graph
+    renderer in intelligence.graph (no duplicate SVG code)."""
+    from .intelligence.graph import build_graph, render_svg
+    pseudo = {
+        "target": target or inv.get("target", ""),
+        "subdomains": inv.get("hosts", []),
+        "ips": inv.get("ips", []),
+        "cloud": [],
+        "technologies": {},
+    }
+    return render_svg(build_graph(pseudo))
 
 
 def export_exec_report(results: List[Result], path: str, target: str = "",

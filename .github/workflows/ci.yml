@@ -38,6 +38,9 @@ jobs:
       - name: Run tests (unit + all-module smoke test)
         run: python -m pytest -q
 
+      - name: Verification gate (compile, import, lint, tests, live smoke)
+        run: bash scripts/verify.sh
+
       - name: Lint (non-blocking)
         run: ruff check ghost_eye || true
 

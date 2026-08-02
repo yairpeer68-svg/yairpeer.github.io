@@ -48,15 +48,18 @@ _TECH = {
     },
 }
 
+# specific infrastructure tokens only — avoids false positives from generic
+# brand mentions ('amazon', 'microsoft') or ubiquitous CDNs (fonts.googleapis)
 _CLOUD = {
-    "aws": "AWS", "amazonaws": "AWS", "amazon": "AWS",
-    "azure": "Azure", "windows.net": "Azure", "microsoft": "Azure",
-    "gcp": "GCP", "googleusercontent": "GCP", "google cloud": "GCP",
-    "googleapis": "GCP", "cloudflare": "Cloudflare",
-    "digitalocean": "DigitalOcean", "linode": "Linode", "vultr": "Vultr",
-    "heroku": "Heroku", "netlify": "Netlify", "vercel": "Vercel",
-    "oracle cloud": "Oracle Cloud", "alibaba": "Alibaba Cloud",
-    "hetzner": "Hetzner", "ovh": "OVH", "fastly": "Fastly", "akamai": "Akamai",
+    "amazonaws": "AWS", "aws.amazon.com": "AWS", "elasticbeanstalk": "AWS",
+    "windows.net": "Azure", "azurewebsites": "Azure", "azureedge": "Azure",
+    "cloudapp.azure": "Azure", "googleusercontent": "GCP",
+    "google cloud platform": "GCP", "appspot.com": "GCP", "run.app": "GCP",
+    "cloudflare": "Cloudflare", "digitalocean": "DigitalOcean",
+    "linode": "Linode", "vultr": "Vultr", "herokuapp": "Heroku",
+    "netlify": "Netlify", "vercel": "Vercel", "oraclecloud": "Oracle Cloud",
+    "alibaba": "Alibaba Cloud", "aliyun": "Alibaba Cloud", "hetzner": "Hetzner",
+    "ovh": "OVH", "fastly": "Fastly", "akamai": "Akamai",
 }
 
 _LEAK_SIGNALS = ("breach", "leak", "pwned", "credential", "pastebin",

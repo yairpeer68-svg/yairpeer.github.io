@@ -47,6 +47,19 @@ def test_correlate_counts_and_classification():
     assert intel["counts"]["subdomains"] >= 3
 
 
+def test_classifier_no_false_positives():
+    from ghost_eye.intelligence import correlate
+    # a plain site that merely loads Google Fonts and mentions Amazon in copy
+    res = [Result("Tech", "shop.com", "ok",
+                  {"html": "buy on amazon! <link href=fonts.googleapis.com/css>",
+                   "dmarc": "v=DMARC1; p=none"})]
+    intel = correlate(res, "shop.com")
+    # googleapis/amazon brand mentions must NOT be read as cloud infrastructure
+    assert "GCP" not in intel["cloud"] and "AWS" not in intel["cloud"]
+    # a bare DMARC 'p=' must not be misread as a DKIM record
+    assert intel["email_security"]["dkim"] is False
+
+
 def test_organization_profile_uses_and_risks():
     from ghost_eye.intelligence import correlate, organization_profile
     intel = correlate(_sample(), "example.com")

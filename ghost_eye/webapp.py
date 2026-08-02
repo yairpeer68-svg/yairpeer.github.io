@@ -305,11 +305,32 @@ class Handler(BaseHTTPRequestHandler):
             return {}
 
     # ---- routing ---------------------------------------------------------- #
+    def _authed(self, parsed) -> bool:
+        """True unless a token is required and not supplied. The token may come
+        from an X-Ghost-Token header, an Authorization: Bearer header, a
+        ?token= query param, or a ge_token cookie."""
+        tok = getattr(self.server, "auth_token", "")
+        if not tok:
+            return True
+        if self.headers.get("X-Ghost-Token", "") == tok:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer ") and auth[7:] == tok:
+            return True
+        if parse_qs(parsed.query).get("token", [""])[0] == tok:
+            return True
+        return f"ge_token={tok}" in self.headers.get("Cookie", "")
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
         if path in ("/", "/index.html"):
             return self._serve_index()
+        if path.startswith("/static/"):
+            return self._serve_static(path)
+        if not self._authed(parsed):               # gate every /api/* route
+            return self._json({"error": "unauthorized — append ?token=… "
+                               "from the dashboard URL"}, 401)
         if path == "/api/meta":
             return self._json(_meta())
         if path == "/api/history":
@@ -322,13 +343,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._saved_scan(path.split("/")[3] if len(path.split("/")) > 3 else "")
         if path.startswith("/api/job/"):
             return self._job_get(path, parsed)
-        if path.startswith("/static/"):
-            return self._serve_static(path)
         return self._json({"error": "not found"}, 404)
 
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        if not self._authed(parsed):
+            return self._json({"error": "unauthorized"}, 401)
         if path == "/api/scan":
             return self._scan_start()
         if path == "/api/schedule":
@@ -342,6 +363,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        if not self._authed(parsed):
+            return self._json({"error": "unauthorized"}, 401)
         if path.startswith("/api/schedule/"):
             sid = path.split("/")[3] if len(path.split("/")) > 3 else ""
             ok = self.server.scheduler.remove(sid)
@@ -693,7 +716,11 @@ class Scheduler:
 #  Server
 # --------------------------------------------------------------------------- #
 def serve(host: str = "127.0.0.1", port: int = 8777,
-          db: str = "ghosteye.db", scope_file: str = "") -> None:
+          db: str = "ghosteye.db", scope_file: str = "",
+          auth_token: str = "") -> None:
+    import os
+    import secrets
+
     from .scope import Scope
     cfg = Config()
     httpd = ThreadingHTTPServer((host, port), Handler)
@@ -701,11 +728,22 @@ def serve(host: str = "127.0.0.1", port: int = 8777,
     httpd.scheduler = Scheduler(httpd.jobs)  # type: ignore[attr-defined]
     httpd.scope = Scope.from_file(scope_file)   # type: ignore[attr-defined]
     httpd.jobs.scope = httpd.scope      # deep scans honour the same scope
-    url = f"http://{host if host != '0.0.0.0' else '127.0.0.1'}:{port}"
+    # require a token whenever the dashboard is reachable off-localhost, so a
+    # network peer can't drive scans through the API. localhost stays frictionless.
+    local = host in ("127.0.0.1", "localhost", "::1", "")
+    token = auth_token or os.environ.get("GHOSTEYE_TOKEN", "")
+    if not token and not local:
+        token = secrets.token_urlsafe(16)
+    httpd.auth_token = token             # type: ignore[attr-defined]
+    disp_host = host if host != "0.0.0.0" else "127.0.0.1"
+    url = f"http://{disp_host}:{port}" + (f"/?token={token}" if token else "")
     print(f"{Colors.CYAN}{Colors.BOLD}Ghost Eye dashboard{Colors.RESET} "
           f"-> {Colors.GREEN}{url}{Colors.RESET}")
     if host == "0.0.0.0":
         Console.warn("bound to 0.0.0.0 - reachable by anything on your network")
+    if token:
+        Console.info("auth token required for /api — open the URL above "
+                     "(it carries ?token=…)")
     if not httpd.scope.empty:                   # type: ignore[attr-defined]
         Console.info(f"scope guard active ({scope_file})")
     print(f"{Colors.GREY}Authorised security testing only. Ctrl-C to stop.{Colors.RESET}")
@@ -729,6 +767,8 @@ def main(argv=None) -> int:
     p.add_argument("--db", default="ghosteye.db", help="SQLite history path")
     p.add_argument("--scope", default="", help="scope file: only these hosts/CIDRs")
     p.add_argument("--open", action="store_true", help="open the dashboard in a browser")
+    p.add_argument("--auth-token", default="",
+                   help="require this token for /api (auto-generated off-localhost)")
     args = p.parse_args(argv)
 
     if args.open:
@@ -753,5 +793,6 @@ def main(argv=None) -> int:
             except Exception:
                 print(f"open this in your browser: {url}")
         threading.Timer(1.0, _open).start()
-    serve(host=args.host, port=args.port, db=args.db, scope_file=args.scope)
+    serve(host=args.host, port=args.port, db=args.db, scope_file=args.scope,
+          auth_token=args.auth_token)
     return 0

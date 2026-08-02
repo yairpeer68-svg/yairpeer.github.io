@@ -420,7 +420,8 @@ const styleSheet=document.styleSheets[0];
 styleSheet.insertRule("@keyframes spin{to{transform:rotate(360deg)}}", styleSheet.cssRules.length);
 
 /* ---------- API helpers ---------- */
-function hdrs(){ return {"Content-Type":"application/json"}; }
+const TOKEN=new URLSearchParams(location.search).get("token")||"";
+function hdrs(){ const h={"Content-Type":"application/json"}; if(TOKEN) h["X-Ghost-Token"]=TOKEN; return h; }
 async function api(path, opts={}){
   const r=await fetch(path,{...opts,headers:{...hdrs(),...(opts.headers||{})}});
   if(!r.ok) throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
