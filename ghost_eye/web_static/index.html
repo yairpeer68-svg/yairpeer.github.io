@@ -366,6 +366,8 @@ a{color:var(--cyan);text-decoration:none}
       </select>
       <div class="exportbar" id="exportbar">
         <button class="exp" data-fmt="html" disabled>HTML</button>
+        <button class="exp" data-fmt="exec" disabled>Exec report</button>
+        <button class="exp" data-fmt="intel" disabled>Intel report</button>
         <button class="exp" data-fmt="dashboard" disabled>Dashboard</button>
         <button class="exp" data-fmt="json" disabled>JSON</button>
         <button class="exp" data-fmt="md" disabled>Markdown</button>
@@ -374,6 +376,10 @@ a{color:var(--cyan);text-decoration:none}
         <button class="exp" data-fmt="prometheus" disabled>Prom</button>
         <span style="width:1px;height:18px;background:#26303f;margin:0 2px;display:inline-block"></span>
         <button class="exp intelbtn" data-act="intel" disabled>Intelligence</button>
+        <button class="exp intelbtn" data-act="exploits" disabled>Exploit intel</button>
+        <button class="exp intelbtn" data-act="risk" disabled>Risk</button>
+        <button class="exp intelbtn" data-act="compliance" disabled>Compliance</button>
+        <button class="exp intelbtn" data-act="screenshots" disabled>Screenshots</button>
         <button class="exp intelbtn" data-act="inventory" disabled>Inventory</button>
         <button class="exp intelbtn" data-act="rollup" disabled>Rollup</button>
         <button class="exp intelbtn" data-act="history" disabled>History / Diff</button>
@@ -714,6 +720,10 @@ $("exportbar").addEventListener("click",e=>{
   const b=e.target.closest(".exp"); if(!b||b.disabled||!JOB) return;
   if(b.classList.contains("intelbtn")){
     if(b.dataset.act==="intel") loadIntel();
+    else if(b.dataset.act==="exploits") loadExploits();
+    else if(b.dataset.act==="risk") loadRisk();
+    else if(b.dataset.act==="compliance") loadCompliance();
+    else if(b.dataset.act==="screenshots") loadScreenshots();
     else if(b.dataset.act==="inventory") loadInventory();
     else if(b.dataset.act==="rollup") loadRollup();
     else if(b.dataset.act==="compare") loadCompare();
@@ -898,6 +908,74 @@ async function loadIntel(){
     <div class="intel-sec"><h4>Main risks</h4><ul class="intel-risks">${risks}</ul></div>
     <div class="intel-sec"><h4>Leak indicators <em>${(intel.leak_indicators||[]).length}</em></h4>
       <div class="chips">${chips(intel.leak_indicators)}</div></div>`);
+}
+
+async function loadExploits(){
+  renderIntel("Correlating CVEs against public exploit DBs…");
+  let d; try{ d=await api(`/api/job/${JOB}/exploits`); }
+  catch(e){ renderIntel("Exploit intel unavailable: "+esc(e.message)); return; }
+  if(d.error){ renderIntel("Exploit intel: "+esc(d.error)); return; }
+  const tile=(l,v,c)=>`<div class="itile"><b style="color:${c||'#dfe8f4'}">${v==null?0:v}</b><span>${esc(l)}</span></div>`;
+  const tiles=`<div class="itiles">${tile("CVEs found",d.cves_found)}${tile("public exploit",d.exploitable_count,d.exploitable_count?"#e5484d":"#3fb950")}${tile("weaponised",d.weaponised_count,d.weaponised_count?"#e5484d":"#3fb950")}</div>`;
+  if(!d.cves_found){ renderIntel(`<div class="intel-head">Exploit / zero-day intelligence</div>${tiles}<div class="chip muted">No CVEs surfaced — run tech/jslibs/cve modules to fingerprint versions first.</div>`); return; }
+  const sevCls={critical:"sev-crit",high:"sev-high",medium:"sev-med",low:"sev-low"};
+  const rows=(d.findings||[]).map(f=>{
+    const pub=f.exploit_available;
+    const src=f.sources||{};
+    const tags=[]; if(src.exploit_db&&src.exploit_db!=="none")tags.push(`Exploit-DB ${esc(String(src.exploit_db).slice(0,40))}`);
+    if(src.metasploit&&src.metasploit!=="none")tags.push(`Metasploit`);
+    if(src.github&&src.github!=="none")tags.push(`GitHub PoC`);
+    return `<div class="roll-row"><div class="roll-h">
+      <span class="sevtag ${sevCls[f.severity]||'sev-low'}">${esc(f.severity||"?")}${f.cvss?" / "+esc(String(f.cvss)):""}</span>
+      <span class="roll-host">${esc(f.cve)}</span>
+      <span class="roll-n ${pub?'':'muted'}" style="${pub?'color:#e5484d;font-weight:600':''}">${pub?"PUBLIC EXPLOIT":esc(f.verdict||"no public exploit")}</span></div>
+      ${tags.length?`<div class="roll-d"><span>${tags.map(esc).join(" · ")}</span></div>`:""}</div>`;
+  }).join("");
+  renderIntel(`<div class="intel-head">Exploit / zero-day intelligence — ${esc(d.target||"")}</div>${tiles}${rows}`);
+}
+async function loadRisk(){
+  renderIntel("Scoring prioritised risk…");
+  let d; try{ d=await api(`/api/job/${JOB}/risk`); }
+  catch(e){ renderIntel("Risk unavailable: "+esc(e.message)); return; }
+  if(d.error){ renderIntel("Risk: "+esc(d.error)); return; }
+  const sevCls={critical:"sev-crit",high:"sev-high",medium:"sev-med",low:"sev-low"};
+  const rows=(d.prioritised||[]).slice(0,40).map(r=>`<div class="roll-row"><div class="roll-h">
+      <span class="sevtag ${sevCls[r.severity]||'sev-low'}">${esc(r.severity||"?")}</span>
+      <span class="roll-host">${esc(r.module)} · ${esc(r.field||"")}</span>
+      <span class="roll-n">score ${esc(String(r.risk_score))}${r.public_exploit?" · exploit":""}${r.exposure_boost?" · exposed":""}</span></div>
+      <div class="roll-d"><span>${esc(String(r.detail||"").slice(0,90))}${r.cves?` · ${esc(String(r.cves))}`:""}</span></div></div>`).join("")
+    ||"<div class='chip muted'>no scored risks</div>";
+  renderIntel(`<div class="intel-head">Risk intelligence <em>overall ${esc(String(d.overall_risk))} · ${d.count} findings</em></div>
+    <div class="kg-hint">${esc(d.formula||"")}</div>${rows}`);
+}
+async function loadCompliance(){
+  renderIntel("Mapping findings to compliance controls…");
+  let d; try{ d=await api(`/api/job/${JOB}/compliance?framework=owasp_top10`); }
+  catch(e){ renderIntel("Compliance unavailable: "+esc(e.message)); return; }
+  if(d.error){ renderIntel("Compliance: "+esc(d.error)); return; }
+  const ctrls=d.controls||{};
+  const rows=Object.keys(ctrls).map(name=>{
+    const c=ctrls[name], pct=c.coverage_pct||0;
+    const col=pct>=70?"#3fb950":pct>=35?"#e9a23b":"#e5484d";
+    return `<div class="intel-sec" style="border-top:1px solid #161f2e;padding-top:8px">
+      <h4>${esc(name)} <em style="color:${col}">${pct}%</em></h4>
+      <div style="background:#0b1019;border-radius:6px;height:6px;overflow:hidden;margin:2px 0 6px"><div style="width:${pct}%;height:100%;background:${col}"></div></div>
+      ${c.covered&&c.covered.length?`<div class="chips">${c.covered.map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div>`:""}
+      ${c.missing&&c.missing.length?`<div class="chips" style="margin-top:3px">${c.missing.slice(0,10).map(x=>`<span class="chip muted">${esc(x)}</span>`).join("")}</div>`:""}</div>`;
+  }).join("");
+  renderIntel(`<div class="intel-head">Compliance — ${esc(d.framework||"")} <em>${d.overall_pct}% overall · ${d.fully_covered}/${d.total_controls} controls</em></div>${rows}`);
+}
+async function loadScreenshots(){
+  renderIntel("📸 Capturing the target + discovered subdomains (headless browser)… this can take a moment.");
+  let d; try{ d=await api(`/api/job/${JOB}/screenshots?max=10`,{method:"POST"}); }
+  catch(e){ renderIntel("Screenshot sweep unavailable: "+esc(e.message)); return; }
+  if(d.error){ renderIntel("Screenshots: "+esc(d.error)); return; }
+  const shots=d.screenshots||[];
+  if(!shots.length){ renderIntel(`<div class="intel-head">Visual recon</div><div class="chip muted">No screenshots captured — a headless Chromium is required (desktop: Playwright; Termux: <code>pkg install chromium</code>).</div>`); return; }
+  const g=shots.map(s=>`<figure class="shot"><img loading="lazy" src="${s.image}" alt="${esc(s.host||"")}"><figcaption>${esc(s.host||s.url||"")}</figcaption></figure>`).join("");
+  renderIntel(`<div class="intel-head">Visual recon <em>${shots.length} captured</em></div>
+    <div class="chip muted" style="margin-bottom:8px">merged into the Intelligence gallery — open Intelligence to see them in context.</div>
+    <div class="gallery">${g}</div>`);
 }
 
 async function loadInventory(){

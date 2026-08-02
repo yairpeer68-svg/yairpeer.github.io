@@ -56,6 +56,23 @@ def test_knowledge_graph_is_interactive():
     assert 'e.target.closest(".kgfilter")' in html
 
 
+def test_static_app_wires_action_panels():
+    """Every CLI-only capability now has a dashboard control + loader."""
+    html = _INDEX.read_text(encoding="utf-8")
+    for act in ("exploits", "risk", "compliance", "screenshots"):
+        assert f'data-act="{act}"' in html, f"missing button {act}"
+    for fmt in ("exec", "intel"):
+        assert f'data-fmt="{fmt}"' in html, f"missing report button {fmt}"
+    for fn in ("function loadExploits(", "function loadRisk(",
+               "function loadCompliance(", "function loadScreenshots("):
+        assert fn in html, f"missing loader {fn}"
+    # the export/intel click handler routes the new actions
+    for route in ('b.dataset.act==="exploits"', 'b.dataset.act==="risk"',
+                  'b.dataset.act==="compliance"',
+                  'b.dataset.act==="screenshots"'):
+        assert route in html, f"click handler missing {route}"
+
+
 def _seed(jm) -> str:
     res = [
         Result("Subdomain enumeration", "example.com", "ok",
@@ -109,3 +126,66 @@ def test_intel_endpoint_returns_full_platform_report():
     assert "no LLM" in data["analysis"]["method"]
     assert any(r["type"] == "resolves_to"
                for r in data["knowledge_graph"]["relationships"])
+
+
+def _make_server():
+    httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    httpd.jobs = JobManager(Config())          # type: ignore[attr-defined]
+    httpd.scheduler = None                      # type: ignore[attr-defined]
+    httpd.scope = type("S", (), {"empty": True})()  # type: ignore[attr-defined]
+    httpd.auth_token = ""                       # type: ignore[attr-defined]
+    return httpd
+
+
+def test_screenshots_endpoint_merges_into_job(monkeypatch):
+    """POST /screenshots runs the visual-recon sweep and merges the thumbnails
+    into the job so the Intelligence gallery shows them (browser stubbed)."""
+    from ghost_eye import workflow
+    img = ("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAA"
+           "AAABAAEAAAIBRAA7")
+
+    def fake_capture_surface(results, target="", max_shots=10):
+        return [Result("Website screenshot (visual recon)", "api.example.com",
+                       "ok", {"final_url": "https://api.example.com",
+                              "title": "API", "screenshot": img})]
+    monkeypatch.setattr(workflow, "capture_surface", fake_capture_surface)
+
+    httpd = _make_server()
+    jid = _seed(httpd.jobs)
+    before = len(httpd.jobs.results_obj(jid))
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/job/{jid}/screenshots?max=5",
+            method="POST")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            assert r.getcode() == 200
+            data = json.loads(r.read())
+    finally:
+        pass
+    # the shot was merged into the job's results
+    after = len(httpd.jobs.results_obj(jid))
+    httpd.shutdown()
+    assert data["count"] == 1
+    assert data["screenshots"][0]["image"].startswith("data:image")
+    assert after == before + 1
+
+
+def test_risk_and_compliance_endpoints():
+    httpd = _make_server()
+    jid = _seed(httpd.jobs)
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/job/{jid}/risk", timeout=10) as r:
+            risk = json.loads(r.read())
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/job/{jid}/compliance"
+                f"?framework=owasp_top10", timeout=10) as r:
+            comp = json.loads(r.read())
+    finally:
+        httpd.shutdown()
+    assert "prioritised" in risk and "overall_risk" in risk
+    assert "controls" in comp and comp["framework"] == "owasp_top10"

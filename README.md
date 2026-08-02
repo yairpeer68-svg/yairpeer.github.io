@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **389 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **392 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -392,7 +392,17 @@ for every `/api/*` route — it is printed in the dashboard URL (`?token=…`) a
 the frontend sends it automatically. Set your own with `--auth-token` or
 `GHOSTEYE_TOKEN`. Without the token, `/api/*` returns `401`.
 
-REST endpoints per job: `/api/job/<id>/{score,compliance,exploits,risk,intel,inventory,rollup,report,diff}`.
+Every capability is reachable from the dashboard — no need to drop to the CLI.
+Alongside the scan and exports, one-click panels cover **Exploit intel**
+(CVE → public-exploit correlation), **Risk** (prioritised, context-scored),
+**Compliance** (OWASP Top-10 coverage bars), an on-demand **Screenshots** sweep
+(target + discovered subdomains, merged into the gallery), plus **Intelligence**,
+Inventory, Rollup, History/Diff, Compare and Schedules. Reports download straight
+from the bar (HTML, **Exec**, **Intel**, dashboard, JSON, Markdown, SARIF, CSV,
+Prometheus).
+
+REST endpoints per job: `/api/job/<id>/{score,compliance,exploits,risk,intel,inventory,rollup,report,diff}`
+plus **POST** `/api/job/<id>/screenshots` (on-demand visual-recon sweep).
 
 ---
 
@@ -497,7 +507,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**389 tests** pass in ~7s. A single **verification gate** runs the whole thing:
+**392 tests** pass in ~9s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

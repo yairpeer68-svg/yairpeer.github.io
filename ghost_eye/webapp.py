@@ -209,6 +209,21 @@ class JobManager:
             job = self.jobs.get(jid)
             return list(job["_results_obj"]) if job else None
 
+    def extend_results(self, jid: str, extra: List[Result]) -> int:
+        """Merge additional Result objects (e.g. an on-demand screenshot sweep)
+        into a job so every downstream view — intelligence gallery, inventory —
+        picks them up."""
+        with self.lock:
+            job = self.jobs.get(jid)
+            if not job:
+                return 0
+            for r in extra:
+                job["_results_obj"].append(r)
+                job["results"].append(r.as_dict())
+            job["total"] = len(job["_results_obj"])
+            job["done"] = job["total"]
+            return len(extra)
+
     def cancel(self, jid: str) -> bool:
         with self.lock:
             job = self.jobs.get(jid)
@@ -358,6 +373,8 @@ class Handler(BaseHTTPRequestHandler):
             jid = path.split("/")[3]
             ok = self.server.jobs.cancel(jid)
             return self._json({"cancelled": ok})
+        if path.startswith("/api/job/") and path.endswith("/screenshots"):
+            return self._job_screenshots(path.split("/")[3], parsed)
         return self._json({"error": "not found"}, 404)
 
     def do_DELETE(self):
@@ -484,6 +501,36 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"risk intel failed: {exc}"}, 500)
         return self._json(report)
+
+    def _job_screenshots(self, jid: str, parsed):
+        """On-demand visual-recon sweep: screenshot the target + N discovered
+        subdomains and merge the thumbnails into the job's results so the
+        Intelligence gallery shows them. POST /api/job/<id>/screenshots?max=N."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        try:
+            mx = int(parse_qs(parsed.query).get("max", ["10"])[0])
+        except (TypeError, ValueError):
+            mx = 10
+        try:
+            shots = workflow.capture_surface(results, target,
+                                             max_shots=max(1, min(mx, 25)))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"screenshot sweep failed: {exc}"}, 500)
+        self.server.jobs.extend_results(jid, shots)
+        out = [{"host": s.target,
+                "url": s.data.get("final_url", ""),
+                "title": s.data.get("title", ""),
+                "image": s.data.get("screenshot", "")}
+               for s in shots
+               if str(s.data.get("screenshot", "")).startswith("data:image")]
+        return self._json({"target": target, "count": len(out),
+                           "screenshots": out,
+                           "note": "merged into the job — open Intelligence to "
+                                   "see them in the gallery"})
 
     def _job_intel(self, jid: str):
         results = self.server.jobs.results_obj(jid)
