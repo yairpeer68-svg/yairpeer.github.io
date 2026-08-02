@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .config import Config
 from .core import (Colors, Console, Context, REGISTRY, Result, build_session,
-                   modules_by_category)
+                   modules_by_category, record_error)
 from . import reporting, reporting_ext, workflow
 
 STATIC_DIR = Path(__file__).parent / "web_static"
@@ -111,6 +111,7 @@ class JobManager:
                     try:
                         res = fut.result()
                     except Exception as exc:  # noqa: BLE001
+                        record_error(f"module {getattr(m, 'id', '?')}", target, exc)
                         res = Result(module=getattr(m, "id", "?"), target=target,
                                      status="error", data={}, error=str(exc))
                     with self.lock:
@@ -146,6 +147,8 @@ class JobManager:
                                 try:
                                     res = fut.result()
                                 except Exception as exc:  # noqa: BLE001
+                                    record_error(f"module {getattr(m, 'id', '?')}",
+                                                 asset, exc)
                                     res = Result(module=getattr(m, "id", "?"),
                                                  target=asset, status="error",
                                                  data={}, error=str(exc))
@@ -179,6 +182,7 @@ class JobManager:
         try:
             return module.run(target, ctx)
         except Exception as exc:  # noqa: BLE001
+            record_error(f"module {getattr(module, 'id', '?')}", target, exc)
             return Result(module=getattr(module, "id", "?"), target=target,
                           status="error", data={}, error=str(exc))
 

@@ -25,7 +25,8 @@ from typing import List, Optional
 
 from .config import Config, MODULE_KEYS
 from .core import (Colors, Console, Context, Module, REGISTRY, Result,
-                   build_session, modules_by_category, setup_logging)
+                   build_session, modules_by_category, record_error,
+                   errorlog_path, setup_logging)
 from . import reporting
 from . import reporting_ext
 from . import workflow
@@ -121,6 +122,7 @@ def run_modules(mods: List[Module], target: str, ctx: Context,
             Console.warn("interrupted by user")
             break
         except Exception as exc:  # noqa: BLE001 - never let one module kill the run
+            record_error(f"module {mod.id}", target, exc)
             res = Result(mod.name, target, status="error", error=str(exc))
         res.render()
         Console.kv("took", f"{time.time() - t0:.1f}s")
@@ -419,6 +421,8 @@ def build_parser() -> argparse.ArgumentParser:
                       help="interactively enter & save your API keys, then exit")
     misc.add_argument("--no-keys", action="store_true",
                       help="never prompt for API keys during a scan")
+    misc.add_argument("--errors", action="store_true",
+                      help="show the persistent error log (crashes/failures) and exit")
     misc.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     misc.add_argument("--logfile", help="write logs to this file")
     misc.add_argument("--no-color", action="store_true", help="disable colours")
@@ -601,6 +605,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         path = cfg.write_template()
         Console.good(f"wrote config template: {path}")
         Console.info("run with --set-keys to enter your API keys, then re-run")
+        return 0
+
+    if args.errors:
+        path = errorlog_path()
+        if not path.exists():
+            Console.good(f"no errors logged — {path} does not exist yet")
+            return 0
+        Console.rule(f"Error log: {path}")
+        try:
+            print(path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            Console.err(f"cannot read error log: {exc}")
+            return 2
         return 0
 
     if args.set_keys:

@@ -15,15 +15,54 @@ from __future__ import annotations
 
 import ipaddress
 import logging
+import os
 import re
 import shutil
 import subprocess
 import sys
+import textwrap
+import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 log = logging.getLogger("ghosteye")
+
+
+# --------------------------------------------------------------------------- #
+#  Persistent error log — every crash/failure is appended here so nothing is
+#  silently lost. Path: $GHOSTEYE_ERRORLOG or ~/.ghosteye/errors.log
+# --------------------------------------------------------------------------- #
+def errorlog_path() -> Path:
+    env = os.environ.get("GHOSTEYE_ERRORLOG")
+    return Path(env) if env else Path.home() / ".ghosteye" / "errors.log"
+
+
+def record_error(where: str, target: str = "", exc: Any = None) -> None:
+    """Append a crash/failure to the persistent error log.
+
+    `exc` may be an exception (its traceback is captured) or any message.
+    Never raises — error logging must not become a second failure."""
+    try:
+        path = errorlog_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        head = f"[{ts}] {where}" + (f"  target={target}" if target else "")
+        lines = [head]
+        if isinstance(exc, BaseException):
+            lines.append(f"    {type(exc).__name__}: {exc}")
+            tb = "".join(traceback.format_exception(
+                type(exc), exc, exc.__traceback__)).rstrip()
+            if tb:
+                lines.append(textwrap.indent(tb, "    "))
+        elif exc:
+            lines.append(f"    {exc}")
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write("\n".join(lines) + "\n")
+        log.debug("recorded error to %s (%s)", path, where)
+    except Exception:  # noqa: BLE001 - logging must never crash the run
+        pass
 
 
 # --------------------------------------------------------------------------- #
