@@ -551,6 +551,77 @@ def trend(store, target: str) -> dict:
     }
 
 
+def intelligence_trend(store, target: str) -> dict:
+    """Intelligence trend — how the *attack surface itself* evolves across the
+    saved scan history, not just the risk score. For every stored scan it
+    re-correlates the intelligence picture (assets, subdomains, IPs, tech, cloud,
+    leaks) and diffs the knowledge-graph entities against the previous scan, so
+    you can see exactly which subdomains/IPs/technologies appeared or disappeared
+    over time. Rule-based, offline. Pairs the Timeline + Knowledge Graph with
+    history to turn Ghost Eye into a change-tracking intelligence platform."""
+    from .core import Result
+    from .intelligence import correlate, knowledge_graph
+    from .reporting_ext import score_findings
+
+    scans = store.scans_for(target)
+    series = []
+    prev_ent = None
+    for s in scans:
+        results = [Result(x.get("module", ""), x.get("target", target),
+                          x.get("status", "ok"), x.get("data", {}) or {})
+                   for x in s["results"]]
+        intel = correlate(results, target)
+        kg = knowledge_graph(results, target, intel)
+        scored = score_findings(results)
+        c = intel["counts"]
+        # notable entities we track over time (the surface the analyst watches)
+        ent = {f'{e["kind"]}:{e["label"]}' for e in kg["entities"]
+               if e["kind"] in ("subdomain", "ip", "tech", "cloud", "cve",
+                                "leak", "email", "org")}
+        entry = {
+            "scan_id": s["id"], "ts": s["ts"],
+            "risk_level": scored["risk_level"],
+            "risk_score": scored["risk_score"],
+            "assets": c["assets"], "subdomains": c["subdomains"],
+            "ips": c["ips"], "technologies": c["technologies"],
+            "emails": c["emails"], "leaks": c["leak_indicators"],
+            "cloud": len([x for x in intel["cloud"] if "unknown" not in x.lower()]),
+            "entities": kg["counts"]["entities"],
+        }
+        if prev_ent is not None:
+            added = sorted(ent - prev_ent)
+            gone = sorted(prev_ent - ent)
+            entry["new_entities"] = [e.split(":", 1)[1] for e in added][:20]
+            entry["gone_entities"] = [e.split(":", 1)[1] for e in gone][:20]
+            entry["new_count"] = len(added)
+            entry["gone_count"] = len(gone)
+        prev_ent = ent
+        series.append(entry)
+
+    direction = "n/a"
+    deltas = {}
+    if len(series) >= 2:
+        f, l = series[0], series[-1]
+        deltas = {k: l[k] - f[k] for k in ("risk_score", "assets", "subdomains",
+                                           "ips", "technologies", "entities",
+                                           "leaks")}
+        rd = deltas["risk_score"]
+        direction = ("worsening" if rd > 0 else
+                     "improving" if rd < 0 else "stable")
+    return {
+        "target": target,
+        "scans": len(series),
+        "direction": direction,
+        "first_ts": series[0]["ts"] if series else None,
+        "last_ts": series[-1]["ts"] if series else None,
+        "deltas": deltas,
+        "series": series,
+        "note": "attack surface re-correlated per saved scan; new/gone entities "
+                "diff the knowledge graph vs the previous scan. Save scans "
+                "(dashboard auto-saves; CLI --save-db) to build history.",
+    }
+
+
 def module_report() -> dict:
     """A quality / capability report for every registered module: category,
     target kind, declared dependencies (needs), whether it is documented, and

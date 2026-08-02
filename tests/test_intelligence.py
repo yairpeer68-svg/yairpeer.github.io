@@ -245,6 +245,43 @@ def test_intel_html_has_platform_sections(tmp_path):
         assert token in html
 
 
+class _FakeStore:
+    """Minimal Store stand-in for intelligence_trend (scans oldest-first)."""
+
+    def __init__(self, scans):
+        self._scans = scans
+
+    def scans_for(self, target, limit=100):
+        return self._scans
+
+
+def test_intelligence_trend_tracks_surface_growth():
+    from ghost_eye import workflow
+
+    def scan(sid, ts, subs, tech):
+        return {"id": sid, "ts": ts, "risk": "", "score": 0, "modules": 2,
+                "results": [
+                    {"module": "Subdomain enumeration", "target": "x.com",
+                     "status": "ok", "data": {"subdomains": subs}},
+                    {"module": "Technology fingerprint", "target": "x.com",
+                     "status": "ok", "data": tech}]}
+    s1 = scan("s1", "2026-07-01T10:00:00",
+              ["api.x.com", "www.x.com"], {"cms": "WordPress"})
+    s2 = scan("s2", "2026-07-15T10:00:00",
+              ["api.x.com", "www.x.com", "dev.x.com"],
+              {"cms": "WordPress", "js": "React"})
+    trend = workflow.intelligence_trend(_FakeStore([s1, s2]), "x.com")
+    assert trend["scans"] == 2
+    assert trend["series"][0]["subdomains"] == 2
+    assert trend["series"][1]["subdomains"] == 3
+    # the second scan's churn names the newly-appeared entities
+    new = trend["series"][1]["new_entities"]
+    assert "dev.x.com" in new and "React" in new
+    assert trend["deltas"]["subdomains"] == 1
+    assert trend["deltas"]["entities"] >= 2
+    assert trend["direction"] in ("worsening", "improving", "stable")
+
+
 def test_intelligence_report_and_html(tmp_path):
     from ghost_eye import reporting_ext, workflow
     rep = workflow.intelligence_report(_sample(), "example.com")

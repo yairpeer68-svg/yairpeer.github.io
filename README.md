@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **392 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **394 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -396,13 +396,22 @@ Every capability is reachable from the dashboard — no need to drop to the CLI.
 Alongside the scan and exports, one-click panels cover **Exploit intel**
 (CVE → public-exploit correlation), **Risk** (prioritised, context-scored),
 **Compliance** (OWASP Top-10 coverage bars), an on-demand **Screenshots** sweep
-(target + discovered subdomains, merged into the gallery), plus **Intelligence**,
-Inventory, Rollup, History/Diff, Compare and Schedules. Reports download straight
-from the bar (HTML, **Exec**, **Intel**, dashboard, JSON, Markdown, SARIF, CSV,
-Prometheus).
+(target + discovered subdomains, merged into the gallery), a **📈 Trend** panel,
+plus **Intelligence**, Inventory, Rollup, History/Diff, Compare and Schedules.
+Reports download straight from the bar (HTML, **Exec**, **Intel**, dashboard,
+JSON, Markdown, SARIF, CSV, Prometheus).
+
+**📈 Intelligence trend** — every dashboard scan is saved automatically, so the
+Trend panel shows how the **attack surface itself evolves** across the history:
+a multi-line chart of risk / assets / entities / subdomains over time, the
+first→latest deltas, an overall direction (improving / worsening / stable), and
+per-scan **knowledge-graph churn** — exactly which subdomains, IPs, technologies
+or leaks **appeared or disappeared** between scans. Re-correlated per scan,
+rule-based, offline.
 
 REST endpoints per job: `/api/job/<id>/{score,compliance,exploits,risk,intel,inventory,rollup,report,diff}`
-plus **POST** `/api/job/<id>/screenshots` (on-demand visual-recon sweep).
+plus **POST** `/api/job/<id>/screenshots` (visual-recon sweep) and
+`/api/trend?target=<t>` (intelligence trend over saved history).
 
 ---
 
@@ -507,7 +516,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**392 tests** pass in ~9s. A single **verification gate** runs the whole thing:
+**394 tests** pass in ~8s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

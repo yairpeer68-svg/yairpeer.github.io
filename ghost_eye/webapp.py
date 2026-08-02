@@ -350,6 +350,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(_meta())
         if path == "/api/history":
             return self._json({"history": self._history()})
+        if path == "/api/trend":
+            return self._trend(parsed)
         if path == "/api/compare":
             return self._compare_scans(parsed)
         if path == "/api/schedules":
@@ -623,6 +625,21 @@ class Handler(BaseHTTPRequestHandler):
                                  "score": (j["risk"] or {}).get("risk_score") if j["risk"] else None,
                                  "status": j["status"]})
         return rows
+
+    def _trend(self, parsed):
+        """Intelligence trend for a target across its saved-scan history:
+        attack-surface/asset/risk series + knowledge-graph entity churn.
+        GET /api/trend?target=<t>."""
+        target = (parse_qs(parsed.query).get("target", [""])[0]).strip()
+        if not target:
+            return self._json({"error": "target required"}, 400)
+        try:
+            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            report = workflow.intelligence_trend(store, target)
+            store.close()
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"trend failed: {exc}"}, 500)
+        return self._json(report)
 
     # ---- compare --------------------------------------------------------- #
     def _compare_scans(self, parsed):

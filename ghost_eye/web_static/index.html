@@ -382,6 +382,7 @@ a{color:var(--cyan);text-decoration:none}
         <button class="exp intelbtn" data-act="screenshots" disabled>Screenshots</button>
         <button class="exp intelbtn" data-act="inventory" disabled>Inventory</button>
         <button class="exp intelbtn" data-act="rollup" disabled>Rollup</button>
+        <button class="exp intelbtn" data-act="trend" disabled>Trend</button>
         <button class="exp intelbtn" data-act="history" disabled>History / Diff</button>
         <button class="exp intelbtn" data-act="compare" disabled>Compare</button>
         <button class="exp intelbtn" data-act="schedules">Schedules</button>
@@ -724,6 +725,7 @@ $("exportbar").addEventListener("click",e=>{
     else if(b.dataset.act==="risk") loadRisk();
     else if(b.dataset.act==="compliance") loadCompliance();
     else if(b.dataset.act==="screenshots") loadScreenshots();
+    else if(b.dataset.act==="trend") loadTrend();
     else if(b.dataset.act==="inventory") loadInventory();
     else if(b.dataset.act==="rollup") loadRollup();
     else if(b.dataset.act==="compare") loadCompare();
@@ -976,6 +978,70 @@ async function loadScreenshots(){
   renderIntel(`<div class="intel-head">Visual recon <em>${shots.length} captured</em></div>
     <div class="chip muted" style="margin-bottom:8px">merged into the Intelligence gallery — open Intelligence to see them in context.</div>
     <div class="gallery">${g}</div>`);
+}
+
+/* multi-line SVG chart for the intelligence trend (no libs) */
+function trendChart(series, metrics){
+  const W=600,H=180,padL=34,padR=12,padT=12,padB=26;
+  const n=series.length; if(n<1) return "";
+  const iw=W-padL-padR, ih=H-padT-padB;
+  const xat=i=>padL+(n===1?iw/2:iw*i/(n-1));
+  let svg="",leg="";
+  metrics.forEach(m=>{
+    const vals=series.map(s=>s[m.key]==null?0:s[m.key]);
+    const mx=Math.max(1,...vals);
+    const yat=v=>padT+ih-(ih*v/mx);
+    let pts=vals.map((v,i)=>`${xat(i).toFixed(1)},${yat(v).toFixed(1)}`).join(" ");
+    svg+=`<polyline points="${pts}" fill="none" stroke="${m.col}" stroke-width="2" stroke-opacity="0.9"/>`;
+    vals.forEach((v,i)=>{ svg+=`<circle cx="${xat(i).toFixed(1)}" cy="${yat(v).toFixed(1)}" r="2.6" fill="${m.col}"><title>${esc(m.label)}: ${v}</title></circle>`; });
+    leg+=`<span><i style="background:${m.col}"></i>${esc(m.label)}</span>`;
+  });
+  // x labels: first + last date
+  const d0=(series[0].ts||"").slice(0,10), d1=(series[n-1].ts||"").slice(0,10);
+  const axis=`<line x1="${padL}" y1="${padT+ih}" x2="${W-padR}" y2="${padT+ih}" stroke="#26303f"/>
+    <text x="${padL}" y="${H-8}" font-size="9" fill="#5d6b80">${esc(d0)}</text>
+    <text x="${W-padR}" y="${H-8}" font-size="9" fill="#5d6b80" text-anchor="end">${esc(d1)}</text>`;
+  return `<div class="kg-legend">${leg}</div><svg viewBox="0 0 ${W} ${H}" width="100%">${axis}${svg}</svg>`;
+}
+async function loadTrend(){
+  renderIntel("Building intelligence trend from saved scans…");
+  let tgt=""; try{ const j=await api(`/api/job/${JOB}`); tgt=j.target||""; }catch(e){}
+  if(!tgt){ renderIntel("Trend needs a target."); return; }
+  let d; try{ d=await api(`/api/trend?target=${encodeURIComponent(tgt)}`); }
+  catch(e){ renderIntel("Trend unavailable: "+esc(e.message)); return; }
+  if(d.error){ renderIntel("Trend: "+esc(d.error)); return; }
+  if((d.scans||0)<1){ renderIntel(`<div class="intel-head">Intelligence trend — ${esc(tgt)}</div><div class="chip muted">No saved scans yet for this target. Every dashboard scan is saved automatically — run it again over time to build a trend.</div>`); return; }
+  const dirC={worsening:"#e5484d",improving:"#3fb950",stable:"#e9a23b","n/a":"#5d6b80"}[d.direction]||"#5d6b80";
+  const dl=d.deltas||{};
+  const fmtD=v=>v==null?"":(v>0?`+${v}`:`${v}`);
+  const chip=(l,v,good)=>{ const c=v>0?(good?"#e5484d":"#3fb950"):v<0?(good?"#3fb950":"#e5484d"):"#5d6b80"; return `<span class="chip" style="color:${c}">${esc(l)} ${fmtD(v)}</span>`; };
+  const chart=(d.scans>=2)?trendChart(d.series,[
+      {key:"risk_score",label:"risk",col:"#e5484d"},
+      {key:"assets",label:"assets",col:"#5fc6d4"},
+      {key:"entities",label:"entities",col:"#a371f7"},
+      {key:"subdomains",label:"subdomains",col:"#3d9f74"}])
+    :`<div class="chip muted">need ≥2 saved scans to draw a trend line (have ${d.scans}).</div>`;
+  // per-scan churn (what changed in the knowledge graph between scans)
+  const churn=d.series.map((s,i)=>{
+    const when=(s.ts||"").slice(0,16).replace("T"," ");
+    const add=(s.new_entities||[]), gone=(s.gone_entities||[]);
+    const delta=i===0?`<span class="muted">baseline</span>`:
+      `${s.new_count?`<span style="color:#e5484d">+${s.new_count}</span>`:""} ${s.gone_count?`<span style="color:#3fb950">−${s.gone_count}</span>`:""}${(!s.new_count&&!s.gone_count)?`<span class="muted">no change</span>`:""}`;
+    const chips=(arr,sign,col)=>arr.slice(0,10).map(x=>`<span class="chip" style="color:${col}">${sign}${esc(x)}</span>`).join("");
+    return `<div class="roll-row"><div class="roll-h">
+        <span class="sevtag ${{CRITICAL:'sev-crit',HIGH:'sev-high',MEDIUM:'sev-med',LOW:'sev-low'}[s.risk_level]||'sev-low'}">${esc(s.risk_level||'?')}</span>
+        <span class="roll-host">${esc(when)}</span>
+        <span class="roll-n">assets ${s.assets} · subs ${s.subdomains} · risk ${s.risk_score} · ${delta}</span></div>
+      ${(add.length||gone.length)?`<div class="roll-d" style="flex-wrap:wrap">${chips(add,"+","#e5484d")}${chips(gone,"−","#3fb950")}</div>`:""}</div>`;
+  }).join("");
+  renderIntel(`<div class="intel-head">📈 Intelligence trend — ${esc(tgt)}
+      <em style="color:${dirC}">${esc(d.direction)}</em></div>
+    <div class="chip muted" style="margin-bottom:8px">${d.scans} saved scan(s) · ${esc((d.first_ts||'').slice(0,10))} → ${esc((d.last_ts||'').slice(0,10))}</div>
+    <div class="intel-graph">${chart}</div>
+    ${d.scans>=2?`<div class="intel-sec"><h4>Change first → latest</h4><div class="chips">
+      ${chip("risk",dl.risk_score,true)}${chip("assets",dl.assets,false)}${chip("subdomains",dl.subdomains,true)}${chip("IPs",dl.ips,true)}${chip("tech",dl.technologies,false)}${chip("entities",dl.entities,false)}${chip("leaks",dl.leaks,true)}
+    </div></div>`:""}
+    <div class="intel-sec"><h4>Per-scan knowledge-graph churn <em>${d.scans}</em></h4>${churn}</div>`);
 }
 
 async function loadInventory(){

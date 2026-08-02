@@ -59,8 +59,9 @@ def test_knowledge_graph_is_interactive():
 def test_static_app_wires_action_panels():
     """Every CLI-only capability now has a dashboard control + loader."""
     html = _INDEX.read_text(encoding="utf-8")
-    for act in ("exploits", "risk", "compliance", "screenshots"):
+    for act in ("exploits", "risk", "compliance", "screenshots", "trend"):
         assert f'data-act="{act}"' in html, f"missing button {act}"
+    assert "function loadTrend(" in html and "function trendChart(" in html
     for fmt in ("exec", "intel"):
         assert f'data-fmt="{fmt}"' in html, f"missing report button {fmt}"
     for fn in ("function loadExploits(", "function loadRisk(",
@@ -189,3 +190,35 @@ def test_risk_and_compliance_endpoints():
         httpd.shutdown()
     assert "prioritised" in risk and "overall_risk" in risk
     assert "controls" in comp and comp["framework"] == "owasp_top10"
+
+
+def test_trend_endpoint_from_saved_history(tmp_path, monkeypatch):
+    """/api/trend re-correlates saved scans into an intelligence trend with
+    per-scan knowledge-graph churn."""
+    from ghost_eye import reporting
+    db = str(tmp_path / "trend.db")
+    monkeypatch.setenv("GHOSTEYE_DB", db)
+    st = reporting.Store(db)
+    s1 = [Result("Subdomain enumeration", "acme.com", "ok",
+                 {"subdomains": ["api.acme.com", "www.acme.com"]})]
+    st.save_scan("old", "acme.com", s1, "MEDIUM", 20)
+    s2 = s1 + [Result("Subdomain enumeration", "acme.com", "ok",
+                      {"subdomains": ["api.acme.com", "www.acme.com",
+                                      "dev.acme.com"]})]
+    st.save_scan("new", "acme.com", s2, "HIGH", 45)
+    st.close()
+
+    httpd = _make_server()
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/trend?target=acme.com",
+                timeout=15) as r:
+            data = json.loads(r.read())
+    finally:
+        httpd.shutdown()
+    assert data["scans"] == 2
+    assert "series" in data and len(data["series"]) == 2
+    assert "dev.acme.com" in data["series"][1].get("new_entities", [])
+    assert "deltas" in data and "subdomains" in data["deltas"]
