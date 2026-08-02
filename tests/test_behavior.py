@@ -380,3 +380,21 @@ def test_notify_and_ci_gate_empty_url_and_clean():
     assert workflow.notify(_high_findings(), "x", "") is False   # no URL -> no-op
     clean = [Result("info", "x", "ok", {"note": "advertised"})]
     assert workflow.ci_gate(clean, "critical")["passed"] is True
+
+
+def test_risk_intelligence_amplifies_exposed_exploitable():
+    from ghost_eye import workflow
+    res = [
+        Result("DB", "x", "ok", {"redis": "OPEN with no auth"}),          # exposed
+        Result("Ports", "x", "ok",
+               {"vuln": "CVE-2021-23017 VULNERABLE critical RCE"}),        # cve, high sev
+    ]
+    exploit = {"exploitable": ["CVE-2021-23017"]}
+    rep = workflow.risk_intelligence(res, exploit=exploit)
+    assert rep["prioritised"], "should have ranked findings"
+    # a publicly-exploitable finding must carry the exploit multiplier
+    pex = [r for r in rep["prioritised"] if r["public_exploit"]]
+    assert pex and pex[0]["risk_score"] > 0
+    # exposed/no-auth findings get the exposure boost
+    assert any(r["exposure_boost"] for r in rep["prioritised"])
+    assert 0 <= rep["overall_risk"] <= 100

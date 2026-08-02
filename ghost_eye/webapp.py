@@ -383,6 +383,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_compliance(jid, parsed)
         if sub == "exploits":
             return self._job_exploits(jid, parsed)
+        if sub == "risk":
+            return self._job_risk(jid)
         snap = self.server.jobs.snapshot(jid)
         if snap is None:
             return self._json({"error": "unknown job"}, 404)
@@ -445,6 +447,16 @@ class Handler(BaseHTTPRequestHandler):
             report = workflow.compliance_check(results, framework)
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"compliance check failed: {exc}"}, 500)
+        return self._json(report)
+
+    def _job_risk(self, jid: str):
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        try:
+            report = workflow.risk_intelligence(results)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"risk intel failed: {exc}"}, 500)
         return self._json(report)
 
     def _job_exploits(self, jid: str, parsed):

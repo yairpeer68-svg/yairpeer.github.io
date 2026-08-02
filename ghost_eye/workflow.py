@@ -397,6 +397,70 @@ def attack_score(results) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+#  v3.8  Risk intelligence — composite, context-aware prioritisation
+# --------------------------------------------------------------------------- #
+import re as _re
+
+_RISK_CVE = _re.compile(r"CVE-\d{4}-\d{4,7}", _re.I)
+# CVSS-like base weight per severity bucket
+_RISK_BASE = {"critical": 9.0, "high": 7.0, "medium": 4.5, "low": 1.5, "info": 0.5}
+# words that imply the finding is actually reachable / unauthenticated
+_EXPOSURE_WORDS = ("open", "public", "no auth", "unauth", "exposed", "anonymous",
+                   "world-readable", "reflects origin", "without credentials",
+                   "no password", "default cred", "listing", "disclosed")
+
+
+def risk_intelligence(results, exploit: Optional[dict] = None) -> dict:
+    """Prioritise findings with a composite score, not just a severity label:
+
+        risk = base(severity) × exposure × exploit_availability × confidence
+
+    `exploit` is an optional exploit_intel() report; findings whose CVE has a
+    public exploit are amplified. Returns findings ranked most-actionable first.
+    """
+    from .reporting_ext import score_findings
+    scored = score_findings(results)
+    exploitable = {c.upper() for c in (exploit or {}).get("exploitable", [])}
+
+    ranked = []
+    for f in scored.get("findings", []):
+        sev = f.get("severity", "low")
+        base = _RISK_BASE.get(sev, 1.0)
+        blob = f"{f.get('field','')} {f.get('detail','')}".lower()
+        exposure = 1.4 if any(w in blob for w in _EXPOSURE_WORDS) else 1.0
+        cves = [c.upper() for c in _RISK_CVE.findall(blob)]
+        has_exploit = any(c in exploitable for c in cves)
+        exploit_mult = 1.6 if has_exploit else 1.0
+        # detection is pattern-based; treat as high-but-not-certain confidence
+        confidence = 0.9
+        composite = round(base * exposure * exploit_mult * confidence, 2)
+        ranked.append({
+            "module": f.get("module"),
+            "field": f.get("field"),
+            "detail": str(f.get("detail", ""))[:160],
+            "severity": sev,
+            "exposure_boost": exposure > 1.0,
+            "public_exploit": has_exploit,
+            "cves": cves or None,
+            "risk_score": composite,
+        })
+    ranked.sort(key=lambda r: r["risk_score"], reverse=True)
+    top = ranked[0]["risk_score"] if ranked else 0.0
+    # normalise the overall to 0-100 against the worst possible single finding
+    worst_possible = _RISK_BASE["critical"] * 1.4 * 1.6 * 0.9
+    overall = min(100, int(round(top / worst_possible * 100))) if ranked else 0
+    return {
+        "overall_risk": overall,
+        "top_risk_score": top,
+        "formula": "base(severity) × exposure × exploit_availability × confidence",
+        "prioritised": ranked[:30],
+        "count": len(ranked),
+        "note": "context-aware ranking: an exposed, publicly-exploitable finding "
+                "outranks a higher-severity but unreachable one",
+    }
+
+
+# --------------------------------------------------------------------------- #
 #  #77  Executive summary report (text-based, PDF via reportlab if available)
 # --------------------------------------------------------------------------- #
 def exec_report(results, target: str = "", out_path: str = "") -> str:
