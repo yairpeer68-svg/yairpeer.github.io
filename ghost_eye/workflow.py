@@ -96,6 +96,7 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
     "iot": ["upnpscan", "rtspscan", "coapscan", "icsscan",
             "telnetscan", "snmpv3", "mdnsscan"],
     "crypto": ["web3rpc", "cryptoaddr", "smartcontract", "ipfsgw", "ensscan"],
+    "exploit": ["tech", "cve", "exploitdb"],
 }
 
 
@@ -590,3 +591,46 @@ class LiveAlerts:
             return True
         except Exception:
             return False
+
+
+# --------------------------------------------------------------------------- #
+#  v3.8  Exploit / zero-day intelligence over a whole scan
+# --------------------------------------------------------------------------- #
+def exploit_intel(results, session=None, timeout: int = 20,
+                  max_cves: int = 20) -> dict:
+    """Correlate every CVE found in a scan against the public exploit databases
+    (Exploit-DB, Metasploit/Rapid7, NVD, GitHub advisories, PacketStorm, CIRCL,
+    with OpenCVE/MITRE link-outs) and report which findings already have a
+    public exploit / PoC — i.e. what an attacker can weaponise today.
+
+    Detection/correlation only; nothing is ever exploited."""
+    from .modules.exploit_intel import check_cve, extract_cves
+    cves = extract_cves(results)[:max_cves]
+    if session is None:
+        try:
+            import requests
+            session = requests.Session()
+            session.headers.update({"User-Agent": "GhostEye-ExploitIntel"})
+        except Exception:  # noqa: BLE001
+            return {"error": "requests not available", "cves_found": cves}
+
+    findings = []
+    for i, cve in enumerate(cves):
+        findings.append(check_cve(cve, session, timeout,
+                                  throttle=0.4 if i else 0.0))
+    exploitable = [f for f in findings if f["exploit_available"]]
+    weaponised = [f for f in findings if f["weaponised"]]
+    findings.sort(key=lambda f: (f["exploit_available"], f["weaponised"],
+                                 f["cvss"] or 0), reverse=True)
+    return {
+        "cves_found": len(cves),
+        "exploitable_count": len(exploitable),
+        "weaponised_count": len(weaponised),
+        "exploitable": [f["cve"] for f in exploitable],
+        "verdict": ("PUBLIC EXPLOITS AVAILABLE" if exploitable
+                    else "no public exploits found for detected CVEs"),
+        "findings": findings,
+        "note": "sourced from Exploit-DB, Metasploit, NVD, GitHub, PacketStorm & "
+                "CIRCL. 'weaponised' = a Metasploit module or Exploit-DB PoC "
+                "exists. Verify against the exact version before acting.",
+    }

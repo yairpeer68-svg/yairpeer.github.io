@@ -48,6 +48,8 @@ from . import (  # noqa: F401
     osint_v3,
     cloud_v3,
     network_v3,
+    # --- v3.8: exploit / zero-day intelligence ---
+    exploit_intel,
 )
 
 __all__ = [
@@ -61,4 +63,5 @@ __all__ = [
     "ai_recon",
     "api_security", "auth_session", "privacy", "supply_chain",
     "iot", "web_v3", "crypto", "osint_v3", "cloud_v3", "network_v3",
+    "exploit_intel",
 ]

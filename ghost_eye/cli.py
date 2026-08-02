@@ -378,6 +378,10 @@ def build_parser() -> argparse.ArgumentParser:
                      help="print a unified asset inventory across all modules")
     out.add_argument("--rollup", action="store_true",
                      help="print a per-host rollup (ports/tech/CVEs/severity per host)")
+    out.add_argument("--exploit-intel", action="store_true",
+                     help="after the scan, check every discovered CVE against the "
+                          "public exploit DBs (Exploit-DB, Metasploit, NVD, GitHub…) "
+                          "and flag which ones have a public exploit")
     out.add_argument("--save-db", action="store_true",
                      help="store results in SQLite history")
     out.add_argument("--db", default="ghosteye.db", help="SQLite path")
@@ -492,7 +496,37 @@ def _run_once(mods, target, cfg, args):
                            + (" …" if len(inv[cat]) > 20 else ""))
     if getattr(args, "rollup", False) or getattr(args, "deep", False):
         _print_rollup(results, target)
+    if getattr(args, "exploit_intel", False):
+        _print_exploit_intel(results)
     return results
+
+
+def _print_exploit_intel(results):
+    Console.rule("Exploit / zero-day intelligence")
+    rep = workflow.exploit_intel(results)
+    if rep.get("error"):
+        Console.err(rep["error"])
+        return
+    Console.kv("CVEs found", rep["cves_found"])
+    Console.kv("with public exploit", rep["exploitable_count"])
+    Console.kv("weaponised (Metasploit/PoC)", rep["weaponised_count"])
+    if rep["cves_found"] == 0:
+        Console.info("no CVEs were surfaced by this scan — "
+                     "run tech/jslibs/cve modules to fingerprint versions first")
+        return
+    for f in rep["findings"]:
+        tag = ("EXPLOIT PUBLIC" if f["exploit_available"] else f["verdict"])
+        sev = f.get("severity") or "?"
+        cvss = f.get("cvss")
+        Console.kv(f"{f['cve']} [{sev}{'/' + str(cvss) if cvss else ''}]", tag)
+        srcs = f["sources"]
+        if f["exploit_available"]:
+            edb = srcs.get("exploit_db")
+            msf = srcs.get("metasploit")
+            if edb and edb != "none":
+                Console.kv("  Exploit-DB", edb)
+            if msf and msf != "none":
+                Console.kv("  Metasploit", msf)
 
 
 def _run_batch(mods, targets, cfg, args):
