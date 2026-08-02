@@ -233,3 +233,18 @@ def test_deep_plan():
     # plan is a list of (asset, [modules]); the host should get the host profile
     host_entries = [a for a, _m in plan if a == "api.example.com"]
     assert host_entries and all(len(m) > 0 for _a, m in plan)
+
+
+def test_version_is_consistent():
+    """__version__ must match the packaged version so the dashboard/API report
+    the right release (they read ghost_eye.__version__)."""
+    import re
+    from pathlib import Path
+
+    import ghost_eye
+    pyproject = (Path(__file__).resolve().parent.parent / "pyproject.toml"
+                 ).read_text(encoding="utf-8")
+    m = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.M)
+    assert m, "version missing from pyproject.toml"
+    assert ghost_eye.__version__ == m.group(1), (
+        f"__version__ {ghost_eye.__version__} != pyproject {m.group(1)}")
