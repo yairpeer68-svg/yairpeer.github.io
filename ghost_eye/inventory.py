@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import re
 from typing import Dict, List
+from urllib.parse import unquote
 
-from .core import Result
+from .core import Result, clean_host, is_domain, is_ip
 from .reporting import _flatten
 
 _IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
@@ -31,13 +32,17 @@ def build_inventory(results: List[Result], target: str = "") -> dict:
         flat: Dict[str, str] = {}
         _flatten("", r.data, flat)
         blob = " ".join(f"{k} {v}" for k, v in flat.items())
+        # hosts are mined from VALUES only (never from nested keys like
+        # 'correlation_signals.favicon') and URL-decoded first, so a dork URL
+        # such as 'site%3Agithub.com' does not become the fake host '3agithub.com'.
+        val_blob = unquote(" ".join(str(v) for v in flat.values()))
         for m in _IPV4.findall(blob):
             if _valid_ip(m) and not m.startswith(("0.", "255.")):
                 ips.add(m)
         emails.update(e.lower() for e in _EMAIL.findall(blob))
-        for m in _HOST.findall(blob):
+        for m in _HOST.findall(val_blob):
             ml = m.lower().rstrip(".")
-            if not _valid_ip(ml) and "." in ml and len(ml) < 100:
+            if is_domain(ml) and len(ml) < 100:
                 hosts.add(ml)
         urls.update(_URL.findall(blob))
         for svc, port in _PORT_A.findall(blob):
@@ -76,8 +81,19 @@ def collect_assets(results: List[Result], target: str = "",
     fan out to them. Excludes the original target and honours an optional scope."""
     inv = build_inventory(results, target)
     tgt = (target or inv.get("target", "")).lower().rstrip(".")
-    hosts = [h for h in inv["hosts"] if h and h != tgt]
-    ips = [i for i in inv["ips"] if i != tgt]
+    try:
+        tgt = clean_host(tgt) if tgt else ""
+    except ValueError:
+        pass
+    suffix = "." + tgt if tgt else ""
+
+    # --deep only fans out to real subdomains of the target and to valid IPs.
+    # Off-target references (e.g. github.com / pastebin.com pulled from OSINT
+    # dork URLs) and junk hosts are dropped so we never scan third parties.
+    hosts = [h for h in inv["hosts"]
+             if h and h != tgt and is_domain(h) and not is_ip(h)
+             and suffix and h.endswith(suffix)]
+    ips = [i for i in inv["ips"] if is_ip(i) and i != tgt]
     if scope is not None and not getattr(scope, "empty", True):
         hosts = [h for h in hosts if scope.allows(h)[0]]
         ips = [i for i in ips if scope.allows(i)[0]]
