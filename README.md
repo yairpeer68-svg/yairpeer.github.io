@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **398 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **401 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -399,6 +399,14 @@ clusters), the **🕓 intelligence timeline**, the screenshot gallery, org
 profile, tech, cloud, email score and leak indicators — all from the single
 `/api/job/<id>/intel` payload.
 
+**Logs & errors:** the server prints a concise **request log** to the terminal
+(every API call + its status; `--quiet` to silence), and any handler crash is
+caught, printed with a full traceback, recorded to the error log, and returned as
+a 500 — never a silent dead connection. In the dashboard, a module that fails
+shows an **ERROR** badge and **auto-expands to show the reason** (e.g. "no PTR
+record (NXDOMAIN)") — these per-module errors are usually benign (the target
+simply doesn't offer that record/service), not a bug in Ghost Eye.
+
 **Auth:** localhost-only by default (no friction). The moment you bind
 off-localhost (`--host 0.0.0.0`) an **API token is auto-generated** and required
 for every `/api/*` route — it is printed in the dashboard URL (`?token=…`) and
@@ -529,7 +537,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**398 tests** pass in ~8s. A single **verification gate** runs the whole thing:
+**401 tests** pass in ~9s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

@@ -79,6 +79,49 @@ def test_static_app_wires_action_panels():
         assert route in html, f"click handler missing {route}"
 
 
+def test_static_app_surfaces_error_reasons():
+    """Errored modules must show their reason (err-line) and auto-expand so the
+    failure is visible without a tap — the 'log' the user was missing."""
+    html = _INDEX.read_text(encoding="utf-8")
+    assert 'r.status==="error"' in html and "err-line" in html
+    assert "let autoErr=new Set()" in html
+    # errored modules are auto-added to the expanded set on render
+    assert 'r.status==="error" && !autoErr.has(r.module)' in html
+
+
+def test_handler_crash_returns_500(monkeypatch, tmp_path):
+    """A crashing handler must be caught, logged, and returned as 500 — never a
+    silent dead connection with no trace."""
+    import urllib.error
+
+    from ghost_eye import webapp
+    monkeypatch.setenv("GHOSTEYE_ERRORLOG", str(tmp_path / "err.log"))
+
+    def boom(self, parsed):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(webapp.Handler, "_trend", boom)
+
+    httpd = _make_server()
+    httpd.quiet = True                          # type: ignore[attr-defined]
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        try:
+            urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/trend?target=x", timeout=10)
+            code = 200
+        except urllib.error.HTTPError as e:
+            code = e.code
+            body = json.loads(e.read())
+    finally:
+        httpd.shutdown()
+    assert code == 500
+    assert "server error" in body["error"]
+    # the crash was recorded to the error log
+    assert (tmp_path / "err.log").exists()
+    assert "boom" in (tmp_path / "err.log").read_text()
+
+
 def test_persist_fires_surface_alert_on_change(tmp_path, monkeypatch):
     """A re-scan whose surface grew must compute the diff and fire the alert;
     a first scan (no history) must not. Transport is stubbed."""

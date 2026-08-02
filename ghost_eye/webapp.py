@@ -12,8 +12,10 @@ Binds to 127.0.0.1 (localhost only) by default. Authorised use only.
 from __future__ import annotations
 
 import json
+import sys
 import threading
 import time
+import traceback
 import uuid
 from concurrent.futures import (FIRST_COMPLETED, ThreadPoolExecutor,
                                 wait)
@@ -312,9 +314,42 @@ def _select(payload: dict) -> List:
 class Handler(BaseHTTPRequestHandler):
     server_version = "GhostEye-web"
 
-    # silence default logging; route through our logger only on errors
+    # silence the noisy default logging; we emit our own concise access log
     def log_message(self, fmt, *args):  # noqa: D401
         pass
+
+    # ---- logging ---------------------------------------------------------- #
+    def _access_log(self, code: int) -> None:
+        """Concise per-request line to the terminal (unless --quiet). This is the
+        'log' that shows what the dashboard is doing and surfaces failures."""
+        if getattr(self.server, "quiet", False):
+            return
+        path = self.path.split("?", 1)[0]        # never log the ?token=
+        ts = time.strftime("%H:%M:%S")
+        col = (Colors.RED if code >= 500 else "\033[33m" if code >= 400
+               else Colors.GREY)
+        try:
+            sys.stderr.write(f"{col}{ts}  {self.command:6} {path} -> {code}"
+                             f"{Colors.RESET}\n")
+            sys.stderr.flush()
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _oops(self, exc: BaseException):
+        """A handler crashed — record it, print a traceback to the terminal, and
+        return a 500 so the browser sees the reason instead of a dead socket."""
+        path = self.path.split("?", 1)[0]
+        record_error("webapp", path, exc)
+        try:
+            sys.stderr.write(f"{Colors.RED}[server error] {self.command} {path}: "
+                             f"{exc}\n{traceback.format_exc()}{Colors.RESET}\n")
+            sys.stderr.flush()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            return self._json({"error": f"server error: {exc}"}, 500)
+        except Exception:  # noqa: BLE001 - client already gone
+            return None
 
     # ---- helpers ---------------------------------------------------------- #
     def _json(self, obj, code=200):
@@ -324,6 +359,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+        self._access_log(code)
 
     def _bytes(self, data: bytes, ctype: str, code=200, filename=None):
         self.send_response(code)
@@ -334,6 +370,7 @@ class Handler(BaseHTTPRequestHandler):
                              f'attachment; filename="{filename}"')
         self.end_headers()
         self.wfile.write(data)
+        self._access_log(code)
 
     def _body(self) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
@@ -361,7 +398,27 @@ class Handler(BaseHTTPRequestHandler):
             return True
         return f"ge_token={tok}" in self.headers.get("Cookie", "")
 
+    # each verb is wrapped so a handler crash is logged + returned as 500,
+    # instead of silently killing the connection with no trace anywhere.
     def do_GET(self):
+        try:
+            return self._do_get()
+        except Exception as exc:  # noqa: BLE001
+            return self._oops(exc)
+
+    def do_POST(self):
+        try:
+            return self._do_post()
+        except Exception as exc:  # noqa: BLE001
+            return self._oops(exc)
+
+    def do_DELETE(self):
+        try:
+            return self._do_delete()
+        except Exception as exc:  # noqa: BLE001
+            return self._oops(exc)
+
+    def _do_get(self):
         parsed = urlparse(self.path)
         path = parsed.path
         if path in ("/", "/index.html"):
@@ -387,7 +444,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_get(path, parsed)
         return self._json({"error": "not found"}, 404)
 
-    def do_POST(self):
+    def _do_post(self):
         parsed = urlparse(self.path)
         path = parsed.path
         if not self._authed(parsed):
@@ -404,7 +461,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_screenshots(path.split("/")[3], parsed)
         return self._json({"error": "not found"}, 404)
 
-    def do_DELETE(self):
+    def _do_delete(self):
         parsed = urlparse(self.path)
         path = parsed.path
         if not self._authed(parsed):
@@ -806,7 +863,7 @@ class Scheduler:
 # --------------------------------------------------------------------------- #
 def serve(host: str = "127.0.0.1", port: int = 8777,
           db: str = "ghosteye.db", scope_file: str = "",
-          auth_token: str = "") -> None:
+          auth_token: str = "", quiet: bool = False) -> None:
     import os
     import secrets
 
@@ -817,6 +874,7 @@ def serve(host: str = "127.0.0.1", port: int = 8777,
     httpd.scheduler = Scheduler(httpd.jobs)  # type: ignore[attr-defined]
     httpd.scope = Scope.from_file(scope_file)   # type: ignore[attr-defined]
     httpd.jobs.scope = httpd.scope      # deep scans honour the same scope
+    httpd.quiet = quiet                 # type: ignore[attr-defined]
     # require a token whenever the dashboard is reachable off-localhost, so a
     # network peer can't drive scans through the API. localhost stays frictionless.
     local = host in ("127.0.0.1", "localhost", "::1", "")
@@ -835,6 +893,11 @@ def serve(host: str = "127.0.0.1", port: int = 8777,
                      "(it carries ?token=…)")
     if not httpd.scope.empty:                   # type: ignore[attr-defined]
         Console.info(f"scope guard active ({scope_file})")
+    if quiet:
+        Console.info("request logging off (--quiet)")
+    else:
+        Console.info("request log below — every API call + errors are printed "
+                     "here (module ERROR reasons also show in the dashboard)")
     print(f"{Colors.GREY}Authorised security testing only. Ctrl-C to stop.{Colors.RESET}")
     try:
         httpd.serve_forever()
@@ -858,6 +921,8 @@ def main(argv=None) -> int:
     p.add_argument("--open", action="store_true", help="open the dashboard in a browser")
     p.add_argument("--auth-token", default="",
                    help="require this token for /api (auto-generated off-localhost)")
+    p.add_argument("--quiet", action="store_true",
+                   help="don't print the per-request access log to the terminal")
     args = p.parse_args(argv)
 
     if args.open:
@@ -883,5 +948,5 @@ def main(argv=None) -> int:
                 print(f"open this in your browser: {url}")
         threading.Timer(1.0, _open).start()
     serve(host=args.host, port=args.port, db=args.db, scope_file=args.scope,
-          auth_token=args.auth_token)
+          auth_token=args.auth_token, quiet=args.quiet)
     return 0

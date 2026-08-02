@@ -472,6 +472,7 @@ async function api(path, opts={}){
 let META=null, MODE="profile", expanded=new Set(), JOB=null, poll=null;
 let QUEUE=[], QI=0;                       // multi-target batch queue
 let MISSES=0;                             // consecutive poll failures (tolerated)
+let autoErr=new Set();                     // error modules already auto-expanded
 
 /* ---------- load metadata ---------- */
 async function init(){
@@ -582,7 +583,7 @@ async function startOne(target, label){
   let res;
   try{ res=await api("/api/scan",{method:"POST",body:JSON.stringify({target,selection:sel,options})}); }
   catch(e){ showBanner("Scan rejected: "+e.message); QUEUE=[]; return; }
-  JOB=res.job_id; expanded=new Set();
+  JOB=res.job_id; expanded=new Set(); autoErr=new Set();
   $("emptyState").classList.add("hidden");
   $("results").innerHTML=""; $("intel").innerHTML="";
   setScanningUI(true,res.total);
@@ -681,6 +682,9 @@ function render(s){
   const smap=sevMap(s.risk);
   const fq=$("filter").value.toLowerCase(), stf=$("statusFilter").value;
   const sevf=[...document.querySelectorAll(".chip[data-on='1']")].map(c=>c.dataset.sev);
+  // auto-expand errored modules once, so the failure reason is visible without
+  // a tap (the user can still collapse them). This is the "log" for a failure.
+  s.results.forEach(r=>{ if(r.status==="error" && !autoErr.has(r.module)){ autoErr.add(r.module); expanded.add(r.module); } });
   const html=s.results.map(r=>cardHTML(r,smap,fq,stf,sevf)).filter(Boolean).join("");
   $("results").innerHTML=html || (s.results.length? `<div class="allnote" style="margin-top:8px">No findings match the current filters.</div>`:"");
 }
