@@ -102,6 +102,30 @@ def _no_network(monkeypatch):
     monkeypatch.setattr(core, "have_binary", lambda name: False)
     monkeypatch.setattr(core, "run_cmd", lambda *a, **k: "")
 
+    def _boom(*a, **k):
+        raise OSError("network disabled in smoke test")
+
+    # neutralise dnspython at the library level so DNS modules fail fast
+    # regardless of how they obtained a resolver (they alias it at import time)
+    try:
+        import dns.query
+        import dns.resolver
+        monkeypatch.setattr(dns.resolver.Resolver, "resolve", _boom, raising=False)
+        monkeypatch.setattr(dns.resolver, "resolve", _boom, raising=False)
+        for fn in ("udp", "tcp", "https", "udp_with_fallback"):
+            monkeypatch.setattr(dns.query, fn, _boom, raising=False)
+    except ImportError:
+        pass
+    # any module that reaches for `requests` directly (bypassing ctx.session)
+    # must not do real HTTP either
+    try:
+        import requests
+        monkeypatch.setattr(requests.sessions.Session, "request", _boom,
+                            raising=False)
+        monkeypatch.setattr(requests.api, "request", _boom, raising=False)
+    except ImportError:
+        pass
+
 
 def _ctx():
     return Context(config=Config(), session=_FakeSession(), threads=4, timeout=2)
