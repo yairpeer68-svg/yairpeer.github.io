@@ -410,6 +410,45 @@ _EXPOSURE_WORDS = ("open", "public", "no auth", "unauth", "exposed", "anonymous"
                    "no password", "default cred", "listing", "disclosed")
 
 
+def module_report() -> dict:
+    """A quality / capability report for every registered module: category,
+    target kind, declared dependencies (needs), whether it is documented, and
+    whether it is covered by the all-module smoke test (every registered module
+    is). Turns the plugin registry into inspectable metadata."""
+    import sys
+    from collections import Counter
+
+    from .core import REGISTRY
+    mods = []
+    for mid, m in sorted(REGISTRY.items()):
+        cls = type(m)
+        file_doc = getattr(sys.modules.get(cls.__module__, None), "__doc__", "")
+        documented = bool((file_doc or "").strip())
+        needs = list(getattr(m, "needs", []) or [])
+        mods.append({
+            "id": mid,
+            "name": getattr(m, "name", mid),
+            "category": getattr(m, "category", "Misc"),
+            "target_kind": getattr(m, "target_kind", "host"),
+            "needs": needs,
+            "documented": documented,
+            "smoke_covered": True,      # every REGISTRY entry is smoke-tested
+        })
+    cats = Counter(x["category"] for x in mods)
+    documented = sum(1 for x in mods if x["documented"])
+    with_needs = sum(1 for x in mods if x["needs"])
+    return {
+        "total": len(mods),
+        "categories": len(cats),
+        "by_category": dict(sorted(cats.items(), key=lambda kv: -kv[1])),
+        "documented": documented,
+        "documented_pct": round(100 * documented / max(1, len(mods)), 1),
+        "declare_dependencies": with_needs,
+        "smoke_covered": len(mods),
+        "modules": mods,
+    }
+
+
 def risk_intelligence(results, exploit: Optional[dict] = None) -> dict:
     """Prioritise findings with a composite score, not just a severity label:
 

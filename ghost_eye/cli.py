@@ -441,6 +441,8 @@ def build_parser() -> argparse.ArgumentParser:
                       help="never prompt for API keys during a scan")
     misc.add_argument("--errors", action="store_true",
                       help="show the persistent error log (crashes/failures) and exit")
+    misc.add_argument("--module-report", action="store_true",
+                      help="print a quality/capability report for every module and exit")
     misc.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     misc.add_argument("--logfile", help="write logs to this file")
     misc.add_argument("--no-color", action="store_true", help="disable colours")
@@ -623,6 +625,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         path = cfg.write_template()
         Console.good(f"wrote config template: {path}")
         Console.info("run with --set-keys to enter your API keys, then re-run")
+        return 0
+
+    if getattr(args, "module_report", False):
+        rep = workflow.module_report()
+        Console.rule(f"Module quality report — {rep['total']} modules, "
+                     f"{rep['categories']} categories")
+        Console.kv("documented", f"{rep['documented']}/{rep['total']} "
+                                 f"({rep['documented_pct']}%)")
+        Console.kv("smoke-test covered", f"{rep['smoke_covered']}/{rep['total']}")
+        Console.kv("declare dependencies", rep["declare_dependencies"])
+        for cat, n in rep["by_category"].items():
+            Console.kv(cat, n)
         return 0
 
     if args.errors:

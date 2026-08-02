@@ -382,6 +382,17 @@ def test_notify_and_ci_gate_empty_url_and_clean():
     assert workflow.ci_gate(clean, "critical")["passed"] is True
 
 
+def test_module_report_metadata():
+    from ghost_eye import workflow
+    from ghost_eye.core import REGISTRY
+    rep = workflow.module_report()
+    assert rep["total"] == len(REGISTRY)
+    assert rep["smoke_covered"] == rep["total"]        # every module is smoke-tested
+    assert 0 <= rep["documented"] <= rep["total"]
+    m = rep["modules"][0]
+    assert {"id", "name", "category", "target_kind", "needs"} <= set(m)
+
+
 def test_risk_intelligence_amplifies_exposed_exploitable():
     from ghost_eye import workflow
     res = [
