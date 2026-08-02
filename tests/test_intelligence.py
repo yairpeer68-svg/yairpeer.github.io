@@ -72,6 +72,37 @@ def test_correlate_collects_screenshots():
     assert intel["screenshots"][0]["image"].startswith("data:image")
 
 
+def test_capture_surface_screenshots_subdomains(monkeypatch):
+    from ghost_eye import workflow
+    img = ("data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAA"
+           "AAABAAEAAAIBRAA7")
+    seen = []
+
+    def fake_capture(url, timeout=15):
+        seen.append(url)
+        return {"final_url": url, "title": "x", "screenshot": img,
+                "backend": "mock"}
+    monkeypatch.setattr("ghost_eye.modules.screenshot.capture", fake_capture)
+    results = [Result("Subdomain enumeration", "acme.com", "ok",
+                      {"subdomains": ["api.acme.com", "dev.acme.com"]})]
+    shots = workflow.capture_surface(results, "acme.com", max_shots=5)
+    hosts = {s.target for s in shots}
+    assert "api.acme.com" in hosts and "dev.acme.com" in hosts
+    assert all(s.data["screenshot"].startswith("data:image") for s in shots)
+    # merged into the intelligence gallery
+    intel = workflow.intelligence_report(results + shots, "acme.com")
+    assert intel["counts"]["screenshots"] == len(shots)
+
+
+def test_screenshot_backend_detection(monkeypatch):
+    from ghost_eye.modules import screenshot
+    monkeypatch.setattr(screenshot.shutil, "which",
+                        lambda n: "/usr/bin/chromium" if n == "chromium" else None)
+    monkeypatch.setattr(screenshot.glob, "glob", lambda *a, **k: [])
+    # no playwright build, but a system chromium is found
+    assert screenshot._find_chromium() == "/usr/bin/chromium"
+
+
 def test_screenshot_thumbnail_encoder():
     from ghost_eye.modules.screenshot import _to_thumbnail
     # a tiny valid PNG (1x1) — encoder must return a data URI

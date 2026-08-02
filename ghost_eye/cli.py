@@ -411,6 +411,9 @@ def build_parser() -> argparse.ArgumentParser:
                           "profile, attack-surface graph, tech, cloud, leaks) as HTML")
     out.add_argument("--intel", action="store_true",
                      help="print a unified intelligence summary after the scan")
+    out.add_argument("--screenshots", nargs="?", type=int, const=10,
+                     metavar="N", help="after the scan, screenshot the target + up "
+                     "to N discovered subdomains (default 10) into the visual gallery")
     out.add_argument("--ci", action="store_true",
                      help="CI/CD mode: exit non-zero if findings breach --fail-on")
     out.add_argument("--fail-on", choices=["critical", "high", "medium", "low"],
@@ -523,6 +526,13 @@ def _run_once(mods, target, cfg, args):
     results = run_modules(mods, target, ctx, args)
     if getattr(args, "deep", False):
         results = results + _run_deep(results, target, cfg, args)
+    if getattr(args, "screenshots", None):
+        n = args.screenshots
+        Console.rule(f"Visual sweep — screenshotting up to {n} hosts")
+        shots = workflow.capture_surface(results, target, max_shots=n,
+                                         timeout=ctx.timeout)
+        Console.kv("captured", f"{len(shots)} screenshot(s)")
+        results = results + shots
     handle_reports(results, target, args)
     if getattr(args, "inventory", False):
         inv = reporting_ext.build_inventory(results, target)

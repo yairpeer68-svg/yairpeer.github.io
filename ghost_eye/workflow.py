@@ -410,6 +410,47 @@ _EXPOSURE_WORDS = ("open", "public", "no auth", "unauth", "exposed", "anonymous"
                    "no password", "default cred", "listing", "disclosed")
 
 
+def capture_surface(results, target: str = "", max_shots: int = 10,
+                    timeout: int = 15, parallel: int = 2):
+    """Screenshot the target and every discovered subdomain, returning a list of
+    'screenshot' Result objects that merge straight into the intelligence
+    gallery — a full visual sweep of the attack surface. Uses whatever headless
+    Chromium backend is available (Playwright, or the Termux `chromium` CLI)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from .core import Result
+    from .inventory import build_inventory
+    from .modules.screenshot import capture
+
+    inv = build_inventory(results, target)
+    tgt = (target or inv.get("target", "")).lower().rstrip(".")
+    suffix = "." + tgt if tgt else ""
+    hosts = [h for h in inv["hosts"] if tgt and (h == tgt or h.endswith(suffix))]
+    if tgt and tgt not in hosts:
+        hosts.insert(0, tgt)
+    hosts = hosts[:max(1, max_shots)]
+
+    def shoot(host):
+        res = capture("https://" + host, timeout=timeout)
+        if not res.get("screenshot", "").startswith("data:"):
+            res = capture("http://" + host, timeout=timeout)
+        return host, res
+
+    shots = []
+    if not hosts:
+        return shots
+    with ThreadPoolExecutor(max_workers=max(1, parallel)) as ex:
+        for host, res in ex.map(shoot, hosts):
+            if res.get("screenshot", "").startswith("data:"):
+                shots.append(Result(
+                    "Website screenshot (visual recon)", host, "ok",
+                    {"final_url": res.get("final_url"),
+                     "title": res.get("title"),
+                     "backend": res.get("backend"),
+                     "screenshot": res["screenshot"]}))
+    return shots
+
+
 def intelligence_report(results, target: str = "",
                         exploit: Optional[dict] = None) -> dict:
     """The unified ASM-style intelligence picture: correlated assets, classified

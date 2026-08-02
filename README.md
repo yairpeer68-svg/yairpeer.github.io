@@ -15,7 +15,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **370 automated tests** (unit + all-module smoke + behavioural), CI on
+- **375 automated tests** (unit + all-module smoke + behavioural), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -184,15 +184,24 @@ extra scanning:
   (rule-based, no LLM).
 - **Attack-surface graph** — a self-contained SVG of the target and everything
   connected to it.
+- **Visual recon** — screenshots of the target and its subdomains (Shodan/Censys
+  style thumbnails) embedded in the report and the dashboard gallery.
 
 ```bash
 python3 ghost_eye.py -t example.com --all --intel                 # console summary
 python3 ghost_eye.py -t example.com --all --intel-report intel.html
+python3 ghost_eye.py -t example.com -p perimeter --screenshots 15 --intel-report intel.html
 # dashboard: GET /api/job/<id>/intel   ·   GET /api/job/<id>/risk
 ```
 
 Produces a single **Ghost Eye Intelligence Report** HTML page (assets, graph,
-org profile, tech, cloud, email score, certificates, leaks).
+**visual gallery**, org profile, tech, cloud, email score, certificates, leaks).
+
+**Screenshots** (`--screenshots [N]`, and the `screenshot` module) render each
+asset headless. Backends, in order: **Playwright/Chromium** (desktop/server),
+then a **system Chromium CLI** — the Android/**Termux** path: `pkg install
+x11-repo tur-repo && pkg install chromium` and the CLI backend is used
+automatically, no Playwright needed. Degrades gracefully when no browser exists.
 
 ---
 
@@ -440,7 +449,7 @@ pip install pytest && python3 -m pytest -q
 - **Engine tests** — the shared `execute_module` / `run_scan` contract
   (crash → error Result + logged, non-Result coercion, order, parallelism, cancel).
 
-**370 tests** pass in ~1.7s. CI (`.github/workflows/ci.yml`) runs an import
+**375 tests** pass in ~1.8s. CI (`.github/workflows/ci.yml`) runs an import
 check, `compileall`, the full suite and a ruff bug-rule lint on Python
 3.9/3.11/3.12.
 
