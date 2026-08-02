@@ -423,6 +423,8 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         if path in ("/", "/index.html"):
             return self._serve_index()
+        if path in ("/osint", "/osint.html"):
+            return self._serve_page("osint.html")
         if path.startswith("/static/"):
             return self._serve_static(path)
         if not self._authed(parsed):               # gate every /api/* route
@@ -780,10 +782,13 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---- static ----------------------------------------------------------- #
     def _serve_index(self):
-        idx = STATIC_DIR / "index.html"
-        if not idx.exists():
-            return self._json({"error": "index.html missing"}, 500)
-        self._bytes(idx.read_bytes(), "text/html")
+        return self._serve_page("index.html")
+
+    def _serve_page(self, name: str):
+        page = STATIC_DIR / name
+        if not page.exists():
+            return self._json({"error": f"{name} missing"}, 500)
+        self._bytes(page.read_bytes(), "text/html")
 
     def _serve_static(self, path: str):
         name = path[len("/static/"):]

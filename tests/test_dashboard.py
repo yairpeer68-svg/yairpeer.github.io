@@ -89,6 +89,36 @@ def test_static_app_surfaces_error_reasons():
     assert 'r.status==="error" && !autoErr.has(r.module)' in html
 
 
+def test_osint_page_is_served():
+    """The graph-first OSINT dashboard is served at /osint."""
+    httpd = _make_server()
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/osint",
+                                    timeout=10) as r:
+            assert r.getcode() == 200
+            body = r.read().decode("utf-8")
+    finally:
+        httpd.shutdown()
+    assert 'id="net"' in body and "OSINT" in body
+
+
+def test_osint_static_graph_wiring():
+    """The OSINT page has the force-directed graph, entity model, filters and
+    click-to-pivot wiring."""
+    osint = _INDEX.parent / "osint.html"
+    assert osint.exists()
+    html = osint.read_text(encoding="utf-8")
+    for tok in ("function investigate(", "function layout(", "function buildGraph(",
+                "function selectNode(", "function renderProfile(",
+                "function renderEntity(", "const KMETA=", 'id="net"',
+                "knowledge_graph", "/api/scan"):
+        assert tok in html, f"osint.html missing {tok}"
+    # console ↔ osint cross-links exist
+    assert 'href="/osint"' in _INDEX.read_text(encoding="utf-8")
+
+
 def test_static_app_has_mobile_drawer():
     """The controls panel is a slide-in drawer on mobile (starts collapsed,
     backdrop scrim, toggle wiring) — the professional-UI redesign."""

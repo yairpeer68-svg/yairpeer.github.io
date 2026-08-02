@@ -332,6 +332,7 @@ a{color:var(--cyan);text-decoration:none}
   </div>
   <button class="panel-toggle" id="ptoggle">▤ Controls</button>
   <div class="hud">
+    <a class="chip" id="osintlink" href="/osint" title="OSINT graph view">🕸 OSINT</a>
     <button class="chip" id="langtoggle" title="Language / שפה">🌐 <span id="langlbl">עברית</span></button>
     <div class="status"><span class="dot" id="dot"></span><span id="statustxt">Idle — configure a scan</span></div>
     <div class="risk hidden" id="riskbox">
@@ -517,6 +518,7 @@ styleSheet.insertRule("@keyframes spin{to{transform:rotate(360deg)}}", styleShee
 
 /* ---------- API helpers ---------- */
 const TOKEN=new URLSearchParams(location.search).get("token")||"";
+if(TOKEN){ const ol=document.getElementById("osintlink"); if(ol) ol.href="/osint?token="+encodeURIComponent(TOKEN); }
 function hdrs(){ const h={"Content-Type":"application/json"}; if(TOKEN) h["X-Ghost-Token"]=TOKEN; return h; }
 async function api(path, opts={}){
   const r=await fetch(path,{...opts,headers:{...hdrs(),...(opts.headers||{})}});

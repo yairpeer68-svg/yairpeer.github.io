@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Ghost Eye — OSINT investigator</title>
+<style>
+:root{
+  --bg:#06080d; --bg2:#0a0e16; --panel:#0f1420; --panel2:#151c2b;
+  --line:#1e2636; --line2:#2a3446; --line3:#39465e;
+  --ink:#e9eff8; --muted:#8390a6; --faint:#556074;
+  --cyan:#38e1d6; --violet:#a97bf5; --gold:#f0b545; --pink:#ff6fb2; --green:#37d39a; --red:#ff5b61; --blue:#5aa9ff;
+  --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:12px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;
+  -webkit-font-smoothing:antialiased}
+button{font-family:var(--sans);cursor:pointer;border:none;background:none;color:inherit}
+input,select{font-family:var(--mono);font-size:12.5px}
+a{color:var(--cyan);text-decoration:none}
+.mono{font-family:var(--mono)}
+.eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:600}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:20px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---- top bar ---- */
+.bar{display:flex;align-items:center;gap:16px;padding:11px 18px;height:56px;
+  border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(12,16,24,.9),rgba(6,8,13,.85));
+  backdrop-filter:blur(12px);position:relative;z-index:20}
+.brand{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.brand b{font-family:var(--mono);font-size:14px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+.brand .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.22em;color:var(--cyan);
+  border:1px solid var(--line2);padding:2px 7px;border-radius:20px;text-transform:uppercase}
+.eye{width:30px;height:30px;flex:0 0 30px;filter:drop-shadow(0 0 8px rgba(56,225,214,.35))}
+.searchbox{display:flex;align-items:center;gap:8px;flex:1;max-width:560px;
+  background:var(--panel);border:1px solid var(--line2);border-radius:22px;padding:0 6px 0 15px;transition:border-color .15s,box-shadow .15s}
+.searchbox:focus-within{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,225,214,.14)}
+.searchbox input{flex:1;background:none;border:none;color:var(--ink);padding:11px 0;outline:none;font-size:13px}
+.go{background:linear-gradient(180deg,var(--cyan),#1fbfb4);color:#052723;font-weight:700;
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  padding:9px 16px;border-radius:18px;white-space:nowrap;box-shadow:0 6px 16px -8px rgba(56,225,214,.6)}
+.go:disabled{background:var(--panel2);color:var(--faint);box-shadow:none;cursor:not-allowed}
+.topright{margin-left:auto;display:flex;align-items:center;gap:12px}
+.status{font-family:var(--mono);font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:8px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.dot.run{background:var(--cyan);animation:pulse 1.3s infinite}
+.dot.done{background:var(--green)} .dot.err{background:var(--red)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(56,225,214,.5)}70%{box-shadow:0 0 0 7px rgba(56,225,214,0)}100%{box-shadow:0 0 0 0 rgba(56,225,214,0)}}
+.navlink{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--line2);padding:7px 12px;border-radius:18px}
+.navlink:hover{color:var(--cyan);border-color:var(--cyan)}
+
+/* ---- layout ---- */
+.stage{display:grid;grid-template-columns:220px 1fr 360px;height:calc(100vh - 56px)}
+.rail{border-right:1px solid var(--line);background:var(--bg2);overflow-y:auto;padding:16px 14px}
+.canvaswrap{position:relative;overflow:hidden;background:
+  radial-gradient(1000px 700px at 50% 40%, rgba(56,225,214,.05), transparent 60%),
+  var(--bg)}
+#net{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#net.grabbing{cursor:grabbing}
+.side{border-left:1px solid var(--line);background:var(--bg2);overflow-y:auto;padding:16px}
+
+/* rail: filters */
+.rail h3{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:4px 0 10px}
+.kind{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:9px;cursor:pointer;user-select:none;font-size:12.5px}
+.kind:hover{background:var(--panel)}
+.kind input{accent-color:var(--cyan);width:13px;height:13px}
+.kind .ic{width:20px;text-align:center;font-size:13px}
+.kind .lbl{flex:1;text-transform:capitalize}
+.kind .cnt{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.kind .swatch{width:8px;height:8px;border-radius:50%}
+.railstat{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;display:grid;gap:7px}
+.railstat .row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.railstat .row b{color:var(--ink);font-family:var(--mono)}
+.hint{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:14px;line-height:1.6}
+
+/* canvas overlay controls */
+.zoombar{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:6}
+.zoombar button{width:34px;height:34px;border-radius:10px;background:var(--panel);border:1px solid var(--line2);
+  color:var(--ink);font-size:17px;display:flex;align-items:center;justify-content:center}
+.zoombar button:hover{border-color:var(--cyan);color:var(--cyan)}
+.canvasnote{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;text-align:center;color:var(--muted);padding:30px;pointer-events:none}
+.canvasnote .big{width:76px;height:76px;opacity:.8;filter:drop-shadow(0 0 22px rgba(56,225,214,.3))}
+.canvasnote h2{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);margin:0}
+.canvasnote p{max-width:320px;font-size:12.5px;margin:0;line-height:1.6}
+.spinner{width:38px;height:38px;border:3px solid var(--line2);border-top-color:var(--cyan);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.node-label{font-family:var(--mono);font-size:9px;fill:#aeb9cc;pointer-events:none;paint-order:stroke;stroke:#06080d;stroke-width:3px;stroke-linejoin:round}
+.edge{stroke:#3a4860;stroke-opacity:.5}
+.edge.lit{stroke:var(--cyan);stroke-opacity:.9}
+.nodeg{cursor:pointer}
+.nodeg circle.core{transition:r .1s}
+.nodeg:hover circle.core{stroke:#fff;stroke-opacity:.7;stroke-width:2}
+
+/* side panel */
+.grade{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;
+  font-size:20px;font-weight:800;color:#08130e}
+.s-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.s-head .t{font-family:var(--mono);font-size:14px;font-weight:700;word-break:break-all}
+.s-head .m{font-size:11px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 8px;text-align:center}
+.tile b{display:block;font-size:19px;font-family:var(--mono);color:var(--ink)}
+.tile span{font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+.sec{border-top:1px solid var(--line);padding:12px 0 4px}
+.sec h4{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan);margin:0 0 8px;display:flex;gap:6px;align-items:center}
+.sec h4 em{font-style:normal;color:var(--faint);margin-left:auto;font-size:10px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font-family:var(--mono);font-size:10.5px;background:var(--panel);border:1px solid var(--line2);color:#c3cfe2;padding:3px 8px;border-radius:20px;word-break:break-all}
+.chip.mut{color:var(--faint)} .chip.bad{color:var(--red);border-color:#4a1b20}
+.chip.click{cursor:pointer} .chip.click:hover{border-color:var(--cyan);color:var(--cyan)}
+.analyst{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:11px;padding:12px;margin-bottom:6px}
+.analyst .hl{font-size:13px;font-weight:700;color:#eaf1fb;margin-bottom:5px}
+.analyst .sm{font-size:11.5px;color:#b9c5d8;line-height:1.55}
+.list{margin:6px 0;padding-left:16px} .list li{font-size:11.5px;color:#c7d2e4;margin:4px 0;line-height:1.45}
+.tl{border-left:2px solid var(--line2);margin:4px 0;padding-left:12px}
+.tl .r{position:relative;padding:5px 0;font-size:11.5px;color:#c7d2e4}
+.tl .r::before{content:"";position:absolute;left:-17px;top:9px;width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 3px var(--bg2)}
+.tl .d{font-family:var(--mono);color:var(--faint);font-size:10px;margin-right:6px}
+.gal{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.gal figure{margin:0;border:1px solid var(--line2);border-radius:9px;overflow:hidden;background:var(--panel)}
+.gal img{width:100%;display:block;aspect-ratio:16/10;object-fit:cover;object-position:top}
+.gal figcaption{font-size:9px;color:var(--faint);padding:3px 6px;font-family:var(--mono);word-break:break-all}
+/* entity detail */
+.ent-hero{display:flex;align-items:center;gap:11px;margin-bottom:8px}
+.ent-hero .ic{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:19px}
+.ent-hero .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ent-hero .l{font-size:14px;font-weight:700;word-break:break-all}
+.back{font-family:var(--mono);font-size:10.5px;color:var(--cyan);margin-bottom:8px;cursor:pointer;display:inline-block}
+.conn{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:12px;cursor:pointer}
+.conn:hover{color:var(--cyan)}
+.conn .rel{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+.hidden{display:none!important}
+.banner{background:rgba(255,91,97,.1);border:1px solid rgba(255,91,97,.4);color:#ffb3b5;padding:10px 13px;border-radius:10px;font-family:var(--mono);font-size:12px;margin:10px 14px}
+
+@media (max-width:960px){
+  .stage{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
+  .rail{display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;border-right:none;border-bottom:1px solid var(--line);padding:10px;white-space:nowrap}
+  .rail h3,.railstat,.hint{display:none}
+  .kind{flex:0 0 auto;padding:6px 10px;border:1px solid var(--line2);border-radius:20px}
+  .kind .lbl{display:none}
+  .side{border-left:none;border-top:1px solid var(--line);max-height:44vh}
+  .canvaswrap{min-height:38vh}
+  .searchbox{max-width:none}
+  .brand .tag{display:none}
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <svg class="eye" viewBox="0 0 100 100" id="eye" aria-hidden="true"></svg>
+    <b>Ghost&nbsp;Eye</b><span class="tag">OSINT</span>
+  </div>
+  <div class="searchbox">
+    <span class="eyebrow">target</span>
+    <input id="target" placeholder="example.com  ·  8.8.8.8  ·  press Enter to investigate" autocomplete="off" spellcheck="false">
+    <button class="go" id="go">Investigate ▸</button>
+  </div>
+  <div class="topright">
+    <div class="status"><span class="dot" id="dot"></span><span id="statustxt">idle</span></div>
+    <a class="navlink" href="/" id="consolelink">▤ Console</a>
+  </div>
+</header>
+
+<div class="stage">
+  <!-- left rail: entity filters -->
+  <aside class="rail" id="rail">
+    <h3>Entities</h3>
+    <div id="kinds"></div>
+    <div class="railstat" id="railstat"></div>
+    <div class="hint" id="hint">Drag to pan · scroll to zoom · drag a node to move · click a node for details.</div>
+  </aside>
+
+  <!-- center: graph canvas -->
+  <div class="canvaswrap">
+    <svg id="net"><g id="cam"><g id="edges"></g><g id="nodes"></g></g></svg>
+    <div class="zoombar">
+      <button id="zin" title="zoom in">+</button>
+      <button id="zout" title="zoom out">−</button>
+      <button id="zfit" title="fit" style="font-size:12px">⊡</button>
+    </div>
+    <div class="canvasnote" id="note">
+      <svg class="big" viewBox="0 0 100 100" id="eye2" aria-hidden="true"></svg>
+      <h2>OSINT investigator</h2>
+      <p>Enter a target and hit <b>Investigate</b>. Ghost Eye correlates its footprint into a live entity graph — click any node to pivot.</p>
+    </div>
+  </div>
+
+  <!-- right: OSINT profile / entity details -->
+  <aside class="side" id="side">
+    <div class="canvasnote" style="position:static;min-height:200px">
+      <p class="mono" style="color:var(--faint)">The unified OSINT profile appears here after an investigation.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const TOKEN=new URLSearchParams(location.search).get("token")||"";
+function hdrs(){ return TOKEN?{"X-Ghost-Token":TOKEN}:{}; }
+async function api(path,opts={}){
+  const r=await fetch(path,{...opts,headers:{...hdrs(),...(opts.headers||{})}});
+  if(!r.ok) throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
+  return r.json();
+}
+if(TOKEN) $("consolelink").href="/?token="+encodeURIComponent(TOKEN);
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* iris */
+function drawEye(svg){
+  svg.innerHTML=`<circle cx="50" cy="50" r="30" fill="none" stroke="#38e1d6" stroke-width="2"/>
+    <circle cx="50" cy="50" r="11" fill="#38e1d6"/><circle cx="50" cy="50" r="44" fill="none" stroke="#1e2636" stroke-width="2"/>
+    <circle cx="50" cy="50" r="5" fill="#06080d"/>`;
+}
+[$("eye"),$("eye2")].forEach(drawEye);
+
+/* entity kind metadata */
+const KMETA={
+  target:{c:"#ff5b61",i:"🎯"}, subdomain:{c:"#38e1d6",i:"🌐"}, domain:{c:"#5aa9ff",i:"🌐"},
+  ip:{c:"#37d39a",i:"🖥"}, cloud:{c:"#f0b545",i:"☁"}, tech:{c:"#a97bf5",i:"🧩"},
+  cert_issuer:{c:"#56d364",i:"🔒"}, email:{c:"#ff6fb2",i:"✉"}, org:{c:"#f0883e",i:"🏢"},
+  cve:{c:"#ff5b61",i:"⚠"}, leak:{c:"#ff7b72",i:"🩸"}, asn:{c:"#37d39a",i:"🛰"},
+  mailserver:{c:"#a5d6ff",i:"✉"}, nameserver:{c:"#a5d6ff",i:"🛰"}, service:{c:"#e3b341",i:"⚙"}
+};
+const km=k=>KMETA[k]||{c:"#8390a6",i:"◆"};
+const KCAP={subdomain:48,ip:36,tech:24,cve:30,email:24,service:24}; // per-kind graph cap
+
+let REP=null;        // last /intel report
+let G={nodes:[],edges:[],byId:{}};
+let hidden=new Set(), selected=null;
+let cam={k:1,x:0,y:0}, W=1000, H=700;
+
+/* ---------------- investigate ---------------- */
+async function investigate(){
+  const target=$("target").value.trim();
+  if(!target) return;
+  $("go").disabled=true; setStatus("run","starting…");
+  $("note").classList.remove("hidden");
+  $("note").innerHTML=`<div class="spinner"></div><h2>Investigating ${esc(target)}</h2><p id="pmsg">running OSINT modules…</p>`;
+  let job;
+  try{ job=await api("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({target,selection:{mode:"profile",value:"osint"},options:{timeout:15,parallel:4}})}); }
+  catch(e){ // fall back to a broad scan if the osint profile is unavailable
+    try{ job=await api("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({target,selection:{mode:"all"},options:{timeout:12,parallel:5}})}); }
+    catch(e2){ fail("Scan rejected: "+e2.message); return; } }
+  poll(job.job_id, target);
+}
+function poll(jid,target){
+  const t=setInterval(async()=>{
+    let s; try{ s=await api(`/api/job/${jid}`);}catch(e){return;}
+    setStatus("run",`scanning · ${s.done}/${s.total}`);
+    const pm=$("pmsg"); if(pm) pm.textContent=`${s.done}/${s.total} modules · ${esc(s.current||"")}`;
+    if(s.status!=="running"){ clearInterval(t); loadProfile(jid,target); }
+  },900);
+}
+async function loadProfile(jid,target){
+  setStatus("run","correlating intelligence…");
+  let d; try{ d=await api(`/api/job/${jid}/intel`);}catch(e){ fail("Intelligence failed: "+e.message); return; }
+  REP=d; buildGraph(d); renderProfile(d); setStatus("done",`${target} · grade ${d.grade}`);
+  $("go").disabled=false;
+}
+function fail(msg){ setStatus("err","error"); $("go").disabled=false;
+  $("note").classList.remove("hidden"); $("note").innerHTML=`<h2>Couldn't complete</h2><p>${esc(msg)}</p>`; }
+function setStatus(cls,txt){ $("dot").className="dot "+cls; $("statustxt").textContent=txt; }
+
+/* ---------------- graph build + layout ---------------- */
+function buildGraph(d){
+  const kg=d.knowledge_graph||{entities:[],relationships:[]};
+  const perKind={};
+  const nodes=[], byId={};
+  (kg.entities||[]).forEach(e=>{
+    perKind[e.kind]=(perKind[e.kind]||0)+1;
+    if(KCAP[e.kind] && perKind[e.kind]>KCAP[e.kind]) return;   // cap noisy kinds
+    const n={id:e.id,kind:e.kind,label:e.label,attrs:e.attrs||{},sources:e.sources||[]};
+    nodes.push(n); byId[e.id]=n;
+  });
+  const edges=(kg.relationships||[]).filter(r=>byId[r.from]&&byId[r.to])
+    .map(r=>({from:r.from,to:r.to,type:r.type,label:r.label||r.type,conf:r.confidence}));
+  // degree
+  nodes.forEach(n=>n.deg=0);
+  edges.forEach(e=>{byId[e.from].deg++;byId[e.to].deg++;});
+  const tgt=nodes.find(n=>n.kind==="target"); if(tgt){tgt.x=W/2;tgt.y=H/2;tgt.pin=true;}
+  G={nodes,edges,byId};
+  layout(nodes,edges);
+  buildKindFilters();
+  cam={k:1,x:0,y:0}; render(); fit();
+  $("note").classList.add("hidden");
+}
+function layout(nodes,edges){
+  const idx={}; nodes.forEach((n,i)=>{idx[n.id]=i; if(n.x==null){n.x=W/2+(Math.random()-.5)*W*.55; n.y=H/2+(Math.random()-.5)*H*.55;}});
+  const k=Math.sqrt((W*H)/Math.max(1,nodes.length))*0.72;
+  let temp=W*0.12;
+  for(let it=0;it<220;it++){
+    const dsp=nodes.map(()=>({x:0,y:0}));
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+      let dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y, dd=dx*dx+dy*dy||0.01, d=Math.sqrt(dd);
+      const fr=k*k/d; const ux=dx/d*fr, uy=dy/d*fr;
+      dsp[i].x+=ux;dsp[i].y+=uy;dsp[j].x-=ux;dsp[j].y-=uy;
+    }
+    edges.forEach(e=>{ const a=idx[e.from], b=idx[e.to];
+      let dx=nodes[a].x-nodes[b].x, dy=nodes[a].y-nodes[b].y, d=Math.hypot(dx,dy)||0.01;
+      const fa=d*d/k/ (e.conf==="high"?1:1.6); const ux=dx/d*fa, uy=dy/d*fa;
+      dsp[a].x-=ux;dsp[a].y-=uy;dsp[b].x+=ux;dsp[b].y+=uy;
+    });
+    nodes.forEach((n,i)=>{ if(n.pin)return; let dx=dsp[i].x,dy=dsp[i].y,d=Math.hypot(dx,dy)||0.01;
+      n.x+=dx/d*Math.min(d,temp); n.y+=dy/d*Math.min(d,temp);
+      n.x+=(W/2-n.x)*0.012; n.y+=(H/2-n.y)*0.012;
+    });
+    temp*=0.965;
+  }
+}
+
+/* ---------------- render ---------------- */
+function neighborsOf(id){ const s=new Set(); G.edges.forEach(e=>{ if(e.from===id)s.add(e.to); if(e.to===id)s.add(e.from);}); return s; }
+function render(){
+  const vis=id=>!hidden.has(G.byId[id].kind);
+  const foc=selected, nbr=foc?neighborsOf(foc):null;
+  let e="";
+  G.edges.forEach(ed=>{ if(!vis(ed.from)||!vis(ed.to))return;
+    const a=G.byId[ed.from], b=G.byId[ed.to];
+    const lit=foc&&(ed.from===foc||ed.to===foc);
+    e+=`<line class="edge${lit?" lit":""}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke-width="${lit?1.6:1}"/>`;
+  });
+  $("edges").innerHTML=e;
+  let n="";
+  G.nodes.forEach(nd=>{ if(hidden.has(nd.kind))return;
+    const m=km(nd.kind), isT=nd.kind==="target";
+    const r=isT?13:Math.min(11,6+Math.sqrt(nd.deg||1)*1.4);
+    const dim=nbr&&nd.id!==foc&&!nbr.has(nd.id);
+    const op=dim?0.2:1;
+    const ring=(nd.id===foc)?`<circle r="${r+5}" fill="none" stroke="${m.c}" stroke-opacity=".9" stroke-width="1.5"/>`:"";
+    const showLabel=isT||nd.id===foc||(nbr&&nbr.has(nd.id))|| nd.deg>=2 || G.nodes.length<40;
+    n+=`<g class="nodeg" data-id="${esc(nd.id)}" transform="translate(${nd.x.toFixed(1)},${nd.y.toFixed(1)})" opacity="${op}">
+      ${ring}
+      <circle class="core" r="${r}" fill="${m.c}" fill-opacity="${isT?1:.9}" stroke="#06080d" stroke-width="1.5"/>
+      <text text-anchor="middle" dy="${r*0.34}" font-size="${(r*0.9).toFixed(1)}" pointer-events="none">${m.i}</text>
+      ${showLabel?`<text class="node-label" text-anchor="middle" y="${r+11}">${esc(String(nd.label).slice(0,22))}</text>`:""}
+    </g>`;
+  });
+  $("nodes").innerHTML=n;
+  applyCam();
+}
+function applyCam(){ $("cam").setAttribute("transform",`translate(${cam.x},${cam.y}) scale(${cam.k})`); }
+
+function buildKindFilters(){
+  const by={}; G.nodes.forEach(n=>by[n.kind]=(by[n.kind]||0)+1);
+  const order=["target","subdomain","domain","ip","asn","cloud","tech","cert_issuer","mailserver","nameserver","email","org","cve","leak","service"];
+  const kinds=order.filter(k=>by[k]).concat(Object.keys(by).filter(k=>!order.includes(k)));
+  $("kinds").innerHTML=kinds.map(k=>{ const m=km(k);
+    return `<label class="kind"><input type="checkbox" data-k="${k}" checked>
+      <span class="ic">${m.i}</span><span class="swatch" style="background:${m.c}"></span>
+      <span class="lbl">${k.replace("_"," ")}</span><span class="cnt">${by[k]}</span></label>`;}).join("");
+  $("kinds").querySelectorAll("input").forEach(cb=>cb.addEventListener("change",()=>{
+    cb.checked?hidden.delete(cb.dataset.k):hidden.add(cb.dataset.k);
+    if(selected&&hidden.has(G.byId[selected].kind)){selected=null;renderProfile(REP);}
+    render();
+  }));
+  const c=(REP.counts)||{};
+  $("railstat").innerHTML=[["entities",(G.nodes.length)],["relationships",G.edges.length],
+    ["assets",c.assets||0],["risk",REP.risk_level||"—"]]
+    .map(([l,v])=>`<div class="row"><span>${l}</span><b>${esc(v)}</b></div>`).join("");
+}
+
+/* ---------------- interaction: pan / zoom / drag / select ---------------- */
+const net=$("net");
+function resize(){ const r=net.getBoundingClientRect(); W=Math.max(600,r.width); H=Math.max(400,r.height);
+  net.setAttribute("viewBox",`0 0 ${W} ${H}`); }
+window.addEventListener("resize",()=>{resize();});
+resize();
+
+function worldPt(ev){ const p=net.createSVGPoint(); p.x=ev.clientX;p.y=ev.clientY;
+  const m=$("cam").getScreenCTM().inverse(); return p.matrixTransform(m); }
+let drag=null, moved=false;
+net.addEventListener("pointerdown",ev=>{
+  const g=ev.target.closest(".nodeg");
+  moved=false;
+  if(g){ const id=g.dataset.id; drag={type:"node",id,start:worldPt(ev)}; }
+  else { drag={type:"pan",sx:ev.clientX,sy:ev.clientY,ox:cam.x,oy:cam.y}; net.classList.add("grabbing"); }
+  net.setPointerCapture(ev.pointerId);
+});
+net.addEventListener("pointermove",ev=>{
+  if(!drag)return; moved=true;
+  if(drag.type==="pan"){ cam.x=drag.ox+(ev.clientX-drag.sx); cam.y=drag.oy+(ev.clientY-drag.sy); applyCam(); }
+  else { const w=worldPt(ev); const n=G.byId[drag.id]; n.x=w.x;n.y=w.y;n.pin=true; render(); }
+});
+net.addEventListener("pointerup",ev=>{
+  net.classList.remove("grabbing");
+  if(drag&&drag.type==="node"&&!moved){ selectNode(drag.id); }
+  else if(drag&&drag.type==="pan"&&!moved){ if(selected){selected=null;render();renderProfile(REP);} }
+  drag=null;
+});
+net.addEventListener("wheel",ev=>{ ev.preventDefault();
+  const w=worldPt(ev); const f=ev.deltaY<0?1.15:1/1.15;
+  const nk=Math.max(0.2,Math.min(4,cam.k*f));
+  // keep cursor point stable
+  cam.x=ev.clientX-net.getBoundingClientRect().left-(w.x*nk);
+  cam.y=ev.clientY-net.getBoundingClientRect().top-(w.y*nk);
+  cam.k=nk; applyCam();
+},{passive:false});
+$("zin").onclick=()=>zoomBy(1.25); $("zout").onclick=()=>zoomBy(1/1.25); $("zfit").onclick=fit;
+function zoomBy(f){ const cx=W/2,cy=H/2; const wx=(cx-cam.x)/cam.k, wy=(cy-cam.y)/cam.k;
+  cam.k=Math.max(0.2,Math.min(4,cam.k*f)); cam.x=cx-wx*cam.k; cam.y=cy-wy*cam.k; applyCam(); }
+function fit(){ if(!G.nodes.length)return; let xs=G.nodes.map(n=>n.x),ys=G.nodes.map(n=>n.y);
+  const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+  const gw=maxx-minx+120, gh=maxy-miny+120; const k=Math.max(0.2,Math.min(2,Math.min(W/gw,H/gh)));
+  cam.k=k; cam.x=W/2-(minx+maxx)/2*k; cam.y=H/2-(miny+maxy)/2*k; applyCam(); }
+
+function selectNode(id){ selected=id; render(); renderEntity(id); }
+
+/* ---------------- right panel: OSINT profile ---------------- */
+const GC={ "A+":"#37d39a","A":"#37d39a","B":"#f0b545","C":"#f0b545","D":"#ff9145","F":"#ff5b61" };
+function chips(arr,cls){ arr=arr||[]; return arr.length?arr.map(x=>`<span class="chip ${cls||""}">${esc(x)}</span>`).join(""):`<span class="chip mut">none</span>`; }
+function clickChips(arr,kind){ // chips that select the matching graph node
+  arr=arr||[]; if(!arr.length)return `<span class="chip mut">none</span>`;
+  return arr.map(x=>{ const id=kind+":"+String(x).toLowerCase(); const has=G.byId[id];
+    return `<span class="chip ${has?"click":""}" ${has?`data-sel="${esc(id)}"`:""}>${esc(x)}</span>`;}).join("");
+}
+function renderProfile(d){
+  if(!d){ return; }
+  const intel=d.intelligence||{}, org=d.organization||{}, an=d.analysis||{}, c=d.counts||{}, em=intel.email_security||{}, tl=d.timeline||{};
+  const kgc=(d.knowledge_graph||{}).counts||{};
+  const gc=GC[d.grade]||"#8390a6";
+  const kgByKind=kgc.by_kind||{};
+  const orgs=(d.knowledge_graph.entities||[]).filter(e=>e.kind==="org").map(e=>e.label);
+  const asns=(d.knowledge_graph.entities||[]).filter(e=>e.kind==="asn").map(e=>e.label);
+  let tech=[]; Object.values(intel.technologies||{}).forEach(a=>tech=tech.concat(a));
+  const shots=intel.screenshots||[];
+  const insights=(tl.insights||[]).filter(x=>x&&!x.startsWith("no dated"));
+  const html=`
+    <div class="s-head">
+      <div class="grade" style="background:${gc}">${esc(d.grade||"?")}</div>
+      <div><div class="t">${esc(d.target||"")}</div>
+      <div class="m">risk ${esc(d.risk_level||"")} · ${d.score||0}/100 · ${kgc.entities||0} entities</div></div>
+    </div>
+    <div class="tiles">
+      ${tile("subdomains",c.subdomains)} ${tile("IPs",c.ips)} ${tile("emails",c.emails)}
+      ${tile("tech",c.technologies)} ${tile("leaks",c.leak_indicators,c.leak_indicators?"var(--red)":"")} ${tile("shots",c.screenshots)}
+    </div>
+    ${an.headline?`<div class="analyst"><div class="hl">🧠 ${esc(an.headline)}</div><div class="sm">${esc(an.summary||"")}</div></div>`:""}
+    ${sec("🌐","Subdomains",kgByKind.subdomain||(intel.subdomains||[]).length, clickChips(intel.subdomains,"subdomain"))}
+    ${sec("🖥","IP addresses",(intel.ips||[]).length, clickChips(intel.ips,"ip"))}
+    ${sec("✉","Emails",(intel.emails||[]).length, clickChips(intel.emails,"email"))}
+    ${(orgs.length||asns.length)?sec("🏢","WHOIS / network",orgs.length+asns.length, chips(orgs.concat(asns))):""}
+    ${sec("🧩","Technologies",tech.length, chips(tech))}
+    ${sec("☁","Cloud",(intel.cloud||[]).filter(x=>!/unknown/i.test(x)).length, chips((intel.cloud||[]).filter(x=>!/unknown/i.test(x))))}
+    ${sec("🩸","Leak indicators",(intel.leak_indicators||[]).length, chips(intel.leak_indicators,"bad"))}
+    ${sec("🔒","Email posture",null, `<div class="sm" style="font-family:var(--mono)">${em.score==null?"?":em.score}/100 · ${esc(em.grade||"?")} — SPF ${em.spf} · DKIM ${em.dkim} · DMARC ${em.dmarc}</div>`)}
+    ${insights.length?sec("🕓","Intelligence timeline",tl.events?tl.events.length:insights.length,
+        `<div class="tl">${insights.map(i=>`<div class="r">${esc(i.replace(/^[⏰🩸🗓✏️\s]+/,""))}</div>`).join("")}</div>`):""}
+    ${shots.length?sec("📸","Visual recon",shots.length,
+        `<div class="gal">${shots.slice(0,6).map(s=>`<figure><img loading="lazy" src="${s.image}" alt=""><figcaption>${esc(s.host||"")}</figcaption></figure>`).join("")}</div>`):""}
+  `;
+  $("side").innerHTML=html;
+  $("side").querySelectorAll("[data-sel]").forEach(el=>el.addEventListener("click",()=>{
+    const id=el.dataset.sel; selectNode(id); fitNode(id);
+  }));
+}
+function tile(l,v,col){ return `<div class="tile"><b style="${col?`color:${col}`:""}">${v==null?0:v}</b><span>${esc(l)}</span></div>`; }
+function sec(ic,title,count,body){ return `<div class="sec"><h4>${ic} ${esc(title)}${count!=null?`<em>${count}</em>`:""}</h4>${body}</div>`; }
+function fitNode(id){ const n=G.byId[id]; if(!n)return; cam.k=Math.max(cam.k,1.1);
+  cam.x=W/2-n.x*cam.k; cam.y=H/2-n.y*cam.k; applyCam(); }
+
+/* right panel: single entity detail */
+function renderEntity(id){
+  const n=G.byId[id]; if(!n){ renderProfile(REP); return; }
+  const m=km(n.kind);
+  const conns=G.edges.filter(e=>e.from===id||e.to===id).map(e=>{
+    const other=e.from===id?e.to:e.from; const o=G.byId[other];
+    const dir=e.from===id?e.label:("← "+e.label);
+    return {id:other,label:o.label,kind:o.kind,rel:dir};
+  });
+  const attrs=Object.entries(n.attrs||{}).filter(([k,v])=>v!=null&&v!=="");
+  $("side").innerHTML=`
+    <div class="back" id="back">← back to profile</div>
+    <div class="ent-hero">
+      <div class="ic" style="background:${m.c}22;border:1px solid ${m.c}">${m.i}</div>
+      <div><div class="k">${esc(n.kind.replace("_"," "))}</div><div class="l">${esc(n.label)}</div></div>
+    </div>
+    ${attrs.length?`<div class="sec"><h4>Attributes</h4>${attrs.map(([k,v])=>`<div class="conn"><span class="rel">${esc(k)}</span><span>${esc(String(v).slice(0,80))}</span></div>`).join("")}</div>`:""}
+    ${n.sources&&n.sources.length?`<div class="sec"><h4>Seen by</h4><div class="chips">${chips(n.sources)}</div></div>`:""}
+    <div class="sec"><h4>Connections <em>${conns.length}</em></h4>
+      ${conns.length?conns.map(c=>`<div class="conn" data-sel="${esc(c.id)}"><span>${km(c.kind).i}</span><span style="flex:1;word-break:break-all">${esc(c.label)}</span><span class="rel">${esc(c.rel)}</span></div>`).join(""):`<div class="chip mut">no connections</div>`}
+    </div>`;
+  $("back").onclick=()=>{ selected=null; render(); renderProfile(REP); };
+  $("side").querySelectorAll("[data-sel]").forEach(el=>el.addEventListener("click",()=>{const i=el.dataset.sel;selectNode(i);fitNode(i);}));
+}
+
+/* wire the search */
+$("go").addEventListener("click",investigate);
+$("target").addEventListener("keydown",e=>{ if(e.key==="Enter") investigate(); });
+// prefill from ?target=
+const qt=new URLSearchParams(location.search).get("target"); if(qt){ $("target").value=qt; investigate(); }
+</script>
+</body>
+</html>
