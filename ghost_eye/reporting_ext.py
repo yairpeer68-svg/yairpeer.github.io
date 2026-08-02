@@ -274,8 +274,207 @@ def export_ext(results: List[Result], path: str, fmt: str, target: str = "") -> 
         return export_prometheus(results, path, target)
     if fmt in ("dashboard", "dash"):
         return export_dashboard(results, path, target)
+    if fmt in ("exec", "execreport", "executive"):
+        return export_exec_report(results, path, target)
     raise ValueError(f"unknown extended format: {fmt}")
 
 
 # unified asset inventory lives in its own module (clean regex escaping)
 from .inventory import build_inventory, build_host_rollup, collect_assets  # noqa: E402,F401
+
+
+# =========================================================================== #
+#  Executive HTML report — the shareable "finished product" deliverable
+# =========================================================================== #
+import math as _math
+
+_GRADE_COLORS = {"A+": "#2ea043", "A": "#2ea043", "B": "#3fb950",
+                 "C": "#d29922", "D": "#db6d28", "F": "#f85149"}
+_SEV_COLORS = {"critical": "#f85149", "high": "#db6d28", "medium": "#d29922",
+               "low": "#3fb950", "info": "#8b949e"}
+
+_LABELS = {
+    "en": {"title": "Executive Security Report", "target": "Target", "date": "Date",
+           "modules": "Modules", "grade": "Grade", "risk": "Risk", "graph": "Attack surface",
+           "exploits": "Exploit intelligence", "findings": "Prioritised findings",
+           "inventory": "Asset inventory", "sev": "Severity", "module": "Module",
+           "detail": "Detail", "cve": "CVE", "verdict": "Verdict", "cvss": "CVSS",
+           "hosts": "Hosts", "ips": "IPs", "services": "Services", "emails": "Emails",
+           "urls": "URLs", "tech": "Technologies", "exploitable": "Exploitable CVEs",
+           "none": "no exploitable CVEs found", "foot": "Ghost Eye · authorised testing only"},
+    "he": {"title": "דוח אבטחה מנהלים", "target": "יעד", "date": "תאריך",
+           "modules": "מודולים", "grade": "ציון", "risk": "סיכון", "graph": "משטח תקיפה",
+           "exploits": "מודיעין exploit", "findings": "ממצאים לפי עדיפות",
+           "inventory": "מלאי נכסים", "sev": "חומרה", "module": "מודול",
+           "detail": "פירוט", "cve": "CVE", "verdict": "מסקנה", "cvss": "CVSS",
+           "hosts": "מארחים", "ips": "כתובות IP", "services": "שירותים", "emails": "מיילים",
+           "urls": "כתובות", "tech": "טכנולוגיות", "exploitable": "CVE עם exploit",
+           "none": "לא נמצאו CVE עם exploit ציבורי", "foot": "Ghost Eye · בדיקות מורשות בלבד"},
+}
+
+
+def _svg_attack_graph(inv: Dict[str, Any], target: str) -> str:
+    """A self-contained radial attack-surface graph (no JS, no external libs)."""
+    W, H, cx, cy = 820, 560, 410, 280
+    rings = [("hosts", inv.get("hosts", [])[:18], 215, "#58a6ff"),
+             ("ips", inv.get("ips", [])[:14], 145, "#3fb950"),
+             ("services", inv.get("services", [])[:10], 78, "#d29922")]
+    edges, circles, labels = [], [], []
+    for _kind, items, radius, color in rings:
+        n = len(items)
+        for i, item in enumerate(items):
+            ang = (2 * _math.pi * i / n) - _math.pi / 2 if n else 0
+            x = cx + radius * _math.cos(ang)
+            y = cy + radius * _math.sin(ang)
+            edges.append(f'<line x1="{cx}" y1="{cy}" x2="{x:.0f}" y2="{y:.0f}" '
+                         f'stroke="{color}" stroke-opacity="0.25" stroke-width="1"/>')
+            circles.append(f'<circle cx="{x:.0f}" cy="{y:.0f}" r="5" fill="{color}"/>')
+            lab = _html.escape(str(item)[:22])
+            anchor = "start" if x >= cx else "end"
+            dx = 8 if x >= cx else -8
+            labels.append(f'<text x="{x + dx:.0f}" y="{y + 3:.0f}" font-size="10" '
+                          f'fill="#8b949e" text-anchor="{anchor}">{lab}</text>')
+    center = (f'<circle cx="{cx}" cy="{cy}" r="9" fill="#f85149"/>'
+              f'<text x="{cx}" y="{cy - 16}" font-size="13" font-weight="700" '
+              f'fill="#e6edf3" text-anchor="middle">{_html.escape(target[:40])}</text>')
+    legend = ('<g font-size="11" fill="#8b949e">'
+              '<circle cx="16" cy="18" r="5" fill="#58a6ff"/><text x="28" y="22">hosts</text>'
+              '<circle cx="16" cy="38" r="5" fill="#3fb950"/><text x="28" y="42">IPs</text>'
+              '<circle cx="16" cy="58" r="5" fill="#d29922"/><text x="28" y="62">services</text></g>')
+    return (f'<svg viewBox="0 0 {W} {H}" width="100%" role="img" '
+            f'aria-label="attack surface graph">'
+            + "".join(edges) + "".join(circles) + center
+            + "".join(labels) + legend + "</svg>")
+
+
+def export_exec_report(results: List[Result], path: str, target: str = "",
+                       exploit: Dict[str, Any] = None, lang: str = "en") -> str:
+    """Render a polished, self-contained executive HTML report."""
+    from .workflow import attack_score  # lazy: avoids an import cycle
+    L = _LABELS.get(lang, _LABELS["en"])
+    rtl = lang == "he"
+    scored = score_findings(results)
+    a = attack_score(results)
+    inv = build_inventory(results, target)
+    counts = scored.get("counts", {})
+    gcolor = _GRADE_COLORS.get(a["grade"], "#8b949e")
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    total_sev = sum(counts.get(s, 0) for s in _SEV_COLORS) or 1
+
+    def tile(label, value, color="#e6edf3"):
+        return (f'<div class="tile"><div class="tv" style="color:{color}">{value}</div>'
+                f'<div class="tl">{label}</div></div>')
+
+    exploitable = (exploit or {}).get("exploitable", []) if exploit else []
+    tiles = "".join([
+        tile(L["hosts"], inv["counts"]["hosts"]),
+        tile(L["ips"], inv["counts"]["ips"]),
+        tile("critical", counts.get("critical", 0), _SEV_COLORS["critical"]),
+        tile("high", counts.get("high", 0), _SEV_COLORS["high"]),
+        tile("medium", counts.get("medium", 0), _SEV_COLORS["medium"]),
+        tile("low", counts.get("low", 0), _SEV_COLORS["low"]),
+        tile(L["exploitable"], len(exploitable),
+             _SEV_COLORS["critical"] if exploitable else "#3fb950"),
+    ])
+
+    # severity distribution bar
+    bar = ""
+    for sev in ("critical", "high", "medium", "low", "info"):
+        n = counts.get(sev, 0)
+        if n:
+            pct = 100 * n / total_sev
+            bar += (f'<div style="width:{pct:.1f}%;background:{_SEV_COLORS[sev]}" '
+                    f'title="{sev}: {n}"></div>')
+    _empty_bar = '<div style="width:100%;background:#30363d"></div>'
+    bar = '<div class="bar">' + (bar or _empty_bar) + '</div>'
+
+    # findings table
+    frows = ""
+    for f in scored.get("findings", [])[:25]:
+        c = _SEV_COLORS.get(f["severity"], "#8b949e")
+        frows += (f'<tr><td><span class="pill" style="background:{c}22;color:{c}">'
+                  f'{_html.escape(f["severity"].upper())}</span></td>'
+                  f'<td>{_html.escape(f["module"])}</td>'
+                  f'<td class="mono">{_html.escape(str(f["detail"])[:120])}</td></tr>')
+    findings_tbl = (f'<table><thead><tr><th>{L["sev"]}</th><th>{L["module"]}</th>'
+                    f'<th>{L["detail"]}</th></tr></thead><tbody>{frows}</tbody></table>'
+                    if frows else '<p class="muted">—</p>')
+
+    # exploit-intel section
+    exploit_html = ""
+    if exploit and exploit.get("findings"):
+        erows = ""
+        for e in exploit["findings"][:20]:
+            avail = e.get("exploit_available")
+            c = _SEV_COLORS["critical"] if avail else "#8b949e"
+            verdict = _html.escape(str(e.get("verdict", "")))
+            erows += (f'<tr><td class="mono">{_html.escape(e.get("cve",""))}</td>'
+                      f'<td>{e.get("cvss") or "—"}</td>'
+                      f'<td>{_html.escape(str(e.get("severity","?")))}</td>'
+                      f'<td><span class="pill" style="background:{c}22;color:{c}">'
+                      f'{verdict}</span></td></tr>')
+        exploit_html = (f'<section><h2>{L["exploits"]}</h2><table><thead><tr>'
+                        f'<th>{L["cve"]}</th><th>{L["cvss"]}</th><th>{L["sev"]}</th>'
+                        f'<th>{L["verdict"]}</th></tr></thead><tbody>{erows}'
+                        f'</tbody></table></section>')
+    elif exploit is not None:
+        exploit_html = f'<section><h2>{L["exploits"]}</h2><p class="muted">{L["none"]}</p></section>'
+
+    # inventory grid
+    def inv_block(key, items):
+        if not items:
+            return ""
+        shown = ", ".join(_html.escape(str(x)) for x in items[:40])
+        more = f" … (+{len(items) - 40})" if len(items) > 40 else ""
+        return f'<div class="inv"><h3>{L[key]} ({len(items)})</h3><p class="mono">{shown}{more}</p></div>'
+    inventory_html = "".join(inv_block(k, inv.get(k2, [])) for k, k2 in
+                             [("hosts", "hosts"), ("ips", "ips"), ("services", "services"),
+                              ("emails", "emails"), ("urls", "urls"), ("tech", "technologies")])
+
+    graph = _svg_attack_graph(inv, target or inv.get("target", ""))
+
+    doc = f"""<!doctype html><html lang="{lang}" dir="{'rtl' if rtl else 'ltr'}"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{L['title']} — {_html.escape(target)}</title><style>
+:root{{--bg:#0d1117;--panel:#161b22;--line:#30363d;--ink:#e6edf3;--muted:#8b949e}}
+@media(prefers-color-scheme:light){{:root{{--bg:#f6f8fa;--panel:#fff;--line:#d0d7de;--ink:#1f2328;--muted:#57606a}}}}
+*{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--ink);
+font:14px/1.55 -apple-system,Segoe UI,Roboto,Arial,sans-serif}}
+.wrap{{max-width:960px;margin:0 auto;padding:24px}}
+header{{display:flex;flex-wrap:wrap;align-items:center;gap:20px;
+border-bottom:1px solid var(--line);padding-bottom:18px;margin-bottom:22px}}
+.grade{{width:96px;height:96px;border-radius:16px;display:flex;align-items:center;
+justify-content:center;font-size:44px;font-weight:800;color:#fff;background:{gcolor};
+box-shadow:0 6px 24px {gcolor}55}}
+h1{{margin:0 0 4px;font-size:22px}}.meta{{color:var(--muted);font-size:13px}}
+.tiles{{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:20px 0}}
+.tile{{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}}
+.tv{{font-size:26px;font-weight:800}}.tl{{color:var(--muted);font-size:12px;margin-top:4px}}
+.bar{{display:flex;height:14px;border-radius:8px;overflow:hidden;margin:8px 0 24px}}
+section{{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+padding:18px;margin-bottom:18px}}
+h2{{margin:0 0 12px;font-size:16px}}h3{{margin:0 0 6px;font-size:13px;color:var(--muted)}}
+table{{width:100%;border-collapse:collapse;font-size:13px}}
+th,td{{text-align:{'right' if rtl else 'left'};padding:7px 10px;border-top:1px solid var(--line);vertical-align:top}}
+th{{color:var(--muted);font-weight:600;border-top:none}}
+.pill{{padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}}
+.mono{{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;word-break:break-word}}
+.muted{{color:var(--muted)}}.inv{{margin-bottom:12px}}
+.graph{{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:18px}}
+footer{{color:var(--muted);text-align:center;font-size:12px;padding:20px}}
+</style></head><body><div class="wrap">
+<header><div class="grade">{a['grade']}</div>
+<div><h1>👁 {L['title']}</h1>
+<div class="meta">{L['target']}: <b>{_html.escape(target)}</b> · {L['date']}: {ts} ·
+{L['modules']}: {len(results)} · {L['risk']}: {a['risk_level']} · {a['normalized']}/100</div></div>
+</header>
+<div class="tiles">{tiles}</div>
+{bar}
+<div class="graph"><h2 style="margin:4px 6px 8px">{L['graph']}</h2>{graph}</div>
+{exploit_html}
+<section><h2>{L['findings']}</h2>{findings_tbl}</section>
+<section><h2>{L['inventory']}</h2>{inventory_html or '<p class="muted">—</p>'}</section>
+<footer>{L['foot']} · {ts}</footer>
+</div></body></html>"""
+    Path(path).write_text(doc, encoding="utf-8")
+    return path

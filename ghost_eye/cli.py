@@ -145,7 +145,8 @@ def run_modules(mods: List[Module], target: str, ctx: Context,
     return results
 
 
-_EXT_FORMATS = {"md", "markdown", "sarif", "prom", "prometheus", "dashboard", "dash"}
+_EXT_FORMATS = {"md", "markdown", "sarif", "prom", "prometheus", "dashboard",
+                "dash", "exec", "execreport", "executive"}
 
 
 def handle_reports(results: List[Result], target: str, args) -> None:
@@ -177,9 +178,28 @@ def handle_reports(results: List[Result], target: str, args) -> None:
                                      args.siem_token or "")
         Console.good("SIEM push ok") if ok else Console.warn("SIEM push failed")
 
+    if getattr(args, "exec_report", None):
+        exploit = None
+        if getattr(args, "exploit_intel", False):
+            try:
+                exploit = workflow.exploit_intel(results)
+            except Exception:  # noqa: BLE001
+                exploit = None
+        try:
+            p = reporting_ext.export_exec_report(results, args.exec_report, target,
+                                                 exploit=exploit, lang=args.lang)
+            Console.good(f"executive report: {p}")
+        except Exception as exc:  # noqa: BLE001
+            Console.err(f"exec report failed: {exc}")
+
     if args.notify:
-        summary = _summary_text(results, target)
-        ok = reporting.notify(args.notify, summary)
+        exploit = None
+        if getattr(args, "exploit_intel", False):
+            try:
+                exploit = workflow.exploit_intel(results)
+            except Exception:  # noqa: BLE001
+                exploit = None
+        ok = workflow.notify(results, target, args.notify, exploit=exploit)
         Console.good("notification sent") if ok else Console.warn("notification failed")
 
 
@@ -384,6 +404,14 @@ def build_parser() -> argparse.ArgumentParser:
                      help="after the scan, check every discovered CVE against the "
                           "public exploit DBs (Exploit-DB, Metasploit, NVD, GitHub…) "
                           "and flag which ones have a public exploit")
+    out.add_argument("--exec-report", metavar="FILE",
+                     help="write a polished self-contained executive HTML report "
+                          "(risk grade, attack-surface graph, exploit intel); "
+                          "honours --lang he for a Hebrew RTL report")
+    out.add_argument("--ci", action="store_true",
+                     help="CI/CD mode: exit non-zero if findings breach --fail-on")
+    out.add_argument("--fail-on", choices=["critical", "high", "medium", "low"],
+                     default="high", help="severity gate for --ci (default: high)")
     out.add_argument("--save-db", action="store_true",
                      help="store results in SQLite history")
     out.add_argument("--db", default="ghosteye.db", help="SQLite path")
@@ -671,10 +699,18 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.watch:
             return _watch_loop(mods, args.target, cfg, args)
         try:
-            _run_once(mods, args.target, cfg, args)
+            results = _run_once(mods, args.target, cfg, args)
         except KeyboardInterrupt:
             Console.warn("\ninterrupted")
             return 130
+        if getattr(args, "ci", False):
+            gate = workflow.ci_gate(results, args.fail_on)
+            Console.rule("CI/CD gate")
+            Console.kv("result", gate["message"])
+            Console.kv("grade", gate["grade"])
+            if gate["breaching_counts"]:
+                Console.kv("breaching", gate["breaching_counts"])
+            return gate["exit_code"]
         return 0
 
     if args.target and mods is None:

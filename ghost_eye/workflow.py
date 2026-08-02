@@ -599,6 +599,100 @@ class LiveAlerts:
 
 
 # --------------------------------------------------------------------------- #
+#  v3.8  Notifications — Slack / Discord / Telegram / generic webhook
+# --------------------------------------------------------------------------- #
+_SEV_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
+
+def _summary_text(results, target: str, exploit: Optional[dict] = None) -> str:
+    """A compact, human-readable scan summary used by notifications."""
+    from .reporting_ext import score_findings
+    scored = score_findings(results)
+    a = attack_score(results)
+    c = scored.get("counts", {})
+    lines = [
+        f"👁 Ghost Eye — {target or 'scan'}",
+        f"Grade {a['grade']} ({a['normalized']}/100) · risk {a['risk_level']}",
+        f"critical {c.get('critical',0)} · high {c.get('high',0)} · "
+        f"medium {c.get('medium',0)} · low {c.get('low',0)} "
+        f"({len(results)} modules)",
+    ]
+    if exploit and exploit.get("exploitable"):
+        lines.append(f"⚠ public exploits for: {', '.join(exploit['exploitable'][:8])}")
+    top = scored.get("findings", [])[:5]
+    if top:
+        lines.append("top:")
+        for f in top:
+            lines.append(f"  [{f['severity']}] {f['module']}: {f['detail'][:70]}")
+    return "\n".join(lines)
+
+
+def notify(results, target: str = "", url: str = "", service: str = "auto",
+           exploit: Optional[dict] = None, session=None) -> bool:
+    """Push a scan summary to Slack / Discord / Telegram / a generic webhook.
+
+    `service` auto-detects from the URL host; override with slack/discord/
+    telegram/webhook. Telegram URLs must already carry ?chat_id=…"""
+    if not url:
+        return False
+    text = _summary_text(results, target, exploit)
+    svc = service
+    if svc == "auto":
+        if "hooks.slack.com" in url:
+            svc = "slack"
+        elif "discord" in url:
+            svc = "discord"
+        elif "api.telegram.org" in url:
+            svc = "telegram"
+        else:
+            svc = "webhook"
+    try:
+        import requests as _req
+        s = session or _req.Session()
+        if svc == "slack":
+            r = s.post(url, json={"text": text}, timeout=15)
+        elif svc == "discord":
+            r = s.post(url, json={"content": text[:1900]}, timeout=15)
+        elif svc == "telegram":
+            # chat_id is expected in the URL query; we add the message body
+            r = s.post(url, data={"text": text, "parse_mode": "HTML"}, timeout=15)
+        else:  # generic webhook — send both text and structured payload
+            r = s.post(url, json={"text": text, "target": target,
+                                  "summary": _summary_text(results, target, exploit),
+                                  "grade": attack_score(results)}, timeout=15)
+        return getattr(r, "status_code", 500) < 300
+    except Exception as exc:  # noqa: BLE001
+        from .core import record_error
+        record_error(f"notify {svc}", target, exc)
+        return False
+
+
+# --------------------------------------------------------------------------- #
+#  v3.8  CI/CD security gate — exit non-zero when findings breach a threshold
+# --------------------------------------------------------------------------- #
+def ci_gate(results, fail_on: str = "high") -> dict:
+    """Decide a CI pass/fail. Fails if any finding is at or above `fail_on`."""
+    from .reporting_ext import score_findings
+    scored = score_findings(results)
+    counts = scored.get("counts", {})
+    threshold = _SEV_RANK.get(fail_on.lower(), 1)
+    breaching = {sev: n for sev, n in counts.items()
+                 if n and _SEV_RANK.get(sev, 9) <= threshold}
+    offending = sum(breaching.values())
+    passed = offending == 0
+    return {
+        "passed": passed,
+        "exit_code": 0 if passed else 1,
+        "fail_on": fail_on.lower(),
+        "breaching_counts": breaching,
+        "offending_total": offending,
+        "grade": attack_score(results)["grade"],
+        "message": ("PASS — no findings at or above %s" % fail_on if passed
+                    else "FAIL — %d finding(s) at or above %s" % (offending, fail_on)),
+    }
+
+
+# --------------------------------------------------------------------------- #
 #  v3.8  Exploit / zero-day intelligence over a whole scan
 # --------------------------------------------------------------------------- #
 def exploit_intel(results, session=None, timeout: int = 20,

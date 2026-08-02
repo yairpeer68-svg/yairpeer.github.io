@@ -34,8 +34,10 @@ _CONTENT_TYPES = {
     "csv": "text/csv", "html": "text/html", "dashboard": "text/html",
     "pdf": "application/pdf", "md": "text/markdown", "markdown": "text/markdown",
     "prometheus": "text/plain", "prom": "text/plain",
+    "exec": "text/html", "execreport": "text/html", "executive": "text/html",
 }
-_EXT_FORMATS = {"md", "markdown", "sarif", "prometheus", "prom", "dashboard"}
+_EXT_FORMATS = {"md", "markdown", "sarif", "prometheus", "prom", "dashboard",
+                "exec", "execreport", "executive"}
 
 
 # --------------------------------------------------------------------------- #
@@ -490,7 +492,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "export produced no file"}, 500)
         data = tmp.read_bytes()
         ctype = _CONTENT_TYPES.get(fmt, "application/octet-stream")
-        dl = fmt not in ("html", "dashboard")   # view html inline, download rest
+        dl = fmt not in ("html", "dashboard", "exec", "execreport", "executive")
         safe = "".join(c for c in target if c.isalnum() or c in ".-_") or "report"
         fname = f"ghosteye_{safe}.{tmp.suffix.lstrip('.')}" if dl else None
         return self._bytes(data, ctype, filename=fname)
