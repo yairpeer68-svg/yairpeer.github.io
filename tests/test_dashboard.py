@@ -89,6 +89,16 @@ def test_static_app_surfaces_error_reasons():
     assert 'r.status==="error" && !autoErr.has(r.module)' in html
 
 
+def test_static_app_has_mobile_drawer():
+    """The controls panel is a slide-in drawer on mobile (starts collapsed,
+    backdrop scrim, toggle wiring) — the professional-UI redesign."""
+    html = _INDEX.read_text(encoding="utf-8")
+    assert 'id="scrim"' in html
+    assert 'class="panel collapsed"' in html          # starts closed on mobile
+    assert "function setDrawer(" in html
+    assert "document.body.classList.toggle(\"drawer\"" in html
+
+
 def test_handler_crash_returns_500(monkeypatch, tmp_path):
     """A crashing handler must be caught, logged, and returned as 500 — never a
     silent dead connection with no trace."""

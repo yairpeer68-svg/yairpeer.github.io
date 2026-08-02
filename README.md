@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **401 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **402 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -383,10 +383,14 @@ python3 ghost_eye_web.py --open          # open a browser
 python3 ghost_eye_web.py --host 0.0.0.0 --port 9000 --scope scope.txt
 ```
 
-A single-page console: configure a scan (profile / category / modules / all),
-watch findings stream in live with a running risk score, filter by
-severity/module, and export to any format. Includes asset inventory, per-host
-rollup, scan history/diff, and a **🌐 Hebrew / RTL toggle**.
+A polished single-page console (mobile-first, dark, RTL-aware): configure a scan
+(profile / category / modules / all), watch findings stream in live with a
+running risk score, filter by severity/module, and export to any format. The
+toolbar is grouped into **Views** and **Reports**; on a phone the controls become
+a **slide-in drawer** and the toolbar scrolls horizontally, so it's fully usable
+from **Termux/Android**. A failed module auto-expands to show its reason. Includes
+asset inventory, per-host rollup, scan history/diff, and a **🌐 Hebrew / RTL
+toggle** (the drawer opens from the right in RTL).
 
 The **Intelligence** panel renders the whole Personal Cyber Intelligence
 Platform right in the browser: the **🧠 AI-analyst assessment** (headline,
@@ -537,7 +541,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**401 tests** pass in ~9s. A single **verification gate** runs the whole thing:
+**402 tests** pass in ~9s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
