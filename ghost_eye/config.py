@@ -114,6 +114,23 @@ class Config:
             )
         return key
 
+    def _write_config(self, cp: configparser.ConfigParser) -> None:
+        """Write the config file with owner-only permissions — it can hold
+        API keys, so it must not be world/group readable."""
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        # create/truncate with 0600 before writing (POSIX); no-op-safe elsewhere
+        try:
+            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                cp.write(fh)
+        except (AttributeError, OSError):
+            with open(self.path, "w", encoding="utf-8") as fh:
+                cp.write(fh)
+        try:
+            os.chmod(self.path, 0o600)
+        except OSError:
+            pass
+
     def set_api_key(self, name: str, value: str) -> None:
         """Persist an API key to the config file (creates it if needed)."""
         if name not in _ENV_MAP:
@@ -122,9 +139,7 @@ class Config:
         if not self._cp.has_section(section):
             self._cp.add_section(section)
         self._cp.set(section, option, value.strip())
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path, "w", encoding="utf-8") as fh:
-            self._cp.write(fh)
+        self._write_config(self._cp)
 
     def all_api_keys(self) -> Dict[str, str]:
         """Return every currently-known key {name: value} (env or file)."""
@@ -167,10 +182,8 @@ class Config:
 
     # ---- bootstrap a template --------------------------------------------
     def write_template(self) -> Path:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         cp = configparser.ConfigParser()
         cp["settings"] = dict(_DEFAULTS)
         cp["api_keys"] = {k: "" for k in ("virustotal", "abuseipdb", "deepseek")}
-        with open(self.path, "w", encoding="utf-8") as fh:
-            cp.write(fh)
+        self._write_config(cp)
         return self.path
