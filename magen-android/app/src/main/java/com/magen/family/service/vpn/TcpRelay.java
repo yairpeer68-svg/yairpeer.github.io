@@ -178,7 +178,8 @@ public class TcpRelay {
                 return;
             }
             conn.theirSeq += payloadLen;
-            handleDeviceData(conn, packet, payloadOff, payloadLen);
+            // אם החיבור נחסם (SNI) כבר נשלח RST — אסור לשלוח אחריו ACK
+            if (!handleDeviceData(conn, packet, payloadOff, payloadLen)) return;
             sendAck(conn);
         }
 
@@ -235,8 +236,12 @@ public class TcpRelay {
         }
     }
 
-    /** נתונים מהמכשיר: בודקים SNI אם עוד לא הכרענו, אחרת מעבירים ישירות. */
-    private void handleDeviceData(Connection conn, byte[] packet, int off, int len) {
+    /**
+     * נתונים מהמכשיר: בודקים SNI אם עוד לא הכרענו, אחרת מעבירים ישירות.
+     *
+     * @return false אם החיבור נסגר (נחסם) ואין לשלוח עליו יותר כלום.
+     */
+    private boolean handleDeviceData(Connection conn, byte[] packet, int off, int len) {
         if (!conn.verdictResolved && VpnPolicy.sniFilter() && isInspectablePort(conn.remotePort)) {
             int room = conn.inspect.remaining();
             int copy = Math.min(room, len);
@@ -254,8 +259,10 @@ public class TcpRelay {
                     // RST מיידי — הדפדפן מציג שגיאת חיבור מיד, בלי המתנה
                     sendRst(conn.deviceIp, conn.devicePort,
                             conn.remoteIp, conn.remotePort, conn.mySeq);
-                    closeConnection(conn, false);
-                    return;
+                    // חייב להיות removeFromMap=true, אחרת חבילות המשך של
+                    // אותו חיבור ימצאו רשומה סגורה וינסו לכתוב ל-channel סגור
+                    closeConnection(conn, true);
+                    return false;
                 }
                 flushInspectBuffer(conn, snapshot, snapshotLen);
             } else if (conn.inspect.remaining() == 0
@@ -273,10 +280,11 @@ public class TcpRelay {
             if (copy < len && conn.verdictResolved) {
                 writeUpstream(conn, packet, off + copy, len - copy);
             }
-            return;
+            return true;
         }
 
         writeUpstream(conn, packet, off, len);
+        return true;
     }
 
     private void flushInspectBuffer(Connection conn, byte[] data, int len) {
