@@ -119,6 +119,21 @@ public class UdpRelay {
                            int deviceIp, int devicePort, int remoteIp, int remotePort) {
         String qname = DnsMessage.extractQueryName(packet, payloadOff, payloadLen);
 
+        // כפיית Safe Search / YouTube Restricted — מפנים למנוע החיפוש הבטוח
+        if (qname != null) {
+            byte[] forced = com.magen.family.filter.SafeSearchEnforcer
+                .forcedIp(bridge.context(), qname);
+            if (forced != null) {
+                byte[] a = DnsMessage.buildAResponse(packet, payloadOff, payloadLen, forced);
+                if (a != null) {
+                    byte[] reply = Ipv4.buildUdp(remoteIp, remotePort, deviceIp, devicePort,
+                                                 a, a.length);
+                    bridge.writeToTun(reply, reply.length);
+                    return;
+                }
+            }
+        }
+
         if (qname != null && DomainVerdict.isBlocked(bridge.context(), qname)) {
             byte[] nx = DnsMessage.buildNxDomain(packet, payloadOff, payloadLen);
             if (nx != null) {

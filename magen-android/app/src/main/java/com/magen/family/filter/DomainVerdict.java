@@ -83,12 +83,15 @@ public final class DomainVerdict {
         // 1. whitelist של ההורה גובר על הכל
         if (HostAllowList.isAllowed(ctx, h)) return false;
 
-        // 2. רשימה קשיחה + סיומות (.xxx/.porn/...)
+        // 2. רשימה קשיחה + סיומות (.xxx/.porn/...) — קטגוריית adult
         init(ctx);
         ContentFilter cf = contentFilter;
         if (cf != null && cf.isHostBlocked(h)) return true;
 
-        // 3. Bloom filter מרוחק — כולל התאמת סאב-דומיינים
+        // 3. קטגוריות נוספות שהמשתמש הדליק (הימורים/היכרויות/חברתי/קניות)
+        if (CategoryLists.isBlockedByCategory(ctx, rootDomain(h))) return true;
+
+        // 4. Bloom filter מרוחק — כולל התאמת סאב-דומיינים
         try {
             if (RemoteBlocklist.isBlocked(h)) return true;
         } catch (Exception e) {
@@ -96,6 +99,13 @@ public final class DomainVerdict {
         }
 
         return false;
+    }
+
+    /** דומיין-שורש: sub.a.example.com -> example.com */
+    private static String rootDomain(String host) {
+        String[] p = host.split("\\.");
+        if (p.length < 2) return host;
+        return p[p.length - 2] + "." + p[p.length - 1];
     }
 
     /** ניקוי שם מארח: lowercase, בלי www., בלי נקודה סופית, בלי פורט. */

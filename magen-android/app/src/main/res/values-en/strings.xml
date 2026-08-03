@@ -119,4 +119,31 @@
     <string name="onb_skip">Skip for now</string>
     <string name="onb_finish">Done — activate protection</string>
     <string name="onb_transparency">Transparency: this is an accountability tool you install on yourself. It exists to help those who want help, not to spy on anyone.</string>
+
+    <!-- Content filter -->
+    <string name="main_content_filter">Content filter</string>
+    <string name="main_content_filter_sub">Level, categories, safe search</string>
+    <string name="cf_level">Filter level</string>
+    <string name="cf_level_light">Light — explicit domains only</string>
+    <string name="cf_level_medium">Medium — domains + words + safe search</string>
+    <string name="cf_level_strict">Strict — block on any suspicion</string>
+    <string name="cf_categories">Categories to block</string>
+    <string name="cf_cat_adult">Adult content</string>
+    <string name="cf_cat_gambling">Gambling</string>
+    <string name="cf_cat_dating">Dating sites</string>
+    <string name="cf_cat_social">Social networks</string>
+    <string name="cf_cat_violence">Violence</string>
+    <string name="cf_cat_shopping">Shopping</string>
+    <string name="cf_safe_search">Force safe search (Google/Bing)</string>
+    <string name="cf_youtube">YouTube restricted mode</string>
+
+    <!-- DeepSeek -->
+    <string name="ds_title">Smart contextual filtering (DeepSeek)</string>
+    <string name="ds_intro">Reduces false blocks by understanding context — distinguishes pornographic content from medical/educational text that uses the same words. Requires your own DeepSeek key.</string>
+    <string name="ds_privacy">⚠️ Privacy: when on, borderline text snippets are sent to DeepSeek for review. Off by default.</string>
+    <string name="ds_key">DeepSeek API key</string>
+    <string name="ds_enable">Enable smart filtering</string>
+    <string name="ds_validate">Validate key</string>
+    <string name="ds_ok">Key valid and saved</string>
+    <string name="ds_fail">Key invalid or no connection</string>
 </resources>

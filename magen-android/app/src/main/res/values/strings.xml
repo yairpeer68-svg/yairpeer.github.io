@@ -119,4 +119,31 @@
     <string name="onb_skip">דלג בינתיים</string>
     <string name="onb_finish">סיימתי — הפעל הגנה</string>
     <string name="onb_transparency">שקיפות: זהו כלי אחריות שאתה מתקין על עצמך. הוא נועד לעזור למי שרוצה עזרה, לא לרגל אחרי אף אחד.</string>
+
+    <!-- סינון תוכן -->
+    <string name="main_content_filter">סינון תוכן</string>
+    <string name="main_content_filter_sub">רמה, קטגוריות, חיפוש בטוח</string>
+    <string name="cf_level">רמת סינון</string>
+    <string name="cf_level_light">קל — דומיינים מפורשים בלבד</string>
+    <string name="cf_level_medium">בינוני — דומיינים + מילים + חיפוש בטוח</string>
+    <string name="cf_level_strict">מחמיר — חסימה על כל חשד</string>
+    <string name="cf_categories">קטגוריות לחסימה</string>
+    <string name="cf_cat_adult">תוכן למבוגרים</string>
+    <string name="cf_cat_gambling">הימורים</string>
+    <string name="cf_cat_dating">אתרי היכרויות</string>
+    <string name="cf_cat_social">רשתות חברתיות</string>
+    <string name="cf_cat_violence">אלימות</string>
+    <string name="cf_cat_shopping">קניות</string>
+    <string name="cf_safe_search">כפיית חיפוש בטוח (Google/Bing)</string>
+    <string name="cf_youtube">YouTube במצב מוגבל</string>
+
+    <!-- DeepSeek -->
+    <string name="ds_title">סינון חכם בהקשר (DeepSeek)</string>
+    <string name="ds_intro">מוריד חסימות שווא ע\"י הבנת הקשר — מבחין בין תוכן פורנוגרפי לבין תוכן רפואי/חינוכי שמשתמש באותן מילים. דורש מפתח DeepSeek משלך.</string>
+    <string name="ds_privacy">⚠️ פרטיות: כשמופעל, קטעי טקסט גבוליים נשלחים ל-DeepSeek לבדיקה. כבוי כברירת מחדל.</string>
+    <string name="ds_key">מפתח API של DeepSeek</string>
+    <string name="ds_enable">הפעל סינון חכם</string>
+    <string name="ds_validate">בדוק מפתח</string>
+    <string name="ds_ok">המפתח תקין ונשמר</string>
+    <string name="ds_fail">המפתח אינו תקין או שאין חיבור</string>
 </resources>

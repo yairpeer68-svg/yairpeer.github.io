@@ -43,6 +43,8 @@ public class MagenAccessibilityService extends AccessibilityService {
     private ContentFilter contentFilter;
     private BehaviorAnalyzer behaviorAnalyzer;
     private final AhoCorasick matcher = new AhoCorasick();
+    private final android.os.Handler mainHandler =
+        new android.os.Handler(android.os.Looper.getMainLooper());
 
     private static final Set<String> BLOCKED_APPS_FIXED = new HashSet<>(Arrays.asList(
         "org.torproject.android", "org.torproject.torbrowser",
@@ -196,8 +198,11 @@ public class MagenAccessibilityService extends AccessibilityService {
         long interval = isSocial ? SOCIAL_SCAN_INTERVAL_MS : DOM_SCAN_INTERVAL_MS;
         boolean shouldScanDom = (now - lastDomScanAt) >= interval;
 
+        // רמת סינון LIGHT מסתמכת על דומיינים בלבד — בלי סריקת מילים
+        boolean useKeywords = com.magen.family.filter.FilterPolicy.useKeywords(this);
+
         // טקסט שהוקלד — בדיקה מהירה, רק לא בדפדפן (כדי להימנע ממילים בהיסטוריה)
-        if (!isBrowser && event.getText() != null && !event.getText().isEmpty()) {
+        if (useKeywords && !isBrowser && event.getText() != null && !event.getText().isEmpty()) {
             CharSequence t = event.getText().get(0);
             if (t != null && matcher.contains(t.toString())) {
                 block();
@@ -206,7 +211,7 @@ public class MagenAccessibilityService extends AccessibilityService {
         }
 
         // סריקת DOM — רק אם לא דפדפן (בדפדפן מסתפקים ב-URL)
-        if (!isBrowser && shouldScanDom && (
+        if (useKeywords && !isBrowser && shouldScanDom && (
             event.getEventType() == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
             event.getEventType() == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED)) {
             lastDomScanAt = now;
@@ -235,10 +240,10 @@ public class MagenAccessibilityService extends AccessibilityService {
         if (isBrowser) {
             String url = extractUrl();
             if (url != null && !url.isEmpty()) {
-                // שומר חיפוש — אם זו שאילתת חיפוש/תמונות עם מילה אסורה, חסום מיד
-                if (isSearchQueryBlocked(url)) {
-                    performGlobalAction(GLOBAL_ACTION_BACK);
-                    block();
+                // שומר חיפוש — שאילתה עם מילה אסורה
+                String query = useKeywords ? extractSearchQuery(url) : null;
+                if (query != null && matcher.contains(query)) {
+                    confirmAndBlockSearch(query);
                     return;
                 }
                 if (!url.equals(lastBlockedUrl) || (now - lastBlockTime) > URL_BLOCK_DEDUPE_MS) {
@@ -253,18 +258,17 @@ public class MagenAccessibilityService extends AccessibilityService {
     }
 
     /**
-     * שומר חיפוש — מזהה שאילתות חיפוש (Google/Bing/DuckDuckGo/YouTube)
-     * ובודק אם הטקסט המחופש מכיל מילה אסורה. חוסם לפני טעינת תוצאות.
+     * מחלץ את טקסט השאילתה מ-URL של מנוע חיפוש (Google/Bing/DDG/YouTube),
+     * או null אם זו אינה שאילתת חיפוש.
      */
-    private boolean isSearchQueryBlocked(String url) {
+    private String extractSearchQuery(String url) {
         try {
             String low = url.toLowerCase();
             boolean isSearch = low.contains("/search?") || low.contains("q=") ||
                                low.contains("search_query=") || low.contains("/results?") ||
                                low.contains("tbm=isch") || low.contains("&q=");
-            if (!isSearch) return false;
+            if (!isSearch) return null;
 
-            // חלץ את ערך השאילתה (q=...)
             String query = "";
             for (String param : new String[]{"q=", "search_query=", "p=", "query="}) {
                 int idx = low.indexOf(param);
@@ -276,14 +280,43 @@ public class MagenAccessibilityService extends AccessibilityService {
                     break;
                 }
             }
-            // פענוח URL בסיסי (+ ו-%20 לרווחים)
             query = query.replace('+', ' ').replace("%20", " ");
             try { query = java.net.URLDecoder.decode(query, "UTF-8"); } catch (Exception ignored) {}
-
-            return !query.isEmpty() && matcher.contains(query);
+            return query.isEmpty() ? null : query;
         } catch (Exception e) {
-            return false;
+            return null;
         }
+    }
+
+    /**
+     * חוסם שאילתת חיפוש — אבל קודם, אם DeepSeek מופעל ולא במצב מחמיר, שואל
+     * אותו בהקשר כדי לא לחסום שאילתות לגיטימיות ("בריאות מינית", "סרטן השד").
+     *
+     * הבדיקה רצה ב-thread רקע (יש בה קריאת רשת — אסור על ה-thread של הנגישות),
+     * וברירת המחדל הבטוחה: אם המודל לא זמין / כבוי / STRICT — חוסמים.
+     */
+    private void confirmAndBlockSearch(String query) {
+        boolean strict = com.magen.family.filter.FilterPolicy.aggressive(this);
+        boolean deepseek = com.magen.family.filter.DeepSeekClassifier.isEnabled(this);
+
+        if (strict || !deepseek) {
+            blockSearchNow();
+            return;
+        }
+
+        new Thread(() -> {
+            Boolean verdict = com.magen.family.filter.DeepSeekClassifier
+                .classifyBlocking(getApplicationContext(), query);
+            // BLOCK או null (לא זמין) → חוסמים. ALLOW → משחררים.
+            if (verdict == null || verdict) {
+                mainHandler.post(this::blockSearchNow);
+            }
+        }, "SearchConfirm").start();
+    }
+
+    private void blockSearchNow() {
+        performGlobalAction(GLOBAL_ACTION_BACK);
+        block();
     }
 
     private boolean handleSelfDefense(String pkg) {

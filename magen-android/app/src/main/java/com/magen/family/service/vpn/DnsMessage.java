@@ -91,6 +91,57 @@ public final class DnsMessage {
         }
     }
 
+    /**
+     * בונה תשובת DNS עם רשומת A אחת (מפנה את השם ל-IPv4 נתון).
+     * משמש את SafeSearchEnforcer: מפנה את google/youtube ל-IP של גרסת
+     * ה-safe search במקום ל-IP הרגיל.
+     *
+     * מבנה התשובה: כותרת + קטע השאלה המקורי + רשומת answer אחת שמשתמשת
+     * בדחיסת שם (pointer ל-offset 12, תחילת השאלה).
+     */
+    public static byte[] buildAResponse(byte[] query, int off, int len, byte[] ip4) {
+        try {
+            if (len < HEADER_LEN || ip4 == null || ip4.length != 4) return null;
+
+            // רק אם זו שאילתת A (QTYPE=1) — אחרת עדיף לא לזייף
+            int questionEnd = findQuestionEnd(query, off, len);
+            if (questionEnd < 0) return null;
+            int qtype = ((query[questionEnd - 4] & 0xFF) << 8) | (query[questionEnd - 3] & 0xFF);
+            if (qtype != 1) return null;
+
+            int questionLen = questionEnd - off;
+            int answerLen = 16;   // ptr(2)+type(2)+class(2)+ttl(4)+rdlen(2)+rdata(4)
+            byte[] resp = new byte[questionLen + answerLen];
+            System.arraycopy(query, off, resp, 0, questionLen);
+
+            // flags: תשובה, RA=1, RCODE=0
+            int origFlags = ((query[off + 2] & 0xFF) << 8) | (query[off + 3] & 0xFF);
+            int opcode = (origFlags >> 11) & 0x0F;
+            int rd     = (origFlags >> 8) & 0x01;
+            int newFlags = 0x8000 | (opcode << 11) | (rd << 8) | 0x0080;
+            Ipv4.writeShort(resp, 2, newFlags);
+            Ipv4.writeShort(resp, 6, 1);   // ANCOUNT = 1
+            Ipv4.writeShort(resp, 8, 0);
+            Ipv4.writeShort(resp, 10, 0);
+
+            int p = questionLen;
+            resp[p]     = (byte) 0xC0;     // pointer
+            resp[p + 1] = (byte) 0x0C;     // ל-offset 12 (השם בשאלה)
+            Ipv4.writeShort(resp, p + 2, 1);    // TYPE A
+            Ipv4.writeShort(resp, p + 4, 1);    // CLASS IN
+            Ipv4.writeInt(resp, p + 6, 300);    // TTL 5 דק'
+            Ipv4.writeShort(resp, p + 10, 4);   // RDLENGTH
+            resp[p + 12] = ip4[0];
+            resp[p + 13] = ip4[1];
+            resp[p + 14] = ip4[2];
+            resp[p + 15] = ip4[3];
+
+            return resp;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** מחזיר את ההיסט שאחרי קטע השאלה (QNAME + QTYPE + QCLASS), או -1. */
     private static int findQuestionEnd(byte[] dns, int off, int len) {
         int pos = off + HEADER_LEN;

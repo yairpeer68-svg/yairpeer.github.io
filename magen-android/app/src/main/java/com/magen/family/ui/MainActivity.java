@@ -434,7 +434,14 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         phoneHint.setTextColor(0xFF9E9E9E);
         root.addView(phoneHint);
 
-        // ---- קיצורים: הסוואה + שפה ----
+        // ---- קיצורים: סינון תוכן + הסוואה + שפה ----
+        Button btnContent = new Button(this);
+        btnContent.setAllCaps(false);
+        btnContent.setText(R.string.main_content_filter);
+        btnContent.setPadding(0, pad / 2, 0, 0);
+        root.addView(btnContent);
+        btnContent.setOnClickListener(v -> showContentFilterDialog());
+
         Button btnDisguise = new Button(this);
         btnDisguise.setAllCaps(false);
         btnDisguise.setText(R.string.main_disguise);
@@ -504,6 +511,146 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
                 }
             });
         }, "TgValidate").start();
+    }
+
+    /** מסך סינון תוכן — רמה, קטגוריות, חיפוש בטוח, DeepSeek. */
+    private void showContentFilterDialog() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        int pad = (int) (18 * getResources().getDisplayMetrics().density);
+        root.setPadding(pad, pad / 2, pad, 0);
+
+        // רמת סינון
+        TextView lvlLabel = new TextView(this);
+        lvlLabel.setText(R.string.cf_level);
+        lvlLabel.setTextColor(0xFF1A1F33);
+        root.addView(lvlLabel);
+
+        final android.widget.RadioGroup rg = new android.widget.RadioGroup(this);
+        int[] lvlStrings = { R.string.cf_level_light, R.string.cf_level_medium, R.string.cf_level_strict };
+        for (int i = 0; i < 3; i++) {
+            android.widget.RadioButton rb = new android.widget.RadioButton(this);
+            rb.setId(i);
+            rb.setText(lvlStrings[i]);
+            rg.addView(rb);
+        }
+        rg.check(com.magen.family.filter.FilterPolicy.getLevel(this));
+        root.addView(rg);
+
+        // קטגוריות
+        TextView catLabel = new TextView(this);
+        catLabel.setText(R.string.cf_categories);
+        catLabel.setTextColor(0xFF1A1F33);
+        catLabel.setPadding(0, pad / 2, 0, 0);
+        root.addView(catLabel);
+
+        final String[] catKeys = {
+            com.magen.family.filter.FilterPolicy.CAT_ADULT,
+            com.magen.family.filter.FilterPolicy.CAT_GAMBLING,
+            com.magen.family.filter.FilterPolicy.CAT_DATING,
+            com.magen.family.filter.FilterPolicy.CAT_SOCIAL,
+            com.magen.family.filter.FilterPolicy.CAT_SHOPPING };
+        final int[] catStrings = {
+            R.string.cf_cat_adult, R.string.cf_cat_gambling, R.string.cf_cat_dating,
+            R.string.cf_cat_social, R.string.cf_cat_shopping };
+        final CheckBox[] catBoxes = new CheckBox[catKeys.length];
+        for (int i = 0; i < catKeys.length; i++) {
+            catBoxes[i] = new CheckBox(this);
+            catBoxes[i].setText(catStrings[i]);
+            catBoxes[i].setChecked(
+                com.magen.family.filter.FilterPolicy.isCategoryOn(this, catKeys[i]));
+            root.addView(catBoxes[i]);
+        }
+
+        // חיפוש בטוח + YouTube
+        final CheckBox cbSafe = new CheckBox(this);
+        cbSafe.setText(R.string.cf_safe_search);
+        cbSafe.setChecked(com.magen.family.filter.SafeSearchEnforcer.isSafeSearchOn(this));
+        cbSafe.setPadding(0, pad / 2, 0, 0);
+        root.addView(cbSafe);
+
+        final CheckBox cbYt = new CheckBox(this);
+        cbYt.setText(R.string.cf_youtube);
+        cbYt.setChecked(com.magen.family.filter.SafeSearchEnforcer.isYoutubeRestrictOn(this));
+        root.addView(cbYt);
+
+        // DeepSeek
+        TextView dsLabel = new TextView(this);
+        dsLabel.setText(R.string.ds_title);
+        dsLabel.setTextColor(0xFF1A1F33);
+        dsLabel.setPadding(0, pad / 2, 0, 0);
+        root.addView(dsLabel);
+
+        TextView dsIntro = new TextView(this);
+        dsIntro.setText(R.string.ds_intro);
+        dsIntro.setTextSize(12);
+        dsIntro.setTextColor(0xFF9E9E9E);
+        root.addView(dsIntro);
+
+        TextView dsPriv = new TextView(this);
+        dsPriv.setText(R.string.ds_privacy);
+        dsPriv.setTextSize(12);
+        dsPriv.setTextColor(0xFFEF4444);
+        root.addView(dsPriv);
+
+        final EditText etDsKey = new EditText(this);
+        etDsKey.setHint(R.string.ds_key);
+        etDsKey.setText(com.magen.family.filter.DeepSeekClassifier.getKey(this));
+        root.addView(etDsKey);
+
+        final CheckBox cbDs = new CheckBox(this);
+        cbDs.setText(R.string.ds_enable);
+        cbDs.setChecked(com.magen.family.filter.DeepSeekClassifier.isEnabled(this));
+        root.addView(cbDs);
+
+        Button btnDsValidate = new Button(this);
+        btnDsValidate.setAllCaps(false);
+        btnDsValidate.setText(R.string.ds_validate);
+        root.addView(btnDsValidate);
+        btnDsValidate.setOnClickListener(v ->
+            validateDeepSeek(etDsKey.getText().toString(), cbDs));
+
+        android.widget.ScrollView scroll = new android.widget.ScrollView(this);
+        scroll.addView(root);
+
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.main_content_filter)
+            .setView(scroll)
+            .setPositiveButton(R.string.save, (d, w) -> {
+                com.magen.family.filter.FilterPolicy.setLevel(this, rg.getCheckedRadioButtonId());
+                for (int i = 0; i < catKeys.length; i++) {
+                    com.magen.family.filter.FilterPolicy.setCategory(this, catKeys[i],
+                        catBoxes[i].isChecked());
+                }
+                com.magen.family.filter.SafeSearchEnforcer.setSafeSearch(this, cbSafe.isChecked());
+                com.magen.family.filter.SafeSearchEnforcer.setYoutubeRestrict(this, cbYt.isChecked());
+                com.magen.family.filter.DeepSeekClassifier.save(this,
+                    etDsKey.getText().toString(), cbDs.isChecked());
+                com.magen.family.filter.DomainVerdict.clearCache();
+                Toast.makeText(this, "✓", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton(R.string.cancel, null)
+            .show();
+    }
+
+    private void validateDeepSeek(String key, CheckBox enableBox) {
+        final android.app.ProgressDialog pd = new android.app.ProgressDialog(this);
+        pd.setMessage(getString(R.string.ds_validate));
+        pd.setCancelable(false);
+        pd.show();
+        new Thread(() -> {
+            boolean ok = com.magen.family.filter.DeepSeekClassifier.validate(key);
+            runOnUiThread(() -> {
+                pd.dismiss();
+                if (ok) {
+                    com.magen.family.filter.DeepSeekClassifier.save(this, key, true);
+                    enableBox.setChecked(true);
+                    Toast.makeText(this, R.string.ds_ok, Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(this, R.string.ds_fail, Toast.LENGTH_LONG).show();
+                }
+            });
+        }, "DsValidate").start();
     }
 
     /** בורר שפה — מיושם מיד ע"י יצירת ה-Activity מחדש. */

@@ -177,6 +177,8 @@ public class ContentFilter {
     private boolean containsBlockedKeyword(String url) {
         SharedPreferences prefs = ((MagenApp) context.getApplicationContext()).getPrefs();
         if (!prefs.getBoolean(MagenApp.KEY_BLOCK_ADULT, true)) return false;
+        // רמת סינון LIGHT מסתמכת על דומיינים בלבד — בלי מילות מפתח
+        if (!FilterPolicy.useKeywords(context)) return false;
         // על URL משתמשים בהתאמה גולמית ולא בגבולות מילה:
         // "freeporn.com" חייב להיתפס למרות שאין שם רווחים.
         return keywordMatcher.containsRaw(url);
