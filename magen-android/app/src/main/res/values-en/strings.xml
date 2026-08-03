@@ -188,6 +188,23 @@
     <string name="dash_peak_hour">Peak hour</string>
     <string name="dash_by_hour">Blocks by hour of day</string>
     <string name="dash_no_data">Not enough data to show yet</string>
+
+    <!-- Backup and update -->
+    <string name="main_backup">Backup and restore</string>
+    <string name="backup_title">Encrypted backup</string>
+    <string name="backup_pass">Encryption password (remember it!)</string>
+    <string name="backup_export">Create backup</string>
+    <string name="backup_restore">Restore from backup</string>
+    <string name="backup_paste">Paste the backup string here</string>
+    <string name="backup_share">Share / save</string>
+    <string name="backup_done">Backup created. Save it somewhere safe.</string>
+    <string name="backup_restored">Restore complete. Restart the app.</string>
+    <string name="backup_bad">Restore failed — wrong password or corrupt file</string>
+    <string name="backup_need_pass">Enter an encryption password</string>
+    <string name="main_update">Check for updates</string>
+    <string name="update_title">Updates</string>
+    <string name="update_url">Update manifest URL (GitHub)</string>
+    <string name="update_hint">URL to a static JSON file (GitHub Raw/Release) with versionCode and url. No server. Leave empty to disable.</string>
     <string name="ach_title">New milestone! 🏆</string>
     <string name="ach_body">%1$d clean days in a row. Keep going — you\'re building something real.</string>
 </resources>

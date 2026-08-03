@@ -188,6 +188,23 @@
     <string name="dash_peak_hour">שעת שיא</string>
     <string name="dash_by_hour">חסימות לפי שעה ביממה</string>
     <string name="dash_no_data">עדיין אין מספיק נתונים להצגה</string>
+
+    <!-- גיבוי ועדכון -->
+    <string name="main_backup">גיבוי ושחזור</string>
+    <string name="backup_title">גיבוי מוצפן</string>
+    <string name="backup_pass">סיסמת הצפנה (זכור אותה!)</string>
+    <string name="backup_export">צור גיבוי</string>
+    <string name="backup_restore">שחזר מגיבוי</string>
+    <string name="backup_paste">הדבק כאן את מחרוזת הגיבוי</string>
+    <string name="backup_share">שתף / שמור</string>
+    <string name="backup_done">הגיבוי נוצר. שמור אותו במקום בטוח.</string>
+    <string name="backup_restored">השחזור הושלם. הפעל מחדש את האפליקציה.</string>
+    <string name="backup_bad">שחזור נכשל — סיסמה שגויה או קובץ פגום</string>
+    <string name="backup_need_pass">הזן סיסמת הצפנה</string>
+    <string name="main_update">בדיקת עדכונים</string>
+    <string name="update_title">עדכונים</string>
+    <string name="update_url">כתובת קובץ העדכון (GitHub)</string>
+    <string name="update_hint">כתובת לקובץ JSON סטטי (GitHub Raw/Release) עם versionCode ו-url. בלי שרת. השאר ריק כדי לכבות.</string>
     <string name="ach_title">הישג חדש! 🏆</string>
     <string name="ach_body">%1$d ימים נקיים ברצף. תמשיך ככה — אתה בונה משהו אמיתי.</string>
 </resources>

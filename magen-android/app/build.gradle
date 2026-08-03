@@ -56,4 +56,7 @@ dependencies {
     // ML Kit הוסר: ImageScanService היה קוד מת לגמרי — אף reference אחד
     // בכל הפרויקט — אבל גרר את כל ספריית text-recognition (~10MB ל-APK).
     // אם יוסיפו סיווג תמונות בעתיד, להחזיר את התלות יחד עם קוד שמשתמש בה.
+
+    // בדיקות יחידה (JVM) — רצות ב-CI לפני הבנייה
+    testImplementation 'junit:junit:4.13.2'
 }

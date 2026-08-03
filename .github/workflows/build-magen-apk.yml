@@ -31,6 +31,9 @@ jobs:
             ~/.gradle/wrapper
           key: gradle-magen-${{ hashFiles('magen-android/**/*.gradle*') }}
 
+      - name: Run unit tests
+        run: cd magen-android && gradle testDebugUnitTest --no-daemon --stacktrace
+
       - name: Build debug APK
         run: cd magen-android && gradle assembleDebug --no-daemon --stacktrace
 

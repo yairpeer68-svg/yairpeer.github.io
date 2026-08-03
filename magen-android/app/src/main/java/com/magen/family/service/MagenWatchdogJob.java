@@ -105,6 +105,10 @@ public class MagenWatchdogJob extends JobService {
         try { HotspotGuard.check(getApplicationContext()); }
         catch (Exception e) { Log.e(TAG, "hotspot check: " + e.getMessage()); }
 
+        // === בדיקת עדכון (אם הוגדר URL, פעם ביום) ===
+        try { UpdateChecker.checkIfDue(getApplicationContext()); }
+        catch (Exception e) { Log.e(TAG, "update check: " + e.getMessage()); }
+
         // === עדכון יומי של רשימת הדומיינים (ברקע, רק אם יש רשת + עברו 24ש') ===
         maybeUpdateBlocklist();
 

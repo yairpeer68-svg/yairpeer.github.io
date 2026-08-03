@@ -196,6 +196,9 @@ public class MagenAccessibilityService extends AccessibilityService {
         // בדיוק באפליקציות שמייצרות הכי הרבה אירועים.
         // לאפליקציות חברתיות ניתן מרווח קצר יותר, אבל לא אפס.
         long interval = isSocial ? SOCIAL_SCAN_INTERVAL_MS : DOM_SCAN_INTERVAL_MS;
+        // מצב חיסכון סוללה — מרחיבים את מרווח הסריקה כדי לחסוך אנרגיה.
+        // הסינון עדיין פועל, פשוט סורק בתדירות נמוכה יותר.
+        if (isPowerSave(now)) interval *= 3;
         boolean shouldScanDom = (now - lastDomScanAt) >= interval;
 
         // רמת סינון LIGHT מסתמכת על דומיינים בלבד — בלי סריקת מילים
@@ -442,6 +445,24 @@ public class MagenAccessibilityService extends AccessibilityService {
             if (hit) return true;
         }
         return false;
+    }
+
+    // מצב חיסכון סוללה — נבדק לכל היותר פעם ב-30 שנ' (isPowerSaveMode הוא IPC)
+    private long lastPowerCheck = 0;
+    private boolean powerSaveCached = false;
+
+    private boolean isPowerSave(long now) {
+        if (now - lastPowerCheck > 30_000L) {
+            lastPowerCheck = now;
+            try {
+                android.os.PowerManager pm =
+                    (android.os.PowerManager) getSystemService(POWER_SERVICE);
+                powerSaveCached = pm != null && pm.isPowerSaveMode();
+            } catch (Exception e) {
+                powerSaveCached = false;
+            }
+        }
+        return powerSaveCached;
     }
 
     private void block() {

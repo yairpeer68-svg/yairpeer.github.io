@@ -72,6 +72,32 @@ public class NotificationHelper {
         TelegramNotifier.send(ctx, "📋 שומר הברית — סיכום:\n" + (digest != null ? digest : summary));
     }
 
+    /** התראה על עדכון זמין — לחיצה פותחת את קישור ההורדה. */
+    public static void notifyUpdateAvailable(Context ctx, String versionName, String apkUrl) {
+        ensureChannel(ctx, CHANNEL_DIGEST, false);
+        try {
+            Intent open = (apkUrl != null && !apkUrl.isEmpty())
+                ? new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(apkUrl))
+                : new Intent(ctx, MainActivity.class);
+            open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            PendingIntent pi = PendingIntent.getActivity(ctx, 3, open,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CHANNEL_DIGEST)
+                .setSmallIcon(com.magen.family.R.drawable.ic_notification)
+                .setContentTitle("עדכון זמין" + (versionName.isEmpty() ? "" : " — " + versionName))
+                .setContentText("לחץ להורדת הגרסה החדשה")
+                .setContentIntent(pi)
+                .setAutoCancel(true);
+
+            NotificationManager nm = (NotificationManager)
+                ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.notify(2003, b.build());
+        } catch (Exception e) {
+            Log.e(TAG, "notifyUpdate failed: " + e.getMessage());
+        }
+    }
+
     // ---------------------- Internals ----------------------
 
     private static void showLocalNotification(Context ctx, String channelId,

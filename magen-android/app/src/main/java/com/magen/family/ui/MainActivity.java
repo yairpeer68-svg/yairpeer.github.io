@@ -479,6 +479,18 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         root.addView(btnLang);
         btnLang.setOnClickListener(v -> showLanguageDialog());
 
+        Button btnBackup = new Button(this);
+        btnBackup.setAllCaps(false);
+        btnBackup.setText(R.string.main_backup);
+        root.addView(btnBackup);
+        btnBackup.setOnClickListener(v -> showBackupDialog());
+
+        Button btnUpdate = new Button(this);
+        btnUpdate.setAllCaps(false);
+        btnUpdate.setText(R.string.main_update);
+        root.addView(btnUpdate);
+        btnUpdate.setOnClickListener(v -> showUpdateDialog());
+
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
         scroll.addView(root);
 
@@ -675,6 +687,90 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
             });
         }, "DsValidate").start();
     }
+
+    /** גיבוי/שחזור מוצפן — בלי שרת ובלי הרשאת אחסון. */
+    private void showBackupDialog() {
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = dp(18);
+        box.setPadding(pad, pad / 2, pad, 0);
+
+        final EditText etPass = new EditText(this);
+        etPass.setHint(R.string.backup_pass);
+        etPass.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+            | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        box.addView(etPass);
+
+        final EditText etRestore = new EditText(this);
+        etRestore.setHint(R.string.backup_paste);
+        etRestore.setMinLines(2);
+        box.addView(etRestore);
+
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.backup_title)
+            .setView(box)
+            .setPositiveButton(R.string.backup_export, (d, w) -> {
+                String pass = etPass.getText().toString();
+                if (pass.isEmpty()) { toast(R.string.backup_need_pass); return; }
+                try {
+                    String data = com.magen.family.backup.BackupManager.export(this, pass);
+                    shareText(data);
+                    toast(R.string.backup_done);
+                } catch (Exception e) {
+                    Toast.makeText(this, "שגיאה: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            })
+            .setNeutralButton(R.string.backup_restore, (d, w) -> {
+                String pass = etPass.getText().toString();
+                String data = etRestore.getText().toString().trim();
+                if (pass.isEmpty()) { toast(R.string.backup_need_pass); return; }
+                boolean ok = com.magen.family.backup.BackupManager.restore(this, data, pass);
+                toast(ok ? R.string.backup_restored : R.string.backup_bad);
+            })
+            .setNegativeButton(R.string.cancel, null)
+            .show();
+    }
+
+    private void showUpdateDialog() {
+        final EditText etUrl = new EditText(this);
+        etUrl.setHint(R.string.update_url);
+        etUrl.setText(com.magen.family.service.UpdateChecker.getManifestUrl(this));
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int pad = dp(18);
+        box.setPadding(pad, pad / 2, pad, 0);
+        box.addView(etUrl);
+        TextView hint = new TextView(this);
+        hint.setText(R.string.update_hint);
+        hint.setTextSize(12);
+        hint.setTextColor(0xFF9E9E9E);
+        box.addView(hint);
+
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.update_title)
+            .setView(box)
+            .setPositiveButton(R.string.save, (d, w) -> {
+                com.magen.family.service.UpdateChecker.setManifestUrl(this,
+                    etUrl.getText().toString());
+                Toast.makeText(this, "✓", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton(R.string.cancel, null)
+            .show();
+    }
+
+    private void shareText(String text) {
+        try {
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType("text/plain");
+            send.putExtra(Intent.EXTRA_TEXT, text);
+            startActivity(Intent.createChooser(send, getString(R.string.backup_share)));
+        } catch (Exception ignored) {}
+    }
+
+    private void toast(int res) { Toast.makeText(this, res, Toast.LENGTH_LONG).show(); }
+
+    private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 
     /** בורר שפה — מיושם מיד ע"י יצירת ה-Activity מחדש. */
     private void showLanguageDialog() {
