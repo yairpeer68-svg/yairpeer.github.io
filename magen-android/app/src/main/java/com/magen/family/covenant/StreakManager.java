@@ -83,6 +83,9 @@ public final class StreakManager {
                 + (reason != null && !reason.isEmpty() ? " (" + reason + ")" : "")
                 + ". זה הרגע לשיחה — לא לשיפוט.");
         } catch (Exception ignored) {}
+
+        // איפוס אבן הדרך של ההישגים — מתחילים לספור מחדש
+        try { com.magen.family.stats.BlockStats.resetMilestone(ctx); } catch (Exception ignored) {}
     }
 
     /** דיווח עצמי — מהמסך של מרכז הברית. */

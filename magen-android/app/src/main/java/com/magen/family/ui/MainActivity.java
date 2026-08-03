@@ -179,7 +179,7 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
             startActivity(new Intent(this, NightModeActivity.class));
 
         } else if (req == REQ_PIN_STATS) {
-            startActivity(new Intent(this, StatsActivity.class));
+            startActivity(new Intent(this, DashboardActivity.class));
 
         } else if (req == REQ_PIN_APP_BLOCK && pendingBlockPackage != null) {
             MagenConfig.setAppBlocked(this, pendingBlockPackage, pendingBlockState);

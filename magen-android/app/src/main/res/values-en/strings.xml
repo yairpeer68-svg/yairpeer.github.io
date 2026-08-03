@@ -181,4 +181,13 @@
     <string name="cov_pledge_signed">Signed on %1$s</string>
     <string name="cov_no_partner">No accountability partner set. Configure Telegram or a phone in \"Advanced protection\".</string>
     <string name="phone_missing">No partner phone number set</string>
+
+    <!-- Dashboard -->
+    <string name="dash_streak">Streak (days)</string>
+    <string name="dash_total_blocks">Total blocks</string>
+    <string name="dash_peak_hour">Peak hour</string>
+    <string name="dash_by_hour">Blocks by hour of day</string>
+    <string name="dash_no_data">Not enough data to show yet</string>
+    <string name="ach_title">New milestone! 🏆</string>
+    <string name="ach_body">%1$d clean days in a row. Keep going — you\'re building something real.</string>
 </resources>

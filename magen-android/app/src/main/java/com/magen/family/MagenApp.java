@@ -234,6 +234,8 @@ public class MagenApp extends Application {
         ed.putInt(KEY_BLOCKED_WEEK,  getPrefs().getInt(KEY_BLOCKED_WEEK, 0) + 1);
         ed.putLong(KEY_LAST_BLOCK_TIME, System.currentTimeMillis());
         ed.apply();
+        // תיעוד לפי שעה/יום עבור ה-dashboard וניתוח הדפוסים
+        try { com.magen.family.stats.BlockStats.record(this); } catch (Exception ignored) {}
     }
 
     public void incrementVpnAttempts() {

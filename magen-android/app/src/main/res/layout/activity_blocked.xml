@@ -30,6 +30,7 @@
         android:textStyle="bold"/>
 
     <TextView
+        android:id="@+id/tv_blocked_msg"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="הדף הזה נחסם כדי לשמור עליך"

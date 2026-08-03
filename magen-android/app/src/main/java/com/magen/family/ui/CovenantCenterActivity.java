@@ -52,6 +52,21 @@ public class CovenantCenterActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         build();
+        checkMilestone();
+    }
+
+    /** בדיקת אבן דרך חדשה ברצף — מברכים את המשתמש ומתריעים לשותף. */
+    private void checkMilestone() {
+        int days = StreakManager.currentDays(this);
+        int m = com.magen.family.stats.BlockStats.newStreakMilestone(this, days);
+        if (m > 0) {
+            new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.ach_title)
+                .setMessage(getString(R.string.ach_body, m))
+                .setPositiveButton(R.string.ok, null)
+                .show();
+            TelegramNotifier.send(this, "🏆 הגעתי ל-" + m + " ימים נקיים ברצף!");
+        }
     }
 
     private void build() {

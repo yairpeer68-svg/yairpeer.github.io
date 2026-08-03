@@ -181,4 +181,13 @@
     <string name="cov_pledge_signed">נחתם ב-%1$s</string>
     <string name="cov_no_partner">לא הוגדר שותף אחריות. הגדר טלגרם או טלפון ב\"הגנה מתקדמת\".</string>
     <string name="phone_missing">לא הוגדר מספר טלפון לשותף</string>
+
+    <!-- לוח מחוונים -->
+    <string name="dash_streak">רצף (ימים)</string>
+    <string name="dash_total_blocks">סה״כ חסימות</string>
+    <string name="dash_peak_hour">שעת שיא</string>
+    <string name="dash_by_hour">חסימות לפי שעה ביממה</string>
+    <string name="dash_no_data">עדיין אין מספיק נתונים להצגה</string>
+    <string name="ach_title">הישג חדש! 🏆</string>
+    <string name="ach_body">%1$d ימים נקיים ברצף. תמשיך ככה — אתה בונה משהו אמיתי.</string>
 </resources>
