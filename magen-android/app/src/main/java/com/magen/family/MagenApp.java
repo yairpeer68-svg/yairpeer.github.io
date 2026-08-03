@@ -63,6 +63,12 @@ public class MagenApp extends Application {
     private ContentFilter contentFilter;
 
     @Override
+    protected void attachBaseContext(android.content.Context base) {
+        // מחיל את שפת האפליקציה גם על ה-Context הגלובלי (התראות, שירותים)
+        super.attachBaseContext(com.magen.family.i18n.LocaleManager.wrap(base));
+    }
+
+    @Override
     public void onCreate() {
         super.onCreate();
         instance = this;

@@ -13,7 +13,7 @@ import com.magen.family.MagenApp;
 import com.magen.family.R;
 import com.magen.family.service.ScreenTimeService;
 
-public class ScreenTimeActivity extends AppCompatActivity {
+public class ScreenTimeActivity extends BaseActivity {
 
     private Switch swEnabled;
     private NumberPicker pickerHours, pickerMinutes;

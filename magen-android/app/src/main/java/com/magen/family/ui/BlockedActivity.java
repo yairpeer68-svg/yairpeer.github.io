@@ -11,7 +11,7 @@ import com.magen.family.R;
  * BlockedActivity - מסך "תוכן חסום"
  * מוצג כשמזוהה ניסיון גישה לתוכן פורנו
  */
-public class BlockedActivity extends AppCompatActivity {
+public class BlockedActivity extends BaseActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

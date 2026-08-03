@@ -52,6 +52,9 @@ public class NotificationHelper {
             }
             lastSmsAt = now;
         }
+        // טלגרם — ללא עלות וללא שרת. נשלח תמיד כשמוגדר.
+        TelegramNotifier.send(ctx, "🚨 שומר הברית: " + message);
+
         trySendSms(ctx, "🚨 שומר הברית: " + message);
     }
 
@@ -60,12 +63,13 @@ public class NotificationHelper {
     private static long lastSmsAt = 0;
 
     /**
-     * Digest — אירועים מצטברים. שולחים רק התראה לוקלית, לא SMS.
+     * Digest — אירועים מצטברים. התראה לוקלית + טלגרם (לא SMS, כדי לא לבזבז).
      */
     public static void notifyPartnerDigest(Context ctx, String digest) {
-        String summary = "התרחשו אירועים בשעה האחרונה — לחץ לפרטים";
+        String summary = "התרחשו אירועים בשעה האחרונה";
         showLocalNotification(ctx, CHANNEL_DIGEST, NOTIF_ID_DIGEST,
             "📋 סיכום פעילות", digest != null ? digest : summary, false);
+        TelegramNotifier.send(ctx, "📋 שומר הברית — סיכום:\n" + (digest != null ? digest : summary));
     }
 
     // ---------------------- Internals ----------------------

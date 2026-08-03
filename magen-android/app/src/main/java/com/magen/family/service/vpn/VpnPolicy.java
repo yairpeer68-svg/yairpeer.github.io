@@ -22,6 +22,7 @@ public final class VpnPolicy {
     private static final String K_BLOCK_QUIC  = "block_quic";
     private static final String K_SNI_FILTER  = "sni_filter";
     private static final String K_UPSTREAM    = "upstream_dns";
+    private static final String K_BLOCK_HOTSPOT = "block_hotspot";
 
     /** AdGuard Family — חוסם תוכן מבוגרים כבר ברמת ה-DNS. */
     public static final String DEFAULT_UPSTREAM_DNS = "94.140.14.15";
@@ -76,6 +77,16 @@ public final class VpnPolicy {
     public static void setSniFilter(Context ctx, boolean enabled) {
         init(ctx);
         prefs.edit().putBoolean(K_SNI_FILTER, enabled).apply();
+    }
+
+    /** מדיניות תגובה על שיתוף אינטרנט. ראה HotspotGuard — זיהוי, לא מניעה. */
+    public static boolean blockHotspot() {
+        return prefs != null && prefs.getBoolean(K_BLOCK_HOTSPOT, false);
+    }
+
+    public static void setBlockHotspot(Context ctx, boolean enabled) {
+        init(ctx);
+        prefs.edit().putBoolean(K_BLOCK_HOTSPOT, enabled).apply();
     }
 
     public static String upstreamDns() {

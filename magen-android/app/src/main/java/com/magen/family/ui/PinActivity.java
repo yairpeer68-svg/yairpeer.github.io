@@ -24,7 +24,7 @@ import com.magen.family.security.PasswordHasher;
  *   • הגנה מצילומי מסך (FLAG_SECURE).
  *   • Lockout פרוגרסיבי: 5 ניסיונות = 5 דק, 10 ניסיונות = שעה.
  */
-public class PinActivity extends AppCompatActivity {
+public class PinActivity extends BaseActivity {
 
     private static final int PIN_LENGTH    = 4;
     private static final int EMERGENCY_LEN = 6;
@@ -73,14 +73,15 @@ public class PinActivity extends AppCompatActivity {
         String name = MagenApp.getInstance().getPrefs().getString("parent_name", "");
 
         if (mode.equals("change") && firstTime) {
-            tvTitle.setText("צור קוד סודי");
-            tvSubtitle.setText("הזן קוד 4 ספרות");
+            tvTitle.setText(R.string.covenant_code_create);
+            tvSubtitle.setText(getString(R.string.covenant_code_hint));
         } else if (mode.equals("change")) {
-            tvTitle.setText("קוד חדש");
-            tvSubtitle.setText("הזן קוד 4 ספרות חדש");
+            tvTitle.setText(R.string.covenant_code);
+            tvSubtitle.setText(getString(R.string.covenant_code_enter));
         } else {
-            tvTitle.setText("שלום " + name + " 👋");
-            tvSubtitle.setText("מה הקוד שלך?");
+            tvTitle.setText(name.isEmpty() ? getString(R.string.covenant_code)
+                                           : "שלום " + name + " 👋");
+            tvSubtitle.setText(R.string.covenant_code_enter);
         }
 
         setupButtons();

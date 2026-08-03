@@ -15,6 +15,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -37,7 +38,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseActivity {
 
     private static final int REQ_PIN_TOGGLE    = 102;
     private static final int REQ_PIN_ADMIN     = 103;
@@ -365,12 +366,58 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         root.addView(hint);
 
         final android.widget.CheckBox cbQuic = new android.widget.CheckBox(this);
-        cbQuic.setText("חסימת QUIC (מאלץ דפדפנים למצב שניתן לסינון)");
+        cbQuic.setText(R.string.adv_block_quic);
         cbQuic.setChecked(VpnPolicy.blockQuic());
         root.addView(cbQuic);
 
+        final android.widget.CheckBox cbHotspot = new android.widget.CheckBox(this);
+        cbHotspot.setText(R.string.adv_hotspot);
+        cbHotspot.setChecked(VpnPolicy.blockHotspot());
+        root.addView(cbHotspot);
+
+        TextView hotspotHint = new TextView(this);
+        hotspotHint.setText(R.string.adv_hotspot_hint);
+        hotspotHint.setTextSize(12);
+        hotspotHint.setTextColor(0xFF9E9E9E);
+        hotspotHint.setPadding(0, 0, 0, pad / 2);
+        root.addView(hotspotHint);
+
+        // ---- טלגרם ----
+        TextView tgLabel = new TextView(this);
+        tgLabel.setText(R.string.tg_title);
+        tgLabel.setTextColor(0xFF1A1F33);
+        tgLabel.setTextSize(15);
+        tgLabel.setPadding(0, pad / 2, 0, 0);
+        root.addView(tgLabel);
+
+        TextView tgIntro = new TextView(this);
+        tgIntro.setText(R.string.tg_intro);
+        tgIntro.setTextSize(12);
+        tgIntro.setTextColor(0xFF9E9E9E);
+        root.addView(tgIntro);
+
+        final EditText etTgToken = new EditText(this);
+        etTgToken.setHint(R.string.tg_token);
+        etTgToken.setText(com.magen.family.service.TelegramNotifier.getToken(this));
+        root.addView(etTgToken);
+
+        final EditText etTgChat = new EditText(this);
+        etTgChat.setHint(R.string.tg_chat);
+        etTgChat.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+            | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+        etTgChat.setText(com.magen.family.service.TelegramNotifier.getChatId(this));
+        root.addView(etTgChat);
+
+        Button btnTgValidate = new Button(this);
+        btnTgValidate.setAllCaps(false);
+        btnTgValidate.setText(R.string.tg_validate);
+        root.addView(btnTgValidate);
+        btnTgValidate.setOnClickListener(v ->
+            validateTelegram(etTgToken.getText().toString(), etTgChat.getText().toString(), etTgChat));
+
+        // ---- טלפון שותף (SMS) ----
         TextView phoneLabel = new TextView(this);
-        phoneLabel.setText("טלפון שותף האחריות (לקבלת התראות ב-SMS):");
+        phoneLabel.setText(R.string.partner_phone);
         phoneLabel.setPadding(0, pad / 2, 0, 0);
         root.addView(phoneLabel);
 
@@ -382,38 +429,98 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         root.addView(etPhone);
 
         TextView phoneHint = new TextView(this);
-        phoneHint.setText("ההודעות נשלחות מה-SIM של המכשיר הזה — לא נדרש שרת. "
-                        + "השאירי ריק כדי לקבל התראות מקומיות בלבד.");
+        phoneHint.setText(R.string.partner_phone_hint);
         phoneHint.setTextSize(12);
         phoneHint.setTextColor(0xFF9E9E9E);
         root.addView(phoneHint);
+
+        // ---- קיצורים: הסוואה + שפה ----
+        Button btnDisguise = new Button(this);
+        btnDisguise.setAllCaps(false);
+        btnDisguise.setText(R.string.main_disguise);
+        btnDisguise.setPadding(0, pad / 2, 0, 0);
+        root.addView(btnDisguise);
+        btnDisguise.setOnClickListener(v ->
+            startActivity(new Intent(this, DisguiseActivity.class)));
+
+        Button btnLang = new Button(this);
+        btnLang.setAllCaps(false);
+        btnLang.setText(R.string.main_language);
+        root.addView(btnLang);
+        btnLang.setOnClickListener(v -> showLanguageDialog());
 
         android.widget.ScrollView scroll = new android.widget.ScrollView(this);
         scroll.addView(root);
 
         new android.app.AlertDialog.Builder(this)
-            .setTitle("הגנה מתקדמת")
+            .setTitle(R.string.adv_title)
             .setView(scroll)
-            .setPositiveButton("שמור", (d, w) -> {
+            .setPositiveButton(R.string.save, (d, w) -> {
                 boolean wantFullTunnel = cbFullTunnel.isChecked();
                 boolean changed = wantFullTunnel != VpnPolicy.fullTunnel();
 
                 VpnPolicy.setFullTunnel(this, wantFullTunnel);
                 VpnPolicy.setBlockQuic(this, cbQuic.isChecked());
+                VpnPolicy.setBlockHotspot(this, cbHotspot.isChecked());
 
                 String phone = etPhone.getText().toString().trim();
                 MagenApp.getInstance().getPrefs().edit()
                     .putString(MagenApp.KEY_PARENT_PHONE, phone).apply();
                 if (!phone.isEmpty()) requestSmsPermissionIfNeeded();
 
-                // שינוי מצב המנהרה מחייב הקמה מחדש של ה-VPN
                 if (changed) restartVpn();
 
                 updateAdvancedSubtitle();
-                Toast.makeText(this, "✓ נשמר", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "✓", Toast.LENGTH_SHORT).show();
             })
-            .setNeutralButton("אתרים מותרים", (d, w) -> showAllowListDialog())
-            .setNegativeButton("ביטול", null)
+            .setNeutralButton(R.string.adv_allowlist, (d, w) -> showAllowListDialog())
+            .setNegativeButton(R.string.cancel, null)
+            .show();
+    }
+
+    /** מאמת מפתח טלגרם ברקע ושומר רק אם הצליח. */
+    private void validateTelegram(String token, String chatHint, EditText chatField) {
+        final android.app.ProgressDialog pd = new android.app.ProgressDialog(this);
+        pd.setMessage(getString(R.string.tg_validating));
+        pd.setCancelable(false);
+        pd.show();
+
+        new Thread(() -> {
+            com.magen.family.service.TelegramNotifier.ValidationResult r =
+                com.magen.family.service.TelegramNotifier.validate(token, chatHint);
+            runOnUiThread(() -> {
+                pd.dismiss();
+                if (r.ok) {
+                    String chatId = r.resolvedChatId != null ? r.resolvedChatId : chatHint.trim();
+                    com.magen.family.service.TelegramNotifier.save(this, token, chatId, true);
+                    if (chatField != null && r.resolvedChatId != null)
+                        chatField.setText(r.resolvedChatId);
+                    Toast.makeText(this, getString(R.string.tg_ok, r.message),
+                        Toast.LENGTH_LONG).show();
+                } else {
+                    // לא שומרים מפתח לא תקין — בדיוק כפי שהתבקש
+                    Toast.makeText(this, getString(R.string.tg_fail, r.message),
+                        Toast.LENGTH_LONG).show();
+                }
+            });
+        }, "TgValidate").start();
+    }
+
+    /** בורר שפה — מיושם מיד ע"י יצירת ה-Activity מחדש. */
+    private void showLanguageDialog() {
+        final String[] labels = { "עברית", "English" };
+        final String[] codes  = { com.magen.family.i18n.LocaleManager.HE,
+                                  com.magen.family.i18n.LocaleManager.EN };
+        int current = com.magen.family.i18n.LocaleManager.isHebrew(this) ? 0 : 1;
+
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(R.string.main_language)
+            .setSingleChoiceItems(labels, current, (d, which) -> {
+                com.magen.family.i18n.LocaleManager.setLanguage(this, codes[which]);
+                d.dismiss();
+                recreate();   // מרענן את המסך בשפה החדשה
+            })
+            .setNegativeButton(R.string.cancel, null)
             .show();
     }
 

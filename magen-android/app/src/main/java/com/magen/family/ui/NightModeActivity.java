@@ -12,7 +12,7 @@ import com.magen.family.MagenApp;
 import com.magen.family.R;
 import com.magen.family.service.NightModeService;
 
-public class NightModeActivity extends AppCompatActivity {
+public class NightModeActivity extends BaseActivity {
 
     private Switch swNight;
     private NumberPicker pickerStart, pickerEnd;

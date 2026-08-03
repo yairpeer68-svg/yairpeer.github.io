@@ -101,6 +101,10 @@ public class MagenWatchdogJob extends JobService {
                 AccountabilityReporter.recordSecurityAlert(getApplicationContext());
         } catch (Exception e) { Log.e(TAG, "security checks: " + e.getMessage()); }
 
+        // === זיהוי שיתוף אינטרנט (אם המדיניות דלוקה) ===
+        try { HotspotGuard.check(getApplicationContext()); }
+        catch (Exception e) { Log.e(TAG, "hotspot check: " + e.getMessage()); }
+
         // === עדכון יומי של רשימת הדומיינים (ברקע, רק אם יש רשת + עברו 24ש') ===
         maybeUpdateBlocklist();
 

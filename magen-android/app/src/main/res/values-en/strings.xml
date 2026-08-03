@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- English -->
+
+    <string name="app_name">Covenant Guard</string>
+    <string name="accessibility_service_name">Covenant Guard - Content Filter</string>
+    <string name="accessibility_description">
+        Allows Covenant Guard to detect and block access to inappropriate content in browsers
+        and apps. The service runs in the background and does not collect personal information.
+    </string>
+
+    <!-- General -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="close">Close</string>
+    <string name="back">Back</string>
+    <string name="next">Next</string>
+    <string name="done">Done</string>
+    <string name="add">Add</string>
+    <string name="remove">Remove</string>
+    <string name="enabled">On</string>
+    <string name="disabled">Off</string>
+
+    <!-- Covenant model -->
+    <string name="covenant_code">Covenant Code</string>
+    <string name="covenant_code_create">Create covenant code</string>
+    <string name="covenant_code_enter">Enter your covenant code</string>
+    <string name="covenant_code_hint">This code locks you in advance, so that in a weak moment you can\'t easily disable the protection.</string>
+    <string name="protection_active">Protection active</string>
+    <string name="protection_off">Protection off</string>
+
+    <!-- Main -->
+    <string name="main_advanced">Advanced protection</string>
+    <string name="main_advanced_sub">Full filtering, accountability partner</string>
+    <string name="main_lockout">Cool-down lock</string>
+    <string name="main_lockout_sub">Lock the phone when content is detected</string>
+    <string name="main_stats">Statistics</string>
+    <string name="main_night">Night mode</string>
+    <string name="main_screen_time">Screen time</string>
+    <string name="main_disguise">Disguise the app</string>
+    <string name="main_disguise_sub">How the app looks on your home screen</string>
+    <string name="main_language">שפה / Language</string>
+
+    <!-- Advanced -->
+    <string name="adv_title">Advanced protection</string>
+    <string name="adv_full_tunnel">Full filtering (recommended — test after enabling)</string>
+    <string name="adv_full_tunnel_hint">Routes all traffic through the filter: blocks alternative DNS and filters by site name inside HTTPS. If something on the network stops working — turn this off.</string>
+    <string name="adv_block_quic">Block QUIC (forces browsers into a filterable mode)</string>
+    <string name="adv_hotspot">Block internet sharing (hotspot)</string>
+    <string name="adv_hotspot_hint">When on: enabling a hotspot is detected and blocked. Note: an app cannot physically disable a hotspot — it detects and reacts.</string>
+    <string name="adv_allowlist">Allowed sites</string>
+    <string name="adv_full_filtering">Full filtering active</string>
+    <string name="adv_dns_only">DNS filtering only</string>
+
+    <!-- Telegram -->
+    <string name="tg_title">Telegram alerts</string>
+    <string name="tg_intro">Get accountability alerts on Telegram — no server, no cost. Create a bot with \@BotFather, paste the token here, and send /start to the bot.</string>
+    <string name="tg_token">Bot Token</string>
+    <string name="tg_chat">Chat ID — optional</string>
+    <string name="tg_chat_hint">Leave empty and we\'ll try to detect it automatically after you send /start to the bot.</string>
+    <string name="tg_validate">Validate and connect</string>
+    <string name="tg_validating">Checking with Telegram…</string>
+    <string name="tg_ok">Connected: %1$s</string>
+    <string name="tg_fail">Connection failed: %1$s</string>
+    <string name="tg_need_start">Send /start to the bot from the accountability partner\'s phone, then try again.</string>
+    <string name="tg_disconnect">Disconnect</string>
+
+    <!-- Accountability partner -->
+    <string name="partner_phone">Accountability partner phone (SMS)</string>
+    <string name="partner_phone_hint">Messages are sent from this device\'s SIM — no server needed. Leave empty for local alerts only.</string>
+
+    <!-- Disguise -->
+    <string name="disguise_title">Choose how the app looks</string>
+    <string name="disguise_hint">The home-screen icon and name will change. Your launcher may need a moment to refresh.</string>
+    <string name="disguise_applied">Disguise updated</string>
+
+    <!-- Disguise names -->
+    <string name="disg_shield">Covenant Guard</string>
+    <string name="disg_calculator">Calculator</string>
+    <string name="disg_notes">Notes</string>
+    <string name="disg_weather">Weather</string>
+    <string name="disg_clock">Clock</string>
+    <string name="disg_calendar">Calendar</string>
+    <string name="disg_files">Files</string>
+    <string name="disg_gallery">Gallery</string>
+    <string name="disg_music">Music</string>
+    <string name="disg_radio">Radio</string>
+    <string name="disg_flashlight">Flashlight</string>
+    <string name="disg_compass">Compass</string>
+    <string name="disg_converter">Converter</string>
+    <string name="disg_dictionary">Dictionary</string>
+    <string name="disg_tasks">Tasks</string>
+    <string name="disg_scanner">Scanner</string>
+    <string name="disg_battery">Battery</string>
+    <string name="disg_wifi">Wi-Fi</string>
+    <string name="disg_recorder">Recorder</string>
+    <string name="disg_timer">Timer</string>
+
+    <!-- Onboarding -->
+    <string name="onb_welcome_title">Welcome to Covenant Guard</string>
+    <string name="onb_welcome_body">A tool for keeping your browsing clean — that you install on yourself, willingly, as part of a personal covenant. The next steps explain each permission before you grant it.</string>
+    <string name="onb_perm_notif_title">Notifications</string>
+    <string name="onb_perm_notif_body">So the protection can show status and alert your accountability partner.</string>
+    <string name="onb_perm_overlay_title">Display over other apps</string>
+    <string name="onb_perm_overlay_body">Needed to show the block screen over inappropriate content. Without it, blocking won\'t work.</string>
+    <string name="onb_perm_vpn_title">Network filtering (local VPN)</string>
+    <string name="onb_perm_vpn_body">A VPN that runs only on the device — it does not send your data anywhere. It blocks content at the network level.</string>
+    <string name="onb_perm_usage_title">Usage data</string>
+    <string name="onb_perm_usage_body">To track screen time and enforce schedules you define.</string>
+    <string name="onb_perm_battery_title">Battery optimization exemption</string>
+    <string name="onb_perm_battery_body">So the protection isn\'t killed in the background. Especially important on Xiaomi/OnePlus/Samsung.</string>
+    <string name="onb_perm_admin_title">Device admin</string>
+    <string name="onb_perm_admin_body">Makes it harder to remove the app in a weak moment. You can always remove it with your covenant code.</string>
+    <string name="onb_perm_accessibility_title">Accessibility service</string>
+    <string name="onb_perm_accessibility_body">The core of the filter — it reads what\'s shown on screen to block content. Last, because protection starts once it\'s on.</string>
+    <string name="onb_grant">Grant permission</string>
+    <string name="onb_granted">✓ Granted</string>
+    <string name="onb_skip">Skip for now</string>
+    <string name="onb_finish">Done — activate protection</string>
+    <string name="onb_transparency">Transparency: this is an accountability tool you install on yourself. It exists to help those who want help, not to spy on anyone.</string>
+</resources>

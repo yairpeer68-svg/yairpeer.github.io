@@ -11,7 +11,7 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.Map;
 
-public class StatsActivity extends AppCompatActivity {
+public class StatsActivity extends BaseActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

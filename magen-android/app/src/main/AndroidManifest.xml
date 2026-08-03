@@ -47,13 +47,141 @@
         android:theme="@style/Theme.Magen"
         android:hardwareAccelerated="true">
 
+        <!-- WelcomeActivity אינה עוד ה-LAUNCHER הישיר. במקום זה יש 20
+             activity-alias להסוואה, שכולם מצביעים אליה. תמיד בדיוק אחד מהם
+             מופעל, והוא זה שמופיע במגירת האפליקציות. ראה DisguiseManager. -->
         <activity android:name=".ui.WelcomeActivity" android:exported="true"
-            android:screenOrientation="portrait">
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.OnboardingActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.DisguiseActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <!-- ===== 20 מסכות הסוואה ===== -->
+        <activity-alias android:name=".disguise.AliasShield" android:exported="true"
+            android:enabled="true" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_shield" android:label="@string/disg_shield">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-        </activity>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasCalculator" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_calculator" android:label="@string/disg_calculator">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasNotes" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_notes" android:label="@string/disg_notes">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasWeather" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_weather" android:label="@string/disg_weather">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasClock" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_clock" android:label="@string/disg_clock">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasCalendar" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_calendar" android:label="@string/disg_calendar">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasFiles" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_files" android:label="@string/disg_files">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasGallery" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_gallery" android:label="@string/disg_gallery">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasMusic" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_music" android:label="@string/disg_music">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasRadio" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_radio" android:label="@string/disg_radio">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasFlashlight" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_flashlight" android:label="@string/disg_flashlight">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasCompass" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_compass" android:label="@string/disg_compass">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasConverter" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_converter" android:label="@string/disg_converter">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasDictionary" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_dictionary" android:label="@string/disg_dictionary">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasTasks" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_tasks" android:label="@string/disg_tasks">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasScanner" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_scanner" android:label="@string/disg_scanner">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasBattery" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_battery" android:label="@string/disg_battery">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasWifi" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_wifi" android:label="@string/disg_wifi">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasRecorder" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_recorder" android:label="@string/disg_recorder">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasTimer" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_timer" android:label="@string/disg_timer">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
 
         <activity android:name=".ui.MainActivity" android:exported="false"
             android:launchMode="singleTop" android:screenOrientation="portrait"/>

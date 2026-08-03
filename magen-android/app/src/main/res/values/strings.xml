@@ -1,9 +1,122 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- עברית — שפת ברירת המחדל -->
+
     <string name="app_name">שומר הברית</string>
     <string name="accessibility_service_name">שומר הברית - סינון תוכן</string>
     <string name="accessibility_description">
-        מאפשר לאפליקציית שומר הברית לזהות ולחסום גישה לתכנים לא ראויים בדפדפנים ובאפליקציות.
+        מאפשר לשומר הברית לזהות ולחסום גישה לתכנים לא ראויים בדפדפנים ובאפליקציות.
         השירות פועל ברקע ואינו אוסף מידע אישי.
     </string>
+
+    <!-- כללי -->
+    <string name="ok">אישור</string>
+    <string name="cancel">ביטול</string>
+    <string name="save">שמור</string>
+    <string name="close">סגור</string>
+    <string name="back">חזרה</string>
+    <string name="next">הבא</string>
+    <string name="done">סיום</string>
+    <string name="add">הוסף</string>
+    <string name="remove">הסר</string>
+    <string name="enabled">פעיל</string>
+    <string name="disabled">כבוי</string>
+
+    <!-- מודל הברית (במקום "הורה") -->
+    <string name="covenant_code">קוד הברית</string>
+    <string name="covenant_code_create">צור קוד ברית</string>
+    <string name="covenant_code_enter">הזן את קוד הברית</string>
+    <string name="covenant_code_hint">הקוד ננעל אותך מראש, כדי שברגע של חולשה לא תוכל לבטל את ההגנה בקלות.</string>
+    <string name="protection_active">ההגנה פעילה</string>
+    <string name="protection_off">ההגנה כבויה</string>
+
+    <!-- מסך ראשי -->
+    <string name="main_advanced">הגנה מתקדמת</string>
+    <string name="main_advanced_sub">סינון מלא, שותף אחריות</string>
+    <string name="main_lockout">נעילת צינון</string>
+    <string name="main_lockout_sub">נעילת הטלפון בעת זיהוי תוכן</string>
+    <string name="main_stats">סטטיסטיקה</string>
+    <string name="main_night">מצב לילה</string>
+    <string name="main_screen_time">זמן מסך</string>
+    <string name="main_disguise">הסוואת האפליקציה</string>
+    <string name="main_disguise_sub">איך האפליקציה תיראה במסך הבית</string>
+    <string name="main_language">שפה / Language</string>
+
+    <!-- הגנה מתקדמת -->
+    <string name="adv_title">הגנה מתקדמת</string>
+    <string name="adv_full_tunnel">סינון מלא (מומלץ — בדוק אחרי הפעלה)</string>
+    <string name="adv_full_tunnel_hint">מנתב את כל התעבורה דרך המסנן: חוסם גם DNS חלופי וגם לפי שם אתר בתוך HTTPS. אם משהו ברשת מפסיק לעבוד — כבה את זה.</string>
+    <string name="adv_block_quic">חסימת QUIC (מאלץ דפדפנים למצב שניתן לסינון)</string>
+    <string name="adv_hotspot">חסום שיתוף אינטרנט (hotspot)</string>
+    <string name="adv_hotspot_hint">כשמופעל: הפעלת נקודה חמה מזוהה ונחסמת. הערה: אפליקציה אינה יכולה לכבות hotspot פיזית — היא מזהה ומגיבה.</string>
+    <string name="adv_allowlist">אתרים מותרים</string>
+    <string name="adv_full_filtering">סינון מלא פעיל</string>
+    <string name="adv_dns_only">סינון DNS בלבד</string>
+
+    <!-- טלגרם -->
+    <string name="tg_title">התראות בטלגרם</string>
+    <string name="tg_intro">קבל התראות אחריות בטלגרם — בלי שרת ובלי עלות. פתח בוט אצל \@BotFather, הדבק כאן את המפתח, ושלח /start לבוט.</string>
+    <string name="tg_token">מפתח הבוט (Bot Token)</string>
+    <string name="tg_chat">מזהה צ׳אט (Chat ID) — אופציונלי</string>
+    <string name="tg_chat_hint">אם תשאיר ריק, ננסה לזהות אוטומטית אחרי ששלחת /start לבוט.</string>
+    <string name="tg_validate">בדוק וחבר</string>
+    <string name="tg_validating">בודק מול טלגרם…</string>
+    <string name="tg_ok">חובר בהצלחה: %1$s</string>
+    <string name="tg_fail">החיבור נכשל: %1$s</string>
+    <string name="tg_need_start">שלח /start לבוט מהטלפון של שותף האחריות, ואז נסה שוב.</string>
+    <string name="tg_disconnect">נתק</string>
+
+    <!-- שותף אחריות -->
+    <string name="partner_phone">טלפון שותף האחריות (SMS)</string>
+    <string name="partner_phone_hint">ההודעות נשלחות מה-SIM של המכשיר — לא נדרש שרת. השאר ריק לקבלת התראות מקומיות בלבד.</string>
+
+    <!-- הסוואה -->
+    <string name="disguise_title">בחר איך האפליקציה תיראה</string>
+    <string name="disguise_hint">האייקון והשם במסך הבית ישתנו. ייתכן שהמשגר יצטרך רגע לרענן.</string>
+    <string name="disguise_applied">המסכה עודכנה</string>
+
+    <!-- שמות מסכות -->
+    <string name="disg_shield">שומר הברית</string>
+    <string name="disg_calculator">מחשבון</string>
+    <string name="disg_notes">פתקים</string>
+    <string name="disg_weather">מזג אוויר</string>
+    <string name="disg_clock">שעון</string>
+    <string name="disg_calendar">יומן</string>
+    <string name="disg_files">קבצים</string>
+    <string name="disg_gallery">גלריה</string>
+    <string name="disg_music">מוזיקה</string>
+    <string name="disg_radio">רדיו</string>
+    <string name="disg_flashlight">פנס</string>
+    <string name="disg_compass">מצפן</string>
+    <string name="disg_converter">ממיר</string>
+    <string name="disg_dictionary">מילון</string>
+    <string name="disg_tasks">משימות</string>
+    <string name="disg_scanner">סורק</string>
+    <string name="disg_battery">סוללה</string>
+    <string name="disg_wifi">Wi-Fi</string>
+    <string name="disg_recorder">מקליט</string>
+    <string name="disg_timer">טיימר</string>
+
+    <!-- מדריך פתיחה -->
+    <string name="onb_welcome_title">ברוך הבא לשומר הברית</string>
+    <string name="onb_welcome_body">כלי לשמירה על גלישה נקייה — שאתה מתקין על עצמך, מרצון, כחלק מברית אישית. השלבים הבאים יסבירו כל הרשאה לפני שתאשר אותה.</string>
+    <string name="onb_perm_notif_title">התראות</string>
+    <string name="onb_perm_notif_body">כדי שההגנה תוכל להציג סטטוס ולהתריע לשותף האחריות.</string>
+    <string name="onb_perm_overlay_title">הצגה מעל אפליקציות</string>
+    <string name="onb_perm_overlay_body">נדרש כדי להציג את מסך החסימה מעל תוכן לא ראוי. בלי זה החסימה לא תעבוד.</string>
+    <string name="onb_perm_vpn_title">סינון רשת (VPN מקומי)</string>
+    <string name="onb_perm_vpn_body">VPN שרץ רק על המכשיר — לא מוציא את הנתונים שלך החוצה. חוסם תוכן ברמת הרשת.</string>
+    <string name="onb_perm_usage_title">נתוני שימוש</string>
+    <string name="onb_perm_usage_body">כדי לעקוב אחרי זמן מסך ולאכוף לוחות זמנים שאתה מגדיר.</string>
+    <string name="onb_perm_battery_title">פטור מחיסכון סוללה</string>
+    <string name="onb_perm_battery_body">כדי שההגנה לא תיעצר ברקע. במיוחד חשוב בשיאומי/וואן פלוס/סמסונג.</string>
+    <string name="onb_perm_admin_title">מנהל מכשיר</string>
+    <string name="onb_perm_admin_body">מקשה על הסרת האפליקציה ברגע של חולשה. אפשר להסיר תמיד עם קוד הברית.</string>
+    <string name="onb_perm_accessibility_title">שירות נגישות</string>
+    <string name="onb_perm_accessibility_body">ליבת הסינון — קורא את מה שמוצג על המסך כדי לחסום תוכן. אחרון, כי ממנו ההגנה מתחילה לפעול.</string>
+    <string name="onb_grant">הענק הרשאה</string>
+    <string name="onb_granted">✓ הוענק</string>
+    <string name="onb_skip">דלג בינתיים</string>
+    <string name="onb_finish">סיימתי — הפעל הגנה</string>
+    <string name="onb_transparency">שקיפות: זהו כלי אחריות שאתה מתקין על עצמך. הוא נועד לעזור למי שרוצה עזרה, לא לרגל אחרי אף אחד.</string>
 </resources>

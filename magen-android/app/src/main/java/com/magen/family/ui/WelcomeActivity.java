@@ -12,7 +12,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.magen.family.MagenApp;
 import com.magen.family.R;
 
-public class WelcomeActivity extends AppCompatActivity {
+public class WelcomeActivity extends BaseActivity {
 
     private static final int MAIN_REQUEST_CODE = 999;
     private static final int PIN_REQUEST_CODE  = 998;
@@ -88,8 +88,15 @@ public class WelcomeActivity extends AppCompatActivity {
         super.onActivityResult(req, res, data);
 
         if (req == PIN_REQUEST_CODE) {
-            // אחרי הגדרת PIN — עבור למסך הראשי
-            goToMain();
+            // אחרי הגדרת קוד הברית — אם המדריך עוד לא הושלם, עבור אליו קודם
+            boolean onboardingDone = MagenApp.getInstance().getPrefs()
+                .getBoolean("onboarding_done", false);
+            if (!onboardingDone) {
+                startActivity(new Intent(this, OnboardingActivity.class));
+                finish();
+            } else {
+                goToMain();
+            }
 
         } else if (req == MAIN_REQUEST_CODE) {
             // חזרה מ-MainActivity — אפס תצוגה
