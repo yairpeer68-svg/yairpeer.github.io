@@ -28,12 +28,21 @@ public final class LocaleManager {
     private LocaleManager() {}
 
     private static SharedPreferences prefs(Context ctx) {
-        return ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        // חשוב: לא להשתמש ב-getApplicationContext() כאן.
+        // wrap() נקרא מ-Application.attachBaseContext, ובשלב הזה
+        // getApplicationContext() מחזיר null — מה שגרם ל-NullPointerException
+        // ולקריסה מיידית בכל הפעלה. getSharedPreferences עובד על כל context
+        // ומחזיר את אותו קובץ לפי שם, ולכן ה-context הישיר בטוח.
+        return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
     /** השפה השמורה, או עברית כברירת מחדל. */
     public static String getLanguage(Context ctx) {
-        return prefs(ctx).getString(KEY_LANG, HE);
+        try {
+            return prefs(ctx).getString(KEY_LANG, HE);
+        } catch (Exception e) {
+            return HE;
+        }
     }
 
     public static void setLanguage(Context ctx, String lang) {
@@ -49,20 +58,26 @@ public final class LocaleManager {
      * ומ-MagenApp, כך שכל השאילתות ל-getString מחזירות את השפה הנכונה.
      */
     public static Context wrap(Context ctx) {
-        String lang = getLanguage(ctx);
-        Locale locale = new Locale(lang);
-        Locale.setDefault(locale);
+        // כל השרשור עטוף — כשל בהחלפת שפה לעולם לא יפיל את האפליקציה,
+        // במקרה הגרוע פשוט נשארים בשפת ברירת המחדל.
+        try {
+            String lang = getLanguage(ctx);
+            Locale locale = new Locale(lang);
+            Locale.setDefault(locale);
 
-        Configuration config = new Configuration(ctx.getResources().getConfiguration());
-        config.setLocale(locale);
-        // כיווניות (RTL לעברית) נגזרת אוטומטית מה-Locale
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            config.setLayoutDirection(locale);
-            return ctx.createConfigurationContext(config);
-        } else {
-            config.locale = locale;
-            ctx.getResources().updateConfiguration(config,
-                ctx.getResources().getDisplayMetrics());
+            Configuration config = new Configuration(ctx.getResources().getConfiguration());
+            config.setLocale(locale);
+            // כיווניות (RTL לעברית) נגזרת אוטומטית מה-Locale
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                config.setLayoutDirection(locale);
+                return ctx.createConfigurationContext(config);
+            } else {
+                config.locale = locale;
+                ctx.getResources().updateConfiguration(config,
+                    ctx.getResources().getDisplayMetrics());
+                return ctx;
+            }
+        } catch (Exception e) {
             return ctx;
         }
     }
