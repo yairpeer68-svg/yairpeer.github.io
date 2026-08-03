@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_dark"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="32dp">
+
+    <!-- Logo -->
+    <FrameLayout
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_marginBottom="24dp"
+        android:background="@drawable/bg_logo_large">
+        <ImageView
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center"
+            android:contentDescription="shield"
+            android:src="@drawable/ic_shield"/>
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tv_pin_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="קוד גישה"
+        android:textColor="@color/text_primary"
+        android:textSize="26sp"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:id="@+id/tv_pin_subtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="40dp"
+        android:gravity="center"
+        android:text="הזן את הקוד להמשיך"
+        android:textColor="@color/text_muted"
+        android:textSize="14sp"/>
+
+    <!-- PIN Dots -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="40dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <View android:id="@+id/dot1"
+            android:layout_width="18dp" android:layout_height="18dp"
+            android:layout_marginHorizontal="10dp"
+            android:background="@drawable/bg_pin_dot"/>
+        <View android:id="@+id/dot2"
+            android:layout_width="18dp" android:layout_height="18dp"
+            android:layout_marginHorizontal="10dp"
+            android:background="@drawable/bg_pin_dot"/>
+        <View android:id="@+id/dot3"
+            android:layout_width="18dp" android:layout_height="18dp"
+            android:layout_marginHorizontal="10dp"
+            android:background="@drawable/bg_pin_dot"/>
+        <View android:id="@+id/dot4"
+            android:layout_width="18dp" android:layout_height="18dp"
+            android:layout_marginHorizontal="10dp"
+            android:background="@drawable/bg_pin_dot"/>
+    
+    <!-- טביעת אצבע -->
+    <TextView
+        android:id="@+id/btn_fingerprint"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="16dp"
+        android:text="👆 כניסה עם טביעת אצבע"
+        android:textColor="#1A73E8"
+        android:textSize="14sp"
+        android:visibility="gone"/>
+
+</LinearLayout>
+
+    <!-- Numpad -->
+    <GridLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:columnCount="3"
+        android:rowCount="4">
+
+        <Button android:id="@+id/btn1" style="@style/NumButton" android:text="1"/>
+        <Button android:id="@+id/btn2" style="@style/NumButton" android:text="2"/>
+        <Button android:id="@+id/btn3" style="@style/NumButton" android:text="3"/>
+        <Button android:id="@+id/btn4" style="@style/NumButton" android:text="4"/>
+        <Button android:id="@+id/btn5" style="@style/NumButton" android:text="5"/>
+        <Button android:id="@+id/btn6" style="@style/NumButton" android:text="6"/>
+        <Button android:id="@+id/btn7" style="@style/NumButton" android:text="7"/>
+        <Button android:id="@+id/btn8" style="@style/NumButton" android:text="8"/>
+        <Button android:id="@+id/btn9" style="@style/NumButton" android:text="9"/>
+        <Space android:layout_width="72dp" android:layout_height="72dp" android:layout_margin="8dp"/>
+        <Button android:id="@+id/btn0" style="@style/NumButton" android:text="0"/>
+        <Button android:id="@+id/btn_del" style="@style/NumButtonDel" android:text="⌫"/>
+    </GridLayout>
+
+    <TextView
+        android:id="@+id/tv_pin_error"
+        android:layout_width="wrap_content"
+        android:layout_height="20dp"
+        android:layout_marginTop="20dp"
+        android:text=""
+        android:textColor="@color/danger"
+        android:textSize="13sp"/>
+
+</LinearLayout>

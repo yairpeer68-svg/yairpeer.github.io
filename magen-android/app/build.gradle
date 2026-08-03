@@ -1,0 +1,59 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.magen.family'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.magen.family"
+        minSdk 26
+        targetSdk 34
+        versionCode 3
+        versionName "2.0"
+    }
+
+    buildTypes {
+        debug { minifyEnabled false }
+        release {
+            minifyEnabled false
+            // ⚠️ הוסיפי signingConfig לפני release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        resources {
+            excludes += [
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1',
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE*',
+                'META-INF/NOTICE*'
+            ]
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.biometric:biometric:1.1.0'
+
+    // Kotlin stdlib — מאחד גרסה לכל ה-transitive
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+    constraints {
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22')
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22')
+    }
+
+    // ML Kit הוסר: ImageScanService היה קוד מת לגמרי — אף reference אחד
+    // בכל הפרויקט — אבל גרר את כל ספריית text-recognition (~10MB ל-APK).
+    // אם יוסיפו סיווג תמונות בעתיד, להחזיר את התלות יחד עם קוד שמשתמש בה.
+}

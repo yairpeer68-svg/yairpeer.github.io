@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">שומר הברית</string>
+    <string name="accessibility_service_name">שומר הברית - סינון תוכן</string>
+    <string name="accessibility_description">
+        מאפשר לאפליקציית שומר הברית לזהות ולחסום גישה לתכנים לא ראויים בדפדפנים ובאפליקציות.
+        השירות פועל ברקע ואינו אוסף מידע אישי.
+    </string>
+</resources>

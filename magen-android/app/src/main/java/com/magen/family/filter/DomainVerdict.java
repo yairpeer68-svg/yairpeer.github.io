@@ -1,0 +1,118 @@
+package com.magen.family.filter;
+
+import android.content.Context;
+import android.util.Log;
+
+import com.magen.family.service.RemoteBlocklist;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/**
+ * DomainVerdict — נקודת ההחלטה היחידה: "האם לחסום את המארח הזה?"
+ *
+ * למה זה קיים:
+ *   קודם הייתה החלטה מפוזרת בשלושה מקומות שלא הסכימו ביניהם —
+ *   ContentFilter.shouldBlock (רשימה קשיחה בקוד), רשימת banned_words,
+ *   ו-RemoteBlocklist שכלל *לא נקרא מאף מקום* (הורדנו 3 מיליון דומיינים
+ *   ולא השתמשנו בהם).
+ *
+ *   עכשיו כל שכבות הסינון — DNS ב-VPN, סינון SNI, ובדיקת URL בשירות
+ *   הנגישות — עוברות דרך המתודה הזו. רשימה אחת, החלטה אחת, cache אחד.
+ *
+ * סדר הבדיקות (מהזול ליקר):
+ *   1. cache
+ *   2. whitelist מקומי (הורה יכול לפתוח דומיין ספציפי)
+ *   3. רשימה קשיחה + סיומות למבוגרים (ContentFilter)
+ *   4. Bloom filter מרוחק (UT1 + StevenBlack) — ~3M דומיינים
+ */
+public final class DomainVerdict {
+
+    private static final String TAG = "DomainVerdict";
+    private static final int CACHE_SIZE = 512;
+
+    /** LRU cache — מארח -> חסום?  DNS/SNI נשאלים על אותם מארחים שוב ושוב. */
+    private static final Map<String, Boolean> CACHE =
+        new LinkedHashMap<String, Boolean>(CACHE_SIZE, 0.75f, true) {
+            @Override protected boolean removeEldestEntry(Map.Entry<String, Boolean> e) {
+                return size() > CACHE_SIZE;
+            }
+        };
+
+    private static volatile ContentFilter contentFilter;
+
+    private DomainVerdict() {}
+
+    /** מאתחל פעם אחת. בטוח לקריאה חוזרת. */
+    public static void init(Context ctx) {
+        if (contentFilter == null) {
+            synchronized (DomainVerdict.class) {
+                if (contentFilter == null) {
+                    contentFilter = new ContentFilter(ctx.getApplicationContext());
+                }
+            }
+        }
+    }
+
+    /**
+     * ההכרעה. מקבל שם מארח נקי (בלי סכימה, בלי נתיב, בלי פורט).
+     * בטוח לקריאה מכל thread, כולל ה-thread של ה-VPN.
+     */
+    public static boolean isBlocked(Context ctx, String host) {
+        if (host == null) return false;
+
+        String h = normalize(host);
+        if (h.isEmpty()) return false;
+
+        Boolean cached;
+        synchronized (CACHE) {
+            cached = CACHE.get(h);
+        }
+        if (cached != null) return cached;
+
+        boolean blocked = evaluate(ctx, h);
+
+        synchronized (CACHE) {
+            CACHE.put(h, blocked);
+        }
+        if (blocked) Log.d(TAG, "BLOCK " + h);
+        return blocked;
+    }
+
+    private static boolean evaluate(Context ctx, String h) {
+        // 1. whitelist של ההורה גובר על הכל
+        if (HostAllowList.isAllowed(ctx, h)) return false;
+
+        // 2. רשימה קשיחה + סיומות (.xxx/.porn/...)
+        init(ctx);
+        ContentFilter cf = contentFilter;
+        if (cf != null && cf.isHostBlocked(h)) return true;
+
+        // 3. Bloom filter מרוחק — כולל התאמת סאב-דומיינים
+        try {
+            if (RemoteBlocklist.isBlocked(h)) return true;
+        } catch (Exception e) {
+            Log.w(TAG, "remote list check failed: " + e.getMessage());
+        }
+
+        return false;
+    }
+
+    /** ניקוי שם מארח: lowercase, בלי www., בלי נקודה סופית, בלי פורט. */
+    public static String normalize(String host) {
+        if (host == null) return "";
+        String h = host.trim().toLowerCase();
+        int colon = h.indexOf(':');
+        if (colon > 0) h = h.substring(0, colon);
+        if (h.endsWith(".")) h = h.substring(0, h.length() - 1);
+        if (h.startsWith("www.")) h = h.substring(4);
+        return h;
+    }
+
+    /** נקרא אחרי עדכון רשימה כדי שההחלטות הישנות לא ישארו תקועות. */
+    public static void clearCache() {
+        synchronized (CACHE) {
+            CACHE.clear();
+        }
+    }
+}

@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+   >
+
+    <!-- ===== הרשאות בסיסיות ===== -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- שמירה במקום נכון (Scoped Storage) — לא צריך WRITE_EXTERNAL_STORAGE -->
+
+    <!-- צריך כדי לקרוא רשימת אפליקציות מותקנות (Android 11+) -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission"/>
+
+    <!-- ניטור זמן מסך -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions"/>
+
+    <!-- Device Admin (anti-uninstall) -->
+    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN"/>
+
+    <!-- SMS להורה — אופציונלי, ההורה צריך לאשר ב-Runtime -->
+    <uses-permission android:name="android.permission.SEND_SMS"/>
+
+    <!-- Geofencing — חסימה בבית הספר/מקומות מוגדרים -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
+    <!-- Scheduling -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
+
+    <application
+        android:name=".MagenApp"
+        android:allowBackup="false"
+        android:allowClearUserData="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Magen"
+        android:hardwareAccelerated="true">
+
+        <activity android:name=".ui.WelcomeActivity" android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".ui.MainActivity" android:exported="false"
+            android:launchMode="singleTop" android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.PinActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.ScreenTimeActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.NightModeActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.StatsActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.BlockedActivity" android:exported="false"
+            android:screenOrientation="portrait" android:excludeFromRecents="true"/>
+
+        <!-- ===== שירותים ===== -->
+
+        <service android:name=".service.FilterService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="content_filter"/>
+        </service>
+
+        <!-- foregroundServiceType נדרש ב-Android 14: קריאה ל-startForeground()
+             בשירות בלי סוג מוצהר זורקת MissingForegroundServiceTypeException -->
+        <service android:name=".service.MagenVpnService" android:exported="false"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="network_content_filter"/>
+            <intent-filter>
+                <action android:name="android.net.VpnService"/>
+            </intent-filter>
+        </service>
+
+        <service android:name=".service.MagenKillSwitch" android:exported="false"/>
+
+        <service android:name=".service.MagenAccessibilityService" android:exported="true"
+            android:label="@string/accessibility_service_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config"/>
+        </service>
+
+        <service android:name=".service.ScreenTimeService" android:exported="false"/>
+        <service android:name=".service.NightModeService" android:exported="false"/>
+        <service android:name=".service.AppScheduleService" android:exported="false"/>
+        <service android:name=".service.GeofenceService" android:exported="false"/>
+        <service android:name=".service.TamperDetectorService" android:exported="false"/>
+
+        <service android:name=".service.MagenWatchdogJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false"/>
+
+        <!-- מדבקה צפה "מוגן" -->
+        <service android:name=".service.FloatingBadgeService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="protection_status_badge"/>
+        </service>
+
+        <!-- דוח אחריות יומי לשותף -->
+        <service android:name=".service.AccountabilityReporter"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false"/>
+
+        <!-- ===== Broadcast Receivers ===== -->
+
+        <receiver android:name=".admin.MagenDeviceAdmin" android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data android:name="android.app.device_admin"
+                android:resource="@xml/device_admin"/>
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLE_REQUESTED"/>
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLED"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- SCREEN_ON הוסר: הוא לא נמסר ל-receiver מוצהר-Manifest אלא רק
+             לרישום בזמן ריצה, ולכן היה קוד מת. BOOT_COMPLETED מטופל ב-BootReceiver. -->
+        <receiver android:name=".service.MagenVpnWatchdog" android:exported="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.USER_PRESENT"/>
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".service.AppInstallReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED"/>
+                <action android:name="android.intent.action.PACKAGE_REMOVED"/>
+                <data android:scheme="package"/>
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".service.BootReceiver" android:exported="true">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>
