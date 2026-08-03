@@ -79,6 +79,11 @@ public final class VpnPolicy {
         prefs.edit().putBoolean(K_SNI_FILTER, enabled).apply();
     }
 
+    /** חסימת ECH (מענה NODATA ל-HTTPS/SVCB) כדי לשמור על SNI גלוי. */
+    public static boolean blockEch() {
+        return prefs == null || prefs.getBoolean("block_ech", true);   // דלוק כברירת מחדל
+    }
+
     /** מדיניות תגובה על שיתוף אינטרנט. ראה HotspotGuard — זיהוי, לא מניעה. */
     public static boolean blockHotspot() {
         return prefs != null && prefs.getBoolean(K_BLOCK_HOTSPOT, false);

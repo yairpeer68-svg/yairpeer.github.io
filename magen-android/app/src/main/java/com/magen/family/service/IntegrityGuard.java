@@ -100,7 +100,46 @@ public class IntegrityGuard {
     // ---------------- 1. Root ----------------
 
     public static boolean isDeviceRooted() {
-        return checkTestKeys() || checkSuBinaries() || checkRootApps() || checkRootPaths();
+        return checkTestKeys() || checkSuBinaries() || checkRootApps()
+            || checkRootPaths() || checkMagisk();
+    }
+
+    /**
+     * זיהוי Magisk/Zygisk ספציפית — מעבר לבדיקת su הכללית.
+     *
+     * Magisk הוא כלי ה-root הנפוץ ביותר והוא משתדל להסתתר (MagiskHide/DenyList),
+     * ולכן זו שכבת הרתעה ולא הוכחה. עדיין תופסת התקנות סטנדרטיות: נתיבי
+     * Magisk, חבילות ה-manager (כולל שמות מוסווים), ומאפייני מערכת של Zygisk.
+     */
+    private static boolean checkMagisk() {
+        String[] magiskPaths = {
+            "/sbin/.magisk", "/cache/.disable_magisk", "/dev/.magisk.unblock",
+            "/cache/magisk.log", "/data/adb/magisk", "/data/adb/modules",
+            "/data/adb/magisk.db", "/sbin/magisk", "/system/bin/magisk"
+        };
+        for (String p : magiskPaths) {
+            try { if (new File(p).exists()) return true; } catch (Exception ignored) {}
+        }
+
+        String[] magiskPkgs = {
+            "com.topjohnwu.magisk", "io.github.huskydg.magisk",
+            "io.github.vvb2060.magisk", "com.zzzmode.appopsx"
+        };
+        try {
+            PackageManager pm = MagenApp.getInstance().getPackageManager();
+            for (String pkg : magiskPkgs) {
+                try { pm.getPackageInfo(pkg, 0); return true; }
+                catch (PackageManager.NameNotFoundException ignored) {}
+            }
+        } catch (Exception ignored) {}
+
+        // Zygisk מדליק לעיתים מאפיין מערכת
+        try {
+            String zygisk = System.getProperty("ro.dalvik.vm.native.bridge");
+            if (zygisk != null && zygisk.toLowerCase().contains("magisk")) return true;
+        } catch (Exception ignored) {}
+
+        return false;
     }
 
     private static boolean checkTestKeys() {

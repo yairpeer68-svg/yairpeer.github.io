@@ -437,6 +437,26 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         phoneHint.setTextColor(0xFF9E9E9E);
         root.addView(phoneHint);
 
+        // ---- always-on VPN ----
+        TextView aoHint = new TextView(this);
+        aoHint.setText(R.string.adv_always_on_hint);
+        aoHint.setTextSize(12);
+        aoHint.setTextColor(0xFF9E9E9E);
+        aoHint.setPadding(0, pad / 2, 0, 0);
+        root.addView(aoHint);
+
+        Button btnAlwaysOn = new Button(this);
+        btnAlwaysOn.setAllCaps(false);
+        btnAlwaysOn.setText(R.string.adv_always_on);
+        root.addView(btnAlwaysOn);
+        btnAlwaysOn.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent("android.settings.VPN_SETTINGS"));
+            } catch (Exception e) {
+                Toast.makeText(this, "Settings → Network → VPN", Toast.LENGTH_LONG).show();
+            }
+        });
+
         // ---- קיצורים: סינון תוכן + הסוואה + שפה ----
         Button btnContent = new Button(this);
         btnContent.setAllCaps(false);

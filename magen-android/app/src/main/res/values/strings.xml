@@ -50,6 +50,8 @@
     <string name="adv_hotspot">חסום שיתוף אינטרנט (hotspot)</string>
     <string name="adv_hotspot_hint">כשמופעל: הפעלת נקודה חמה מזוהה ונחסמת. הערה: אפליקציה אינה יכולה לכבות hotspot פיזית — היא מזהה ומגיבה.</string>
     <string name="adv_allowlist">אתרים מותרים</string>
+    <string name="adv_always_on">הפעל VPN קבוע (always-on)</string>
+    <string name="adv_always_on_hint">מומלץ מאוד: בהגדרות ה-VPN, בחר את שומר הברית כ-VPN קבוע והפעל \"חסום חיבורים בלי VPN\". כך אין רשת בלי סינון.</string>
     <string name="adv_full_filtering">סינון מלא פעיל</string>
     <string name="adv_dns_only">סינון DNS בלבד</string>
 

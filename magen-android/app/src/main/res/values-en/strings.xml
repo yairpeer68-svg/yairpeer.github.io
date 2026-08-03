@@ -50,6 +50,8 @@
     <string name="adv_hotspot">Block internet sharing (hotspot)</string>
     <string name="adv_hotspot_hint">When on: enabling a hotspot is detected and blocked. Note: an app cannot physically disable a hotspot — it detects and reacts.</string>
     <string name="adv_allowlist">Allowed sites</string>
+    <string name="adv_always_on">Enable always-on VPN</string>
+    <string name="adv_always_on_hint">Strongly recommended: in VPN settings, choose Covenant Guard as the always-on VPN and enable \"Block connections without VPN\". Then there is no network without filtering.</string>
     <string name="adv_full_filtering">Full filtering active</string>
     <string name="adv_dns_only">DNS filtering only</string>
 

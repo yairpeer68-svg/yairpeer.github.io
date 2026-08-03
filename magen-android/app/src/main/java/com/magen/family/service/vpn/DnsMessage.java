@@ -62,6 +62,22 @@ public final class DnsMessage {
      * שומר את ה-ID ואת קטע השאלה (חובה — אחרת ה-resolver מתעלם מהתשובה).
      */
     public static byte[] buildNxDomain(byte[] query, int off, int len) {
+        return buildEmptyResponse(query, off, len, 3);   // RCODE 3 = NXDOMAIN
+    }
+
+    /**
+     * בונה תשובת NODATA (RCODE 0, אפס answers).
+     *
+     * שימוש עיקרי — חסימת ECH: שאילתה מסוג HTTPS/SVCB (type 65) נושאת את
+     * ה-ECHConfig שמצפין את ה-SNI. אם עונים NODATA, הדפדפן לא מקבל את ה-RR,
+     * לא משתמש ב-ECH, ונופל חזרה ל-ClientHello עם SNI גלוי — שאותו אנחנו
+     * מסננים. NXDOMAIN היה שגוי כאן (הדומיין קיים), NODATA הוא הנכון.
+     */
+    public static byte[] buildNoData(byte[] query, int off, int len) {
+        return buildEmptyResponse(query, off, len, 0);
+    }
+
+    private static byte[] buildEmptyResponse(byte[] query, int off, int len, int rcode) {
         try {
             if (len < HEADER_LEN) return null;
 
@@ -72,15 +88,12 @@ public final class DnsMessage {
             byte[] resp = new byte[responseLen];
             System.arraycopy(query, off, resp, 0, responseLen);
 
-            // flags: QR=1 (תשובה), Opcode נשמר, AA=0, TC=0, RD נשמר,
-            //        RA=1 (רקורסיה זמינה), RCODE=3 (NXDOMAIN)
             int origFlags = ((query[off + 2] & 0xFF) << 8) | (query[off + 3] & 0xFF);
             int opcode = (origFlags >> 11) & 0x0F;
             int rd     = (origFlags >> 8) & 0x01;
-            int newFlags = 0x8000 | (opcode << 11) | (rd << 8) | 0x0080 | 0x0003;
+            int newFlags = 0x8000 | (opcode << 11) | (rd << 8) | 0x0080 | (rcode & 0x0F);
             Ipv4.writeShort(resp, 2, newFlags);
 
-            // QDCOUNT נשאר, שאר המונים מתאפסים
             Ipv4.writeShort(resp, 6, 0);   // ANCOUNT
             Ipv4.writeShort(resp, 8, 0);   // NSCOUNT
             Ipv4.writeShort(resp, 10, 0);  // ARCOUNT
@@ -89,6 +102,13 @@ public final class DnsMessage {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** סוג השאילתה הראשונה (QTYPE). 1=A, 28=AAAA, 65=HTTPS. -1 אם לא ידוע. */
+    public static int queryType(byte[] dns, int off, int len) {
+        int end = findQuestionEnd(dns, off, len);
+        if (end < 0) return -1;
+        return ((dns[end - 4] & 0xFF) << 8) | (dns[end - 3] & 0xFF);
     }
 
     /**

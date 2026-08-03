@@ -119,6 +119,18 @@ public class UdpRelay {
                            int deviceIp, int devicePort, int remoteIp, int remotePort) {
         String qname = DnsMessage.extractQueryName(packet, payloadOff, payloadLen);
 
+        // חסימת ECH — שאילתת HTTPS/SVCB (type 65) נענית ב-NODATA כדי שה-SNI
+        // יישאר גלוי ולא יוצפן. בלי זה סינון ה-SNI היה נשבר בעתיד.
+        if (VpnPolicy.blockEch() && DnsMessage.queryType(packet, payloadOff, payloadLen) == 65) {
+            byte[] nd = DnsMessage.buildNoData(packet, payloadOff, payloadLen);
+            if (nd != null) {
+                byte[] reply = Ipv4.buildUdp(remoteIp, remotePort, deviceIp, devicePort,
+                                             nd, nd.length);
+                bridge.writeToTun(reply, reply.length);
+                return;
+            }
+        }
+
         // כפיית Safe Search / YouTube Restricted — מפנים למנוע החיפוש הבטוח
         if (qname != null) {
             byte[] forced = com.magen.family.filter.SafeSearchEnforcer
