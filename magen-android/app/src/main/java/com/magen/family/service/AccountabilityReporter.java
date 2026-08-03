@@ -10,6 +10,7 @@ import android.content.SharedPreferences;
 import android.util.Log;
 
 import com.magen.family.MagenApp;
+import com.magen.family.covenant.StreakManager;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -88,8 +89,12 @@ public class AccountabilityReporter extends JobService {
         String date = new SimpleDateFormat("dd/MM/yyyy HH:mm", new Locale("he"))
             .format(new Date());
 
+        int streak = StreakManager.currentDays(ctx);
+        int longest = StreakManager.longestDays(ctx);
+
         StringBuilder sb = new StringBuilder();
         sb.append("📋 דוח שומר הברית — ").append(date).append("\n\n");
+        sb.append("🔥 רצף נקי: ").append(streak).append(" ימים (שיא: ").append(longest).append(")\n");
         sb.append("🚫 חסימות היום: ").append(blockedToday).append("\n");
         sb.append("📊 חסימות השבוע: ").append(blockedWeek).append("\n");
         sb.append("🔓 ניסיונות עקיפת VPN: ").append(vpnAttempts).append("\n");

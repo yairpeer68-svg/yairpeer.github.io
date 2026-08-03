@@ -125,6 +125,9 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         findViewById(R.id.btn_stats).setOnClickListener(v -> askPin(REQ_PIN_STATS));
         findViewById(R.id.btn_lockout).setOnClickListener(v -> showLockoutDialog());
         findViewById(R.id.btn_advanced).setOnClickListener(v -> askPin(REQ_PIN_ADVANCED));
+        // מרכז הברית פתוח בלי PIN — הוא של המשתמש עצמו, לא הגדרת אכיפה
+        findViewById(R.id.btn_covenant).setOnClickListener(v ->
+            startActivity(new Intent(this, CovenantCenterActivity.class)));
 
         // חיפוש אפליקציות
         etSearch.addTextChangedListener(new TextWatcher() {

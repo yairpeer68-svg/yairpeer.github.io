@@ -411,6 +411,42 @@
                 android:textSize="24sp"/>
         </LinearLayout>
 
+        <!-- מרכז הברית: רצף נקי, צ׳ק-אין, יומן, כפתור מצוקה -->
+        <LinearLayout
+            android:id="@+id/btn_covenant"
+            style="@style/QuickAction">
+            <View
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_icon_success"/>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:orientation="vertical">
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/main_covenant"
+                    android:textColor="@color/text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/main_covenant_sub"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp"/>
+            </LinearLayout>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="‹"
+                android:textColor="@color/text_muted"
+                android:textSize="24sp"/>
+        </LinearLayout>
+
         <!-- הגנה מתקדמת: סינון מלא, טלפון שותף אחריות, רשימת היתר -->
         <LinearLayout
             android:id="@+id/btn_advanced"

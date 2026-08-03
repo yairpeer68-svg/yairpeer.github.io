@@ -98,6 +98,9 @@ public class MagenApp extends Application {
         checkClearDataTamper();
         startBadge();
 
+        // מתחיל את מונה הרצף הנקי בהתקנה הראשונה
+        com.magen.family.covenant.StreakManager.ensureStarted(this);
+
         // טעינת הרשימה המרוחקת ברקע — הקובץ ~3.6MB, קריאה ב-main thread
         // הייתה גורמת ל-ANR בהפעלה
         new Thread(() -> {

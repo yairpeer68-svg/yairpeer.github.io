@@ -59,6 +59,9 @@
         <activity android:name=".ui.DisguiseActivity" android:exported="false"
             android:screenOrientation="portrait"/>
 
+        <activity android:name=".ui.CovenantCenterActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
         <!-- ===== 20 מסכות הסוואה ===== -->
         <activity-alias android:name=".disguise.AliasShield" android:exported="true"
             android:enabled="true" android:targetActivity=".ui.WelcomeActivity"

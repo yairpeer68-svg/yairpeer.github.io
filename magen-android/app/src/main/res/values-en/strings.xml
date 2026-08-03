@@ -146,4 +146,37 @@
     <string name="ds_validate">Validate key</string>
     <string name="ds_ok">Key valid and saved</string>
     <string name="ds_fail">Key invalid or no connection</string>
+
+    <!-- Covenant center -->
+    <string name="main_covenant">Covenant center</string>
+    <string name="main_covenant_sub">Clean streak, check-in, journal</string>
+    <string name="cov_title">Covenant center</string>
+    <string name="cov_streak_days">%1$d clean days</string>
+    <string name="cov_streak_zero">Starting today</string>
+    <string name="cov_longest">Best: %1$d days</string>
+    <string name="cov_total_slips">Slips so far: %1$d</string>
+    <string name="cov_panic">I\'m tempted — help now</string>
+    <string name="cov_panic_title">Take a breath 🌿</string>
+    <string name="cov_panic_body">This moment will pass. It always does. You are stronger than it feels right now.\n\nRemember why you started. Your streak is worth more than 30 seconds of temptation.</string>
+    <string name="cov_panic_breathe">Breathe: inhale 4s · hold 4 · exhale 6. Three times.</string>
+    <string name="cov_panic_call">Call your accountability partner</string>
+    <string name="cov_panic_passed">It passed — I\'m OK</string>
+    <string name="cov_panic_notify">Your partner will be notified that you used this button. It\'s part of the covenant, not a failure.</string>
+    <string name="cov_checkin">Daily check-in</string>
+    <string name="cov_checkin_strong">Feeling strong 💪</string>
+    <string name="cov_checkin_ok">OK 🙂</string>
+    <string name="cov_checkin_struggle">Struggling 😕</string>
+    <string name="cov_checkin_done">✓ You checked in today</string>
+    <string name="cov_journal">Journal</string>
+    <string name="cov_journal_add">Add a journal entry</string>
+    <string name="cov_journal_empty">No entries yet</string>
+    <string name="cov_slip">Report a slip</string>
+    <string name="cov_slip_confirm">Mark the streak as broken? It\'s completely fine — we start again from here.</string>
+    <string name="cov_pledge">My covenant</string>
+    <string name="cov_pledge_sign">Sign the covenant</string>
+    <string name="cov_pledge_edit">Edit the covenant text</string>
+    <string name="cov_pledge_default">I commit to myself and to my accountability partner to keep my browsing clean, and to ask for help in moments of weakness instead of facing them alone.</string>
+    <string name="cov_pledge_signed">Signed on %1$s</string>
+    <string name="cov_no_partner">No accountability partner set. Configure Telegram or a phone in \"Advanced protection\".</string>
+    <string name="phone_missing">No partner phone number set</string>
 </resources>

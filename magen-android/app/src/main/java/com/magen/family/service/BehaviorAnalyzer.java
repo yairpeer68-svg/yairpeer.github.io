@@ -126,6 +126,11 @@ public class BehaviorAnalyzer {
         }
         NotificationHelper.notifyPartnerUrgent(MagenApp.getInstance(),
             "🚨 ניסיון להסיר את שומר הברית!");
+        // ניסיון עקיפה אמיתי שובר את הרצף (בניגוד לחסימת תוכן, שהיא הצלחה)
+        try {
+            com.magen.family.covenant.StreakManager.recordSlip(
+                MagenApp.getInstance(), "ניסיון הסרה");
+        } catch (Exception ignored) {}
     }
 
     // ---------------- החלפת אפליקציות מהירה ----------------

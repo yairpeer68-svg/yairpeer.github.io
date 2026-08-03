@@ -146,4 +146,37 @@
     <string name="ds_validate">בדוק מפתח</string>
     <string name="ds_ok">המפתח תקין ונשמר</string>
     <string name="ds_fail">המפתח אינו תקין או שאין חיבור</string>
+
+    <!-- מרכז הברית -->
+    <string name="main_covenant">מרכז הברית</string>
+    <string name="main_covenant_sub">רצף נקי, צ׳ק-אין, יומן</string>
+    <string name="cov_title">מרכז הברית</string>
+    <string name="cov_streak_days">%1$d ימים נקיים</string>
+    <string name="cov_streak_zero">היום מתחילים</string>
+    <string name="cov_longest">שיא: %1$d ימים</string>
+    <string name="cov_total_slips">נפילות עד היום: %1$d</string>
+    <string name="cov_panic">אני בפיתוי — עזרה עכשיו</string>
+    <string name="cov_panic_title">קח נשימה 🌿</string>
+    <string name="cov_panic_body">הרגע הזה יעבור. הוא תמיד עובר. אתה חזק יותר ממה שנדמה לך כרגע.\n\nזכור למה התחלת. הרצף שלך שווה יותר מ-30 שניות של פיתוי.</string>
+    <string name="cov_panic_breathe">נשימה: שאף 4 שניות · החזק 4 · נשוף 6. שלוש פעמים.</string>
+    <string name="cov_panic_call">התקשר לשותף האחריות</string>
+    <string name="cov_panic_passed">עבר — אני בסדר</string>
+    <string name="cov_panic_notify">שותף האחריות יקבל התראה שנעזרת בכפתור. זה חלק מהברית, לא כישלון.</string>
+    <string name="cov_checkin">צ׳ק-אין יומי</string>
+    <string name="cov_checkin_strong">מרגיש חזק 💪</string>
+    <string name="cov_checkin_ok">בסדר 🙂</string>
+    <string name="cov_checkin_struggle">מתקשה 😕</string>
+    <string name="cov_checkin_done">✓ עשית צ׳ק-אין היום</string>
+    <string name="cov_journal">יומן</string>
+    <string name="cov_journal_add">הוסף רשומה ליומן</string>
+    <string name="cov_journal_empty">עדיין אין רשומות</string>
+    <string name="cov_slip">דיווח על החלקה</string>
+    <string name="cov_slip_confirm">לסמן שהרצף נשבר? זה בסדר גמור — מתחילים מחדש מכאן.</string>
+    <string name="cov_pledge">נוסח הברית שלי</string>
+    <string name="cov_pledge_sign">חתום על הברית</string>
+    <string name="cov_pledge_edit">ערוך את נוסח הברית</string>
+    <string name="cov_pledge_default">אני מתחייב בפני עצמי ובפני שותף האחריות שלי לשמור על גלישה נקייה, ולבקש עזרה ברגעי חולשה במקום להתמודד לבד.</string>
+    <string name="cov_pledge_signed">נחתם ב-%1$s</string>
+    <string name="cov_no_partner">לא הוגדר שותף אחריות. הגדר טלגרם או טלפון ב\"הגנה מתקדמת\".</string>
+    <string name="phone_missing">לא הוגדר מספר טלפון לשותף</string>
 </resources>
