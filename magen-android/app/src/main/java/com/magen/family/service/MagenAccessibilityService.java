@@ -341,6 +341,10 @@ public class MagenAccessibilityService extends AccessibilityService {
     }
 
     private boolean handleSelfDefense(String pkg) {
+        // חלון תחזוקה: הבעלים אימת את קוד הברית → משהים הגנה עצמית לזמן קצר
+        // כדי שיוכל לשנות הגדרות / להעניק מחדש הרשאות בלי להיחסם.
+        if (MagenGuard.inMaintenance(this)) return false;
+
         if (isSettingsPackage(pkg)) {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
@@ -399,7 +403,19 @@ public class MagenAccessibilityService extends AccessibilityService {
                             findText(root, "פרטי אפליקציה") ||
                             findText(root, "אחסון ומטמון") ||
                             findText(root, "Storage & cache") ||
-                            findText(root, "אחסון ונתונים");
+                            findText(root, "אחסון ונתונים") ||
+                            // דף ההרשאה עצמו — כפתורי הפעולה של שלילת הרשאה
+                            findText(root, "אל תאפשר") ||
+                            findText(root, "Don't allow") ||
+                            findText(root, "Don’t allow") ||
+                            findText(root, "דחה") ||
+                            findText(root, "Deny") ||
+                            findText(root, "הסר הרשאות") ||
+                            findText(root, "Remove permissions") ||
+                            // מסך "הצג מעל אפליקציות אחרות" של האפליקציה שלנו —
+                            // ביטולו משבית את מסך החסימה.
+                            findText(root, "הצג מעל אפליקציות אחרות") ||
+                            findText(root, "Display over other apps");
                         if (permissionScreen) {
                             if (behaviorAnalyzer != null) behaviorAnalyzer.recordUninstallAttempt();
                             block();

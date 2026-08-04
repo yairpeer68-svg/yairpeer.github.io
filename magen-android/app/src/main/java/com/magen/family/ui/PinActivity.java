@@ -111,7 +111,13 @@ public class PinActivity extends BaseActivity {
         fpBtn.setVisibility(View.VISIBLE);
         fpBtn.setOnClickListener(v ->
             BiometricHelper.authenticate(this, new BiometricHelper.BiometricCallback() {
-                @Override public void onSuccess() { setResult(RESULT_OK); finish(); }
+                @Override public void onSuccess() {
+                    authenticated = true;
+                    com.magen.family.service.MagenGuard.grantMaintenance(PinActivity.this);
+                    clearKillSwitchIfNeeded();
+                    setResult(RESULT_OK);
+                    finish();
+                }
                 @Override public void onFailed() {
                     tvSubtitle.setText("טביעת אצבע לא הוכרה");
                     tvSubtitle.setTextColor(0xFFE53935);
@@ -206,6 +212,9 @@ public class PinActivity extends BaseActivity {
             authenticated = true;
             resetAttempts();
             clearKillSwitchIfNeeded();
+            // חלון תחזוקה: הבעלים אימת את קוד הברית → משהים הגנה עצמית 5 דק'
+            // כדי שיוכל לשנות הגדרות / להעניק מחדש הרשאה בלי להיחסם.
+            com.magen.family.service.MagenGuard.grantMaintenance(this);
             setResult(RESULT_OK);
             finish();
             return true;
