@@ -79,9 +79,9 @@ public class PinActivity extends BaseActivity {
             tvTitle.setText(R.string.covenant_code);
             tvSubtitle.setText(getString(R.string.covenant_code_enter));
         } else {
-            tvTitle.setText(name.isEmpty() ? getString(R.string.covenant_code)
-                                           : "שלום " + name + " 👋");
-            tvSubtitle.setText(R.string.covenant_code_enter);
+            // מצב אימות — פשוט "הזן קוד", בלי מסגור הורה ובלי ברכת שם
+            tvTitle.setText(R.string.covenant_code_enter);
+            tvSubtitle.setText("");
         }
 
         setupButtons();

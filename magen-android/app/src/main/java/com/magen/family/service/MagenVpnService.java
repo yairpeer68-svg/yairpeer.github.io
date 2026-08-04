@@ -311,15 +311,25 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
         } catch (Exception ignored) {}
     }
 
+    /**
+     * onRevoke נקרא בדיוק כשמפעילים VPN אחר (למשל 1.1.1.1) — אנדרואיד מרשה
+     * VPN אחד בלבד, אז שלנו מבוטל והסינון מת. אי אפשר למנוע את זה ב-Device
+     * Admin, אבל אפשר להפוך את זה ל"יקר ורועש": נועלים את מסך המערכת, מתריעים
+     * לשותף, ורושמים שבירת רצף. השומר (TamperDetector/Watchdog) ינסה להחזיר
+     * את ה-VPN שלנו ברגע שה-VPN החיצוני יכובה.
+     */
     @Override
     public void onRevoke() {
-        intentionalStop = true;
+        // לא מסמנים intentionalStop — אנחנו *כן* רוצים לנסות לחזור
         isRunning = false;
         isVpnRunning = false;
         if (vpnThread != null) vpnThread.interrupt();
         try {
-            NotificationHelper.notifyPartnerUrgent(this, "🚨 סינון הרשת של שומר הברית בוטל!");
+            com.magen.family.admin.MagenDeviceAdmin.lockDeviceNow(this);
+            NotificationHelper.notifyPartnerUrgent(this,
+                "🚨 הופעל VPN אחר — סינון הרשת של שומר הברית בוטל! ייתכן ניסיון עקיפה.");
             AccountabilityReporter.recordSecurityAlert(this);
+            com.magen.family.covenant.StreakManager.recordSlip(this, "VPN חיצוני");
         } catch (Exception ignored) {}
         super.onRevoke();
     }

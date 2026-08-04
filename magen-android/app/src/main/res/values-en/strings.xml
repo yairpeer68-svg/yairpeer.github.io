@@ -25,7 +25,7 @@
     <!-- Covenant model -->
     <string name="covenant_code">Covenant Code</string>
     <string name="covenant_code_create">Create covenant code</string>
-    <string name="covenant_code_enter">Enter your covenant code</string>
+    <string name="covenant_code_enter">Enter code</string>
     <string name="covenant_code_hint">This code locks you in advance, so that in a weak moment you can\'t easily disable the protection.</string>
     <string name="protection_active">Protection active</string>
     <string name="protection_off">Protection off</string>

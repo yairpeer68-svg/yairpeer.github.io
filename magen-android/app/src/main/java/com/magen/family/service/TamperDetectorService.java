@@ -77,10 +77,12 @@ public class TamperDetectorService extends Service {
         if (foreignVpn) {
             Log.w(TAG, "🚨 Foreign VPN detected");
             if (!lastForeignVpn) {
+                // VPN חיצוני = הסינון שלנו מבוטל. נועלים ומתריעים (יקר ורועש).
+                MagenDeviceAdmin.lockDeviceNow(this);
                 NotificationHelper.notifyPartnerUrgent(this,
-                    "🚨 VPN חיצוני זוהה - הגנה נעקפת!");
+                    "🚨 VPN חיצוני זוהה — ההגנה נעקפת! המכשיר ננעל.");
             }
-            // לא KillSwitch — רק נסיון להחזיר את ה-VPN שלנו
+            // נסיון מתמשך להחזיר את ה-VPN שלנו (יצליח כשהחיצוני יכובה)
             startService(new Intent(this, MagenVpnService.class));
         }
 

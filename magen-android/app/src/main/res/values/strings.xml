@@ -25,7 +25,7 @@
     <!-- מודל הברית (במקום "הורה") -->
     <string name="covenant_code">קוד הברית</string>
     <string name="covenant_code_create">צור קוד ברית</string>
-    <string name="covenant_code_enter">הזן את קוד הברית</string>
+    <string name="covenant_code_enter">הזן קוד</string>
     <string name="covenant_code_hint">הקוד ננעל אותך מראש, כדי שברגע של חולשה לא תוכל לבטל את ההגנה בקלות.</string>
     <string name="protection_active">ההגנה פעילה</string>
     <string name="protection_off">ההגנה כבויה</string>

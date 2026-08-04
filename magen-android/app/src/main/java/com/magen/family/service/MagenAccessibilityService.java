@@ -65,7 +65,17 @@ public class MagenAccessibilityService extends AccessibilityService {
         "com.vpn.free.hotspot.secure.vpnify",
         "com.atlasvpn.free",
         "com.onlyfans", "tv.fmovies.app",
-        "org.briarproject.briar.android"
+        "org.briarproject.briar.android",
+        // אפליקציות VPN/DNS שהיו חסרות — כל אחת מבטלת את ה-VPN שלנו
+        "com.cloudflare.onedotonedotonedotone",   // 1.1.1.1 / WARP
+        "com.getsurfboard", "com.wireguard.android",
+        "org.mullvad.mullvadvpn", "com.privatevpn.android",
+        "hotspotshield.android.vpn", "com.free.vpn.super.hotspot.open",
+        "com.bitdefender.vpn", "com.avira.vpn", "com.avast.android.vpn",
+        "com.hidemyass.hidemyassprovpn", "io.github.getsops",
+        "org.outline.android.client", "net.openvpn.openvpn",
+        "com.v2ray.ang", "com.github.shadowsocks", "com.v2ray.actinium",
+        "app.openconnect", "de.blinkt.openvpn.api"
     ));
 
     private static final Set<String> VPN_PACKAGES_FOR_DETECTION = new HashSet<>(BLOCKED_APPS_FIXED);
@@ -78,7 +88,15 @@ public class MagenAccessibilityService extends AccessibilityService {
         "com.facebook.android",
         "com.snapchat.android",
         "com.twitter.android",
-        "com.reddit.frontpage"
+        "com.reddit.frontpage",
+        // אפליקציות חיפוש — הבעיה החמורה: חיפוש תמונות באפליקציית Google לא
+        // עבר דרך שום דפדפן, ולכן לא נסרק. עכשיו נסרק כמו אפליקציה חברתית
+        // (טקסט מוקלד + DOM), כך שהשאילתה "porn" והתוצאות נחסמות.
+        "com.google.android.googlequicksearchbox",   // אפליקציית Google
+        "com.google.android.apps.searchlite",         // Google Go
+        "com.sec.android.app.sbrowser",               // Samsung Internet (גם דפדפן)
+        "com.pinterest",
+        "com.google.android.apps.photos"              // חיפוש בגלריה
     ));
 
     @Override

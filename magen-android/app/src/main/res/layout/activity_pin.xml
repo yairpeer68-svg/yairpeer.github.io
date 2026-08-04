@@ -25,7 +25,7 @@
         android:id="@+id/tv_pin_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="קוד גישה"
+        android:text="הזן קוד"
         android:textColor="@color/text_primary"
         android:textSize="26sp"
         android:textStyle="bold"/>
@@ -37,7 +37,7 @@
         android:layout_marginTop="6dp"
         android:layout_marginBottom="40dp"
         android:gravity="center"
-        android:text="הזן את הקוד להמשיך"
+        android:text="הזן קוד"
         android:textColor="@color/text_muted"
         android:textSize="14sp"/>
 
