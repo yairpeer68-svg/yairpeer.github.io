@@ -67,6 +67,16 @@
     <string name="tg_fail">החיבור נכשל: %1$s</string>
     <string name="tg_need_start">שלח /start לבוט מהטלפון של שותף האחריות, ואז נסה שוב.</string>
     <string name="tg_disconnect">נתק</string>
+    <string name="tg_not_configured">חבר קודם בוט טלגרם (מפתח + מזהה צ׳אט).</string>
+    <!-- משפטי חיזוק אישיים -->
+    <string name="tg_sent_intro">כתוב בצ׳אט הטלגרם משפטי חיזוק אישיים — כל הודעה שתשלח תהפוך למשפט שיקפוץ לך בדיוק ברגע שבו תוכן נחסם. זה הקול שלך, מהרגע השקט, שחוזר אליך ברגע הקושי.</string>
+    <string name="tg_sync_now">סנכרן משפטים עכשיו</string>
+    <string name="tg_sync_result">נוספו %1$d משפטים חדשים. סה״כ במאגר: %2$d.</string>
+    <string name="tg_sent_view">צפה במשפטים שנשמרו</string>
+    <string name="tg_sent_title">משפטי חיזוק (%d)</string>
+    <string name="tg_sent_empty">עדיין אין משפטים. כתוב הודעות בצ׳אט הטלגרם ואז לחץ \"סנכרן משפטים עכשיו\". עד אז יוצגו משפטי ברירת מחדל.</string>
+    <string name="tg_sent_clear">מחק הכל</string>
+    <string name="tg_sent_clear_confirm">למחוק את כל משפטי החיזוק שנשמרו? אפשר לסנכרן אותם שוב מהצ׳אט.</string>
 
     <!-- שותף אחריות -->
     <string name="partner_phone">טלפון שותף האחריות (SMS)</string>

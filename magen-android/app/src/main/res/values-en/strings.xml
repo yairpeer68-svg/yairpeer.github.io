@@ -67,6 +67,16 @@
     <string name="tg_fail">Connection failed: %1$s</string>
     <string name="tg_need_start">Send /start to the bot from the accountability partner\'s phone, then try again.</string>
     <string name="tg_disconnect">Disconnect</string>
+    <string name="tg_not_configured">Connect a Telegram bot first (token + chat ID).</string>
+    <!-- Personal chizuk sentences -->
+    <string name="tg_sent_intro">Write personal encouragement sentences in your Telegram chat — every message you send becomes a line that pops up at the exact moment content is blocked. It\'s your own voice, from a calm moment, coming back to you when it\'s hard.</string>
+    <string name="tg_sync_now">Sync sentences now</string>
+    <string name="tg_sync_result">Added %1$d new sentences. Total in pool: %2$d.</string>
+    <string name="tg_sent_view">View saved sentences</string>
+    <string name="tg_sent_title">Encouragement sentences (%d)</string>
+    <string name="tg_sent_empty">No sentences yet. Write messages in your Telegram chat, then tap \"Sync sentences now\". Until then, default lines are shown.</string>
+    <string name="tg_sent_clear">Delete all</string>
+    <string name="tg_sent_clear_confirm">Delete all saved encouragement sentences? You can sync them again from the chat.</string>
 
     <!-- Accountability partner -->
     <string name="partner_phone">Accountability partner phone (SMS)</string>

@@ -92,7 +92,8 @@ public class MagenKillSwitch extends Service {
         overlay.addView(title);
 
         TextView msg = new TextView(this);
-        msg.setText("נחסם תוכן לא ראוי.\nקח נשימה. זה יעבור.");
+        // משפט חיזוק אישי (מסונכרן מטלגרם) — קופץ ברגע הנפילה
+        msg.setText(FallSentences.getRandom(this));
         msg.setTextSize(17);
         msg.setTextColor(Color.parseColor("#CCCCCC"));
         msg.setGravity(Gravity.CENTER);

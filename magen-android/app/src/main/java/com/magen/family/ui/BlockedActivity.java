@@ -10,8 +10,6 @@ import android.widget.TextView;
 import com.magen.family.MagenApp;
 import com.magen.family.R;
 
-import java.util.Random;
-
 /**
  * BlockedActivity — מסך "תוכן חסום".
  *
@@ -21,16 +19,6 @@ import java.util.Random;
  *     (עד תקרה). ההשהיה נותנת רגע לנשום ומייקרת התמדה בפיתוי.
  */
 public class BlockedActivity extends BaseActivity {
-
-    private static final String[] MESSAGES = {
-        "הרגע הזה יעבור. קח נשימה עמוקה.",
-        "אתה חזק יותר מהפיתוי הזה.",
-        "כל פעם שאתה עוצר — אתה מתחזק.",
-        "זכור למה התחלת את הברית הזו.",
-        "הרצף שלך שווה יותר מ-30 שניות.",
-        "נשימה: שאף 4 · החזק 4 · נשוף 6.",
-        "בחרת בזה. אתה שולט, לא הפיתוי."
-    };
 
     private static final int MIN_DELAY_SEC = 3;
     private static final int MAX_DELAY_SEC = 15;
@@ -55,11 +43,14 @@ public class BlockedActivity extends BaseActivity {
             tvUrl.setText(domain);
         }
 
-        // מסר מעודד מתחלף
+        // מסר מעודד — מעדיפים משפט חיזוק אישי שהמשתמש כתב (מסונכרן מטלגרם).
+        // זה בדיוק "הרגע שהמערכת מזהה נפילה → קופץ לו מה שהוא בעצמו כתב".
         TextView tvMsg = findViewById(R.id.tv_blocked_msg);
         if (tvMsg != null) {
-            tvMsg.setText(MESSAGES[new Random().nextInt(MESSAGES.length)]);
+            tvMsg.setText(com.magen.family.service.FallSentences.getRandom(this));
         }
+        // מרעננים את מאגר המשפטים ברקע לפעם הבאה (ממותנן, לא חוסם).
+        com.magen.family.service.TelegramNotifier.syncSentencesAsync(this);
 
         // כפתור "חזור" — עם השהיה מדורגת לפי כמות החסימות היום
         Button btnBack = findViewById(R.id.btn_go_home);

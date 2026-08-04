@@ -172,6 +172,82 @@ public class TelegramNotifier {
         }
     }
 
+    // ---------------- סנכרון משפטי חיזוק ----------------
+
+    /** מסמן שסנכרון כבר רץ, כדי לא להריץ כמה במקביל. */
+    private static volatile boolean syncing = false;
+    private static volatile long lastSyncAt = 0;
+    private static final long SYNC_THROTTLE_MS = 60_000L;   // לכל היותר פעם בדקה
+
+    /**
+     * שולף הודעות טקסט מצ'אט האחריות והופך כל אחת ל"משפט חיזוק" שיקפוץ ברגע
+     * חסימה. בטוח לקריאה מכל מקום — יורד ל-thread רקע לבד וממותנן.
+     *
+     * getUpdates עם offset שמור מבטיח שכל הודעה נשאבת פעם אחת בלבד.
+     */
+    public static void syncSentencesAsync(Context ctx) {
+        if (!isConfigured(ctx)) return;
+        long now = System.currentTimeMillis();
+        if (syncing || now - lastSyncAt < SYNC_THROTTLE_MS) return;
+        syncing = true;
+        final Context app = ctx.getApplicationContext();
+        new Thread(() -> {
+            try { syncSentencesBlocking(app); }
+            finally { lastSyncAt = System.currentTimeMillis(); syncing = false; }
+        }, "TgSync").start();
+    }
+
+    /** גרסה חוסמת — לשימוש כשכבר נמצאים ב-thread רקע (למשל אחרי ולידציה). */
+    public static int syncSentencesBlocking(Context ctx) {
+        if (!isConfigured(ctx)) return 0;
+        try {
+            String token = getToken(ctx);
+            String chat = getChatId(ctx);
+            long offset = FallSentences.getOffset(ctx);
+
+            String method = "getUpdates?timeout=0&allowed_updates=%5B%22message%22%5D"
+                + (offset > 0 ? "&offset=" + offset : "");
+            JSONObject upd = call(token, method, null);
+            if (upd == null || !upd.optBoolean("ok", false)) return 0;
+
+            org.json.JSONArray result = upd.optJSONArray("result");
+            if (result == null || result.length() == 0) return 0;
+
+            java.util.List<String> found = new java.util.ArrayList<>();
+            long maxUpdateId = offset - 1;
+            for (int i = 0; i < result.length(); i++) {
+                JSONObject u = result.getJSONObject(i);
+                long uid = u.optLong("update_id", -1);
+                if (uid > maxUpdateId) maxUpdateId = uid;
+
+                JSONObject msg = u.optJSONObject("message");
+                if (msg == null) msg = u.optJSONObject("edited_message");
+                if (msg == null) continue;
+
+                JSONObject c = msg.optJSONObject("chat");
+                if (c == null) continue;
+                // רק הצ'אט המוגדר — לא הודעות מצ'אטים אחרים
+                if (!chat.equals(String.valueOf(c.optLong("id")))) continue;
+
+                String text = msg.optString("text", "").trim();
+                if (text.isEmpty()) continue;
+                // מתעלמים מפקודות בוט (/start וכו')
+                if (text.startsWith("/")) continue;
+                found.add(text);
+            }
+
+            if (maxUpdateId >= offset) FallSentences.setOffset(ctx, maxUpdateId + 1);
+            if (!found.isEmpty()) {
+                FallSentences.addAll(ctx, found);
+                return found.size();
+            }
+            return 0;
+        } catch (Exception e) {
+            Log.w(TAG, "syncSentences: " + e.getMessage());
+            return 0;
+        }
+    }
+
     // ---------------- HTTP ----------------
 
     private static JSONObject call(String token, String method, String postBody) {

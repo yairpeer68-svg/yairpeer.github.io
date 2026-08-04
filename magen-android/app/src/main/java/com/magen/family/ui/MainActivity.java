@@ -297,6 +297,8 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         super.onResume();
         refreshStatus();
         refreshOverlayWarning();
+        // סנכרון ממותנן של משפטי החיזוק מטלגרם (פעם בדקה לכל היותר)
+        com.magen.family.service.TelegramNotifier.syncSentencesAsync(this);
     }
 
     /** מציג באנר קבוע במקום לפתוח את מסך ההרשאה שוב ושוב. */
@@ -418,6 +420,40 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         btnTgValidate.setOnClickListener(v ->
             validateTelegram(etTgToken.getText().toString(), etTgChat.getText().toString(), etTgChat));
 
+        // ---- משפטי חיזוק (מסונכרנים מהצ'אט) ----
+        TextView chizukIntro = new TextView(this);
+        chizukIntro.setText(R.string.tg_sent_intro);
+        chizukIntro.setTextSize(12);
+        chizukIntro.setTextColor(0xFF9E9E9E);
+        chizukIntro.setPadding(0, pad / 2, 0, 0);
+        root.addView(chizukIntro);
+
+        Button btnSyncNow = new Button(this);
+        btnSyncNow.setAllCaps(false);
+        btnSyncNow.setText(R.string.tg_sync_now);
+        root.addView(btnSyncNow);
+        btnSyncNow.setOnClickListener(v -> {
+            if (!com.magen.family.service.TelegramNotifier.isConfigured(this)) {
+                Toast.makeText(this, R.string.tg_not_configured, Toast.LENGTH_LONG).show();
+                return;
+            }
+            Toast.makeText(this, R.string.tg_validating, Toast.LENGTH_SHORT).show();
+            new Thread(() -> {
+                int added = com.magen.family.service.TelegramNotifier
+                    .syncSentencesBlocking(getApplicationContext());
+                int total = com.magen.family.service.FallSentences.count(getApplicationContext());
+                runOnUiThread(() -> Toast.makeText(this,
+                    getString(R.string.tg_sync_result, added, total),
+                    Toast.LENGTH_LONG).show());
+            }, "TgSyncNow").start();
+        });
+
+        Button btnViewSent = new Button(this);
+        btnViewSent.setAllCaps(false);
+        btnViewSent.setText(R.string.tg_sent_view);
+        root.addView(btnViewSent);
+        btnViewSent.setOnClickListener(v -> showSentencesDialog());
+
         // ---- טלפון שותף (SMS) ----
         TextView phoneLabel = new TextView(this);
         phoneLabel.setText(R.string.partner_phone);
@@ -520,6 +556,44 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
             .show();
     }
 
+    /** מציג את משפטי החיזוק שסונכרנו, עם אפשרות למחוק את המאגר. */
+    private void showSentencesDialog() {
+        java.util.List<String> list =
+            com.magen.family.service.FallSentences.getAll(getApplicationContext());
+        CharSequence msg;
+        if (list.isEmpty()) {
+            msg = getString(R.string.tg_sent_empty);
+        } else {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < list.size(); i++) {
+                sb.append(i + 1).append(". ").append(list.get(i)).append("\n\n");
+            }
+            msg = sb.toString().trim();
+        }
+        android.widget.TextView tv = new android.widget.TextView(this);
+        int p = (int) (18 * getResources().getDisplayMetrics().density);
+        tv.setPadding(p, p, p, p);
+        tv.setTextSize(15);
+        tv.setText(msg);
+        android.widget.ScrollView sc = new android.widget.ScrollView(this);
+        sc.addView(tv);
+
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.tg_sent_title, list.size()))
+            .setView(sc)
+            .setPositiveButton(R.string.close, null)
+            .setNegativeButton(R.string.tg_sent_clear, (d, w) ->
+                new android.app.AlertDialog.Builder(this)
+                    .setMessage(R.string.tg_sent_clear_confirm)
+                    .setPositiveButton(R.string.tg_sent_clear, (d2, w2) -> {
+                        com.magen.family.service.FallSentences.clear(getApplicationContext());
+                        Toast.makeText(this, "✓", Toast.LENGTH_SHORT).show();
+                    })
+                    .setNegativeButton(R.string.cancel, null)
+                    .show())
+            .show();
+    }
+
     /** מאמת מפתח טלגרם ברקע ושומר רק אם הצליח. */
     private void validateTelegram(String token, String chatHint, EditText chatField) {
         final android.app.ProgressDialog pd = new android.app.ProgressDialog(this);
@@ -537,6 +611,10 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
                     com.magen.family.service.TelegramNotifier.save(this, token, chatId, true);
                     if (chatField != null && r.resolvedChatId != null)
                         chatField.setText(r.resolvedChatId);
+                    // סנכרון ראשוני של משפטי החיזוק שכבר נכתבו בצ'אט
+                    new Thread(() ->
+                        com.magen.family.service.TelegramNotifier.syncSentencesBlocking(
+                            getApplicationContext()), "TgSyncInit").start();
                     Toast.makeText(this, getString(R.string.tg_ok, r.message),
                         Toast.LENGTH_LONG).show();
                 } else {
