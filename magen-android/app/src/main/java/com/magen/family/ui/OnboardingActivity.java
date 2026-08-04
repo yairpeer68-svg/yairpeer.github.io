@@ -114,6 +114,18 @@ public class OnboardingActivity extends BaseActivity {
                 Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
                 Uri.parse("package:" + getPackageName()))), true));
 
+        // 7.5 הפעלה אוטומטית (Autostart) — רק ביצרנים שהורגים שירותים.
+        //     אין API לבדוק אם ניתנה, לכן מסמנים "ביקרת במסך" (מומלץ, לא חובה).
+        if (com.magen.family.service.OemAutostart.isLikelyNeeded()) {
+            steps.add(new Step(R.string.onb_perm_autostart_title, R.string.onb_perm_autostart_body,
+                () -> MagenApp.getInstance().getPrefs().getBoolean("autostart_opened", false),
+                () -> {
+                    MagenApp.getInstance().getPrefs().edit()
+                        .putBoolean("autostart_opened", true).apply();
+                    com.magen.family.service.OemAutostart.open(this);
+                }, false));
+        }
+
         // 8. מנהל מכשיר — חובה (הגנה מפני הסרה)
         steps.add(new Step(R.string.onb_perm_admin_title, R.string.onb_perm_admin_body,
             () -> MagenDeviceAdmin.isAdminActive(this),

@@ -43,6 +43,10 @@ public class BootReceiver extends BroadcastReceiver {
                     SecurityGuard.runSecurityChecks(context.getApplicationContext());
                     IntegrityGuard.runIntegrityChecks(context.getApplicationContext());
                 } catch (Exception ignored) {}
+                // אחרי אתחול (כולל חזרה מ-Safe Mode) — בדיקה אם הגנה קריטית כבויה
+                try {
+                    ProtectionWatch.checkAsync(context.getApplicationContext());
+                } catch (Exception ignored) {}
                 break;
             default:
                 break;

@@ -60,6 +60,10 @@ public class MagenWatchdogJob extends JobService {
         try { TamperWatcher.start(getApplicationContext()); }
         catch (Exception e) { Log.e(TAG, "tamperWatcher: " + e.getMessage()); }
 
+        // התראה לשותף אם הגנה קריטית כבויה (נגישות/מנהל/overlay/Safe Mode)
+        try { ProtectionWatch.checkAsync(getApplicationContext()); }
+        catch (Exception e) { Log.e(TAG, "protectionWatch: " + e.getMessage()); }
+
         // בדוק VPN (גיבוי ל-ServiceRevival)
         if (!MagenVpnService.isVpnRunning) {
             Log.w(TAG, "⚠️ VPN down — restarting");

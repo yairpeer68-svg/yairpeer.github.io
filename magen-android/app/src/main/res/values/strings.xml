@@ -127,6 +127,8 @@
     <string name="onb_perm_usage_body">כדי לעקוב אחרי זמן מסך ולאכוף לוחות זמנים שאתה מגדיר.</string>
     <string name="onb_perm_battery_title">פטור מחיסכון סוללה</string>
     <string name="onb_perm_battery_body">כדי שההגנה לא תיעצר ברקע. במיוחד חשוב בשיאומי/וואן פלוס/סמסונג.</string>
+    <string name="onb_perm_autostart_title">הפעלה אוטומטית</string>
+    <string name="onb_perm_autostart_body">במכשיר שלך (שיאומי/אופו/ויוו/וואווי וכו׳) המערכת הורגת אפליקציות ברקע גם עם פטור סוללה — אלא אם מדליקים \"הפעלה אוטומטית\". לחץ על הכפתור, מצא את \"שומר הברית\" ברשימה, והדלק אותו. זה קריטי כדי שההגנה לא תיעצר.</string>
     <string name="onb_perm_admin_title">מנהל מכשיר</string>
     <string name="onb_perm_admin_body">מקשה על הסרת האפליקציה ברגע של חולשה. אפשר להסיר תמיד עם קוד הברית.</string>
     <string name="onb_perm_accessibility_title">שירות נגישות</string>

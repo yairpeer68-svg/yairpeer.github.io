@@ -300,6 +300,8 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         // סנכרון ממותנן של משפטי החיזוק — אישי (בוט) + משותף (ערוץ ציבורי)
         com.magen.family.service.TelegramNotifier.syncSentencesAsync(this);
         com.magen.family.service.GlobalSentences.syncAsync(this);
+        // בדיקה אם הגנה קריטית כובתה (Safe Mode / נגישות / מנהל / overlay)
+        com.magen.family.service.ProtectionWatch.checkAsync(this);
     }
 
     /** מציג באנר קבוע במקום לפתוח את מסך ההרשאה שוב ושוב. */
