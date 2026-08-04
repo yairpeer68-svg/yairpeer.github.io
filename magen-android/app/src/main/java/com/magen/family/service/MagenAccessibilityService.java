@@ -376,6 +376,36 @@ public class MagenAccessibilityService extends AccessibilityService {
                         block();
                         return true;
                     }
+
+                    // מסך הרשאות / מידע-על-האפליקציה של האפליקציה שלנו: כאן אפשר לשלול
+                    // הרשאות קריטיות (נגישות, אחסון, מיקום) ובכך לשתק את הסינון *בלי*
+                    // להסיר את האפליקציה — ולכן חייבים לחסום אותו גם כן.
+                    //   • רק כשההגדרה הראשונית הושלמה (onboarding_done), אחרת נחסום את
+                    //     מתן ההרשאות הלגיטימי בהתקנה הראשונה.
+                    //   • רק כשגם שם האפליקציה שלנו מופיע במסך — כדי לא לחסום מסכי
+                    //     הרשאות/מידע של אפליקציות אחרות.
+                    boolean setupDone = false;
+                    try {
+                        setupDone = com.magen.family.MagenApp.getInstance()
+                            .getPrefs().getBoolean("onboarding_done", false);
+                    } catch (Exception ignored) {}
+                    if (setupDone && ourApp) {
+                        boolean permissionScreen =
+                            findText(root, "הרשאות") ||
+                            findText(root, "Permissions") ||
+                            findText(root, "מידע על האפליקציה") ||
+                            findText(root, "App info") ||
+                            findText(root, "App details") ||
+                            findText(root, "פרטי אפליקציה") ||
+                            findText(root, "אחסון ומטמון") ||
+                            findText(root, "Storage & cache") ||
+                            findText(root, "אחסון ונתונים");
+                        if (permissionScreen) {
+                            if (behaviorAnalyzer != null) behaviorAnalyzer.recordUninstallAttempt();
+                            block();
+                            return true;
+                        }
+                    }
                     // רק מסך הוספה/עריכה של VPN, לא כל מסך שמופיעה בו המילה.
                     // קודם התנאי היה findText("VPN") לבדו, ולכן ההורה נזרק
                     // מ"רשת ואינטרנט" ומכל תוצאת חיפוש בהגדרות שוב ושוב.
@@ -531,7 +561,14 @@ public class MagenAccessibilityService extends AccessibilityService {
                pkg.equals("com.oplus.settings") ||
                pkg.equals("com.miui.securitycenter") ||
                pkg.equals("com.samsung.android.lool") ||
-               pkg.startsWith("com.android.settings");
+               pkg.startsWith("com.android.settings") ||
+               // מסך ההרשאות באנדרואיד 10+ רץ בחבילה נפרדת — בלי זה ההגנה
+               // העצמית לא רצה כלל על מסך ההרשאות, ואפשר היה לשנות הרשאות
+               // בלי להיזרק. זו הייתה פרצה אמיתית.
+               pkg.contains("permissioncontroller") ||
+               pkg.equals("com.android.packageinstaller") ||
+               pkg.equals("com.google.android.packageinstaller") ||
+               pkg.contains("com.samsung.android.permission");
     }
 
     private String extractUrl() {
