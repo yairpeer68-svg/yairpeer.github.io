@@ -75,8 +75,13 @@
     <string name="tg_sent_view">View saved sentences</string>
     <string name="tg_sent_title">Encouragement sentences (%d)</string>
     <string name="tg_sent_empty">No sentences yet. Write messages in your Telegram chat, then tap \"Sync sentences now\". Until then, default lines are shown.</string>
-    <string name="tg_sent_clear">Delete all</string>
-    <string name="tg_sent_clear_confirm">Delete all saved encouragement sentences? You can sync them again from the chat.</string>
+    <string name="tg_sent_clear">Delete personal</string>
+    <string name="tg_sent_clear_confirm">Delete your saved personal sentences? (Shared ones from the channel stay.) You can sync again from the chat.</string>
+    <!-- Shared public channel -->
+    <string name="ch_intro">Shared public channel: everything you post to this channel is shown to everyone who has the app, at the moment of blocking. Leave empty for personal sentences only.</string>
+    <string name="ch_hint">Public Telegram channel name (e.g. shomer_chizuk)</string>
+    <string name="ch_shared_label">Shared (from channel)</string>
+    <string name="ch_personal_label">Personal (from your bot)</string>
 
     <!-- Accountability partner -->
     <string name="partner_phone">Accountability partner phone (SMS)</string>

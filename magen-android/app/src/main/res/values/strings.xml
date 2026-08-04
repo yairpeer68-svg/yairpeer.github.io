@@ -75,8 +75,13 @@
     <string name="tg_sent_view">צפה במשפטים שנשמרו</string>
     <string name="tg_sent_title">משפטי חיזוק (%d)</string>
     <string name="tg_sent_empty">עדיין אין משפטים. כתוב הודעות בצ׳אט הטלגרם ואז לחץ \"סנכרן משפטים עכשיו\". עד אז יוצגו משפטי ברירת מחדל.</string>
-    <string name="tg_sent_clear">מחק הכל</string>
-    <string name="tg_sent_clear_confirm">למחוק את כל משפטי החיזוק שנשמרו? אפשר לסנכרן אותם שוב מהצ׳אט.</string>
+    <string name="tg_sent_clear">מחק אישי</string>
+    <string name="tg_sent_clear_confirm">למחוק את משפטי החיזוק האישיים שנשמרו? (המשותפים מהערוץ יישארו.) אפשר לסנכרן שוב מהצ׳אט.</string>
+    <!-- ערוץ ציבורי משותף -->
+    <string name="ch_intro">ערוץ ציבורי משותף: כל מה שתכתוב בערוץ הזה יוצג לכל מי שיש לו את האפליקציה, ברגע החסימה. השאר ריק אם אתה רוצה רק משפטים אישיים.</string>
+    <string name="ch_hint">שם ערוץ ציבורי בטלגרם (למשל shomer_chizuk)</string>
+    <string name="ch_shared_label">משותף (מהערוץ)</string>
+    <string name="ch_personal_label">אישי (מהבוט שלך)</string>
 
     <!-- שותף אחריות -->
     <string name="partner_phone">טלפון שותף האחריות (SMS)</string>

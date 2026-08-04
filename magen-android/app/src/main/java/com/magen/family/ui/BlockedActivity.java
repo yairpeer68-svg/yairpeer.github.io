@@ -51,6 +51,7 @@ public class BlockedActivity extends BaseActivity {
         }
         // מרעננים את מאגר המשפטים ברקע לפעם הבאה (ממותנן, לא חוסם).
         com.magen.family.service.TelegramNotifier.syncSentencesAsync(this);
+        com.magen.family.service.GlobalSentences.syncAsync(this);
 
         // כפתור "חזור" — עם השהיה מדורגת לפי כמות החסימות היום
         Button btnBack = findViewById(R.id.btn_go_home);

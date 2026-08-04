@@ -26,7 +26,8 @@ import java.util.Random;
 public final class FallSentences {
 
     private static final String PREFS = "magen_chizuk";
-    private static final String KEY_LIST   = "sentences";
+    private static final String KEY_LIST   = "sentences";        // אישי (מהבוט)
+    private static final String KEY_GLOBAL = "global_sentences"; // משותף (מהערוץ הציבורי)
     private static final String KEY_OFFSET = "tg_offset";
     private static final int MAX_SENTENCES = 300;
 
@@ -49,17 +50,31 @@ public final class FallSentences {
         return ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
-    /** משפט אקראי להצגה ברגע החסימה. לעולם לא ריק. */
+    /**
+     * משפט אקראי להצגה ברגע החסימה. ממזג את המשפטים המשותפים (מהערוץ) עם
+     * האישיים (מהבוט). אם שניהם ריקים — נופל לברירות מחדל. לעולם לא ריק.
+     */
     public static String getRandom(Context ctx) {
-        List<String> pool = getAll(ctx);
+        List<String> pool = new ArrayList<>(getAll(ctx));
+        for (String g : getAllGlobal(ctx)) if (!pool.contains(g)) pool.add(g);
         if (pool.isEmpty()) return DEFAULTS[RND.nextInt(DEFAULTS.length)];
         return pool.get(RND.nextInt(pool.size()));
     }
 
+    /** המשפטים האישיים (מהבוט של המשתמש). */
     public static List<String> getAll(Context ctx) {
+        return readList(ctx, KEY_LIST);
+    }
+
+    /** המשפטים המשותפים (מהערוץ הציבורי שכולם קוראים). */
+    public static List<String> getAllGlobal(Context ctx) {
+        return readList(ctx, KEY_GLOBAL);
+    }
+
+    private static List<String> readList(Context ctx, String key) {
         List<String> out = new ArrayList<>();
         try {
-            String raw = prefs(ctx).getString(KEY_LIST, "");
+            String raw = prefs(ctx).getString(key, "");
             if (raw.isEmpty()) return out;
             JSONArray arr = new JSONArray(raw);
             for (int i = 0; i < arr.length(); i++) {
@@ -71,6 +86,22 @@ public final class FallSentences {
     }
 
     public static int count(Context ctx) { return getAll(ctx).size(); }
+
+    public static int countGlobal(Context ctx) { return getAllGlobal(ctx).size(); }
+
+    /** מחליף את מאגר המשפטים המשותפים (הערוץ הוא מקור-האמת). */
+    public static void replaceGlobal(Context ctx, List<String> sentences) {
+        List<String> clean = new ArrayList<>();
+        if (sentences != null) {
+            for (String s : sentences) {
+                if (s == null) continue;
+                String t = s.trim();
+                if (!t.isEmpty() && !clean.contains(t)) clean.add(t);
+            }
+        }
+        while (clean.size() > MAX_SENTENCES) clean.remove(0);
+        saveTo(ctx, KEY_GLOBAL, clean);
+    }
 
     /** מוסיף משפט אחד (מדלג על ריק/כפילות, שומר על תקרה). */
     public static void add(Context ctx, String sentence) {
@@ -91,7 +122,7 @@ public final class FallSentences {
         }
         // אם עברנו את התקרה — משאירים את החדשים ביותר
         while (pool.size() > MAX_SENTENCES) pool.remove(0);
-        save(ctx, pool);
+        saveTo(ctx, KEY_LIST, pool);
     }
 
     public static void replaceAll(Context ctx, List<String> sentences) {
@@ -104,17 +135,18 @@ public final class FallSentences {
             }
         }
         while (clean.size() > MAX_SENTENCES) clean.remove(0);
-        save(ctx, clean);
+        saveTo(ctx, KEY_LIST, clean);
     }
 
+    /** מוחק רק את המאגר האישי (המשותף נשאר — הוא מגיע מהערוץ). */
     public static void clear(Context ctx) {
         prefs(ctx).edit().remove(KEY_LIST).apply();
     }
 
-    private static void save(Context ctx, List<String> pool) {
+    private static void saveTo(Context ctx, String key, List<String> pool) {
         JSONArray arr = new JSONArray();
         for (String s : pool) arr.put(s);
-        prefs(ctx).edit().putString(KEY_LIST, arr.toString()).apply();
+        prefs(ctx).edit().putString(key, arr.toString()).apply();
     }
 
     // ---- offset של getUpdates (כדי לא לשאוב הודעה פעמיים) ----

@@ -297,8 +297,9 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         super.onResume();
         refreshStatus();
         refreshOverlayWarning();
-        // סנכרון ממותנן של משפטי החיזוק מטלגרם (פעם בדקה לכל היותר)
+        // סנכרון ממותנן של משפטי החיזוק — אישי (בוט) + משותף (ערוץ ציבורי)
         com.magen.family.service.TelegramNotifier.syncSentencesAsync(this);
+        com.magen.family.service.GlobalSentences.syncAsync(this);
     }
 
     /** מציג באנר קבוע במקום לפתוח את מסך ההרשאה שוב ושוב. */
@@ -428,24 +429,46 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         chizukIntro.setPadding(0, pad / 2, 0, 0);
         root.addView(chizukIntro);
 
+        // ---- ערוץ ציבורי משותף (כולם קוראים) ----
+        TextView chIntro = new TextView(this);
+        chIntro.setText(R.string.ch_intro);
+        chIntro.setTextSize(12);
+        chIntro.setTextColor(0xFF9E9E9E);
+        chIntro.setPadding(0, pad / 2, 0, 0);
+        root.addView(chIntro);
+
+        final EditText etChannel = new EditText(this);
+        etChannel.setHint(R.string.ch_hint);
+        etChannel.setText(com.magen.family.service.GlobalSentences.getChannel(this));
+        root.addView(etChannel);
+
         Button btnSyncNow = new Button(this);
         btnSyncNow.setAllCaps(false);
         btnSyncNow.setText(R.string.tg_sync_now);
         root.addView(btnSyncNow);
         btnSyncNow.setOnClickListener(v -> {
-            if (!com.magen.family.service.TelegramNotifier.isConfigured(this)) {
+            // שומרים את שם הערוץ שהוקלד (יכול להיות ריק אם משתמשים רק בבוט)
+            com.magen.family.service.GlobalSentences.setChannel(this,
+                etChannel.getText().toString());
+            boolean hasBot = com.magen.family.service.TelegramNotifier.isConfigured(this);
+            boolean hasChannel =
+                !com.magen.family.service.GlobalSentences.getChannel(this).isEmpty();
+            if (!hasBot && !hasChannel) {
                 Toast.makeText(this, R.string.tg_not_configured, Toast.LENGTH_LONG).show();
                 return;
             }
             Toast.makeText(this, R.string.tg_validating, Toast.LENGTH_SHORT).show();
             new Thread(() -> {
-                int added = com.magen.family.service.TelegramNotifier
-                    .syncSentencesBlocking(getApplicationContext());
-                int total = com.magen.family.service.FallSentences.count(getApplicationContext());
+                int addedBot = hasBot ? com.magen.family.service.TelegramNotifier
+                    .syncSentencesBlocking(getApplicationContext()) : 0;
+                int glob = hasChannel ? com.magen.family.service.GlobalSentences
+                    .syncBlocking(getApplicationContext()) : 0;
+                int total = com.magen.family.service.FallSentences.count(getApplicationContext())
+                    + com.magen.family.service.FallSentences.countGlobal(getApplicationContext());
                 runOnUiThread(() -> Toast.makeText(this,
-                    getString(R.string.tg_sync_result, added, total),
+                    getString(R.string.tg_sync_result, addedBot + glob, total),
                     Toast.LENGTH_LONG).show());
-            }, "TgSyncNow").start();
+            }, "ChizukSyncNow").start();
         });
 
         Button btnViewSent = new Button(this);
@@ -556,17 +579,27 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
             .show();
     }
 
-    /** מציג את משפטי החיזוק שסונכרנו, עם אפשרות למחוק את המאגר. */
+    /** מציג את משפטי החיזוק שסונכרנו (משותפים + אישיים), עם אפשרות למחוק. */
     private void showSentencesDialog() {
-        java.util.List<String> list =
+        java.util.List<String> personal =
             com.magen.family.service.FallSentences.getAll(getApplicationContext());
+        java.util.List<String> global =
+            com.magen.family.service.FallSentences.getAllGlobal(getApplicationContext());
+        int totalCount = personal.size() + global.size();
         CharSequence msg;
-        if (list.isEmpty()) {
+        if (totalCount == 0) {
             msg = getString(R.string.tg_sent_empty);
         } else {
             StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < list.size(); i++) {
-                sb.append(i + 1).append(". ").append(list.get(i)).append("\n\n");
+            if (!global.isEmpty()) {
+                sb.append("🌐 ").append(getString(R.string.ch_shared_label)).append("\n");
+                for (int i = 0; i < global.size(); i++)
+                    sb.append(i + 1).append(". ").append(global.get(i)).append("\n\n");
+            }
+            if (!personal.isEmpty()) {
+                sb.append("👤 ").append(getString(R.string.ch_personal_label)).append("\n");
+                for (int i = 0; i < personal.size(); i++)
+                    sb.append(i + 1).append(". ").append(personal.get(i)).append("\n\n");
             }
             msg = sb.toString().trim();
         }
@@ -579,7 +612,7 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         sc.addView(tv);
 
         new android.app.AlertDialog.Builder(this)
-            .setTitle(getString(R.string.tg_sent_title, list.size()))
+            .setTitle(getString(R.string.tg_sent_title, totalCount))
             .setView(sc)
             .setPositiveButton(R.string.close, null)
             .setNegativeButton(R.string.tg_sent_clear, (d, w) ->
