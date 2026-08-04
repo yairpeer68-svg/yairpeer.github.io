@@ -83,6 +83,10 @@ public final class DomainVerdict {
         // 1. whitelist של ההורה גובר על הכל
         if (HostAllowList.isAllowed(ctx, h)) return false;
 
+        // 1.5 חוסמים ספקי DoH/DoT ידועים — אחרת אפשר לעקוף את סינון ה-DNS
+        //     שלנו ע"י שליחת שאילתות מוצפנות ל-resolver חיצוני.
+        if (DohResolvers.isDohHost(h)) return true;
+
         // 2. רשימה קשיחה + סיומות (.xxx/.porn/...) — קטגוריית adult
         init(ctx);
         ContentFilter cf = contentFilter;
