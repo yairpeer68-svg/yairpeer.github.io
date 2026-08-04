@@ -438,6 +438,34 @@ public class MagenAccessibilityService extends AccessibilityService {
                             return true;
                         }
                     }
+
+                    // אפשרויות למפתחים — וקטור עקיפה חזק: "שירותים פעילים" מאפשר
+                    // עצירת השירות שלנו, אפשר לכבות always-on VPN, ולהדליק ניפוי-USB
+                    // (adb) שמאפשר הסרה. מזהים לפי סמנים שמופיעים *בתוך* הדף עצמו
+                    // (לא הכותרת ברשימת "מערכת") כדי לא ללכוד את המשתמש מחוץ לכל
+                    // ההגדרות. פעיל רק אחרי סיום ההגדרה הראשונית.
+                    if (setupDone && (
+                            findText(root, "שירותים פעילים") ||
+                            findText(root, "Running services") ||
+                            findText(root, "ניפוי באגים ב-USB") ||
+                            findText(root, "USB debugging") ||
+                            findText(root, "ביטול נעילה של OEM") ||
+                            findText(root, "OEM unlocking"))) {
+                        if (behaviorAnalyzer != null) behaviorAnalyzer.recordVpnBypassAttempt();
+                        block();
+                        return true;
+                    }
+
+                    // ביטול פטור מאופטימיזציית סוללה לאפליקציה שלנו → המערכת (Doze)
+                    // עלולה להרוג את שירות הסינון ברקע. חוסמים את המסך הזה שלנו.
+                    if (setupDone && ourApp && (
+                            findText(root, "אופטימיזציית סוללה") ||
+                            findText(root, "אופטימיזציה של סוללה") ||
+                            findText(root, "Battery optimization") ||
+                            findText(root, "Battery optimisation"))) {
+                        block();
+                        return true;
+                    }
                 } finally {
                     root.recycle();
                 }
