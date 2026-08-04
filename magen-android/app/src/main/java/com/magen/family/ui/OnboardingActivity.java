@@ -46,7 +46,10 @@ public class OnboardingActivity extends BaseActivity {
         final int title, body;
         final Check check;   // null = שלב אינפורמטיבי בלבד
         final Launch launch;
-        Step(int t, int b, Check c, Launch l) { title = t; body = b; check = c; launch = l; }
+        final boolean required;   // הרשאה קריטית — אי אפשר להתקדם בלעדיה
+        Step(int t, int b, Check c, Launch l, boolean req) {
+            title = t; body = b; check = c; launch = l; required = req;
+        }
     }
 
     private final List<Step> steps = new ArrayList<>();
@@ -64,10 +67,15 @@ public class OnboardingActivity extends BaseActivity {
     }
 
     private void buildSteps() {
-        // 1. פתיחה
-        steps.add(new Step(R.string.onb_welcome_title, R.string.onb_welcome_body, null, null));
+        // 1. פתיחה (אינפורמטיבי)
+        steps.add(new Step(R.string.onb_welcome_title, R.string.onb_welcome_body,
+            null, null, false));
 
-        // 2. התראות (Android 13+)
+        // 2. איך זה עובד (אינפורמטיבי)
+        steps.add(new Step(R.string.onb_how_title, R.string.onb_how_body,
+            null, null, false));
+
+        // 3. התראות (Android 13+) — מומלץ
         steps.add(new Step(R.string.onb_perm_notif_title, R.string.onb_perm_notif_body,
             () -> Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
                   ContextCompat.checkSelfPermission(this,
@@ -78,44 +86,48 @@ public class OnboardingActivity extends BaseActivity {
                     androidx.core.app.ActivityCompat.requestPermissions(this,
                         new String[]{ android.Manifest.permission.POST_NOTIFICATIONS }, 1001);
                 }
-            }));
+            }, false));
 
-        // 3. הצגה מעל אפליקציות
+        // 4. הצגה מעל אפליקציות — חובה (מסך החסימה)
         steps.add(new Step(R.string.onb_perm_overlay_title, R.string.onb_perm_overlay_body,
             () -> Settings.canDrawOverlays(this),
             () -> startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:" + getPackageName())))));
+                Uri.parse("package:" + getPackageName()))), true));
 
-        // 4. VPN מקומי
+        // 5. VPN מקומי — חובה (סינון רשת)
         steps.add(new Step(R.string.onb_perm_vpn_title, R.string.onb_perm_vpn_body,
             () -> VpnService.prepare(this) == null,
             () -> {
                 Intent prep = VpnService.prepare(this);
                 if (prep != null) startActivityForResult(prep, 2001);
-            }));
+            }, true));
 
-        // 5. נתוני שימוש
+        // 6. נתוני שימוש — מומלץ
         steps.add(new Step(R.string.onb_perm_usage_title, R.string.onb_perm_usage_body,
             this::hasUsageAccess,
-            () -> startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))));
+            () -> startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)), false));
 
-        // 6. פטור סוללה
+        // 7. פטור סוללה — חובה (שהשירות לא ייהרג ברקע)
         steps.add(new Step(R.string.onb_perm_battery_title, R.string.onb_perm_battery_body,
             this::isBatteryExempt,
             () -> startActivity(new Intent(
                 Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                Uri.parse("package:" + getPackageName())))));
+                Uri.parse("package:" + getPackageName()))), true));
 
-        // 7. מנהל מכשיר
+        // 8. מנהל מכשיר — חובה (הגנה מפני הסרה)
         steps.add(new Step(R.string.onb_perm_admin_title, R.string.onb_perm_admin_body,
             () -> MagenDeviceAdmin.isAdminActive(this),
-            () -> MagenDeviceAdmin.requestAdmin(this)));
+            () -> MagenDeviceAdmin.requestAdmin(this), true));
 
-        // 8. שירות נגישות — אחרון
+        // 9. שירות נגישות — חובה, אחרון (ליבת הסינון)
         steps.add(new Step(R.string.onb_perm_accessibility_title,
             R.string.onb_perm_accessibility_body,
             this::isAccessibilityOn,
-            () -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))));
+            () -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)), true));
+
+        // 10. סיום — ההגנה פעילה (אינפורמטיבי)
+        steps.add(new Step(R.string.onb_done_title, R.string.onb_done_body,
+            null, null, false));
     }
 
     // ---------------- UI ----------------
@@ -194,7 +206,6 @@ public class OnboardingActivity extends BaseActivity {
 
     private void render() {
         Step s = steps.get(index);
-        tvStep.setText((index + 1) + " / " + steps.size());
         tvTitle.setText(s.title);
         tvBody.setText(s.body);
 
@@ -202,20 +213,40 @@ public class OnboardingActivity extends BaseActivity {
         boolean informational = s.check == null;
         boolean granted = !informational && s.check.granted();
 
+        // שורת מונה + תג "חובה"/"מומלץ"
+        String counter = (index + 1) + " / " + steps.size();
+        if (!informational) {
+            counter += "   •   " + getString(
+                s.required ? R.string.onb_required_badge : R.string.onb_optional_badge);
+        }
+        tvStep.setText(counter);
+
         if (informational) {
             tvStatus.setText("");
             btnGrant.setVisibility(View.GONE);
             btnSkip.setVisibility(View.GONE);
+            btnNext.setVisibility(View.VISIBLE);
         } else if (granted) {
             tvStatus.setText(R.string.onb_granted);
             tvStatus.setTextColor(ContextCompat.getColor(this, R.color.success));
             btnGrant.setVisibility(View.GONE);
             btnSkip.setVisibility(View.GONE);
+            btnNext.setVisibility(View.VISIBLE);
+        } else if (s.required) {
+            // הרשאה קריטית שעוד לא הוענקה — אי אפשר להתקדם.
+            tvStatus.setText(R.string.onb_required);
+            tvStatus.setTextColor(ContextCompat.getColor(this, R.color.accent));
+            btnGrant.setVisibility(View.VISIBLE);
+            btnGrant.setText(R.string.onb_grant);
+            btnSkip.setVisibility(View.GONE);
+            btnNext.setVisibility(View.GONE);
         } else {
+            // הרשאה מומלצת — אפשר לדלג.
             tvStatus.setText("");
             btnGrant.setVisibility(View.VISIBLE);
             btnGrant.setText(R.string.onb_grant);
             btnSkip.setVisibility(View.VISIBLE);
+            btnNext.setVisibility(View.VISIBLE);
         }
 
         btnNext.setText(last ? R.string.onb_finish : R.string.next);
@@ -231,6 +262,19 @@ public class OnboardingActivity extends BaseActivity {
     }
 
     private void finishOnboarding() {
+        // הגנה: onboarding_done נדלק *רק* כשכל ההרשאות ה"חובה" פעילות — כי
+        // ההגנה העצמית (חסימת מסך ההרשאות/הסוללה) מותנית בדגל הזה. אם משהו
+        // קריטי כובה בין לבין, קופצים חזרה לשלב החסר במקום לסיים.
+        for (int i = 0; i < steps.size(); i++) {
+            Step s = steps.get(i);
+            if (s.required && s.check != null && !s.check.granted()) {
+                index = i;
+                render();
+                android.widget.Toast.makeText(this, R.string.onb_missing,
+                    android.widget.Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
         MagenApp.getInstance().getPrefs().edit()
             .putBoolean("onboarding_done", true).apply();
         startActivity(new Intent(this, MainActivity.class));

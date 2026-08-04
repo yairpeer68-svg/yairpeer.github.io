@@ -121,6 +121,14 @@
     <string name="onb_skip">Skip for now</string>
     <string name="onb_finish">Done — activate protection</string>
     <string name="onb_transparency">Transparency: this is an accountability tool you install on yourself. It exists to help those who want help, not to spy on anyone.</string>
+    <string name="onb_required">🔒 This permission is required. Without it protection is partial — enable it to continue.</string>
+    <string name="onb_required_badge">Required</string>
+    <string name="onb_optional_badge">Recommended</string>
+    <string name="onb_how_title">How it works</string>
+    <string name="onb_how_body">Covenant Guard protects with three layers at once:\n\n• Network filtering (local VPN) — blocks sites and content at the connection level, and enforces Safe Search.\n\n• Accessibility service — reads what\'s shown and typed, and blocks inappropriate content in every app and browser.\n\n• Self-defense — blocks attempts to uninstall the app, revoke permissions, or turn on another VPN that would bypass the filter.\n\nFor everything to work fully you must enable every permission marked \"Required\". We\'ll walk you through it step by step.</string>
+    <string name="onb_done_title">Protection is active ✓</string>
+    <string name="onb_done_body">All essential permissions are on. From now on:\n\n• Inappropriate content is blocked automatically across all apps.\n• Any attempt to bypass, remove, or disable protection is blocked and requires your covenant code.\n• The covenant code is the only key to changing settings or uninstalling. Guard it, and consider giving a copy to an accountability partner.\n\nBe strong. You are not alone in this.</string>
+    <string name="onb_missing">Enable every permission marked \"Required\" to finish.</string>
 
     <!-- Content filter -->
     <string name="main_content_filter">Content filter</string>
