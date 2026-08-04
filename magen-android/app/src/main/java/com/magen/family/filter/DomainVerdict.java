@@ -98,6 +98,37 @@ public final class DomainVerdict {
             Log.w(TAG, "remote list check failed: " + e.getMessage());
         }
 
+        // 5. זיהוי mirror/proxy דינמי — אתרים חדשים שהרשימות עוד לא הכירו
+        if (looksLikeAdultMirror(h)) return true;
+
+        return false;
+    }
+
+    /**
+     * זיהוי היוריסטי של אתרי mirror/proxy לתוכן מבוגרים.
+     *
+     * למה צריך: אתרי פורנו פותחים דומיינים חדשים כל הזמן (mirrors) כדי לעקוף
+     * חסימות. הרשימות מתעדכנות באיחור. ההיוריסטיקה תופסת דפוסים נפוצים —
+     * שם מותג ידוע עם תוספת (xnxx2, pornhub-proxy), או צירוף של מילת-תוכן
+     * מפורשת בשם הדומיין. גבולות מילה לא חלים כאן כי בשם דומיין אין רווחים.
+     */
+    private static boolean looksLikeAdultMirror(String host) {
+        String core = host;
+        int firstDot = core.indexOf('.');
+        if (firstDot > 0) core = core.substring(0, firstDot);   // רק החלק לפני ה-TLD
+
+        // מותגים שידוע שיש להם עשרות mirrors
+        String[] brands = { "pornhub", "xvideos", "xnxx", "xhamster", "redtube",
+            "youporn", "spankbang", "brazzers", "onlyfans", "chaturbate" };
+        for (String b : brands) {
+            if (core.contains(b)) return true;   // xnxx2, pornhubx, my-xvideos...
+        }
+
+        // מילות תוכן מפורשות בתוך שם הדומיין (לא בנתיב)
+        String[] tokens = { "porn", "xxx", "hentai", "sexcam", "camsex", "escort" };
+        for (String t : tokens) {
+            if (core.contains(t)) return true;
+        }
         return false;
     }
 

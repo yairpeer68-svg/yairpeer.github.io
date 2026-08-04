@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="banned_words_array">
+        <!-- מותגי פורנו כמילים שלמות — כדי שגם טקסט תוצאות (Pornhub/Porno) ייתפס,
+             לא רק שאילתה. גבולות המילה מונעים חסימות שווא, ולכן צריך את המותגים במפורש. -->
+        <item>pornhub</item><item>xvideos</item><item>xnxx</item><item>xhamster</item>
+        <item>porno</item><item>redtube</item><item>youporn</item><item>brazzers</item>
+        <item>onlyfans</item><item>spankbang</item><item>chaturbate</item><item>stripchat</item>
+        <item>bangbros</item><item>xhamster</item><item>tnaflix</item><item>fapello</item>
         <item>porn</item><item>pornography</item><item>xxx</item><item>sex</item><item>nude</item>
         <item>naked</item><item>hentai</item><item>erotic</item><item>erotica</item><item>nsfw</item>
         <item>adult</item><item>hardcore</item><item>softcore</item><item>x-rated</item><item>amateur</item>
