@@ -33,11 +33,11 @@ public final class GlobalSentences {
     private static final String TAG = "GlobalSentences";
 
     /**
-     * ערוץ ברירת המחדל שכל האפליקציות קוראות ממנו.
-     * ריק כרגע — יש למלא את שם הערוץ הציבורי (בלי @) כדי שכולם יקראו אותו
-     * אוטומטית. המשתמש יכול גם להגדיר ערוץ אחר מתוך האפליקציה.
+     * ערוץ ברירת המחדל שכל האפליקציות קוראות ממנו (t.me/shmiratabrit — "שמירת
+     * הברית"). שם הערוץ ציבורי (לא סוד), ולכן כל התקנה קוראת אותו אוטומטית.
+     * המשתמש יכול לעקוף לערוץ אחר מתוך האפליקציה.
      */
-    public static final String DEFAULT_CHANNEL = "";
+    public static final String DEFAULT_CHANNEL = "shmiratabrit";
 
     private static final String PREFS = "magen_chizuk";
     private static final String KEY_CHANNEL = "global_channel";
