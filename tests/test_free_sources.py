@@ -394,3 +394,22 @@ def test_uriblock_uses_dns(monkeypatch):
     d = REGISTRY["uriblock"].run("acme.com", _ctx(lambda u: _Resp(j={}))).data
     assert "SURBL" in d["listed_on"] and d["listed_count"] == 1
     assert d["severity"] == "medium"
+
+
+def test_npmsearch_and_dockerhub():
+    def router(url):
+        if "registry.npmjs" in url:
+            return _Resp(j={"objects": [{"package": {
+                "name": "@acme/ui", "description": "Acme UI kit",
+                "publisher": {"username": "acmedev"},
+                "date": "2024-01-01T00:00:00"}}]})
+        if "hub.docker.com" in url:
+            return _Resp(j={"results": [{"repo_name": "acme/api",
+                                         "short_description": "Acme API",
+                                         "star_count": 42}]})
+        return _Resp(j={})
+    n = REGISTRY["npmsearch"].run("acme.com", _ctx(router)).data
+    assert n["count"] == 1 and n["npm_packages"][0]["name"] == "@acme/ui"
+    assert n["npm_packages"][0]["publisher"] == "acmedev"
+    dh = REGISTRY["dockerhub"].run("acme.com", _ctx(router)).data
+    assert dh["query"] == "acme" and dh["docker_images"][0]["repo"] == "acme/api"

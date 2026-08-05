@@ -1521,3 +1521,61 @@ class UriBlock(Module):
             data["note"] = (f"domain is on {len(listed)} URI block-list(s) — "
                             "associated with spam/abuse/malware.")
         return self.ok(host, data)
+
+
+# =========================================================================== #
+#  Wave 15 — published software artifacts by the org (npm + Docker Hub)
+# =========================================================================== #
+@register
+class NpmSearch(Module):
+    id = "npmsearch"
+    name = "npm registry search (org packages, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://registry.npmjs.org/-/v1/search"
+                            f"?text={host}&size=25")) or {}
+        pkgs = []
+        for obj in d.get("objects", []) or []:
+            p = (obj or {}).get("package", {}) or {}
+            if not p.get("name"):
+                continue
+            pkgs.append({"name": p.get("name"),
+                         "description": (p.get("description") or "")[:100],
+                         "publisher": (p.get("publisher") or {}).get("username", ""),
+                         "date": (p.get("date") or "")[:10]})
+        return self.ok(host, {"npm_packages": pkgs[:25], "count": len(pkgs),
+                              "source": "npm-registry"})
+
+
+@register
+class DockerHub(Module):
+    id = "dockerhub"
+    name = "Docker Hub public images (org, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        # Docker Hub repos are named after the org, not the FQDN — use the
+        # second-level label (acme.com -> "acme") as the search term.
+        org = host.split(".")[-2] if host.count(".") >= 1 else host
+        d = _json(_get(ctx, "https://hub.docker.com/v2/search/repositories/"
+                            f"?query={org}&page_size=25")) or {}
+        repos = []
+        for r in d.get("results", []) or []:
+            if r.get("repo_name"):
+                repos.append({"repo": r.get("repo_name"),
+                              "description": (r.get("short_description") or "")[:100],
+                              "stars": r.get("star_count", 0),
+                              "official": bool(r.get("is_official"))})
+        return self.ok(host, {"query": org, "docker_images": repos[:25],
+                              "count": len(repos), "source": "docker-hub"})

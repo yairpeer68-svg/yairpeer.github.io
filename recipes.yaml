@@ -27,7 +27,7 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         spamhausdbl, psbdmp, keybase, certdetails, sitedossier, favicmmh3,
         anubisjldc, phishstats, waybackparams, wikidata,
         commoncrawlmine, waybacksecrets, phoneharvest, extdomains, otxpulse,
-        merklemap, uriblock]
+        merklemap, uriblock, npmsearch, dockerhub]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 
