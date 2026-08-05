@@ -2511,3 +2511,118 @@ class XposedOrNot(Module):
             data["note"] = (f"e-mail found in {len(breaches)} public breach(es) "
                             "per XposedOrNot.")
         return self.ok(email, data)
+
+
+# =========================================================================== #
+#  Wave 26 — website reputation + org-wide breach/cert pivots + IP geo:
+#    Sucuri SiteCheck (malware/blacklist/CMS)  · XposedOrNot domain breaches
+#    crt.sh Organization search (org -> owned cert domains)  · ipwhois.app
+# =========================================================================== #
+@register
+class Sucuri(Module):
+    id = "sucuri"
+    name = "Sucuri SiteCheck malware / blacklist / CMS (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, f"https://sitecheck.sucuri.net/api/v3/?scan={host}")) or {}
+        soft = d.get("software") or {}
+        blk = d.get("blacklists") or {}
+        warnings = d.get("warnings") or {}
+        cms = soft.get("cms") if isinstance(soft.get("cms"), list) else (
+            [soft.get("cms")] if soft.get("cms") else [])
+        bl_entries = blk.get("warnings") or blk.get("info") or []
+        data = {"cms": [str(c) for c in cms][:5],
+                "blacklisted": bool(bl_entries),
+                "blacklist_hits": len(bl_entries) if isinstance(bl_entries, list) else 0,
+                "warning_count": len(warnings) if isinstance(warnings, (list, dict)) else 0,
+                "source": "sucuri"}
+        if data["blacklisted"] or (isinstance(warnings, (list, dict)) and len(warnings)):
+            data["severity"] = "high" if data["blacklisted"] else "medium"
+        return self.ok(host, data)
+
+
+@register
+class XposedDomain(Module):
+    id = "xposeddomain"
+    name = "XposedOrNot domain-wide breach exposure (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://api.xposedornot.com/v1/breaches"
+                       f"?domain={host}")) or {}
+        breaches = []
+        for b in d.get("exposedBreaches", []) or []:
+            if isinstance(b, dict) and b.get("breach"):
+                breaches.append({"name": b.get("breach"),
+                                 "records": b.get("xposed_records"),
+                                 "date": b.get("xposed_date"),
+                                 "industry": b.get("industry")})
+        data = {"breaches": breaches[:30], "count": len(breaches),
+                "source": "xposedornot-domain"}
+        if breaches:
+            data["severity"] = "high"
+            data["note"] = (f"{len(breaches)} public breach(es) associated with this "
+                            "domain per XposedOrNot.")
+        return self.ok(host, data)
+
+
+@register
+class CrtShOrg(Module):
+    id = "crtshorg"
+    name = "crt.sh Organization-field search -> owned cert domains (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        arr = _json(_get(ctx, f"https://crt.sh/?O={org}&output=json")) or []
+        domains: Set[str] = set()
+        for row in arr if isinstance(arr, list) else []:
+            if not isinstance(row, dict):
+                continue
+            for field in ("common_name", "name_value"):
+                val = row.get(field)
+                if isinstance(val, str):
+                    for line in val.replace("*.", "").splitlines():
+                        line = line.strip().lower()
+                        if line and "@" not in line and "." in line:
+                            domains.add(line)
+        registrable = sorted({".".join(d.split(".")[-2:]) for d in domains if d})
+        return self.ok(host, {"query_org": org, "cert_domains": sorted(domains)[:200],
+                              "registrable_domains": registrable[:100],
+                              "count": len(domains), "source": "crt.sh-org"})
+
+
+@register
+class IpWhoisApp(Module):
+    id = "ipwhoisapp"
+    name = "ipwhois.app geo / ASN / org (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "ipwhois.app expects an IP"})
+        d = _json(_get(ctx, f"https://ipwhois.app/json/{ip}")) or {}
+        if d.get("success") is False:
+            return self.ok(ip, {"note": "no data", "source": "ipwhois.app"})
+        return self.ok(ip, {"country": d.get("country"), "region": d.get("region"),
+                            "city": d.get("city"), "isp": d.get("isp"),
+                            "org": d.get("org"), "asn": d.get("asn"),
+                            "source": "ipwhois.app"})

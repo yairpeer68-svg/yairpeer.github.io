@@ -664,3 +664,30 @@ def test_wave25_githuborg_leakix_dshield_xposedornot():
     assert ds["reports"] == 7 and ds["severity"] == "high"
     xo = REGISTRY["xposedornot"].run("ceo@acme.com", _ctx(router)).data
     assert xo["breached"] is True and "LinkedIn" in xo["breaches"] and xo["breach_count"] == 2
+
+
+def test_wave26_sucuri_xposeddomain_crtshorg_ipwhoisapp():
+    def router(url):
+        if "sitecheck.sucuri.net" in url:
+            return _Resp(j={"software": {"cms": ["WordPress"]},
+                            "blacklists": {"warnings": [{"a": 1}]},
+                            "warnings": {"x": 1}})
+        if "xposedornot.com/v1/breaches" in url:
+            return _Resp(j={"exposedBreaches": [
+                {"breach": "AcmeLeak", "xposed_records": 1000,
+                 "xposed_date": "2023", "industry": "tech"}]})
+        if "crt.sh" in url and "O=acme" in url:
+            return _Resp(j=[{"common_name": "acme.com",
+                             "name_value": "www.acme.com\nacme.net"}])
+        if "ipwhois.app" in url:
+            return _Resp(j={"success": True, "country": "US", "city": "NYC",
+                            "isp": "AcmeISP", "org": "Acme", "asn": "AS64500"})
+        return _Resp(j={})
+    su = REGISTRY["sucuri"].run("acme.com", _ctx(router)).data
+    assert su["cms"] == ["WordPress"] and su["blacklisted"] is True and su["severity"] == "high"
+    xd = REGISTRY["xposeddomain"].run("acme.com", _ctx(router)).data
+    assert xd["count"] == 1 and xd["breaches"][0]["name"] == "AcmeLeak"
+    co = REGISTRY["crtshorg"].run("acme.com", _ctx(router)).data
+    assert "acme.com" in co["cert_domains"] and "acme.net" in co["registrable_domains"]
+    iw = REGISTRY["ipwhoisapp"].run("1.2.3.4", _ctx(router)).data
+    assert iw["asn"] == "AS64500" and iw["city"] == "NYC"
