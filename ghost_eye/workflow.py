@@ -15,6 +15,42 @@ from typing import Dict, List, Optional
 from .core import Colors, Console, have_binary, REGISTRY
 
 # --------------------------------------------------------------------------- #
+#  Passive-only classification (feature 71)
+# --------------------------------------------------------------------------- #
+# Categories that never actively touch the target — they read third-party data
+# sources, archives and DNS. Anything else (Network, Web, Exposure, Auth, TLS
+# handshakes, …) sends traffic to the target and is treated as active.
+PASSIVE_CATEGORIES = {
+    "osint", "threat intel", "passive", "reputation", "geo", "intel",
+    "supply chain",
+}
+# individual ids that are passive even though their category reads as active
+_PASSIVE_IDS = {
+    "internetdb", "geoip", "proxytype", "torexit", "threatfeed", "reputation",
+    "urlscan", "whoispivot", "related", "analytics", "homoglyph", "typosquat",
+    "cve", "tlscve",
+}
+# ids that actively probe even though their category reads as passive
+_ACTIVE_IDS: set = set()
+
+
+def is_passive(module) -> bool:
+    """True if a module only reads third-party / archived data and never sends
+    traffic to the target itself (feature 71)."""
+    mid = getattr(module, "id", "")
+    if mid in _ACTIVE_IDS:
+        return False
+    if mid in _PASSIVE_IDS:
+        return True
+    return getattr(module, "category", "").strip().lower() in PASSIVE_CATEGORIES
+
+
+def passive_only(modules):
+    """Filter a module list down to the passive subset."""
+    return [m for m in modules if is_passive(m)]
+
+
+# --------------------------------------------------------------------------- #
 #  #72  Plugin system - drop .py files in a plugins/ dir
 # --------------------------------------------------------------------------- #
 def load_plugins(directory: str) -> List[str]:

@@ -111,17 +111,23 @@ def run_modules(mods: List[Module], target: str, ctx: Context,
     results: List[Result] = []
     store = reporting.Store(args.db) if args.save_db else None
     total = len(mods)
+    rate = (engine.AdaptiveRateLimiter()
+            if getattr(args, "adaptive_rate", False) else None)
     for idx, mod in enumerate(mods, 1):
         _maybe_rotate(ctx, args)
         Console.rule(f"[{idx}/{total}] {mod.name}  ({mod.category})")
         if mod.needs:
             Console.kv("requires", ", ".join(mod.needs))
         t0 = time.time()
+        if rate:
+            rate.wait()
         try:
             res = engine.execute_module(mod, target, ctx)
         except KeyboardInterrupt:
             Console.warn("interrupted by user")
             break
+        if rate:
+            rate.observe(res)
         res.render()
         Console.kv("took", f"{time.time() - t0:.1f}s")
 
@@ -144,7 +150,8 @@ def run_modules(mods: List[Module], target: str, ctx: Context,
 
 
 _EXT_FORMATS = {"md", "markdown", "sarif", "prom", "prometheus", "dashboard",
-                "dash", "exec", "execreport", "executive", "intel", "intelligence"}
+                "dash", "exec", "execreport", "executive", "intel", "intelligence",
+                "graphml", "gexf"}
 
 
 def handle_reports(results: List[Result], target: str, args) -> None:
@@ -375,6 +382,10 @@ def build_parser() -> argparse.ArgumentParser:
     net.add_argument("--cache", action="store_true",
                      help="cache HTTP GETs on disk (#77)")
     net.add_argument("--cache-ttl", type=int, default=300, help="cache TTL seconds")
+    net.add_argument("--passive-only", action="store_true",
+                     help="run only passive modules (no traffic to the target)")
+    net.add_argument("--adaptive-rate", action="store_true",
+                     help="self-tuning throttle: back off when the target errors/rate-limits")
     net.add_argument("--rate-per-host", type=float, default=0,
                      help="per-host rate limit, requests/sec")
     net.add_argument("--proxy", help="proxy URL, e.g. http://127.0.0.1:8080")
@@ -390,7 +401,8 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument("-o", "--output", help="write report to this file")
     out.add_argument("-f", "--format",
                      choices=["json", "csv", "html", "pdf", "md", "markdown",
-                              "sarif", "prometheus", "prom", "dashboard"],
+                              "sarif", "prometheus", "prom", "dashboard",
+                              "graphml", "gexf"],
                      help="report format (default: infer from extension)")
     out.add_argument("--risk", action="store_true",
                      help="print a prioritised risk summary (#66)")
@@ -781,6 +793,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     mods = select_modules(args)
+
+    # passive-only mode (feature 71): drop anything that touches the target
+    if mods and getattr(args, "passive_only", False):
+        before = len(mods)
+        mods = workflow.passive_only(mods)
+        Console.kv("passive-only", f"{len(mods)}/{before} modules (no active probing)")
 
     # ask for any API keys the selected modules need, and remember them
     if mods and not args.no_keys:

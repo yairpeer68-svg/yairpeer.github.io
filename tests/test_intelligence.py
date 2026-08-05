@@ -442,3 +442,44 @@ def test_report_exposes_wave2_sections():
     assert "risk_heatmap" in rep and "attack_paths" in rep
     assert "supply_chain" in rep
     assert rep["risk_heatmap"]["band_counts"]
+
+
+# --- graph export + unified multi-target graph (wave 3/5: features 39, 4) ---
+
+def test_graphml_and_gexf_are_valid_xml():
+    import xml.dom.minidom as minidom
+    from ghost_eye.intelligence import (knowledge_graph, risk_heatmap,
+                                        to_gexf, to_graphml, correlate)
+    res = _risk_sample()
+    intel = correlate(res, "example.com")
+    kg = knowledge_graph(res, "example.com", intel)
+    risk_heatmap(kg)
+    gml = to_graphml(kg)
+    minidom.parseString(gml)              # raises if malformed
+    assert "graphml" in gml and "<node" in gml and "risk" in gml
+    gexf = to_gexf(kg)
+    minidom.parseString(gexf)
+    assert "gexf" in gexf and "<edge" in gexf
+
+
+def test_unified_graph_merges_and_links_shared_infra():
+    from ghost_eye.core import Result
+    from ghost_eye.intelligence import (knowledge_graph, risk_heatmap,
+                                        unified_graph, correlate)
+
+    def kg_for(t, ip):
+        res = [Result("dns", t, "ok", {"A": [ip]}),
+               Result("cloud", t, "ok", {"provider": "AWS amazonaws"})]
+        intel = correlate(res, t)
+        kg = knowledge_graph(res, t, intel)
+        risk_heatmap(kg)
+        return t, kg
+
+    u = unified_graph([kg_for("a.com", "1.2.3.4"), kg_for("b.com", "1.2.3.4")])
+    assert u["counts"]["targets"] == 2
+    # the shared IP appears once and ties both targets together
+    ips = [e for e in u["entities"] if e["kind"] == "ip" and e["label"] == "1.2.3.4"]
+    assert len(ips) == 1
+    shared = {r["type"] for r in u["relationships"]}
+    assert "shared_between" in shared
+    assert any(s["kind"] == "ip" for s in u["shared_infrastructure"])

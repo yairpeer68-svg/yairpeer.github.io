@@ -278,7 +278,23 @@ def export_ext(results: List[Result], path: str, fmt: str, target: str = "") -> 
         return export_exec_report(results, path, target)
     if fmt in ("intel", "intelligence"):
         return export_intel_report(results, path, target)
+    if fmt in ("graphml", "gexf"):
+        return export_graph(results, path, fmt, target)
     raise ValueError(f"unknown extended format: {fmt}")
+
+
+def export_graph(results: List[Result], path: str, fmt: str,
+                 target: str = "") -> str:
+    """Export the typed Knowledge Graph as GraphML or GEXF (feature 39)."""
+    from .intelligence import (correlate, knowledge_graph, risk_heatmap,
+                               to_gexf, to_graphml)
+    intel = correlate(results, target)
+    kg = knowledge_graph(results, intel["target"], intel)
+    risk_heatmap(kg)  # so exported nodes carry risk / band
+    text = to_gexf(kg) if fmt.lower() == "gexf" else to_graphml(kg)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return path
 
 
 # unified asset inventory lives in its own module (clean regex escaping)

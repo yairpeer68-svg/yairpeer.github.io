@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **433 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **443 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -116,7 +116,7 @@ python3 ghost_eye_web.py --open
 | Flag | Meaning |
 |------|---------|
 | `-o, --output <file>` | write a report (format inferred from extension) |
-| `--format <fmt>` | `json`, `csv`, `html`, `md`, `sarif`, `prometheus`, `dashboard`, `exec` |
+| `--format <fmt>` | `json`, `csv`, `html`, `md`, `sarif`, `prometheus`, `dashboard`, `exec`, `graphml`, `gexf` |
 | `--exec-report <file>` | polished executive HTML report (grade + graph + exploits); honours `--lang he` |
 | `--intel-report <file>` | unified **intelligence report** (assets, org profile, attack-surface graph, tech, cloud, leaks) |
 | `--intel` | print an intelligence summary after the scan |
@@ -137,6 +137,8 @@ python3 ghost_eye_web.py --open
 | `--watch <seconds>` | re-run on an interval, alert on change |
 | `--resume` | skip already-done targets (batch) |
 | `--scope <file>` | refuse targets outside an allow-list |
+| `--passive-only` | run only passive modules (no traffic to the target) |
+| `--adaptive-rate` | self-tuning throttle: back off when the target errors / rate-limits |
 | `--lang {en,he}` | interface / report language (Hebrew = RTL) |
 | `--plugins <dir>` | load extra module files from a directory |
 
@@ -236,6 +238,43 @@ Produces a single **Ghost Eye Intelligence Report** HTML page: the analyst
 assessment, attack-surface graph, **knowledge graph**, pivot points & shared
 infrastructure, the **intelligence timeline**, visual gallery, org profile,
 tech, cloud, email score, certificates and leaks.
+
+### Graph-first dashboard & platform tooling
+
+The default dashboard (`/`, served by `ghost-eye-web`) is a **graph-first OSINT
+investigator** built around the typed Knowledge Graph. Beyond click-to-pivot,
+kind filters, cluster-by-type and the risk heat-map, it now includes:
+
+- **🗺 Mini-map** — a live overview of the whole graph in the corner; click to
+  jump the camera anywhere.
+- **🛤 Path-finding** — **shift-click** a second node to trace and highlight the
+  shortest path between any two entities.
+- **🕸 Unified multi-target graph** — merge several targets' graphs into one and
+  surface the infrastructure they **share** (`GET /api/unified?targets=a,b`).
+- **🔎 Full-text search** — search every finding of a scan at once
+  (`GET /api/job/<id>/search?q=`).
+- **🧩 Module / profile / schedule editor** — pick exactly the modules to run,
+  save the set as a named profile (kept in the browser), run it now or schedule
+  it to re-run on an interval.
+- **🛡 Scope-guard editor**, **passive-only** and **adaptive rate-limit**
+  toggles, and one-click **GraphML / GEXF** graph export (yEd / Gephi /
+  Cytoscape / NetworkX).
+- **🎫 Ticketing** — file a finding as a **Jira** or **ServiceNow** ticket
+  (`POST /api/job/<id>/ticket`; credentials from `JIRA_*` / `SERVICENOW_*` env,
+  with a safe dry-run preview).
+- **🌐 EN / עברית** interface toggle.
+
+### Install anywhere (Docker / Termux, feature 80)
+
+```bash
+# one-command installer (Linux / macOS / Termux) + an `update.sh` auto-updater
+bash install.sh
+
+# or Docker — same image runs the dashboard or a one-off CLI scan
+docker build -t ghost-eye .
+docker run --rm -p 8777:8777 ghost-eye            # dashboard
+docker run --rm ghost-eye -t example.com -p quick # CLI
+```
 
 **Screenshots** (`--screenshots [N]`, and the `screenshot` module) render each
 asset headless. Backends, in order: **Playwright/Chromium** (desktop/server),
@@ -593,7 +632,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**433 tests** pass in ~11s. A single **verification gate** runs the whole thing:
+**443 tests** pass in ~11s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

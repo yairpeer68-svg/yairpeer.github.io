@@ -63,6 +63,12 @@ class Scope:
         with open(path, encoding="utf-8") as fh:
             return cls.from_lines(fh.readlines())
 
+    def to_lines(self) -> List[str]:
+        """Serialise the scope back to its one-entry-per-line form."""
+        out = sorted(self.domains) + sorted(self.ips)
+        out += sorted(str(n) for n in self.networks)
+        return out
+
     def allows(self, target: str) -> Tuple[bool, str]:
         if self.empty:
             return True, "no scope set"

@@ -13,6 +13,7 @@ handling is identical everywhere.
 
 from __future__ import annotations
 
+import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from typing import Callable, List, Optional, Sequence
 
@@ -21,6 +22,54 @@ from .core import Context, Module, Result, record_error
 # on_result(module, result) -> None  — called as each module finishes
 ResultHook = Callable[[Module, Result], None]
 CancelFn = Callable[[], bool]
+
+
+class AdaptiveRateLimiter:
+    """Feature 66 — a self-tuning throttle. It watches the outcome of recent
+    modules and adjusts the delay it inserts before the next one: errors /
+    timeouts (a sign the target or the network is pushing back) widen the delay
+    multiplicatively; clean successes narrow it back down. Thread-safe.
+
+    ``base`` is the floor delay (seconds), ``ceiling`` the cap. Start it at 0 to
+    make it a no-op until the first backoff is triggered.
+    """
+
+    def __init__(self, base: float = 0.0, ceiling: float = 5.0,
+                 grow: float = 1.7, shrink: float = 0.85) -> None:
+        import threading
+        self.base = max(0.0, float(base))
+        self.ceiling = max(self.base, float(ceiling))
+        self.grow = grow
+        self.shrink = shrink
+        self.delay = self.base
+        self._lock = threading.Lock()
+        self.backoffs = 0
+
+    def wait(self) -> None:
+        with self._lock:
+            d = self.delay
+        if d > 0:
+            time.sleep(min(d, self.ceiling))
+
+    def observe(self, res: Result) -> None:
+        bad = getattr(res, "status", "") == "error"
+        err = (getattr(res, "error", "") or "").lower()
+        if not bad and any(w in err for w in ("timeout", "timed out",
+                                              "rate", "429", "throttl")):
+            bad = True
+        with self._lock:
+            if bad:
+                self.delay = min(self.ceiling,
+                                 max(self.base, 0.25 if self.delay == 0
+                                     else self.delay * self.grow))
+                self.backoffs += 1
+            else:
+                self.delay = max(self.base, self.delay * self.shrink)
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            return {"delay": round(self.delay, 3), "ceiling": self.ceiling,
+                    "backoffs": self.backoffs}
 
 
 def execute_module(module: Module, target: str, ctx: Context) -> Result:
@@ -47,13 +96,17 @@ def execute_module(module: Module, target: str, ctx: Context) -> Result:
 
 def run_scan(modules: Sequence[Module], target: str, ctx: Context, *,
              parallel: int = 1, on_result: Optional[ResultHook] = None,
-             should_cancel: Optional[CancelFn] = None) -> List[Result]:
+             should_cancel: Optional[CancelFn] = None,
+             rate: Optional[AdaptiveRateLimiter] = None) -> List[Result]:
     """Execute `modules` against `target`.
 
     parallel<=1  -> sequential, deterministic order (CLI).
     parallel>1   -> ThreadPoolExecutor, results delivered as they complete
                     (dashboard). `on_result` fires per module; `should_cancel`
                     is polled to allow a mid-scan stop.
+
+    `rate` (an AdaptiveRateLimiter) throttles between modules and widens the
+    delay when the target/network starts erroring or rate-limiting us.
     """
     results: List[Result] = []
 
@@ -61,14 +114,25 @@ def run_scan(modules: Sequence[Module], target: str, ctx: Context, *,
         for module in modules:
             if should_cancel and should_cancel():
                 break
+            if rate:
+                rate.wait()
             res = execute_module(module, target, ctx)
+            if rate:
+                rate.observe(res)
             results.append(res)
             if on_result:
                 on_result(module, res)
         return results
 
     with ThreadPoolExecutor(max_workers=parallel) as ex:
-        futures = {ex.submit(execute_module, m, target, ctx): m for m in modules}
+        def _run(m: Module) -> Result:
+            if rate:
+                rate.wait()
+            r = execute_module(m, target, ctx)
+            if rate:
+                rate.observe(r)
+            return r
+        futures = {ex.submit(_run, m): m for m in modules}
         pending = set(futures)
         while pending:
             if should_cancel and should_cancel():

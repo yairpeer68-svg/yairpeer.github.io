@@ -40,7 +40,8 @@ _CONTENT_TYPES = {
     "intel": "text/html", "intelligence": "text/html",
 }
 _EXT_FORMATS = {"md", "markdown", "sarif", "prometheus", "prom", "dashboard",
-                "exec", "execreport", "executive", "intel", "intelligence"}
+                "exec", "execreport", "executive", "intel", "intelligence",
+                "graphml", "gexf"}
 
 
 # --------------------------------------------------------------------------- #
@@ -100,9 +101,14 @@ class JobManager:
         mods = job["_modules"]
         parallel = max(1, int(job["options"].get("parallel") or 3))
         target = job["target"]
+        # feature 66: adaptive throttle that widens delay when the target/network
+        # starts erroring or rate-limiting us (opt-in via options.adaptive_rate)
+        rl = (engine.AdaptiveRateLimiter(ceiling=float(job["options"].get("rate_ceiling") or 5))
+              if job["options"].get("adaptive_rate") else None)
+        job["_rate"] = rl
         ex = ThreadPoolExecutor(max_workers=parallel)
         try:
-            futures = {ex.submit(self._run_one, m, target, ctx): m for m in mods}
+            futures = {ex.submit(self._run_one, m, target, ctx, rl): m for m in mods}
             pending = set(futures)
             while pending:
                 if job["cancel"]:
@@ -142,7 +148,7 @@ class JobManager:
                     for asset, ms in plan:
                         if job["cancel"]:
                             break
-                        afut = {ex.submit(self._run_one, m, asset, ctx): m for m in ms}
+                        afut = {ex.submit(self._run_one, m, asset, ctx, rl): m for m in ms}
                         apending = set(afut)
                         while apending and not job["cancel"]:
                             adone, apending = wait(apending, timeout=0.4,
@@ -183,9 +189,14 @@ class JobManager:
             self._persist(job)
 
     @staticmethod
-    def _run_one(module, target: str, ctx: Context) -> Result:
+    def _run_one(module, target: str, ctx: Context, rate=None) -> Result:
         # single shared execution path (crash -> error Result + error-log)
-        return engine.execute_module(module, target, ctx)
+        if rate is not None:
+            rate.wait()
+        res = engine.execute_module(module, target, ctx)
+        if rate is not None:
+            rate.observe(res)
+        return res
 
     def _persist(self, job: dict) -> None:
         try:
@@ -320,16 +331,21 @@ def _select(payload: dict) -> List:
     mode = payload.get("mode", "all")
     val = payload.get("value")
     if mode == "all":
-        return list(REGISTRY.values())
-    if mode == "modules":
+        mods = list(REGISTRY.values())
+    elif mode == "modules":
         ids = val if isinstance(val, list) else [val]
-        return [REGISTRY[i] for i in ids if i in REGISTRY]
-    if mode == "category":
-        return modules_by_category().get(val, [])
-    if mode == "profile":
+        mods = [REGISTRY[i] for i in ids if i in REGISTRY]
+    elif mode == "category":
+        mods = modules_by_category().get(val, [])
+    elif mode == "profile":
         ids = workflow.load_recipes("recipes.yaml").get(val, [])
-        return [REGISTRY[i] for i in ids if i in REGISTRY]
-    return []
+        mods = [REGISTRY[i] for i in ids if i in REGISTRY]
+    else:
+        mods = []
+    # passive-only mode (feature 71): drop anything that touches the target
+    if payload.get("passive_only"):
+        mods = workflow.passive_only(mods)
+    return mods
 
 
 # --------------------------------------------------------------------------- #
@@ -479,6 +495,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._compare_scans(parsed)
         if path == "/api/schedules":
             return self._list_schedules()
+        if path == "/api/unified":
+            return self._unified(parsed)
+        if path == "/api/scope":
+            return self._scope_get()
         if path.startswith("/api/scan/"):
             return self._saved_scan(path.split("/")[3] if len(path.split("/")) > 3 else "")
         if path.startswith("/api/job/"):
@@ -492,6 +512,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "unauthorized"}, 401)
         if path == "/api/scan":
             return self._scan_start()
+        if path == "/api/scope":
+            return self._scope_set()
         if path == "/api/schedule":
             return self._schedule_create()
         if path == "/api/keys":
@@ -512,6 +534,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"cancelled": ok})
         if path.startswith("/api/job/") and path.endswith("/screenshots"):
             return self._job_screenshots(path.split("/")[3], parsed)
+        if path.startswith("/api/job/") and path.endswith("/ticket"):
+            return self._job_ticket(path.split("/")[3], parsed)
         return self._json({"error": "not found"}, 404)
 
     def _do_delete(self):
@@ -565,6 +589,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_risk(jid)
         if sub == "intel":
             return self._job_intel(jid)
+        if sub == "search":
+            return self._job_search(jid, parsed)
         snap = self.server.jobs.snapshot(jid)
         if snap is None:
             return self._json({"error": "unknown job"}, 404)
@@ -680,6 +706,98 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"intelligence failed: {exc}"}, 500)
         return self._json(report)
+
+    def _job_search(self, jid: str, parsed):
+        """Full-text search across every finding of a job (feature 48).
+        GET /api/job/<id>/search?q=<query>."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        q = (parse_qs(parsed.query).get("q", [""])[0]).strip()
+        from .search import full_text_search
+        try:
+            return self._json(full_text_search(results, q))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"search failed: {exc}"}, 500)
+
+    def _unified(self, parsed):
+        """Merge several targets' knowledge graphs into one unified graph
+        (feature 4). GET /api/unified?targets=a.com,b.com — targets are taken
+        from the most recent saved scan of each in the history DB."""
+        raw = (parse_qs(parsed.query).get("targets", [""])[0]).strip()
+        targets = [t.strip() for t in raw.split(",") if t.strip()]
+        if len(targets) < 1:
+            return self._json({"error": "pass ?targets=a.com,b.com"}, 400)
+        from .core import Result
+        from .intelligence import (correlate, knowledge_graph, risk_heatmap,
+                                   unified_graph)
+        graphs = []
+        try:
+            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"history unavailable: {exc}"}, 500)
+        try:
+            for t in targets[:8]:
+                scans = store.scans_for(t)
+                if not scans:
+                    continue
+                latest = scans[-1].get("results", [])
+                res = [Result(x.get("module", ""), x.get("target", t),
+                             x.get("status", "ok"), x.get("data", {}) or {})
+                       for x in latest]
+                if not res:
+                    continue
+                intel = correlate(res, t)
+                kg = knowledge_graph(res, intel["target"], intel)
+                risk_heatmap(kg)
+                graphs.append((t, kg))
+        finally:
+            store.close()
+        if not graphs:
+            return self._json({"error": "no saved scans for those targets — "
+                               "run & save them first"}, 404)
+        return self._json(unified_graph(graphs))
+
+    def _scope_get(self):
+        """Return the current scope-guard allow-list (feature 72)."""
+        scope = getattr(self.server, "scope", None)
+        lines = scope.to_lines() if scope and hasattr(scope, "to_lines") else []
+        return self._json({"entries": lines, "empty": not lines,
+                           "note": "one host / *.domain / CIDR / IP per entry; "
+                                   "targets outside this list are refused."})
+
+    def _scope_set(self):
+        """Replace the scope-guard allow-list from the dashboard (feature 72).
+        POST body: {entries: ["example.com", "10.0.0.0/8", ...]}."""
+        from .scope import Scope
+        body = self._body()
+        entries = body.get("entries")
+        if isinstance(entries, str):
+            entries = entries.splitlines()
+        if not isinstance(entries, list):
+            return self._json({"error": "entries must be a list or newline text"}, 400)
+        scope = Scope.from_lines([str(e) for e in entries])
+        self.server.scope = scope
+        if getattr(self.server, "jobs", None) is not None:
+            self.server.jobs.scope = scope       # deep scans honour it too
+        return self._json({"ok": True, "entries": scope.to_lines(),
+                           "empty": scope.empty})
+
+    def _job_ticket(self, jid: str, parsed):
+        """File a Jira/ServiceNow ticket from a finding (feature 60).
+        POST /api/job/<id>/ticket  body: {system, finding, dry_run}."""
+        body = self._body()
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        from .ticketing import submit_ticket
+        finding = body.get("finding") or {}
+        system = body.get("system", "jira")
+        dry = bool(body.get("dry_run", False))
+        try:
+            out = submit_ticket(finding, target, system, dry_run=dry)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"ticket failed: {exc}"}, 500)
+        return self._json(out)
 
     def _job_exploits(self, jid: str, parsed):
         results = self.server.jobs.results_obj(jid)

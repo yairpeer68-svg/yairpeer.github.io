@@ -88,6 +88,9 @@ a{color:var(--cyan);text-decoration:none}
 
 /* canvas overlay controls */
 .zoombar{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:6}
+.minimap{position:absolute;left:14px;bottom:14px;width:160px;height:108px;background:rgba(6,8,13,.72);border:1px solid var(--line2);border-radius:8px;z-index:6;cursor:pointer}
+.minimap #mmview{opacity:.9}
+@media(max-width:520px){.minimap{width:112px;height:76px;left:10px;bottom:10px}}
 .zoombar button{width:34px;height:34px;border-radius:10px;background:var(--panel);border:1px solid var(--line2);
   color:var(--ink);font-size:17px;display:flex;align-items:center;justify-content:center}
 .zoombar button:hover{border-color:var(--cyan);color:var(--cyan)}
@@ -194,6 +197,25 @@ a{color:var(--cyan);text-decoration:none}
 @media(max-width:520px){.tool-grid{grid-template-columns:1fr}}
 .toolbtn{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:11px;padding:12px;font-size:13px;text-align:left;transition:border-color .15s,background .15s}
 .toolbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.mod-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
+.mod-controls input{flex:1;min-width:140px;background:var(--panel);border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:8px 10px;font-size:13px}
+.modprofiles{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.pchip{background:var(--panel2);border:1px solid var(--line2);border-radius:20px;padding:4px 10px;font-family:var(--mono);font-size:11px;cursor:pointer}
+.pchip:hover{border-color:var(--cyan);color:var(--cyan)} .pchip.custom{border-color:#c9a0ff55}
+.pdel{color:var(--faint);margin-left:2px} .pdel:hover{color:var(--red)}
+.modlist{max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px}
+.modcat{margin-bottom:9px} .modcat-h{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin:4px 0 5px;border-bottom:1px solid var(--line);padding-bottom:3px}
+.modcat-g{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px}
+@media(max-width:560px){.modcat-g{grid-template-columns:1fr}}
+.moditem{display:flex;align-items:baseline;gap:6px;font-size:12px;padding:3px 5px;border-radius:6px;cursor:pointer}
+.moditem:hover{background:var(--panel)} .moditem.on{background:rgba(56,225,214,.06)}
+.moditem input{accent-color:var(--cyan)} .moditem b{font-family:var(--mono);font-size:11.5px}
+.mod-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.mod-actions input{flex:1;min-width:150px;background:var(--panel);border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:8px 10px;font-size:13px}
+.modsched-list{margin-top:6px}
+.scan-settings{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-bottom:11px;margin-bottom:6px}
+.scan-settings .opt{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink);font-family:var(--mono)}
+.scan-settings .opt input{accent-color:var(--cyan)}
 .dl-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:1px solid var(--line);padding-top:11px;margin-top:4px}
 .dl-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:4px}
 .dlbtn{background:var(--panel);border:1px solid var(--line2);color:var(--muted);border-radius:20px;padding:7px 11px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
@@ -254,7 +276,9 @@ a{color:var(--cyan);text-decoration:none}
   <div class="topright" id="topright">
     <button class="navlink" id="toolsbtn">⚙ Tools</button>
     <button class="navlink" id="portbtn">▦ Portfolio</button>
+    <button class="navlink" id="modbtn">🧩 Modules</button>
     <button class="navlink" id="keysbtn">🔑 Keys</button>
+    <button class="navlink" id="langbtn" title="language">🌐 עב</button>
     <a class="navlink" href="/console" id="consolelink">▤ Console</a>
   </div>
 </header>
@@ -262,6 +286,13 @@ a{color:var(--cyan);text-decoration:none}
 <div id="toolsmodal" class="modal hidden">
   <div class="modal-card" style="width:min(640px,96vw)">
     <div class="modal-head"><b>⚙ Tools — <span id="toolstgt"></span></b><button class="x" id="toolsclose">✕</button></div>
+    <div class="scan-settings">
+      <span class="dl-label">scan settings:</span>
+      <label class="opt"><input type="checkbox" id="optpassive"> passive-only</label>
+      <label class="opt"><input type="checkbox" id="optadaptive"> adaptive rate-limit</label>
+      <button class="dlbtn" id="scopebtn">🛡 Scope guard</button>
+      <button class="dlbtn" id="unifiedbtn">🕸 Unified graph</button>
+    </div>
     <div class="tool-grid">
       <button class="toolbtn" data-tool="screenshots">📸 Screenshot subdomains</button>
       <button class="toolbtn" data-tool="exploits">🧨 Exploit intel</button>
@@ -272,6 +303,8 @@ a{color:var(--cyan);text-decoration:none}
       <button class="toolbtn" data-tool="inventory">📋 Inventory</button>
       <button class="toolbtn" data-tool="rollup">🖧 Host rollup</button>
       <button class="toolbtn" data-tool="trend">📈 Trend</button>
+      <button class="toolbtn" data-tool="find">🔎 Search findings</button>
+      <button class="toolbtn" data-tool="ticket">🎫 File ticket</button>
     </div>
     <div class="dl-row">
       <span class="dl-label">download report:</span>
@@ -282,6 +315,8 @@ a{color:var(--cyan);text-decoration:none}
       <button class="dlbtn" data-fmt="md">MD</button>
       <button class="dlbtn" data-fmt="sarif">SARIF</button>
       <button class="dlbtn" data-fmt="csv">CSV</button>
+      <button class="dlbtn" data-fmt="graphml">GraphML</button>
+      <button class="dlbtn" data-fmt="gexf">GEXF</button>
     </div>
     <div id="toolout" class="toolout"></div>
   </div>
@@ -305,13 +340,45 @@ a{color:var(--cyan);text-decoration:none}
   </div>
 </div>
 
+<div id="modmodal" class="modal hidden">
+  <div class="modal-card" style="width:min(820px,96vw)">
+    <div class="modal-head"><b>🧩 Modules · profiles · schedule</b><button class="x" id="modclose">✕</button></div>
+    <div class="mod-controls">
+      <input id="modsearch" placeholder="🔍 filter modules…" autocomplete="off" spellcheck="false">
+      <span class="rel" id="modcount"></span>
+      <button class="dlbtn" id="modall">all</button>
+      <button class="dlbtn" id="modnone">none</button>
+      <button class="dlbtn" id="modpassive">passive</button>
+    </div>
+    <div id="modprofiles" class="modprofiles"></div>
+    <div id="modlist" class="modlist"></div>
+    <div class="mod-actions">
+      <input id="modtarget" placeholder="target (defaults to current)" autocomplete="off" spellcheck="false">
+      <button class="save" id="modrun">▶ Run selected</button>
+      <button class="dlbtn" id="modsave">💾 Save as profile</button>
+      <button class="dlbtn" id="modsched">⏰ Schedule</button>
+    </div>
+    <div id="modsched_list" class="modsched-list"></div>
+    <p class="modal-note">Pick exactly the modules you want, run them now, save the set as a named profile (kept in this browser), or schedule it to re-run on an interval. Passive-only and adaptive rate-limit follow the ⚙ Tools settings.</p>
+  </div>
+</div>
+
+<div id="scopemodal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head"><b>🛡 Scope guard</b><button class="x" id="scopeclose">✕</button></div>
+    <p class="modal-note">One entry per line: a domain (covers <code>*.domain</code>), an exact host, a CIDR (<code>10.0.0.0/8</code>) or a single IP. Targets outside this list are refused. Empty = no restriction.</p>
+    <textarea id="scopetext" spellcheck="false" style="width:100%;min-height:150px;background:var(--panel);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px;font-family:var(--mono);font-size:12px"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="save" id="scopesave">Save scope</button><span class="rel" id="scopemsg"></span></div>
+  </div>
+</div>
+
 <div class="stage">
   <!-- left rail: entity filters -->
   <aside class="rail" id="rail">
     <h3>Entities</h3>
     <div id="kinds"></div>
     <div class="railstat" id="railstat"></div>
-    <div class="hint" id="hint">Drag to pan · scroll to zoom · drag a node to move · click a node for details.</div>
+    <div class="hint" id="hint">Drag to pan · scroll to zoom · drag a node to move · click a node for details. Shift-click a 2nd node to trace the path.</div>
   </aside>
 
   <!-- center: graph canvas -->
@@ -329,6 +396,7 @@ a{color:var(--cyan);text-decoration:none}
       <button id="zout" title="zoom out">−</button>
       <button id="zfit" title="fit" style="font-size:12px">⊡</button>
     </div>
+    <svg id="minimap" class="minimap hidden" viewBox="0 0 160 108" title="overview — click to jump"><g id="mmnodes"></g><rect id="mmview" fill="none" stroke="#38e1d6" stroke-width="1.4"/></svg>
     <div class="canvasnote" id="note">
       <svg class="big" viewBox="0 0 100 100" id="eye2" aria-hidden="true"></svg>
       <h2>OSINT investigator</h2>
@@ -370,7 +438,8 @@ const KMETA={
   ip:{c:"#37d39a",i:"🖥"}, cloud:{c:"#f0b545",i:"☁"}, tech:{c:"#a97bf5",i:"🧩"},
   cert_issuer:{c:"#56d364",i:"🔒"}, email:{c:"#ff6fb2",i:"✉"}, org:{c:"#f0883e",i:"🏢"},
   cve:{c:"#ff5b61",i:"⚠"}, leak:{c:"#ff7b72",i:"🩸"}, asn:{c:"#37d39a",i:"🛰"},
-  mailserver:{c:"#a5d6ff",i:"✉"}, nameserver:{c:"#a5d6ff",i:"🛰"}, service:{c:"#e3b341",i:"⚙"}
+  mailserver:{c:"#a5d6ff",i:"✉"}, nameserver:{c:"#a5d6ff",i:"🛰"}, service:{c:"#e3b341",i:"⚙"},
+  dependency:{c:"#c9a0ff",i:"🔗"}
 };
 const km=k=>KMETA[k]||{c:"#8390a6",i:"◆"};
 // risk heat-map palette (feature 17): colour a node by how dangerous it is
@@ -383,7 +452,28 @@ let G={nodes:[],edges:[],byId:{}};
 let hidden=new Set(), selected=null;
 let cam={k:1,x:0,y:0}, W=1000, H=700;
 let clustered=false, searchSet=null, ACKS=new Set(), heat=false;
+let pathSet=null, pathEdges=null;   // shift-click path-finding (feature 5)
 let CURJOB=null, CURTARGET="";
+
+/* BFS shortest path between two nodes; highlights the chain (feature 5) */
+function tracePath(a,b){
+  const adj={}; G.nodes.forEach(n=>adj[n.id]=[]);
+  G.edges.forEach(e=>{ if(adj[e.from]&&adj[e.to]){adj[e.from].push(e.to);adj[e.to].push(e.from);} });
+  const prev={[a]:null}, q=[a];
+  while(q.length){ const c=q.shift(); if(c===b)break;
+    (adj[c]||[]).forEach(nx=>{ if(!(nx in prev)){prev[nx]=c;q.push(nx);} }); }
+  if(!(b in prev)){ pathSet=null; pathEdges=null; render();
+    $("askans").classList.remove("hidden"); $("askans").innerHTML=`<b>No path</b> between <code>${esc(G.byId[a].label)}</code> and <code>${esc(G.byId[b].label)}</code> in the graph.`;
+    return; }
+  const chain=[]; let n=b; while(n!=null){chain.push(n);n=prev[n];} chain.reverse();
+  pathSet=new Set(chain); pathEdges=new Set();
+  for(let i=0;i<chain.length-1;i++){ pathEdges.add(chain[i]+"|"+chain[i+1]); pathEdges.add(chain[i+1]+"|"+chain[i]); }
+  selected=null; render();
+  const steps=chain.map(id=>`<span class="chip">${esc(G.byId[id].label)}</span>`).join('<span class="rel"> → </span>');
+  $("askans").classList.remove("hidden");
+  $("askans").innerHTML=`<b>Path (${chain.length-1} hops):</b> ${steps} <button class="cbtn" id="clearpath" style="margin-left:6px">clear</button>`;
+  const cp=$("clearpath"); if(cp) cp.onclick=()=>{ pathSet=null; pathEdges=null; $("askans").classList.add("hidden"); render(); };
+}
 
 /* ---------------- investigate ---------------- */
 async function investigate(){
@@ -392,12 +482,17 @@ async function investigate(){
   $("go").disabled=true; setStatus("run","starting…");
   $("note").classList.remove("hidden");
   $("note").innerHTML=`<div class="spinner"></div><h2>Investigating ${esc(target)}</h2><p id="pmsg">running OSINT modules…</p>`;
+  const passive=$("optpassive")&&$("optpassive").checked;
+  const adaptive=$("optadaptive")&&$("optadaptive").checked;
+  const opts={timeout:15,parallel:4}; if(adaptive) opts.adaptive_rate=true;
+  const sel={mode:"profile",value:"osint"}; if(passive) sel.passive_only=true;
   let job;
   try{ job=await api("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({target,selection:{mode:"profile",value:"osint"},options:{timeout:15,parallel:4}})}); }
+      body:JSON.stringify({target,selection:sel,options:opts})}); }
   catch(e){ // fall back to a broad scan if the osint profile is unavailable
+    const sel2={mode:"all"}; if(passive) sel2.passive_only=true;
     try{ job=await api("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({target,selection:{mode:"all"},options:{timeout:12,parallel:5}})}); }
+        body:JSON.stringify({target,selection:sel2,options:{timeout:12,parallel:5,...(adaptive?{adaptive_rate:true}:{})}})}); }
     catch(e2){ fail("Scan rejected: "+e2.message); return; } }
   poll(job.job_id, target);
 }
@@ -485,8 +580,10 @@ function render(){
   let e="";
   G.edges.forEach(ed=>{ if(!vis(ed.from)||!vis(ed.to))return;
     const a=G.byId[ed.from], b=G.byId[ed.to];
-    const lit=foc&&(ed.from===foc||ed.to===foc);
-    e+=`<line class="edge${lit?" lit":""}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke-width="${lit?1.6:1}"/>`;
+    const onPath=pathEdges&&pathEdges.has(ed.from+"|"+ed.to);
+    const lit=onPath||(foc&&(ed.from===foc||ed.to===foc));
+    const dimE=pathSet&&!onPath;
+    e+=`<line class="edge${lit?" lit":""}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke-width="${onPath?2.4:lit?1.6:1}"${onPath?' stroke="#ffca3a" stroke-opacity="1"':dimE?' stroke-opacity=".08"':''}/>`;
   });
   $("edges").innerHTML=e;
   let n="";
@@ -494,11 +591,12 @@ function render(){
     const m=km(nd.kind), isT=nd.kind==="target";
     const r=isT?13:Math.min(11,6+Math.sqrt(nd.deg||1)*1.4);
     const isMatch=searchSet&&searchSet.has(nd.id);
-    const dim=(nbr&&nd.id!==foc&&!nbr.has(nd.id))||(searchSet&&!isMatch);
+    const onPath=pathSet&&pathSet.has(nd.id);
+    const dim=(pathSet&&!onPath)||(nbr&&nd.id!==foc&&!nbr.has(nd.id))||(searchSet&&!isMatch);
     const op=dim?0.16:1;
-    const fill=heat?riskColor(nd):m.c;
-    const ring=(nd.id===foc)?`<circle r="${r+5}" fill="none" stroke="${fill}" stroke-opacity=".9" stroke-width="1.5"/>`:"";
-    const showLabel=isT||nd.id===foc||isMatch||(nbr&&nbr.has(nd.id))|| nd.deg>=2 || G.nodes.length<40;
+    const fill=onPath?"#ffca3a":(heat?riskColor(nd):m.c);
+    const ring=(nd.id===foc||onPath)?`<circle r="${r+5}" fill="none" stroke="${onPath?'#ffca3a':fill}" stroke-opacity=".9" stroke-width="1.5"/>`:"";
+    const showLabel=isT||nd.id===foc||onPath||isMatch||(nbr&&nbr.has(nd.id))|| nd.deg>=2 || G.nodes.length<40;
     n+=`<g class="nodeg${isMatch?" match":""}" data-id="${esc(nd.id)}" transform="translate(${nd.x.toFixed(1)},${nd.y.toFixed(1)})" opacity="${op}">
       ${ring}
       <circle class="core" r="${r}" fill="${fill}" fill-opacity="${isT?1:.9}" stroke="#06080d" stroke-width="1.5"/>
@@ -508,8 +606,52 @@ function render(){
   });
   $("nodes").innerHTML=n;
   applyCam();
+  drawMinimap();
 }
-function applyCam(){ $("cam").setAttribute("transform",`translate(${cam.x},${cam.y}) scale(${cam.k})`); }
+function applyCam(){ $("cam").setAttribute("transform",`translate(${cam.x},${cam.y}) scale(${cam.k})`); drawMinimapView(); }
+
+/* ---- mini-map overview (feature 7) ---- */
+let _mm=null;   // cached world-bounds->minimap transform
+function _mmBounds(){
+  if(!G.nodes.length) return null;
+  const xs=G.nodes.map(n=>n.x), ys=G.nodes.map(n=>n.y);
+  const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+  const pad=40, gw=(maxx-minx)+pad*2||1, gh=(maxy-miny)+pad*2||1;
+  const s=Math.min(160/gw,108/gh);
+  const ox=(160-gw*s)/2, oy=(108-gh*s)/2;
+  return {s, tx:ox-(minx-pad)*s, ty:oy-(miny-pad)*s};
+}
+function drawMinimap(){
+  const mm=$("minimap"); if(!mm) return;
+  if(!G.nodes.length){ mm.classList.add("hidden"); return; }
+  mm.classList.remove("hidden");
+  _mm=_mmBounds(); if(!_mm) return;
+  let s="";
+  G.nodes.forEach(nd=>{ if(hidden.has(nd.kind))return;
+    const x=(nd.x*_mm.s+_mm.tx).toFixed(1), y=(nd.y*_mm.s+_mm.ty).toFixed(1);
+    const c=(pathSet&&pathSet.has(nd.id))?"#ffca3a":(heat?riskColor(nd):km(nd.kind).c);
+    s+=`<circle cx="${x}" cy="${y}" r="${nd.kind==='target'?2.4:1.5}" fill="${c}"/>`;
+  });
+  $("mmnodes").innerHTML=s;
+  drawMinimapView();
+}
+function drawMinimapView(){
+  const r=$("mmview"); if(!r||!_mm) return;
+  // world region currently visible in the canvas → minimap rect
+  const wx0=-cam.x/cam.k, wy0=-cam.y/cam.k, wx1=(W-cam.x)/cam.k, wy1=(H-cam.y)/cam.k;
+  const x=wx0*_mm.s+_mm.tx, y=wy0*_mm.s+_mm.ty;
+  r.setAttribute("x",Math.max(0,x).toFixed(1)); r.setAttribute("y",Math.max(0,y).toFixed(1));
+  r.setAttribute("width",Math.max(2,(wx1-wx0)*_mm.s).toFixed(1));
+  r.setAttribute("height",Math.max(2,(wy1-wy0)*_mm.s).toFixed(1));
+}
+// click the mini-map to recentre the camera there
+$("minimap").addEventListener("click",ev=>{
+  if(!_mm||!G.nodes.length)return;
+  const box=$("minimap").getBoundingClientRect();
+  const mx=(ev.clientX-box.left)/box.width*160, my=(ev.clientY-box.top)/box.height*108;
+  const wx=(mx-_mm.tx)/_mm.s, wy=(my-_mm.ty)/_mm.s;
+  cam.x=W/2-wx*cam.k; cam.y=H/2-wy*cam.k; applyCam();
+});
 
 function buildKindFilters(){
   const by={}; G.nodes.forEach(n=>by[n.kind]=(by[n.kind]||0)+1);
@@ -559,8 +701,11 @@ net.addEventListener("pointermove",ev=>{
 });
 net.addEventListener("pointerup",ev=>{
   net.classList.remove("grabbing");
-  if(drag&&drag.type==="node"&&!moved){ selectNode(drag.id); }
-  else if(drag&&drag.type==="pan"&&!moved){ if(selected){selected=null;render();renderProfile(REP);} }
+  if(drag&&drag.type==="node"&&!moved){
+    if(ev.shiftKey&&selected&&selected!==drag.id){ tracePath(selected,drag.id); }
+    else { pathSet=null; pathEdges=null; selectNode(drag.id); }
+  }
+  else if(drag&&drag.type==="pan"&&!moved){ if(selected){selected=null;render();renderProfile(REP);} else if(pathSet){pathSet=null;pathEdges=null;$("askans").classList.add("hidden");render();} }
   drag=null;
 });
 net.addEventListener("wheel",ev=>{ ev.preventDefault();
@@ -843,13 +988,14 @@ $("navtoggle").addEventListener("click",()=>document.querySelector(".bar").class
 /* ---------------- Tools (CLI parity: screenshots / exploit / risk / compliance / inventory / rollup / reports) ---------------- */
 function tout(h){ $("toolout").innerHTML=h; }
 function openTools(){
-  if(!CURJOB){ alert("Investigate a target first."); return; }
-  $("toolstgt").textContent=CURTARGET||REP.target||"";
-  $("toolout").innerHTML=""; $("toolsmodal").classList.remove("hidden");
+  $("toolstgt").textContent=CURTARGET||(REP&&REP.target)||"(no scan yet)";
+  $("toolsmodal").classList.remove("hidden");
+  if(!CURJOB){ $("toolout").innerHTML=`<div class="trow rel">Scan settings above apply to your next investigation. The tools below need a completed scan — investigate a target first.</div>`; }
+  else if(!$("toolout").innerHTML){ $("toolout").innerHTML=""; }
 }
 const _sevc={critical:"var(--red)",high:"#ff9145",medium:"var(--gold)",low:"var(--green)","":"var(--muted)"};
 async function runTool(tool){
-  if(!CURJOB) return;
+  if(!CURJOB){ tout(`<div class="trow rel">Investigate a target first — this tool runs on scan results.</div>`); return; }
   tout(`<div class="tout-head">${tool}</div><div class="spinner" style="margin:14px auto"></div>`);
   try{
     if(tool==="screenshots"){
@@ -894,6 +1040,29 @@ async function runTool(tool){
       if((d.scans||0)<1){ tout(`<div class="tout-head">📈 trend</div><div class="trow">No saved history yet for ${esc(CURTARGET)} — investigate it again over time.</div>`); return; }
       const rows=(d.series||[]).map(s=>`<div class="trow"><span class="rel">${esc((s.ts||'').slice(0,16).replace('T',' '))}</span> · assets ${s.assets} · subs ${s.subdomains} · risk ${s.risk_score}${(s.new_count?` · <span style="color:var(--red)">+${s.new_count} new</span>`:'')}</div>`).join("");
       tout(`<div class="tout-head">📈 intelligence trend — ${d.scans} scans · ${esc(d.direction)}</div>${rows}`);
+    } else if(tool==="find"){
+      const q=prompt("Search all findings for:","");
+      if(q==null||!q.trim()){ tout(`<div class="tout-head">🔎 search findings</div><div class="trow">enter a term (host, IP, CVE, \"password\", \"admin\"…).</div>`); return; }
+      const d=await api(`/api/job/${CURJOB}/search?q=${encodeURIComponent(q.trim())}`);
+      const rows=(d.matches||[]).map(m=>`<div class="trow"><b>${esc(m.module)}</b> · <span class="rel">${esc(m.field)}</span><br><span>${esc(m.snippet)}</span></div>`).join("");
+      const mods=Object.entries(d.by_module||{}).slice(0,12).map(([k,v])=>`<span class="chip">${esc(k)} ${v}</span>`).join("");
+      tout(`<div class="tout-head">🔎 “${esc(d.query)}” — ${d.count} match(es)</div>${mods?`<div class="achips" style="margin:4px 0 8px">${mods}</div>`:""}${rows||'<div class="trow">nothing matched.</div>'}`);
+    } else if(tool==="ticket"){
+      const ap=(REP&&REP.risk_heatmap&&REP.risk_heatmap.top)||[];
+      const top=ap[0];
+      const finding=top?{module:top.kind,severity:(top.band==="critical"?"critical":top.band==="high"?"high":top.band==="medium"?"medium":"low"),field:top.entity,detail:`${top.entity} — risk ${top.risk}/100`,risk_score:top.risk}
+                       :{module:"summary",severity:REP&&(REP.risk_level||"").toLowerCase()||"medium",detail:`${REP?REP.target:""} — grade ${REP?REP.grade:""}`};
+      const sys=(prompt("Ticket system: jira or servicenow","jira")||"jira").toLowerCase();
+      const d=await api(`/api/job/${CURJOB}/ticket`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({system:sys,finding,dry_run:true})});
+      const pv=d.preview||{}; const pl=pv.payload||{};
+      const summary=(pl.fields&&pl.fields.summary)||pl.short_description||"";
+      tout(`<div class="tout-head">🎫 ${esc(d.system||sys)} ticket — preview (dry-run, not sent)</div>`+
+        `<div class="trow"><b>${esc(summary)}</b></div>`+
+        `<div class="trow"><span class="rel">endpoint</span> ${esc(pv.url||"— not configured —")}</div>`+
+        `<div class="trow"><span class="rel">credentialed</span> ${pv.credentialed?"yes":"no — set env keys to file for real"}</div>`+
+        `<div class="trow rel">${esc(d.reason||"")}</div>`+
+        `<div class="trow rel">Set JIRA_URL/JIRA_USER/JIRA_TOKEN/JIRA_PROJECT (or SERVICENOW_*) in the environment to file for real.</div>`);
     }
   }catch(e){ tout(`<div class="trow" style="color:var(--red)">${esc(e.message)}</div>`); }
 }
@@ -909,6 +1078,163 @@ $("toolsmodal").addEventListener("click",e=>{
 $("keysbtn").addEventListener("click",openKeys);
 $("keysclose").addEventListener("click",()=>$("keysmodal").classList.add("hidden"));
 $("keysmodal").addEventListener("click",e=>{ if(e.target===$("keysmodal")) $("keysmodal").classList.add("hidden"); });
+
+/* modules · profiles · schedule editor (features 67 / 69 / 70) */
+let MODMETA=null, MODSEL=new Set();
+function lsProfiles(){ try{ return JSON.parse(localStorage.getItem("ge_profiles")||"{}"); }catch(e){ return {}; } }
+function saveProfiles(p){ try{ localStorage.setItem("ge_profiles",JSON.stringify(p)); }catch(e){} }
+async function openMods(){
+  $("modmodal").classList.remove("hidden");
+  if(!MODMETA){ try{ MODMETA=await api("/api/meta"); }catch(e){ $("modlist").innerHTML=`<div class="trow">couldn't load modules: ${esc(e.message)}</div>`; return; }
+    MODSEL=new Set((MODMETA.modules||[]).map(m=>m.id)); }
+  if($("modtarget")&&!$("modtarget").value) $("modtarget").value=CURTARGET||"";
+  renderMods(); renderModProfiles(); loadSchedules();
+}
+function renderMods(filter){
+  const q=(filter||"").toLowerCase();
+  const cats={};
+  (MODMETA.modules||[]).forEach(m=>{ if(q && !(m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q)||m.category.toLowerCase().includes(q)))return;
+    (cats[m.category]=cats[m.category]||[]).push(m); });
+  let h="";
+  Object.keys(cats).sort().forEach(c=>{
+    h+=`<div class="modcat"><div class="modcat-h">${esc(c)} <span class="rel">${cats[c].length}</span></div><div class="modcat-g">`;
+    cats[c].forEach(m=>{ h+=`<label class="moditem${MODSEL.has(m.id)?" on":""}"><input type="checkbox" data-mid="${esc(m.id)}"${MODSEL.has(m.id)?" checked":""}> <b>${esc(m.id)}</b> <span class="rel">${esc(m.name)}</span></label>`; });
+    h+=`</div></div>`;
+  });
+  $("modlist").innerHTML=h||`<div class="trow">no modules match “${esc(q)}”.</div>`;
+  $("modcount").textContent=`${MODSEL.size} selected / ${(MODMETA.modules||[]).length}`;
+  $("modlist").querySelectorAll("input[data-mid]").forEach(cb=>cb.addEventListener("change",()=>{
+    cb.checked?MODSEL.add(cb.dataset.mid):MODSEL.delete(cb.dataset.mid);
+    cb.closest(".moditem").classList.toggle("on",cb.checked);
+    $("modcount").textContent=`${MODSEL.size} selected / ${(MODMETA.modules||[]).length}`;
+  }));
+}
+function renderModProfiles(){
+  const built=(MODMETA&&(MODMETA.profiles||MODMETA.recipes))||{}; const custom=lsProfiles();
+  const chip=(name,ids,custom)=>`<span class="pchip${custom?" custom":""}" data-prof="${esc(name)}">${esc(name)} <span class="rel">${ids.length}</span>${custom?` <span class="pdel" data-del="${esc(name)}">✕</span>`:""}</span>`;
+  let h=`<span class="rel">profiles:</span>`;
+  Object.entries(built).forEach(([n,ids])=>h+=chip(n,ids,false));
+  Object.entries(custom).forEach(([n,ids])=>h+=chip(n,ids,true));
+  $("modprofiles").innerHTML=h;
+  $("modprofiles").querySelectorAll("[data-prof]").forEach(el=>el.addEventListener("click",ev=>{
+    if(ev.target.classList.contains("pdel"))return;
+    const n=el.dataset.prof; const ids=(built[n]||custom[n]||[]);
+    MODSEL=new Set(ids); renderMods($("modsearch").value);
+  }));
+  $("modprofiles").querySelectorAll("[data-del]").forEach(el=>el.addEventListener("click",ev=>{
+    ev.stopPropagation(); const p=lsProfiles(); delete p[el.dataset.del]; saveProfiles(p); renderModProfiles();
+  }));
+}
+async function loadSchedules(){
+  try{ const d=await api("/api/schedules"); const s=d.schedules||[];
+    $("modsched_list").innerHTML=s.length?`<div class="rel" style="margin:6px 0 3px">active schedules (${s.length}):</div>`+s.map(x=>`<div class="trow"><b>${esc(x.target||"")}</b> · every ${esc(String(x.interval_minutes||x.interval||"?"))} min <span class="rel">${esc(x.id||"")}</span></div>`).join(""):"";
+  }catch(e){ $("modsched_list").innerHTML=""; }
+}
+function modSelection(){ return {mode:"modules", value:[...MODSEL],
+  ...($("optpassive")&&$("optpassive").checked?{passive_only:true}:{})}; }
+function modOptions(){ return {timeout:15,parallel:4,
+  ...($("optadaptive")&&$("optadaptive").checked?{adaptive_rate:true}:{})}; }
+$("modbtn").addEventListener("click",openMods);
+$("modclose").addEventListener("click",()=>$("modmodal").classList.add("hidden"));
+$("modmodal").addEventListener("click",e=>{ if(e.target===$("modmodal")) $("modmodal").classList.add("hidden"); });
+$("modsearch").addEventListener("input",e=>renderMods(e.target.value));
+$("modall").addEventListener("click",()=>{ MODSEL=new Set((MODMETA.modules||[]).map(m=>m.id)); renderMods($("modsearch").value); });
+$("modnone").addEventListener("click",()=>{ MODSEL=new Set(); renderMods($("modsearch").value); });
+$("modpassive").addEventListener("click",()=>{ // approximate passive set client-side by category
+  const pc=new Set(["osint","threat intel","passive","reputation","geo","intel","supply chain"]);
+  MODSEL=new Set((MODMETA.modules||[]).filter(m=>pc.has((m.category||"").toLowerCase())).map(m=>m.id)); renderMods($("modsearch").value); });
+$("modrun").addEventListener("click",async()=>{
+  const t=($("modtarget").value||CURTARGET||"").trim(); if(!t){ alert("enter a target"); return; }
+  if(!MODSEL.size){ alert("select at least one module"); return; }
+  $("modmodal").classList.add("hidden");
+  $("target").value=t; $("note").classList.remove("hidden");
+  $("note").innerHTML=`<div class="spinner"></div><h2>Investigating ${esc(t)}</h2><p id="pmsg">running ${MODSEL.size} selected modules…</p>`;
+  setStatus("run","starting…"); $("go").disabled=true;
+  try{ const job=await api("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({target:t,selection:modSelection(),options:modOptions()})});
+    poll(job.job_id,t);
+  }catch(e){ fail("Scan rejected: "+e.message); }
+});
+$("modsave").addEventListener("click",()=>{
+  if(!MODSEL.size){ alert("select some modules first"); return; }
+  const name=(prompt("Save selection as profile named:","my-profile")||"").trim();
+  if(!name)return; const p=lsProfiles(); p[name]=[...MODSEL]; saveProfiles(p); renderModProfiles();
+});
+$("modsched").addEventListener("click",async()=>{
+  const t=($("modtarget").value||CURTARGET||"").trim(); if(!t){ alert("enter a target"); return; }
+  if(!MODSEL.size){ alert("select at least one module"); return; }
+  const mins=parseInt(prompt("Re-run every how many minutes?","60")||"0",10);
+  if(!mins||mins<1)return;
+  try{ await api("/api/schedule",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({target:t,interval_minutes:mins,selection:modSelection(),options:modOptions()})});
+    loadSchedules();
+  }catch(e){ alert("schedule failed: "+e.message); }
+});
+
+/* scope-guard editor (feature 72) */
+async function openScope(){
+  $("scopemodal").classList.remove("hidden"); $("scopemsg").textContent="";
+  try{ const d=await api("/api/scope"); $("scopetext").value=(d.entries||[]).join("\n"); }
+  catch(e){ $("scopetext").value=""; }
+}
+$("scopebtn").addEventListener("click",openScope);
+
+/* unified multi-target graph (feature 4) — merge saved targets into one graph */
+$("unifiedbtn").addEventListener("click",async()=>{
+  const def=[CURTARGET].filter(Boolean).join(",");
+  const raw=prompt("Unified graph — comma-separated targets (each must have a saved scan):",def);
+  if(raw==null||!raw.trim())return;
+  tout(`<div class="tout-head">🕸 building unified graph…</div><div class="spinner" style="margin:14px auto"></div>`);
+  try{
+    const u=await api(`/api/unified?targets=${encodeURIComponent(raw.trim())}`);
+    buildGraph({knowledge_graph:u});
+    heat=false; $("heat").classList.remove("on");
+    const sh=(u.shared_infrastructure||[]).map(s=>`<div class="trow"><b>${esc(s.hub)}</b> <span class="rel">(${esc(s.kind)})</span> — shared by ${(s.targets||[]).map(esc).join(", ")}</div>`).join("");
+    tout(`<div class="tout-head">🕸 unified graph — ${(u.targets||[]).length} targets · ${u.counts.entities} entities</div>${sh||'<div class="trow">no shared infrastructure between these targets.</div>'}`);
+  }catch(e){ tout(`<div class="tout-head">🕸 unified graph</div><div class="trow">${esc(e.message)}</div>`); }
+});
+$("scopeclose").addEventListener("click",()=>$("scopemodal").classList.add("hidden"));
+$("scopemodal").addEventListener("click",e=>{ if(e.target===$("scopemodal")) $("scopemodal").classList.add("hidden"); });
+$("scopesave").addEventListener("click",async()=>{
+  try{ const d=await api("/api/scope",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({entries:$("scopetext").value})});
+    $("scopemsg").textContent=d.empty?"saved · no restriction":`saved · ${(d.entries||[]).length} entrie(s) in scope`;
+  }catch(e){ $("scopemsg").textContent="save failed: "+e.message; }
+});
+
+/* ---- i18n: EN / Hebrew chrome translation (feature 79) ---- */
+const I18N={
+  he:{ go:"חקור ▸", target_ph:"example.com · 8.8.8.8 · Enter כדי לחקור",
+    toolsbtn:"⚙ כלים", portbtn:"▦ תיק נכסים", keysbtn:"🔑 מפתחות", consolelink:"▤ קונסולה",
+    langbtn:"🌐 EN", entities:"ישויות", cluster:"◱ אשכולות", heat:"🔥 חום", export:"⤓ תמונה",
+    gsearch_ph:"🔍 חיפוש · או שאל: subdomains? leaks? tech?",
+    note_h:"חוקר OSINT", note_p:"הכנס יעד ולחץ חקור. Ghost Eye ממפה את טביעת הרגל לגרף ישויות חי — לחץ על צומת כדי להעמיק." },
+  en:{ go:"Investigate ▸", target_ph:"example.com  ·  8.8.8.8  ·  press Enter to investigate",
+    toolsbtn:"⚙ Tools", portbtn:"▦ Portfolio", keysbtn:"🔑 Keys", consolelink:"▤ Console",
+    langbtn:"🌐 עב", entities:"Entities", cluster:"◱ Cluster", heat:"🔥 Heat", export:"⤓ PNG",
+    gsearch_ph:"🔍 search · or ask: subdomains? leaks? tech?",
+    note_h:"OSINT investigator", note_p:"Enter a target and hit Investigate. Ghost Eye correlates its footprint into a live entity graph — click any node to pivot." }
+};
+function applyLang(l){
+  const d=I18N[l]||I18N.en;
+  const setT=(id,v)=>{const e=$(id); if(e&&v!=null)e.textContent=v;};
+  const setP=(id,v)=>{const e=$(id); if(e&&v!=null)e.placeholder=v;};
+  setT("go",d.go); setP("target",d.target_ph); setT("toolsbtn",d.toolsbtn);
+  setT("portbtn",d.portbtn); setT("keysbtn",d.keysbtn); setT("consolelink",d.consolelink);
+  setT("langbtn",d.langbtn); setT("cluster",d.cluster); setT("heat",d.heat); setT("export",d.export);
+  setP("gsearch",d.gsearch_ph);
+  const rh=document.querySelector("#rail h3"); if(rh)rh.textContent=d.entities;
+  const nh=document.querySelector("#note h2"), np=document.querySelector("#note p");
+  if(nh)nh.textContent=d.note_h; if(np)np.textContent=d.note_p;
+  document.documentElement.setAttribute("lang",l);
+  // keep the graph layout LTR (mirroring the absolute-positioned canvas breaks
+  // it); Hebrew strings render correctly via per-element bidi.
+  try{ localStorage.setItem("ge_lang",l); }catch(e){}
+  LANG=l;
+}
+let LANG="en";
+$("langbtn").addEventListener("click",()=>applyLang(LANG==="en"?"he":"en"));
+try{ const sv=localStorage.getItem("ge_lang"); if(sv==="he") applyLang("he"); }catch(e){}
 
 /* wire the search */
 $("go").addEventListener("click",investigate);
