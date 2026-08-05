@@ -70,7 +70,12 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
               "waybackadv", "pastebin", "gdork", "techstack", "threatfeed",
               "threatagg", "jsdeps",
               "jobstech", "feedfind", "sitemapintel", "robotsdiff", "orgprofile",
-              "commitauthors", "whoistimeline", "favsimilar"],
+              "commitauthors", "whoistimeline", "favsimilar",
+              # feature batch B — new passive-OSINT sources
+              "subs", "pdnsotx", "pdnsht", "pdnsanubis", "pdnstm", "rapiddns",
+              "riddler", "waybackcdx", "commoncrawl", "urlscanio", "bucketscan",
+              "faviconhash", "socialrecon", "ghleak", "hibpbreach", "sectxt",
+              "robotsmap"],
     "passive": ["internetdb", "geoip", "proxytype", "torexit", "threatfeed",
                 "reputation", "urlscan", "breachcheck", "waybackadv", "pastebin"],
     "perimeter": ["dns", "subs", "nmap", "headers", "cert", "tlsgrade", "waf",

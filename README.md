@@ -11,12 +11,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **308 modules** across 19 categories
+- **324 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **413 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **429 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -562,7 +562,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 308 modules
+- **All-module smoke test** — runs `run()` for every one of the 324 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions.
@@ -579,7 +579,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**413 tests** pass in ~12s. A single **verification gate** runs the whole thing:
+**429 tests** pass in ~11s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
@@ -662,7 +662,7 @@ ghost_eye/
     timeline.py      Intelligence Timeline (dated events + insights)
     analyst.py       rule-based AI analyst write-up (no LLM / no external API)
     graph.py         attack-surface + knowledge-graph SVG renderers
-  modules/         ~49 files, 308 self-registering Module subclasses
+  modules/         ~49 files, 324 self-registering Module subclasses
   web_static/      the single-file dashboard (Hebrew/RTL + Intelligence panel)
 tests/             unit + smoke + behavioural + engine + intelligence + integration
 scripts/           verify.sh (release gate) + benchmark.py
