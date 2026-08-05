@@ -2064,3 +2064,106 @@ class Columbus(Module):
         subs = _subs_of(hosts, host)
         return self.ok(host, {"subdomains": subs[:300], "count": len(subs),
                               "source": "columbus"})
+
+
+# =========================================================================== #
+#  Wave 22 — more independent corroboration sources:
+#    crt.sh (CT subdomains)  · Bitbucket (org repos)  · Sourcegraph (code search)
+#    GreyNoise community (IP internet-noise classification)
+# =========================================================================== #
+@register
+class CrtShSubs(Module):
+    id = "crtsh"
+    name = "crt.sh certificate-transparency subdomains (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        arr = _json(_get(ctx, f"https://crt.sh/?q=%25.{host}&output=json")) or []
+        hosts = set()
+        for row in arr if isinstance(arr, list) else []:
+            name = row.get("name_value") if isinstance(row, dict) else None
+            if isinstance(name, str):
+                for line in name.replace("*.", "").splitlines():
+                    line = line.strip().lower()
+                    if line:
+                        hosts.add(line)
+        subs = _subs_of(list(hosts), host)
+        return self.ok(host, {"subdomains": subs[:400], "count": len(subs),
+                              "source": "crt.sh"})
+
+
+@register
+class Bitbucket(Module):
+    id = "bitbucket"
+    name = "Bitbucket public repos (org, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, f"https://api.bitbucket.org/2.0/repositories/{org}"
+                       "?pagelen=20&fields=values.full_name,values.description,"
+                       "values.language,values.links.html.href")) or {}
+        repos = []
+        for r in d.get("values", []) or []:
+            if r.get("full_name"):
+                repos.append({"repo": r.get("full_name"),
+                              "description": (r.get("description") or "")[:100],
+                              "language": r.get("language"),
+                              "url": (((r.get("links") or {}).get("html")) or {}).get("href", "")})
+        return self.ok(host, {"query": org, "repos": repos[:20],
+                              "count": len(repos), "source": "bitbucket"})
+
+
+@register
+class Sourcegraph(Module):
+    id = "sourcegraph"
+    name = "Sourcegraph public code search (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        q = f"content:{host} count:20"
+        d = _json(_get(ctx, "https://sourcegraph.com/.api/search/stream"
+                       f"?q={q}", headers={"Accept": "application/json"})) or {}
+        hits = []
+        results = d.get("Results") or d.get("results") or []
+        for r in results if isinstance(results, list) else []:
+            repo = r.get("repository") or r.get("repo") or ""
+            path = r.get("path") or r.get("name") or ""
+            if repo or path:
+                hits.append({"repo": repo, "path": path})
+        return self.ok(host, {"query": host, "hits": hits[:20],
+                              "count": len(hits), "source": "sourcegraph"})
+
+
+@register
+class GreyNoiseCommunity(Module):
+    id = "greynoise"
+    name = "GreyNoise community noise/RIOT classification (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "greynoise expects an IP"})
+        d = _json(_get(ctx, f"https://api.greynoise.io/v3/community/{ip}",
+                       headers={"Accept": "application/json"})) or {}
+        return self.ok(ip, {"noise": d.get("noise"), "riot": d.get("riot"),
+                            "classification": d.get("classification"),
+                            "name": d.get("name"), "last_seen": d.get("last_seen"),
+                            "source": "greynoise"})

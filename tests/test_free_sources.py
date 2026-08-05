@@ -540,3 +540,30 @@ def test_wave21_ipguide_pdns_swh_columbus():
     assert sw["count"] == 1 and sw["origins"][0]["url"].endswith("acme/repo")
     cb = REGISTRY["columbus"].run("acme.com", _ctx(router)).data
     assert "www.acme.com" in cb["subdomains"] and "api.acme.com" in cb["subdomains"]
+
+
+def test_wave22_crtsh_bitbucket_sourcegraph_greynoise():
+    def router(url):
+        if "crt.sh" in url:
+            return _Resp(j=[{"name_value": "www.acme.com\n*.acme.com"},
+                            {"name_value": "vpn.acme.com"}])
+        if "bitbucket.org" in url:
+            return _Resp(j={"values": [{"full_name": "acme/api",
+                            "description": "API", "language": "python",
+                            "links": {"html": {"href": "https://bitbucket.org/acme/api"}}}]})
+        if "sourcegraph.com" in url:
+            return _Resp(j={"Results": [{"repository": "github.com/acme/app",
+                                         "path": "config.yml"}]})
+        if "greynoise.io" in url:
+            return _Resp(j={"noise": True, "riot": False,
+                            "classification": "malicious", "name": "Scanner",
+                            "last_seen": "2024-01-01"})
+        return _Resp(j={})
+    cs = REGISTRY["crtsh"].run("acme.com", _ctx(router)).data
+    assert "www.acme.com" in cs["subdomains"] and "vpn.acme.com" in cs["subdomains"]
+    bb = REGISTRY["bitbucket"].run("acme.com", _ctx(router)).data
+    assert bb["count"] == 1 and bb["repos"][0]["repo"] == "acme/api"
+    sg = REGISTRY["sourcegraph"].run("acme.com", _ctx(router)).data
+    assert sg["count"] == 1 and sg["hits"][0]["repo"] == "github.com/acme/app"
+    gn = REGISTRY["greynoise"].run("9.9.9.9", _ctx(router)).data
+    assert gn["noise"] is True and gn["classification"] == "malicious"
