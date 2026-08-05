@@ -198,3 +198,33 @@ def test_wave4_sources():
     wb = REGISTRY["waybackparams"].run("acme.com", ctx).data
     assert set(wb["parameters"]) >= {"id", "token", "q"}
     assert any("backup.sql" in f for f in wb.get("interesting_files", []))
+
+
+def _router5(url):
+    if "wikidata" in url:
+        return _Resp(j={"results": {"bindings": [{
+            "item": {"value": "http://www.wikidata.org/entity/Q312"},
+            "itemLabel": {"value": "Acme Inc"},
+            "parentLabel": {"value": "Acme Holdings"},
+            "countryLabel": {"value": "United States"},
+            "industryLabel": {"value": "software"}}]}})
+    if "peeringdb" in url:
+        return _Resp(j={"data": [{"name": "ACME-NET", "website": "https://acme.com",
+                                  "info_type": "Content"}]})
+    return _Resp(j={})
+
+
+def test_wikidata_org_intel():
+    d = REGISTRY["wikidata"].run("acme.com", _ctx(_router5)).data
+    assert d["organisation"] == "Acme Inc"
+    assert d["parent_company"] == "Acme Holdings"
+    assert d["wikidata_id"] == "Q312"
+
+
+def test_peeringdb_network_owner(monkeypatch):
+    import ghost_eye.modules.osint_freesources as fs
+    monkeypatch.setattr(fs, "_ip_to_asn", lambda ip: "64500")
+    d = REGISTRY["peeringdb"].run("1.2.3.4", _ctx(_router5)).data
+    assert d["asn"] == "AS64500" and d["network_name"] == "ACME-NET"
+    # a non-IP target is handled gracefully
+    assert "note" in REGISTRY["peeringdb"].run("acme.com", _ctx(_router5)).data

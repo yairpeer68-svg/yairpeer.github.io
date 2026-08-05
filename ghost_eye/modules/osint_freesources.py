@@ -833,3 +833,103 @@ class WaybackParams(Module):
             data_out["note"] = ("historical URLs point at sensitive file types — "
                                 "check whether any are still reachable.")
         return self.ok(host, data_out)
+
+
+# =========================================================================== #
+#  Wave 5 — organisation intelligence (Wikidata) + network owner (PeeringDB)
+# =========================================================================== #
+from urllib.parse import quote as _quote
+
+
+@register
+class Wikidata(Module):
+    id = "wikidata"
+    name = "Wikidata organisation intelligence"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        # match the org whose official website (P856) contains this domain,
+        # then pull parent company (P749), country (P17), industry (P452),
+        # inception (P571) and official name (P1448).
+        sparql = (
+            "SELECT ?item ?itemLabel ?parentLabel ?countryLabel ?industryLabel "
+            "?inception WHERE { ?item wdt:P856 ?website. "
+            f'FILTER(CONTAINS(LCASE(STR(?website)), "{host.lower()}")). '
+            "OPTIONAL { ?item wdt:P749 ?parent. } "
+            "OPTIONAL { ?item wdt:P17 ?country. } "
+            "OPTIONAL { ?item wdt:P452 ?industry. } "
+            "OPTIONAL { ?item wdt:P571 ?inception. } "
+            'SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } '
+            "LIMIT 3")
+        url = f"https://query.wikidata.org/sparql?format=json&query={_quote(sparql)}"
+        d = _json(_get(ctx, url, headers={"User-Agent": "GhostEye-OSINT/1.0",
+                                          "Accept": "application/sparql-results+json"}))
+        rows = (((d or {}).get("results") or {}).get("bindings")) or []
+        if not rows:
+            return self.ok(host, {"note": "no Wikidata organisation match",
+                                  "source": "wikidata"})
+        r0 = rows[0]
+
+        def _v(key):
+            return (r0.get(key) or {}).get("value", "")
+        entity = _v("item").rsplit("/", 1)[-1] if _v("item") else ""
+        return self.ok(host, {
+            "organisation": _v("itemLabel"),
+            "parent_company": _v("parentLabel"),
+            "country": _v("countryLabel"),
+            "industry": _v("industryLabel"),
+            "inception": _v("inception")[:10],
+            "wikidata_id": entity,
+            "wikidata_url": f"https://www.wikidata.org/wiki/{entity}" if entity else "",
+            "source": "wikidata",
+        })
+
+
+def _ip_to_asn(ip: str) -> str:
+    """IPv4 -> origin ASN via Team Cymru DNS (keyless). '' on failure."""
+    if ":" in ip:
+        return ""
+    try:
+        import dns.resolver
+        rev = ".".join(reversed(ip.split(".")))
+        ans = dns.resolver.resolve(f"{rev}.origin.asn.cymru.com", "TXT")
+        return str(ans[0]).strip('"').split("|")[0].strip()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+@register
+class PeeringDb(Module):
+    id = "peeringdb"
+    name = "PeeringDB network owner (IP → org)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "peeringdb expects an IP"})
+        asn = _ip_to_asn(ip)
+        if not asn:
+            return self.ok(ip, {"note": "could not resolve IP to ASN",
+                                "source": "peeringdb"})
+        d = _json(_get(ctx, f"https://www.peeringdb.com/api/net?asn={asn}")) or {}
+        rows = d.get("data") if isinstance(d.get("data"), list) else []
+        if not rows:
+            return self.ok(ip, {"asn": asn, "note": "ASN not in PeeringDB",
+                                "source": "peeringdb"})
+        n = rows[0]
+        return self.ok(ip, {
+            "asn": f"AS{asn}",
+            "network_name": n.get("name"),
+            "aka": n.get("aka"),
+            "website": n.get("website"),
+            "info_type": n.get("info_type"),
+            "notes": (n.get("notes") or "")[:200],
+            "source": "peeringdb",
+        })
