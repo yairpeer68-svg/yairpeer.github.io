@@ -174,3 +174,27 @@ def test_identity_graph_links_people():
     rels = {(r["from"], r["type"], r["to"]) for r in g["relationships"]}
     assert ("person:john smith", "has_email", "email:john.smith@acme.com") in rels
     assert ("person:john smith", "has_username", "username:johnsmith") in rels
+
+
+def _router4(url):
+    if "jldc.me/anubis" in url:
+        return _Resp(j=["api.acme.com", "www.acme.com", "evil.com"])
+    if "phishstats" in url:
+        return _Resp(j=[{"url": "http://acme.com/login", "ip": "1.2.3.4", "score": 8}])
+    if "web.archive.org/cdx" in url:
+        return _Resp(j=[["original"],
+                        ["http://acme.com/api/v1/users?id=1&token=x"],
+                        ["http://acme.com/backup.sql"],
+                        ["http://acme.com/page?q=1"]])
+    return _Resp(j={})
+
+
+def test_wave4_sources():
+    ctx = _ctx(_router4)
+    assert set(REGISTRY["anubisjldc"].run("acme.com", ctx).data["subdomains"]) \
+        == {"api.acme.com", "www.acme.com"}
+    ph = REGISTRY["phishstats"].run("acme.com", ctx).data
+    assert ph["phishing_reports"] == 1 and ph["severity"] == "high"
+    wb = REGISTRY["waybackparams"].run("acme.com", ctx).data
+    assert set(wb["parameters"]) >= {"id", "token", "q"}
+    assert any("backup.sql" in f for f in wb.get("interesting_files", []))

@@ -732,3 +732,104 @@ class FaviconMmh3(Module):
             data["note"] = ("install mmh3 for the Shodan-compatible hash; md5 is "
                             "still usable to correlate identical favicons.")
         return self.ok(host, data)
+
+
+# =========================================================================== #
+#  Wave 4 — subdomains (jldc), phishing reputation, deep Wayback param mining
+# =========================================================================== #
+@register
+class AnubisJldc(Module):
+    id = "anubisjldc"
+    name = "Anubis subdomain DB (jldc.me, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        data = _json(_get(ctx, f"https://jldc.me/anubis/subdomains/{host}"))
+        subs = _subs_of(data if isinstance(data, list) else [], host)
+        return self.ok(host, {"subdomains": subs, "count": len(subs),
+                              "source": "anubis-jldc"})
+
+
+@register
+class PhishStats(Module):
+    id = "phishstats"
+    name = "PhishStats phishing reports (free)"
+    category = "Threat Intel"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        url = ("https://phishstats.info:2096/api/phishing?_where=(url,like,~"
+               f"{host}~)&_size=50")
+        data = _json(_get(ctx, url))
+        rows = data if isinstance(data, list) else []
+        samples = [{"url": r.get("url"), "ip": r.get("ip"),
+                    "score": r.get("score")} for r in rows[:15]]
+        out = {"phishing_reports": len(rows), "samples": samples,
+               "listed": bool(rows), "source": "phishstats"}
+        if rows:
+            out["severity"] = "high"
+            out["note"] = ("this domain appears in phishing reports — it may be "
+                           "abused, impersonated, or hosting phishing.")
+        return self.ok(host, out)
+
+
+@register
+class WaybackParams(Module):
+    id = "waybackparams"
+    name = "Wayback deep mining (endpoints + parameters)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    _INTERESTING = re.compile(
+        r"\.(?:json|xml|sql|bak|old|env|log|config|conf|yml|yaml|ini|zip|tar|"
+        r"gz|db|sqlite|pem|key|p12|pfx|swp)(?:$|\?)", re.I)
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        url = ("http://web.archive.org/cdx/search/cdx?"
+               f"url={host}/*&output=json&collapse=urlkey&fl=original&limit=3000")
+        data = _json(_get(ctx, url))
+        rows = data if isinstance(data, list) else []
+        # first row is the header ["original"] when present
+        urls = [r[0] for r in rows[1:] if isinstance(r, list) and r] if rows else []
+        params: Set[str] = set()
+        endpoints: Set[str] = set()
+        interesting: Set[str] = set()
+        from urllib.parse import urlparse, parse_qs
+        for u in urls:
+            try:
+                p = urlparse(u)
+            except Exception:  # noqa: BLE001
+                continue
+            if p.path and p.path != "/":
+                endpoints.add(p.path[:120])
+            for k in parse_qs(p.query or ""):
+                params.add(k[:60])
+            if self._INTERESTING.search(u):
+                interesting.add(u[:180])
+        data_out: Dict[str, Any] = {
+            "archived_urls": len(urls),
+            "unique_endpoints": len(endpoints),
+            "unique_parameters": len(params),
+            "parameters": sorted(params)[:80],
+            "endpoints_sample": sorted(endpoints)[:60],
+            "source": "wayback-cdx",
+        }
+        if interesting:
+            data_out["interesting_files"] = sorted(interesting)[:30]
+            data_out["severity"] = "medium"
+            data_out["note"] = ("historical URLs point at sensitive file types — "
+                                "check whether any are still reachable.")
+        return self.ok(host, data_out)

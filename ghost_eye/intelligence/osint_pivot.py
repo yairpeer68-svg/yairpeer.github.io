@@ -28,7 +28,7 @@ PIVOT_MODULES: Dict[str, List[str]] = {
                "certspotter", "bufferover", "hackertarget", "subdomaincenter",
                "otxrep", "hudsonrock", "grepapp", "searchcode", "urlhaus",
                "spamhausdbl", "psbdmp", "keybase", "certdetails", "sitedossier",
-               "favicmmh3"],
+               "favicmmh3", "anubisjldc", "waybackparams"],
     "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm", "emailrep"],
     "username": ["username"],
     "ip": ["geoip", "internetdb", "reputation", "rdap",

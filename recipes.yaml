@@ -24,7 +24,8 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         hibpbreach, sectxt, robotsmap, certpivot, emailpattern,
         certspotter, bufferover, hackertarget, subdomaincenter, otxrep,
         hudsonrock, grepapp, searchcode, threatfox, urlhaus,
-        spamhausdbl, psbdmp, keybase, certdetails, sitedossier, favicmmh3]
+        spamhausdbl, psbdmp, keybase, certdetails, sitedossier, favicmmh3,
+        anubisjldc, phishstats, waybackparams]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 
