@@ -140,3 +140,37 @@ def test_wave2_domain_sources():
     assert set(kb["keybase_users"]) == {"alice", "bob"}
     ps = REGISTRY["psbdmp"].run("acme.com", ctx).data
     assert ps["paste_dumps"] == 1 and ps.get("severity") == "medium"
+
+
+def test_favicon_mmh3_pivot_hashes():
+    class _RIcon:
+        status_code = 200
+        def __init__(self, c): self.content = c
+    class _SIcon:
+        def get(self, url, timeout=15, **kw):
+            return _RIcon(b"\x00\x01ICON" * 30) if "favicon" in url else _RIcon(b"")
+    ctx = _ctx(lambda u: None)
+    ctx.session = _SIcon()
+    d = REGISTRY["favicmmh3"].run("acme.com", ctx).data
+    assert d["favicon_md5"] and d["favicon_bytes"] > 0
+
+
+def test_identity_graph_links_people():
+    from ghost_eye.core import Result
+    from ghost_eye.intelligence import identity_graph
+    res = [Result("emails", "acme.com", "ok",
+                  {"emails": ["john.smith@acme.com", "jane.doe@acme.com"]}),
+           Result("username", "acme.com", "ok",
+                  {"p": ["https://github.com/johnsmith",
+                         "https://twitter.com/jane_d"]}),
+           Result("emailpattern", "acme.com", "ok",
+                  {"names_found": ["John Smith", "Jane Doe"]})]
+    g = identity_graph(res, "acme.com")
+    assert g["resolved_identities"] >= 2
+    assert "johnsmith" in g["usernames"]
+    kinds = g["counts"]["by_kind"]
+    assert kinds.get("person", 0) >= 2 and kinds.get("email", 0) >= 2
+    # John Smith is linked to both his e-mail and his github handle
+    rels = {(r["from"], r["type"], r["to"]) for r in g["relationships"]}
+    assert ("person:john smith", "has_email", "email:john.smith@acme.com") in rels
+    assert ("person:john smith", "has_username", "username:johnsmith") in rels

@@ -117,7 +117,7 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
               "certspotter", "bufferover", "hackertarget", "subdomaincenter",
               "otxrep", "hudsonrock", "grepapp", "searchcode", "threatfox",
               "urlhaus", "spamhausdbl", "psbdmp", "keybase", "certdetails",
-              "sitedossier"],
+              "sitedossier", "favicmmh3"],
     "passive": ["internetdb", "geoip", "proxytype", "torexit", "threatfeed",
                 "reputation", "urlscan", "breachcheck", "waybackadv", "pastebin"],
     "perimeter": ["dns", "subs", "nmap", "headers", "cert", "tlsgrade", "waf",
@@ -538,6 +538,8 @@ def intelligence_report(results, target: str = "",
     sensitivity = asset_sensitivity(kg)
     scored = score_findings(results)
     remedy = remediation({}, scored.get("findings", []))
+    from .intelligence import identity_graph
+    identity = identity_graph(results, intel["target"])
     tline = build_timeline(results, intel["target"])
     a = attack_score(results)
     out = {
@@ -556,6 +558,7 @@ def intelligence_report(results, target: str = "",
         "supply_chain": supply,
         "asset_sensitivity": sensitivity,
         "remediation": remedy,
+        "identity_graph": identity,
         "timeline": tline,
     }
     # the rule-based AI analyst reasons over the fully assembled picture

@@ -27,7 +27,8 @@ PIVOT_MODULES: Dict[str, List[str]] = {
                # free/keyless multi-source breadth
                "certspotter", "bufferover", "hackertarget", "subdomaincenter",
                "otxrep", "hudsonrock", "grepapp", "searchcode", "urlhaus",
-               "spamhausdbl", "psbdmp", "keybase", "certdetails", "sitedossier"],
+               "spamhausdbl", "psbdmp", "keybase", "certdetails", "sitedossier",
+               "favicmmh3"],
     "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm", "emailrep"],
     "username": ["username"],
     "ip": ["geoip", "internetdb", "reputation", "rdap",
@@ -162,6 +163,8 @@ def deep_dive(seed: str, run_fn: Optional[RunFn] = None, cfg: Any = None,
     intel = correlate(all_results, seed)
     kg = knowledge_graph(all_results, seed, intel)
     confidence = annotate_confidence(kg)   # source-corroboration scoring
+    from .identity import identity_graph
+    identity = identity_graph(all_results, seed)
     return {
         "seed": seed,
         "depth": depth,
@@ -170,6 +173,7 @@ def deep_dive(seed: str, run_fn: Optional[RunFn] = None, cfg: Any = None,
         "provenance": provenance,
         "knowledge_graph": kg,
         "confidence": confidence,
+        "identity_graph": identity,
         "counts": kg.get("counts", {}),
         "note": "automated multi-hop OSINT: each entity discovered by one hop is "
                 "pivoted on in the next. Confidence decays with distance from the "

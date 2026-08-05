@@ -669,3 +669,66 @@ class SiteDossier(Module):
         subs = _subs_of(names, host)
         return self.ok(host, {"subdomains": subs, "count": len(subs),
                               "source": "sitedossier"})
+
+
+# =========================================================================== #
+#  Wave 3 — free favicon-hash pivot (Shodan-compatible, but NO Shodan needed)
+# =========================================================================== #
+import base64 as _b64
+import hashlib as _hashlib
+
+
+@register
+class FaviconMmh3(Module):
+    id = "favicmmh3"
+    name = "Favicon hash pivot (mmh3, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        from urllib.parse import urljoin
+        base = f"https://{host}"
+        content = None
+        for path in ("/favicon.ico", "/favicon.png"):
+            resp = _get(ctx, urljoin(base, path))
+            if resp is not None and getattr(resp, "status_code", 0) == 200:
+                try:
+                    content = resp.content
+                except Exception:  # noqa: BLE001
+                    content = None
+                if content:
+                    break
+        if not content:
+            return self.ok(host, {"note": "no favicon found", "source": "favicon"})
+        # Shodan-compatible favicon hash: mmh3.hash(base64.encodebytes(icon))
+        mmh3_hash = None
+        try:
+            import mmh3  # optional
+            b64 = _b64.encodebytes(content)
+            mmh3_hash = mmh3.hash(b64)
+        except Exception:  # noqa: BLE001 - mmh3 optional
+            mmh3_hash = None
+        md5 = _hashlib.md5(content).hexdigest()
+        data: Dict[str, Any] = {
+            "favicon_md5": md5,
+            "favicon_bytes": len(content),
+            "source": "favicon",
+        }
+        if mmh3_hash is not None:
+            data["favicon_mmh3"] = mmh3_hash
+            # FREE search leads — no paid API. Same hash elsewhere = same app/org.
+            data["pivot_leads"] = {
+                "fofa": f'icon_hash="{mmh3_hash}"',
+                "zoomeye": f"iconhash:\"{mmh3_hash}\"",
+                "note": "search this hash on FOFA/ZoomEye (free web UI) to find "
+                        "other hosts serving the identical favicon — same "
+                        "application or organisation.",
+            }
+        else:
+            data["note"] = ("install mmh3 for the Shodan-compatible hash; md5 is "
+                            "still usable to correlate identical favicons.")
+        return self.ok(host, data)

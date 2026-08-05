@@ -333,6 +333,7 @@ a{color:var(--cyan);text-decoration:none}
       <button class="toolbtn" data-tool="table">▦ Findings table</button>
       <button class="toolbtn" data-tool="timeline">🕓 Timeline</button>
       <button class="toolbtn" data-tool="deep">🌐 Deep OSINT (auto-pivot)</button>
+      <button class="toolbtn" data-tool="identity">🧑‍🤝‍🧑 Identity graph</button>
     </div>
     <div class="dl-row">
       <span class="dl-label">download report:</span>
@@ -1108,6 +1109,16 @@ async function runTool(tool){
       const c=d.counts||{}; const cf=(d.confidence&&d.confidence.by_confidence)||{};
       const cfrow=`<div class="trow">entity confidence — <span style="color:var(--green)">high ${cf.high||0}</span> · <span style="color:var(--gold)">medium ${cf.medium||0}</span> · <span class="rel">low ${cf.low||0}</span> <span class="rel">(by independent-source corroboration)</span></div>`;
       tout(`<div class="tout-head">🌐 deep OSINT — ${d.entities_processed} entities pivoted · graph ${c.entities||0} nodes</div>${hops}${cfrow}<div class="trow rel">${esc(d.note||'')}</div>`);
+    } else if(tool==="identity"){
+      const ig=(REP&&REP.identity_graph)||{};
+      const ppl=(ig.people||[]).map(p=>{
+        const rels=(ig.relationships||[]).filter(r=>r.from==="person:"+p.toLowerCase());
+        const em=rels.filter(r=>r.type==="has_email").map(r=>r.to.replace("email:",""));
+        const un=rels.filter(r=>r.type==="has_username").map(r=>r.to.replace("username:",""));
+        return `<div class="trow"><b>${esc(p)}</b>${em.length?` · ✉ ${em.map(esc).join(", ")}`:""}${un.length?` · @ ${un.map(esc).join(", ")}`:""}</div>`;
+      }).join("");
+      const c=(ig.counts||{}).by_kind||{};
+      tout(`<div class="tout-head">🧑‍🤝‍🧑 identity graph — ${ig.resolved_identities||0} resolved · ${(ig.people||[]).length} people · ${(ig.emails||[]).length} emails · ${(ig.usernames||[]).length} handles</div>${ppl||'<div class="trow">no people correlated yet — run a scan with e-mail/username OSINT.</div>'}<div class="trow rel">${esc(ig.note||'')}</div>`);
     } else if(tool==="table"){
       const d=await api(`/api/job/${CURJOB}/findings`);
       const f=d.findings||[];
