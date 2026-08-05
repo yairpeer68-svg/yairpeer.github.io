@@ -596,3 +596,38 @@ def test_wave23_doh_openphish_ipquery():
     assert op["count"] == 1 and "acme.com" in op["phishing_urls"][0]
     iq = REGISTRY["ipquery"].run("1.2.3.4", _ctx(router)).data
     assert iq["asn"] == "AS64500" and iq["is_proxy"] is True and iq["risk_score"] == 42
+
+
+def test_wave24_bgpsearch_ripedb_gleif_freeipapi():
+    def router(url):
+        if "bgpview.io/search" in url:
+            return _Resp(j={"data": {
+                "asns": [{"asn": 64500, "name": "ACME-AS"}],
+                "ipv4_prefixes": [{"prefix": "1.2.0.0/16", "name": "ACME-NET"}],
+                "ipv6_prefixes": []}})
+        if "rest.db.ripe.net" in url:
+            return _Resp(j={"objects": {"object": [
+                {"type": "inetnum", "attributes": {"attribute": [
+                    {"name": "inetnum", "value": "1.2.0.0 - 1.2.255.255"},
+                    {"name": "netname", "value": "ACME-NET"},
+                    {"name": "country", "value": "NL"}]}},
+                {"type": "organisation", "attributes": {"attribute": [
+                    {"name": "org-name", "value": "Acme BV"}]}}]}})
+        if "api.gleif.org" in url:
+            return _Resp(j={"data": [{"id": "5299000ACME",
+                "attributes": {"entity": {"legalName": {"name": "Acme BV"},
+                    "legalAddress": {"country": "NL", "city": "Amsterdam"},
+                    "status": "ACTIVE"}}}]})
+        if "freeipapi.com" in url:
+            return _Resp(j={"countryName": "Netherlands", "regionName": "NH",
+                            "cityName": "Amsterdam", "asn": 64500,
+                            "asnOrganization": "Acme", "isProxy": False})
+        return _Resp(j={})
+    bs = REGISTRY["bgpviewsearch"].run("acme.com", _ctx(router)).data
+    assert bs["asns"][0]["asn"] == 64500 and bs["prefixes"][0]["prefix"] == "1.2.0.0/16"
+    rd = REGISTRY["ripedb"].run("acme.com", _ctx(router)).data
+    assert rd["inetnums"][0]["netname"] == "ACME-NET" and "Acme BV" in rd["org_names"]
+    gl = REGISTRY["gleif"].run("acme.com", _ctx(router)).data
+    assert gl["entities"][0]["lei"] == "5299000ACME" and gl["entities"][0]["country"] == "NL"
+    fp = REGISTRY["freeipapi"].run("1.2.3.4", _ctx(router)).data
+    assert fp["asn"] == 64500 and fp["city"] == "Amsterdam"

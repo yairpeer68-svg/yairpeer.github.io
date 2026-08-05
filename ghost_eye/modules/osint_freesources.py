@@ -2268,3 +2268,123 @@ class IpQuery(Module):
                             "is_tor": risk.get("is_tor"),
                             "risk_score": risk.get("risk_score"),
                             "source": "ipquery"})
+
+
+# =========================================================================== #
+#  Wave 24 — corporate / network-ownership recon from the org name:
+#    BGPView org search (org -> ASNs/prefixes/IXs)  · RIPE DB (org -> netblocks)
+#    GLEIF LEI (legal entity identity)  · freeipapi (independent IP geo/ASN)
+# =========================================================================== #
+@register
+class BgpViewSearch(Module):
+    id = "bgpviewsearch"
+    name = "BGPView org search -> owned ASNs / prefixes (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = (_json(_get(ctx, f"https://api.bgpview.io/search?query_term={org}"))
+             or {}).get("data", {}) or {}
+        asns, prefixes = [], []
+        for a in (d.get("asns") or [])[:20]:
+            asns.append({"asn": a.get("asn"), "name": a.get("name") or a.get("description")})
+        for p in (d.get("ipv4_prefixes") or [])[:30]:
+            prefixes.append({"prefix": p.get("prefix"), "name": p.get("name")})
+        for p in (d.get("ipv6_prefixes") or [])[:20]:
+            prefixes.append({"prefix": p.get("prefix"), "name": p.get("name")})
+        return self.ok(host, {"query": org, "asns": asns, "prefixes": prefixes[:40],
+                              "asn_count": len(asns), "prefix_count": len(prefixes),
+                              "source": "bgpview-search"})
+
+
+@register
+class RipeDb(Module):
+    id = "ripedb"
+    name = "RIPE DB org search -> netblocks / org objects (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, "https://rest.db.ripe.net/search.json"
+                       f"?query-string={org}&flags=no-referenced&flags=no-irt",
+                       headers={"Accept": "application/json"})) or {}
+        objs = ((d.get("objects") or {}).get("object")) or []
+        inetnums, orgnames = [], []
+        for o in objs if isinstance(objs, list) else []:
+            otype = o.get("type")
+            attrs = ((o.get("attributes") or {}).get("attribute")) or []
+            amap = {}
+            for a in attrs:
+                if isinstance(a, dict) and a.get("name"):
+                    amap.setdefault(a["name"], a.get("value"))
+            if otype == "inetnum" and amap.get("inetnum"):
+                inetnums.append({"range": amap.get("inetnum"),
+                                 "netname": amap.get("netname"),
+                                 "country": amap.get("country")})
+            elif otype in ("organisation", "role") and amap.get("org-name"):
+                orgnames.append(amap.get("org-name"))
+        return self.ok(host, {"query": org, "inetnums": inetnums[:30],
+                              "org_names": orgnames[:10],
+                              "count": len(inetnums), "source": "ripe-db"})
+
+
+@register
+class Gleif(Module):
+    id = "gleif"
+    name = "GLEIF Legal Entity Identifier (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, "https://api.gleif.org/api/v1/lei-records"
+                       f"?filter[entity.legalName]={org}&page[size]=5",
+                       headers={"Accept": "application/vnd.api+json"})) or {}
+        records = []
+        for rec in d.get("data", []) or []:
+            attr = rec.get("attributes") or {}
+            ent = attr.get("entity") or {}
+            addr = ent.get("legalAddress") or {}
+            records.append({
+                "lei": attr.get("lei") or rec.get("id"),
+                "name": (ent.get("legalName") or {}).get("name"),
+                "country": addr.get("country"),
+                "city": addr.get("city"),
+                "status": ent.get("status"),
+            })
+        return self.ok(host, {"query": org, "entities": records[:5],
+                              "count": len(records), "source": "gleif"})
+
+
+@register
+class FreeIpApi(Module):
+    id = "freeipapi"
+    name = "freeipapi.com geo / ASN (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "freeipapi expects an IP"})
+        d = _json(_get(ctx, f"https://freeipapi.com/api/json/{ip}")) or {}
+        return self.ok(ip, {"country": d.get("countryName"),
+                            "region": d.get("regionName"),
+                            "city": d.get("cityName"),
+                            "asn": d.get("asn"), "org": d.get("asnOrganization"),
+                            "is_proxy": d.get("isProxy"),
+                            "source": "freeipapi"})

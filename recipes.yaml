@@ -33,7 +33,8 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         hackernews, reddit, gdelt, stackexchange, secedgar,
         wikipedia, codeberg, pdnsmnemonic, swheritage, columbus,
         crtsh, bitbucket, sourcegraph,
-        dohcloudflare, dohgoogle, openphish]
+        dohcloudflare, dohgoogle, openphish,
+        bgpviewsearch, ripedb, gleif]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 
