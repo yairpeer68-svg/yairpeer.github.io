@@ -2388,3 +2388,126 @@ class FreeIpApi(Module):
                             "asn": d.get("asn"), "org": d.get("asnOrganization"),
                             "is_proxy": d.get("isProxy"),
                             "source": "freeipapi"})
+
+
+# =========================================================================== #
+#  Wave 25 — people/asset + exposure + IP attack intel + email breach:
+#    GitHub org (public members/repos)  · LeakIX (exposed services/leaks)
+#    SANS ISC DShield (IP attack reports)  · XposedOrNot (email breach)
+# =========================================================================== #
+@register
+class GithubOrg(Module):
+    id = "githuborg"
+    name = "GitHub organisation profile + public members (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        hdr = {"Accept": "application/vnd.github+json",
+               "User-Agent": "GhostEye-OSINT/1.0"}
+        d = _json(_get(ctx, f"https://api.github.com/orgs/{org}", headers=hdr)) or {}
+        if not d.get("login"):
+            return self.ok(host, {"note": "no public GitHub org for the label",
+                                  "source": "github-org"})
+        m = _json(_get(ctx, f"https://api.github.com/orgs/{org}/public_members"
+                       "?per_page=50", headers=hdr)) or []
+        members = [x.get("login") for x in m if isinstance(x, dict) and x.get("login")]
+        return self.ok(host, {"login": d.get("login"), "name": d.get("name"),
+                              "blog": d.get("blog"), "location": d.get("location"),
+                              "public_repos": d.get("public_repos"),
+                              "followers": d.get("followers"),
+                              "public_members": members[:50],
+                              "member_count": len(members),
+                              "source": "github-org"})
+
+
+@register
+class LeakIX(Module):
+    id = "leakix"
+    name = "LeakIX exposed services / leaks for the domain (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, f"https://leakix.net/domain/{host}",
+                       headers={"Accept": "application/json"})) or {}
+        services, leaks = [], []
+        for s in d.get("Services", []) or []:
+            if isinstance(s, dict):
+                services.append({"host": s.get("host") or s.get("ip"),
+                                 "port": s.get("port"),
+                                 "software": ((s.get("service") or {}).get("software")
+                                              or {}).get("name"),
+                                 "geoip": (s.get("geoip") or {}).get("country_name")})
+        for lk in d.get("Leaks", []) or []:
+            if isinstance(lk, dict):
+                leaks.append({"host": lk.get("host") or lk.get("ip"),
+                              "plugin": lk.get("event_source") or lk.get("plugin"),
+                              "severity": lk.get("severity")})
+        return self.ok(host, {"services": services[:40], "leaks": leaks[:40],
+                              "service_count": len(services), "leak_count": len(leaks),
+                              "source": "leakix"})
+
+
+@register
+class DShield(Module):
+    id = "dshield"
+    name = "SANS ISC DShield IP attack reports (keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "dshield expects an IP"})
+        d = (_json(_get(ctx, f"https://isc.sans.edu/api/ip/{ip}?json")) or {}).get("ip", {}) or {}
+        count = d.get("count")
+        attacks = d.get("attacks")
+        data = {"reports": count, "targets": attacks,
+                "mindate": d.get("mindate"), "maxdate": d.get("maxdate"),
+                "asabusecontact": d.get("asabusecontact"),
+                "network": d.get("network"), "source": "dshield"}
+        try:
+            if int(count or 0) > 0:
+                data["severity"] = "high"
+                data["note"] = f"reported to DShield in {count} attack event(s)."
+        except (TypeError, ValueError):
+            pass
+        return self.ok(ip, data)
+
+
+@register
+class XposedOrNot(Module):
+    id = "xposedornot"
+    name = "XposedOrNot email breach lookup (email, keyless)"
+    category = "OSINT"
+    target_kind = "email"
+
+    def run(self, target, ctx):
+        email = str(target).strip().lower()
+        if "@" not in email:
+            return self.ok(email, {"note": "xposedornot expects an e-mail address"})
+        d = _json(_get(ctx, f"https://api.xposedornot.com/v1/check-email/{email}")) or {}
+        breaches = []
+        raw = d.get("breaches") or []
+        for grp in raw if isinstance(raw, list) else []:
+            if isinstance(grp, list):
+                breaches.extend([b for b in grp if isinstance(b, str)])
+            elif isinstance(grp, str):
+                breaches.append(grp)
+        data = {"breached": bool(breaches), "breach_count": len(breaches),
+                "breaches": breaches[:30], "source": "xposedornot"}
+        if breaches:
+            data["severity"] = "high"
+            data["note"] = (f"e-mail found in {len(breaches)} public breach(es) "
+                            "per XposedOrNot.")
+        return self.ok(email, data)

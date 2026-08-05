@@ -28,12 +28,12 @@ PIVOT_MODULES: Dict[str, List[str]] = {
                "certspotter", "bufferover", "hackertarget", "subdomaincenter",
                "otxrep", "hudsonrock", "grepapp", "searchcode", "urlhaus",
                "spamhausdbl", "psbdmp", "keybase", "certdetails", "sitedossier",
-               "favicmmh3", "anubisjldc", "waybackparams", "wikidata", "commoncrawlmine", "phoneharvest", "extdomains", "otxpulse", "merklemap", "npmsearch", "dockerhub", "cratesio", "rubygems", "packagist", "nuget", "artifacthub", "gitlabsearch", "hackernews", "reddit", "gdelt", "stackexchange", "secedgar", "wikipedia", "codeberg", "pdnsmnemonic", "swheritage", "columbus", "crtsh", "bitbucket", "sourcegraph", "dohcloudflare", "dohgoogle", "openphish", "bgpviewsearch", "ripedb", "gleif"],
-    "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm", "emailrep", "leakcheck"],
+               "favicmmh3", "anubisjldc", "waybackparams", "wikidata", "commoncrawlmine", "phoneharvest", "extdomains", "otxpulse", "merklemap", "npmsearch", "dockerhub", "cratesio", "rubygems", "packagist", "nuget", "artifacthub", "gitlabsearch", "hackernews", "reddit", "gdelt", "stackexchange", "secedgar", "wikipedia", "codeberg", "pdnsmnemonic", "swheritage", "columbus", "crtsh", "bitbucket", "sourcegraph", "dohcloudflare", "dohgoogle", "openphish", "bgpviewsearch", "ripedb", "gleif", "githuborg", "leakix"],
+    "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm", "emailrep", "leakcheck", "xposedornot"],
     "username": ["username"],
     "ip": ["geoip", "internetdb", "reputation", "rdap",
            "robtex", "bgpview", "ipapi", "cymruasn",
-           "reverseip", "otxip", "iptoasn", "feodo", "peeringdb", "ipwhois", "dnsbl", "stopforumspam", "ipapinet", "blocklistde", "ipinfo", "ipguide", "greynoise", "ipquery", "freeipapi"],
+           "reverseip", "otxip", "iptoasn", "feodo", "peeringdb", "ipwhois", "dnsbl", "stopforumspam", "ipapinet", "blocklistde", "ipinfo", "ipguide", "greynoise", "ipquery", "freeipapi", "dshield"],
 }
 # confidence decays with each hop away from the seed
 _HOP_CONFIDENCE = ["high", "medium", "low", "low"]

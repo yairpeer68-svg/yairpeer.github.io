@@ -631,3 +631,36 @@ def test_wave24_bgpsearch_ripedb_gleif_freeipapi():
     assert gl["entities"][0]["lei"] == "5299000ACME" and gl["entities"][0]["country"] == "NL"
     fp = REGISTRY["freeipapi"].run("1.2.3.4", _ctx(router)).data
     assert fp["asn"] == 64500 and fp["city"] == "Amsterdam"
+
+
+def test_wave25_githuborg_leakix_dshield_xposedornot():
+    def router(url):
+        if "api.github.com/orgs/acme/public_members" in url:
+            return _Resp(j=[{"login": "alice"}, {"login": "bob"}])
+        if "api.github.com/orgs/acme" in url:
+            return _Resp(j={"login": "acme", "name": "Acme Inc",
+                            "public_repos": 12, "followers": 99,
+                            "location": "NYC", "blog": "https://acme.com"})
+        if "leakix.net" in url:
+            return _Resp(j={"Services": [{"host": "1.2.3.4", "port": 443,
+                            "service": {"software": {"name": "nginx"}},
+                            "geoip": {"country_name": "US"}}],
+                            "Leaks": [{"host": "1.2.3.4", "event_source": "GitConfig",
+                                       "severity": "high"}]})
+        if "isc.sans.edu" in url:
+            return _Resp(j={"ip": {"count": 7, "attacks": 3,
+                            "mindate": "2024-01-01", "maxdate": "2024-02-01",
+                            "network": "1.2.0.0/16"}})
+        if "xposedornot.com" in url:
+            return _Resp(j={"breaches": [["LinkedIn", "Dropbox"]]})
+        return _Resp(j={})
+    go = REGISTRY["githuborg"].run("acme.com", _ctx(router)).data
+    assert go["login"] == "acme" and go["public_repos"] == 12
+    assert "alice" in go["public_members"] and go["member_count"] == 2
+    lx = REGISTRY["leakix"].run("acme.com", _ctx(router)).data
+    assert lx["service_count"] == 1 and lx["services"][0]["software"] == "nginx"
+    assert lx["leaks"][0]["plugin"] == "GitConfig"
+    ds = REGISTRY["dshield"].run("1.2.3.4", _ctx(router)).data
+    assert ds["reports"] == 7 and ds["severity"] == "high"
+    xo = REGISTRY["xposedornot"].run("ceo@acme.com", _ctx(router)).data
+    assert xo["breached"] is True and "LinkedIn" in xo["breaches"] and xo["breach_count"] == 2
