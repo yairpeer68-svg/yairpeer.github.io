@@ -42,7 +42,7 @@ _CONTENT_TYPES = {
 }
 _EXT_FORMATS = {"md", "markdown", "sarif", "prometheus", "prom", "dashboard",
                 "exec", "execreport", "executive", "intel", "intelligence",
-                "graphml", "gexf"}
+                "graphml", "gexf", "osint", "dossier"}
 
 
 # --------------------------------------------------------------------------- #

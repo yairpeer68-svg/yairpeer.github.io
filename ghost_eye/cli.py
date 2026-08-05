@@ -151,7 +151,7 @@ def run_modules(mods: List[Module], target: str, ctx: Context,
 
 _EXT_FORMATS = {"md", "markdown", "sarif", "prom", "prometheus", "dashboard",
                 "dash", "exec", "execreport", "executive", "intel", "intelligence",
-                "graphml", "gexf"}
+                "graphml", "gexf", "osint", "dossier"}
 
 
 def handle_reports(results: List[Result], target: str, args) -> None:

@@ -551,3 +551,27 @@ def test_source_matrix_attributes_assets():
     # a single-source asset is low confidence
     weird = next(r for r in m["subdomains"] if r["asset"] == "weird.acme.com")
     assert weird["confidence"] == "low"
+
+
+def test_osint_dossier_markdown():
+    from ghost_eye.core import Result
+    from ghost_eye import reporting_ext
+    import tempfile, os
+    res = [Result("subs", "acme.com", "ok", {"subdomains": ["api.acme.com"]}),
+           Result("certspotter", "acme.com", "ok", {"subdomains": ["api.acme.com"]}),
+           Result("wikidata", "acme.com", "ok",
+                  {"organisation": "Acme Inc", "parent_company": "Acme Holdings"}),
+           Result("hudsonrock", "acme.com", "ok", {"total": 12}),
+           Result("waybacksecrets", "acme.com", "ok",
+                  {"findings": [{"type": "aws_access_key_id", "match": "AKIA…x",
+                                 "archived_url": "http://acme.com/a.js",
+                                 "timestamp": "20200101"}]})]
+    p = tempfile.mktemp(suffix=".md")
+    reporting_ext.export_ext(res, p, "osint", "acme.com")
+    md = open(p, encoding="utf-8").read()
+    os.remove(p)
+    assert "# OSINT dossier — acme.com" in md
+    assert "## Organisation" in md and "Acme Inc" in md
+    assert "## Assets & source attribution" in md and "api.acme.com" in md
+    assert "Hudson Rock" in md               # exposure section
+    assert "Archived secrets" in md and "aws_access_key_id" in md

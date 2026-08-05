@@ -280,6 +280,8 @@ def export_ext(results: List[Result], path: str, fmt: str, target: str = "") -> 
         return export_intel_report(results, path, target)
     if fmt in ("graphml", "gexf"):
         return export_graph(results, path, fmt, target)
+    if fmt in ("osint", "dossier"):
+        return export_osint_dossier(results, path, target)
     raise ValueError(f"unknown extended format: {fmt}")
 
 
@@ -295,6 +297,18 @@ def export_graph(results: List[Result], path: str, fmt: str,
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(text)
     return path
+
+def export_osint_dossier(results: List[Result], path: str, target: str = "") -> str:
+    """Render the OSINT dossier (Markdown) from a full intelligence report."""
+    from .workflow import intelligence_report
+    from .intelligence import osint_dossier
+    report = intelligence_report(results, target)
+    raw = [{"module": r.module, "data": r.data} for r in results]
+    md = osint_dossier(report, raw)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(md)
+    return path
+
 
 
 # unified asset inventory lives in its own module (clean regex escaping)
