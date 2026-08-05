@@ -1323,3 +1323,67 @@ class IpApiNet(Module):
         return self.ok(ip, {"country": d.get("country_name"), "city": d.get("city"),
                             "org": d.get("org"), "asn": d.get("asn"),
                             "network": d.get("network"), "source": "ipapi.co"})
+
+
+# =========================================================================== #
+#  Wave 12 — more IP-reputation + e-mail breach corroboration
+# =========================================================================== #
+@register
+class BlocklistDe(Module):
+    id = "blocklistde"
+    name = "blocklist.de attack reputation (IP, keyless)"
+    category = "Threat Intel"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "blocklist.de expects an IP"})
+        txt = _text(_get(ctx, f"https://api.blocklist.de/api.php?ip={ip}"))
+        attacks = reports = 0
+        for line in (txt or "").splitlines():
+            m = re.match(r"\s*attacks\s*:?\s*(\d+)", line, re.I)
+            if m:
+                attacks = int(m.group(1))
+            m = re.match(r"\s*reports\s*:?\s*(\d+)", line, re.I)
+            if m:
+                reports = int(m.group(1))
+        data: Dict[str, Any] = {"attacks": attacks, "reports": reports,
+                                "listed": attacks > 0 or reports > 0,
+                                "source": "blocklist.de"}
+        if attacks or reports:
+            data["severity"] = "high" if attacks >= 5 else "medium"
+            data["note"] = (f"IP reported for {attacks} attack(s) / {reports} "
+                            "report(s) on blocklist.de.")
+        return self.ok(ip, data)
+
+
+@register
+class LeakCheck(Module):
+    id = "leakcheck"
+    name = "LeakCheck public breach lookup (email, keyless)"
+    category = "OSINT"
+    target_kind = "email"
+
+    def run(self, target, ctx):
+        email = str(target).strip().lower()
+        if "@" not in email:
+            return self.ok(email, {"note": "leakcheck expects an e-mail address"})
+        d = _json(_get(ctx, f"https://leakcheck.io/api/public?check={email}")) or {}
+        found = int(d.get("found", 0) or 0)
+        sources = []
+        for s in d.get("sources", []) or []:
+            if isinstance(s, dict) and s.get("name"):
+                sources.append({"name": s.get("name"), "date": s.get("date", "")})
+        data: Dict[str, Any] = {
+            "breached": bool(d.get("success") and found),
+            "breach_count": found,
+            "fields": d.get("fields", [])[:15],
+            "sources": sources[:20],
+            "source": "leakcheck",
+        }
+        if found:
+            data["severity"] = "high"
+            data["note"] = (f"e-mail found in {found} public breach(es) — "
+                            "credentials may be compromised.")
+        return self.ok(email, data)

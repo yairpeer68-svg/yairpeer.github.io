@@ -328,3 +328,22 @@ def test_stopforumspam_and_ipapinet():
     assert i["org"] == "ACME" and i["asn"] == "AS64500"
     # non-IP handled gracefully
     assert "note" in REGISTRY["stopforumspam"].run("acme.com", _ctx(router)).data
+
+
+def test_blocklistde_and_leakcheck():
+    def router(url):
+        if "blocklist.de" in url:
+            return _Resp(t="attacks: 12\nreports: 5")
+        if "leakcheck" in url:
+            return _Resp(j={"success": True, "found": 3,
+                            "fields": ["password"],
+                            "sources": [{"name": "Collection1", "date": "2019-01"}]})
+        return _Resp(t="")
+    b = REGISTRY["blocklistde"].run("1.2.3.4", _ctx(router)).data
+    assert b["attacks"] == 12 and b["reports"] == 5 and b["severity"] == "high"
+    lk = REGISTRY["leakcheck"].run("ceo@acme.com", _ctx(router)).data
+    assert lk["breached"] is True and lk["breach_count"] == 3
+    assert lk["sources"][0]["name"] == "Collection1"
+    # wrong target kinds handled gracefully
+    assert "note" in REGISTRY["blocklistde"].run("acme.com", _ctx(router)).data
+    assert "note" in REGISTRY["leakcheck"].run("notanemail", _ctx(router)).data
