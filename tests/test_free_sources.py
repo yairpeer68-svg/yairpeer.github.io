@@ -470,3 +470,25 @@ def test_public_mentions_hn_reddit():
     rd = REGISTRY["reddit"].run("acme.com", _ctx(router)).data
     assert rd["count"] == 1 and rd["mentions"][0]["subreddit"] == "sysadmin"
     assert rd["mentions"][0]["permalink"] == "https://reddit.com/r/sysadmin/x"
+
+
+def test_news_devqa_filings():
+    def router(url):
+        if "gdeltproject" in url:
+            return _Resp(j={"articles": [{"title": "Acme launches", "url": "https://n/acme",
+                                          "domain": "n", "sourcecountry": "US",
+                                          "seendate": "20240101T000000Z"}]})
+        if "stackexchange.com" in url:
+            return _Resp(j={"items": [{"title": "Acme API", "tags": ["acme"],
+                                       "score": 7, "question_id": 123,
+                                       "is_answered": True}]})
+        if "efts.sec.gov" in url:
+            return _Resp(j={"hits": {"total": {"value": 3}, "hits": [
+                {"_id": "x", "_source": {"display_names": ["ACME INC"],
+                                         "root_form": "10-K", "file_date": "2024-02-01"}}]}})
+        return _Resp(j={})
+    assert REGISTRY["gdelt"].run("acme.com", _ctx(router)).data["news"][0]["title"] == "Acme launches"
+    se = REGISTRY["stackexchange"].run("acme.com", _ctx(router)).data
+    assert se["posts"][0]["question_id"] == 123
+    sec = REGISTRY["secedgar"].run("acme.com", _ctx(router)).data
+    assert sec["filings"][0]["company"] == "ACME INC" and sec["total"] == 3

@@ -1809,3 +1809,90 @@ class Reddit(Module):
                           "date": p.get("created_utc")})
         return self.ok(host, {"mentions": posts[:25], "count": len(posts),
                               "source": "reddit"})
+
+
+# =========================================================================== #
+#  Wave 19 — news (GDELT) + dev Q&A (StackExchange) + filings (SEC EDGAR)
+# =========================================================================== #
+@register
+class Gdelt(Module):
+    id = "gdelt"
+    name = "GDELT global news mentions (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://api.gdeltproject.org/api/v2/doc/doc"
+                            f"?query={host}&mode=artlist&format=json&maxrecords=20")) or {}
+        arts = []
+        for a in d.get("articles", []) or []:
+            if a.get("url"):
+                arts.append({"title": (a.get("title") or "")[:120],
+                             "url": a.get("url"),
+                             "domain": a.get("domain"),
+                             "country": a.get("sourcecountry"),
+                             "date": (a.get("seendate") or "")[:8]})
+        return self.ok(host, {"news": arts[:20], "count": len(arts),
+                              "source": "gdelt"})
+
+
+@register
+class StackExchange(Module):
+    id = "stackexchange"
+    name = "Stack Overflow / Exchange mentions (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://api.stackexchange.com/2.3/search/excerpts"
+                            f"?q={host}&site=stackoverflow&pagesize=20"
+                            "&order=desc&sort=relevance")) or {}
+        items = []
+        for it in d.get("items", []) or []:
+            if it.get("title"):
+                items.append({"title": it.get("title", "")[:120],
+                              "tags": (it.get("tags") or [])[:6],
+                              "score": it.get("score", 0),
+                              "question_id": it.get("question_id"),
+                              "answered": it.get("is_answered")})
+        return self.ok(host, {"posts": items[:20], "count": len(items),
+                              "source": "stackexchange"})
+
+
+@register
+class SecEdgar(Module):
+    id = "secedgar"
+    name = "SEC EDGAR filings full-text search (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, f'https://efts.sec.gov/LATEST/search-index?q="{org}"',
+                       headers={"User-Agent": "GhostEye OSINT research@example.com"})) or {}
+        hits = ((d.get("hits") or {}).get("hits")) or []
+        filings = []
+        for h in hits[:20]:
+            src = (h or {}).get("_source", {}) or {}
+            names = src.get("display_names") or []
+            filings.append({"company": names[0] if names else "",
+                            "form": src.get("root_form") or src.get("file_type"),
+                            "date": src.get("file_date"),
+                            "id": h.get("_id", "")})
+        total = ((d.get("hits") or {}).get("total") or {})
+        return self.ok(host, {"filings": filings[:20],
+                              "total": total.get("value", len(filings))
+                              if isinstance(total, dict) else len(filings),
+                              "count": len(filings), "source": "sec-edgar"})
