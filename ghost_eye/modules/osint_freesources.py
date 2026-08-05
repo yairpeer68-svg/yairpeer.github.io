@@ -3552,3 +3552,161 @@ class AsnPrefixes(Module):
                             "ipv4_count": len(v4), "ipv6_count": len(v6),
                             "note": "full announced netblock footprint of the hosting AS.",
                             "source": "asn-prefixes"})
+
+
+# =========================================================================== #
+#  Wave 34 — email-sender mapping + DNS hygiene + AS intel + independent DNS:
+#    SPF include-tree -> authorized sending vendors · wildcard-DNS (domain)
+#    AS metadata/abuse (IP) · HackerTarget authoritative DNS dump (domain)
+# =========================================================================== #
+_SPF_VENDORS = [
+    ("_spf.google.com", "Google Workspace"), ("spf.protection.outlook.com", "Microsoft 365"),
+    ("sendgrid.net", "SendGrid"), ("mailgun.org", "Mailgun"),
+    ("servers.mcsv.net", "Mailchimp"), ("_spf.salesforce.com", "Salesforce"),
+    ("spf.mandrillapp.com", "Mailchimp Mandrill"), ("amazonses.com", "Amazon SES"),
+    ("_spf.pardot.com", "Salesforce Pardot"), ("mktomail.com", "Marketo"),
+    ("spf.mailjet.com", "Mailjet"), ("_spf.qemailserver.com", "Qualtrics"),
+    ("spf.sendinblue.com", "Brevo/Sendinblue"), ("_spf.hubspotemail.net", "HubSpot"),
+    ("zoho.com", "Zoho"), ("spf.constantcontact.com", "Constant Contact"),
+    ("_spf.freshdesk.com", "Freshdesk"), ("zendesk.com", "Zendesk"),
+    ("mailanyone.net", "Mailanyone"), ("pphosted.com", "Proofpoint"),
+    ("mimecast.com", "Mimecast"), ("stspg-customer.com", "Statuspage"),
+    ("_spf.intacct.com", "Sage Intacct"), ("spf.docusign.net", "DocuSign"),
+]
+
+
+@register
+class SpfVendors(Module):
+    id = "spfvendors"
+    name = "SPF include-tree -> authorized email-sending vendors (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        seen: Set[str] = set()
+        includes: Set[str] = set()
+
+        def walk(name, depth):
+            if depth > 3 or name in seen or len(seen) > 15:
+                return
+            seen.add(name)
+            spf = next((t for t in _doh_txt(ctx, name)
+                        if t.lower().startswith("v=spf1")), "")
+            for inc in re.findall(r'(?:include|redirect)[:=]([^\s]+)', spf):
+                inc = inc.strip().lower()
+                includes.add(inc)
+                walk(inc, depth + 1)
+
+        walk(host, 0)
+        vendors = set()
+        for inc in includes:
+            for needle, label in _SPF_VENDORS:
+                if needle in inc:
+                    vendors.add(label)
+                    break
+        return self.ok(host, {"includes": sorted(includes)[:40],
+                              "include_count": len(includes),
+                              "vendors": sorted(vendors),
+                              "vendor_count": len(vendors),
+                              "note": "third-party services authorized to send email "
+                                      "as this domain (spoofing/supply-chain surface).",
+                              "source": "spf-vendors"})
+
+
+@register
+class WildcardDns(Module):
+    id = "wildcarddns"
+    name = "Wildcard / catch-all DNS detection via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        probes = ["zzq9x7no-ghosteye", "no-such-host-4f2a1c", "random-wildcard-test-88"]
+        resolved = {}
+        for p in probes:
+            d = _json(_get(ctx, f"https://dns.google/resolve?name={p}.{host}&type=A")) or {}
+            ips = [a.get("data") for a in (d.get("Answer") or [])
+                   if isinstance(a, dict) and a.get("type") == 1 and a.get("data")]
+            if ips:
+                resolved[p] = sorted(ips)
+        wildcard = len(resolved) >= 2
+        wildcard_ips = sorted({ip for ips in resolved.values() for ip in ips})
+        return self.ok(host, {"wildcard": wildcard,
+                              "wildcard_ips": wildcard_ips[:10],
+                              "probes_resolved": len(resolved),
+                              "note": ("wildcard DNS present — subdomain enumeration "
+                                       "results should be validated against these IPs."
+                                       if wildcard else "no wildcard DNS detected."),
+                              "source": "wildcard-dns"})
+
+
+@register
+class AsnInfo(Module):
+    id = "asninfo"
+    name = "AS metadata + abuse contact for a pivoted IP (keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "asninfo expects an IP"})
+        ipd = (_json(_get(ctx, f"https://api.bgpview.io/ip/{ip}")) or {}).get("data", {}) or {}
+        asn = None
+        for p in ipd.get("prefixes", []) or []:
+            asn = (p.get("asn") or {}).get("asn")
+            if asn:
+                break
+        if not asn:
+            return self.ok(ip, {"note": "no ASN for IP", "source": "asn-info"})
+        d = (_json(_get(ctx, f"https://api.bgpview.io/asn/{asn}")) or {}).get("data", {}) or {}
+        emails = d.get("abuse_contacts") or d.get("email_contacts") or []
+        return self.ok(ip, {"asn": asn, "name": d.get("name"),
+                            "description": d.get("description_short") or d.get("description_full"),
+                            "country": d.get("country_code"),
+                            "abuse_contacts": [e for e in emails if isinstance(e, str)][:5],
+                            "rir": (d.get("rir_allocation") or {}).get("rir_name"),
+                            "allocated": (d.get("rir_allocation") or {}).get("date_allocated"),
+                            "source": "asn-info"})
+
+
+@register
+class HtDns(Module):
+    id = "htdns"
+    name = "HackerTarget authoritative DNS record dump (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, f"https://api.hackertarget.com/dnslookup/?q={host}"))
+        records: Dict[str, List[str]] = {}
+        if "error" in text.lower() or "api count exceeded" in text.lower():
+            text = ""
+        for line in text.splitlines():
+            if '"' in line and ":" in line:
+                parts = line.split(":", 1)
+            elif " : " in line:
+                parts = line.split(" : ", 1)
+            else:
+                parts = line.split(":", 1)
+            if len(parts) == 2:
+                rtype = parts[0].strip().upper()
+                val = parts[1].strip()
+                if rtype and val and len(rtype) <= 8:
+                    records.setdefault(rtype, []).append(val[:200])
+        return self.ok(host, {"records": {k: v[:15] for k, v in records.items()},
+                              "record_types": sorted(records.keys()),
+                              "count": sum(len(v) for v in records.values()),
+                              "source": "hackertarget-dns"})

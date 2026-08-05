@@ -28,12 +28,12 @@ PIVOT_MODULES: Dict[str, List[str]] = {
                "certspotter", "bufferover", "hackertarget", "subdomaincenter",
                "otxrep", "hudsonrock", "grepapp", "searchcode", "urlhaus",
                "spamhausdbl", "psbdmp", "keybase", "certdetails", "sitedossier",
-               "favicmmh3", "anubisjldc", "waybackparams", "wikidata", "commoncrawlmine", "phoneharvest", "extdomains", "otxpulse", "merklemap", "npmsearch", "dockerhub", "cratesio", "rubygems", "packagist", "nuget", "artifacthub", "gitlabsearch", "hackernews", "reddit", "gdelt", "stackexchange", "secedgar", "wikipedia", "codeberg", "pdnsmnemonic", "swheritage", "columbus", "crtsh", "bitbucket", "sourcegraph", "dohcloudflare", "dohgoogle", "openphish", "bgpviewsearch", "ripedb", "gleif", "githuborg", "leakix", "sucuri", "xposeddomain", "crtshorg", "tranco", "otxmalware", "otxurls", "digitalside", "dnsseccaa", "dnslytics", "lookalike", "spfdmarc", "certissuers", "mxintel", "nsintel", "txtsaas"],
+               "favicmmh3", "anubisjldc", "waybackparams", "wikidata", "commoncrawlmine", "phoneharvest", "extdomains", "otxpulse", "merklemap", "npmsearch", "dockerhub", "cratesio", "rubygems", "packagist", "nuget", "artifacthub", "gitlabsearch", "hackernews", "reddit", "gdelt", "stackexchange", "secedgar", "wikipedia", "codeberg", "pdnsmnemonic", "swheritage", "columbus", "crtsh", "bitbucket", "sourcegraph", "dohcloudflare", "dohgoogle", "openphish", "bgpviewsearch", "ripedb", "gleif", "githuborg", "leakix", "sucuri", "xposeddomain", "crtshorg", "tranco", "otxmalware", "otxurls", "digitalside", "dnsseccaa", "dnslytics", "lookalike", "spfdmarc", "certissuers", "mxintel", "nsintel", "txtsaas", "spfvendors", "wildcarddns", "htdns"],
     "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm", "emailrep", "leakcheck", "xposedornot"],
     "username": ["username", "githubuser", "gitlabuser", "hnuser", "dockeruser", "reddituser", "npmuser", "githubgists", "devtouser"],
     "ip": ["geoip", "internetdb", "reputation", "rdap",
            "robtex", "bgpview", "ipapi", "cymruasn",
-           "reverseip", "otxip", "iptoasn", "feodo", "peeringdb", "ipwhois", "dnsbl", "stopforumspam", "ipapinet", "blocklistde", "ipinfo", "ipguide", "greynoise", "ipquery", "freeipapi", "dshield", "ipwhoisapp", "iplocationnet", "arinrdap", "incolumitas", "ipapiis", "ripeiprdap", "iprdap", "proxycheck", "asnprefixes"],
+           "reverseip", "otxip", "iptoasn", "feodo", "peeringdb", "ipwhois", "dnsbl", "stopforumspam", "ipapinet", "blocklistde", "ipinfo", "ipguide", "greynoise", "ipquery", "freeipapi", "dshield", "ipwhoisapp", "iplocationnet", "arinrdap", "incolumitas", "ipapiis", "ripeiprdap", "iprdap", "proxycheck", "asnprefixes", "asninfo"],
 }
 # confidence decays with each hop away from the seed
 _HOP_CONFIDENCE = ["high", "medium", "low", "low"]

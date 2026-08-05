@@ -904,3 +904,35 @@ def test_wave33_nsintel_txtsaas_proxycheck_asnprefixes():
     assert pc["type"] == "VPN" and pc["risk"] == 80 and pc["severity"] == "high"
     ap = REGISTRY["asnprefixes"].run("1.2.3.4", _ctx(router)).data
     assert ap["asn"] == 64500 and ap["ipv4_count"] == 2 and "3.4.0.0/16" in ap["ipv4_prefixes"]
+
+
+def test_wave34_spfvendors_wildcard_asninfo_htdns():
+    def router(url):
+        if "type=TXT" in url and "_spf.google" in url:
+            return _Resp(j={"Answer": [{"data": "v=spf1 ip4:1.2.3.4 -all"}]})
+        if "type=TXT" in url and "name=acme.com" in url:
+            return _Resp(j={"Answer": [{"data":
+                "v=spf1 include:_spf.google.com include:sendgrid.net -all"}]})
+        if "type=A" in url:
+            # wildcard: every random probe resolves to same IP
+            return _Resp(j={"Answer": [{"type": 1, "data": "9.9.9.9"}]})
+        if "api.bgpview.io/ip/" in url:
+            return _Resp(j={"data": {"prefixes": [{"asn": {"asn": 64500}}]}})
+        if "api.bgpview.io/asn/64500" in url and "/prefixes" not in url:
+            return _Resp(j={"data": {"name": "ACME-AS",
+                            "description_short": "Acme Networks",
+                            "country_code": "US",
+                            "abuse_contacts": ["abuse@acme.com"],
+                            "rir_allocation": {"rir_name": "ARIN",
+                                               "date_allocated": "2001-01-01"}}})
+        if "api.hackertarget.com/dnslookup" in url:
+            return _Resp(t='A : 1.2.3.4\nMX : 10 mail.acme.com\nNS : ns1.acme.com')
+        return _Resp(j={})
+    sv = REGISTRY["spfvendors"].run("acme.com", _ctx(router)).data
+    assert "Google Workspace" in sv["vendors"] and "SendGrid" in sv["vendors"]
+    wc = REGISTRY["wildcarddns"].run("acme.com", _ctx(router)).data
+    assert wc["wildcard"] is True and "9.9.9.9" in wc["wildcard_ips"]
+    ai = REGISTRY["asninfo"].run("1.2.3.4", _ctx(router)).data
+    assert ai["asn"] == 64500 and "abuse@acme.com" in ai["abuse_contacts"] and ai["rir"] == "ARIN"
+    hd = REGISTRY["htdns"].run("acme.com", _ctx(router)).data
+    assert "A" in hd["record_types"] and "MX" in hd["record_types"] and hd["count"] == 3
