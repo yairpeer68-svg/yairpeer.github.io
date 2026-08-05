@@ -39,7 +39,7 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         digitalside, dnsseccaa, dnslytics, lookalike,
         spfdmarc, certissuers, mxintel, nsintel, txtsaas,
         spfvendors, wildcarddns, htdns, dkimscan, soaintel,
-        danetlsa, pagelinks]
+        danetlsa, pagelinks, phisharmy]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 

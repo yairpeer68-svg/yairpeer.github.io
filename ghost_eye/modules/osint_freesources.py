@@ -3993,3 +3993,122 @@ class PageLinks(Module):
                               "note": "external domains linked from the homepage reveal "
                                       "third-party services / partners / trackers.",
                               "source": "pagelinks"})
+
+
+# =========================================================================== #
+#  Wave 37 — phishing feed + aggregated threat scoring + identity linkage:
+#    Phishing Army blocklist (domain) · IPsum aggregated threat score (IP)
+#    GitHub SSH keys · GitHub org memberships (username -> company)
+# =========================================================================== #
+@register
+class PhishArmy(Module):
+    id = "phisharmy"
+    name = "Phishing Army blocklist membership (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, "https://phishing.army/download/"
+                          "phishing_army_blocklist.txt"))
+        listed = False
+        for line in text.splitlines():
+            line = line.strip().lower()
+            if line and not line.startswith("#") and (line == host or line == f"www.{host}"):
+                listed = True
+                break
+        data = {"listed": listed, "feed": "phishing-army", "source": "phishing-army"}
+        if listed:
+            data["severity"] = "critical"
+            data["note"] = "domain on the Phishing Army blocklist."
+        return self.ok(host, data)
+
+
+@register
+class IpSum(Module):
+    id = "ipsum"
+    name = "IPsum aggregated threat-IP score — 30+ blocklists (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "ipsum expects an IP"})
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/stamparm/"
+                          "ipsum/master/ipsum.txt"))
+        score = 0
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith(ip + "\t") or line.startswith(ip + " "):
+                parts = re.split(r"\s+", line)
+                if len(parts) >= 2 and parts[1].isdigit():
+                    score = int(parts[1])
+                break
+        data = {"listed": score > 0, "blocklist_hits": score,
+                "note": "number of independent blocklists flagging this IP (IPsum).",
+                "source": "ipsum"}
+        if score >= 5:
+            data["severity"] = "critical"
+        elif score >= 2:
+            data["severity"] = "high"
+        elif score == 1:
+            data["severity"] = "medium"
+        return self.ok(ip, data)
+
+
+@register
+class GithubKeys(Module):
+    id = "githubkeys"
+    name = "GitHub user public SSH keys (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubkeys expects a bare handle"})
+        text = _text(_get(ctx, f"https://github.com/{user}.keys"))
+        keys = []
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("ssh-") or line.startswith("ecdsa-") or line.startswith("sk-"):
+                parts = line.split()
+                ktype = parts[0]
+                blob = parts[1] if len(parts) > 1 else ""
+                import hashlib
+                fp = hashlib.md5(blob.encode()).hexdigest() if blob else ""
+                keys.append({"type": ktype, "fingerprint_md5": fp})
+        return self.ok(user, {"key_count": len(keys), "keys": keys[:20],
+                              "key_types": sorted({k["type"] for k in keys}),
+                              "note": "public SSH keys can correlate a handle across "
+                                      "hosts/commits.",
+                              "source": "github-keys"})
+
+
+@register
+class GithubOrgs(Module):
+    id = "githuborgs"
+    name = "GitHub user public org memberships -> company (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githuborgs expects a bare handle"})
+        arr = _json(_get(ctx, f"https://api.github.com/users/{user}/orgs?per_page=50",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": "GhostEye-OSINT/1.0"})) or []
+        orgs = []
+        for o in arr if isinstance(arr, list) else []:
+            if isinstance(o, dict) and o.get("login"):
+                orgs.append({"login": o.get("login"),
+                             "description": (o.get("description") or "")[:100]})
+        return self.ok(user, {"orgs": orgs[:50], "count": len(orgs),
+                              "note": "public org memberships link a person to "
+                                      "employer/community affiliations.",
+                              "source": "github-orgs"})

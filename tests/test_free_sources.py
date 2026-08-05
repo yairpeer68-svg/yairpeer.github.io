@@ -992,3 +992,25 @@ def test_wave36_rpki_binarydefense_dane_pagelinks():
     assert dn["dane_enabled"] is True and dn["tlsa_by_service"].get("SMTP") == 1
     pl = REGISTRY["pagelinks"].run("acme.com", _ctx(router)).data
     assert "cdn.jsdelivr.net" in pl["external_domains"] and "www.acme.com" in pl["internal_hosts"]
+
+
+def test_wave37_phisharmy_ipsum_ghkeys_ghorgs():
+    def router(url):
+        if "phishing.army" in url:
+            return _Resp(t="# blocklist\nevil.com\nacme.com\n")
+        if "ipsum/master/ipsum.txt" in url:
+            return _Resp(t="# IPsum\n6.6.6.6\t7\n1.2.3.4\t3\n")
+        if "github.com/alice.keys" in url:
+            return _Resp(t="ssh-ed25519 AAAAC3NzaC1lZDI1 comment\nssh-rsa AAAAB3Nza")
+        if "api.github.com/users/alice/orgs" in url:
+            return _Resp(j=[{"login": "acme-corp", "description": "Acme"},
+                            {"login": "oss-foundation", "description": "OSS"}])
+        return _Resp(j={})
+    pa = REGISTRY["phisharmy"].run("acme.com", _ctx(router)).data
+    assert pa["listed"] is True and pa["severity"] == "critical"
+    ip = REGISTRY["ipsum"].run("1.2.3.4", _ctx(router)).data
+    assert ip["blocklist_hits"] == 3 and ip["severity"] == "high"
+    gk = REGISTRY["githubkeys"].run("alice", _ctx(router)).data
+    assert gk["key_count"] == 2 and "ssh-ed25519" in gk["key_types"]
+    go = REGISTRY["githuborgs"].run("alice", _ctx(router)).data
+    assert go["count"] == 2 and go["orgs"][0]["login"] == "acme-corp"
