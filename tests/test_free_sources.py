@@ -873,3 +873,34 @@ def test_wave32_iprdap_spfdmarc_certissuers_mxintel():
     assert ci["total_certs"] == 3 and ci["issuers"][0]["ca"] == "Let's Encrypt" and ci["issuers"][0]["certs"] == 2
     mx = REGISTRY["mxintel"].run("acme.com", _ctx(router)).data
     assert "Microsoft 365" in mx["mail_providers"] and mx["mx_count"] == 1
+
+
+def test_wave33_nsintel_txtsaas_proxycheck_asnprefixes():
+    def router(url):
+        if "type=NS" in url:
+            return _Resp(j={"Answer": [{"data": "ns1.acme.awsdns-10.net."},
+                                       {"data": "ns2.acme.awsdns-20.org."}]})
+        if "type=TXT" in url:
+            return _Resp(j={"Answer": [
+                {"data": "google-site-verification=abc123"},
+                {"data": "atlassian-domain-verification=xyz"},
+                {"data": "v=spf1 -all"}]})
+        if "proxycheck.io" in url:
+            return _Resp(j={"1.2.3.4": {"proxy": "yes", "type": "VPN",
+                            "provider": "NordVPN", "asn": "AS64500",
+                            "risk": 80, "country": "US"}})
+        if "api.bgpview.io/ip/" in url:
+            return _Resp(j={"data": {"prefixes": [{"asn": {"asn": 64500}}]}})
+        if "api.bgpview.io/asn/64500/prefixes" in url:
+            return _Resp(j={"data": {"ipv4_prefixes": [{"prefix": "1.2.0.0/16"},
+                                                       {"prefix": "3.4.0.0/16"}],
+                                     "ipv6_prefixes": []}})
+        return _Resp(j={})
+    ns = REGISTRY["nsintel"].run("acme.com", _ctx(router)).data
+    assert "AWS Route 53" in ns["dns_providers"] and ns["ns_count"] == 2
+    tx = REGISTRY["txtsaas"].run("acme.com", _ctx(router)).data
+    assert "Atlassian" in tx["vendors"] and "Google Workspace/Search Console" in tx["vendors"]
+    pc = REGISTRY["proxycheck"].run("1.2.3.4", _ctx(router)).data
+    assert pc["type"] == "VPN" and pc["risk"] == 80 and pc["severity"] == "high"
+    ap = REGISTRY["asnprefixes"].run("1.2.3.4", _ctx(router)).data
+    assert ap["asn"] == 64500 and ap["ipv4_count"] == 2 and "3.4.0.0/16" in ap["ipv4_prefixes"]

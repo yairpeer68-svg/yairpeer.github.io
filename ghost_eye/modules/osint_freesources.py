@@ -3397,3 +3397,158 @@ class MxIntel(Module):
                               "note": "identified mail provider(s) reveal the email "
                                       "security stack / attack surface.",
                               "source": "mx-intel"})
+
+
+# =========================================================================== #
+#  Wave 33 — infrastructure fingerprinting + SaaS discovery + IP risk/expansion:
+#    NS provider fingerprint · TXT->SaaS vendor stack (domain)
+#    proxycheck.io VPN/proxy risk · ASN full-prefix expansion (IP)
+# =========================================================================== #
+_DNS_PROVIDERS = [
+    ("cloudflare.com", "Cloudflare"), ("awsdns", "AWS Route 53"),
+    ("azure-dns", "Azure DNS"), ("googledomains.com", "Google Cloud DNS"),
+    ("google.com", "Google Cloud DNS"), ("nsone.net", "NS1"),
+    ("akam.net", "Akamai"), ("akamai", "Akamai"), ("dnsmadeeasy.com", "DNS Made Easy"),
+    ("ultradns", "UltraDNS"), ("dynect.net", "Oracle Dyn"),
+    ("domaincontrol.com", "GoDaddy"), ("registrar-servers.com", "Namecheap"),
+    ("name-services.com", "Enom"), ("worldnic.com", "Network Solutions"),
+    ("cloudns.net", "ClouDNS"), ("digitalocean.com", "DigitalOcean"),
+    ("vercel-dns.com", "Vercel"), ("constellix.com", "Constellix"),
+]
+
+_TXT_SAAS = [
+    ("google-site-verification", "Google Workspace/Search Console"),
+    ("ms=", "Microsoft 365"), ("msv1", "Microsoft"),
+    ("facebook-domain-verification", "Meta/Facebook Business"),
+    ("atlassian-domain-verification", "Atlassian"),
+    ("docusign", "DocuSign"), ("stripe-verification", "Stripe"),
+    ("adobe-idp-site-verification", "Adobe"), ("adobe-sign", "Adobe Sign"),
+    ("zoom-domain-verification", "Zoom"), ("dropbox-domain-verification", "Dropbox"),
+    ("slack-domain-verification", "Slack"), ("miro-verification", "Miro"),
+    ("notion-domain-verification", "Notion"), ("shopify", "Shopify"),
+    ("cisco-ci-domain-verification", "Cisco"), ("workplace-domain-verification", "Meta Workplace"),
+    ("mongodb-site-verification", "MongoDB Atlas"), ("citrix-verification-code", "Citrix"),
+    ("logmein-verification-code", "LogMeIn"), ("mailru-verification", "Mail.ru"),
+    ("yandex-verification", "Yandex"), ("status-page-domain-verification", "Atlassian Statuspage"),
+    ("pardot", "Salesforce Pardot"), ("webexdomainverification", "Cisco Webex"),
+    ("_globalsign-domain-verification", "GlobalSign"), ("sendinblue-code", "Brevo/Sendinblue"),
+    ("brevo-code", "Brevo"), ("intacct-esk", "Sage Intacct"),
+]
+
+
+@register
+class NsIntel(Module):
+    id = "nsintel"
+    name = "NS enumeration + DNS-provider fingerprint via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, f"https://dns.google/resolve?name={host}&type=NS")) or {}
+        ns = []
+        for ans in d.get("Answer") or []:
+            v = ans.get("data")
+            if isinstance(v, str):
+                ns.append(v.rstrip(".").lower())
+        providers = set()
+        for n in ns:
+            for needle, label in _DNS_PROVIDERS:
+                if needle in n:
+                    providers.add(label)
+        zones = {".".join(n.split(".")[-2:]) for n in ns}
+        return self.ok(host, {"nameservers": ns[:15], "ns_count": len(ns),
+                              "dns_providers": sorted(providers),
+                              "distinct_ns_zones": sorted(zones)[:10],
+                              "single_provider_spof": len(zones) <= 1 and bool(ns),
+                              "note": "DNS-hosting provider + single-provider SPOF signal.",
+                              "source": "ns-intel"})
+
+
+@register
+class TxtSaas(Module):
+    id = "txtsaas"
+    name = "TXT verification tokens -> SaaS/vendor stack via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        txts = _doh_txt(ctx, host)
+        vendors = set()
+        matched = []
+        for t in txts:
+            low = t.lower()
+            for needle, label in _TXT_SAAS:
+                if needle in low:
+                    vendors.add(label)
+                    matched.append(t[:120])
+                    break
+        return self.ok(host, {"txt_count": len(txts),
+                              "vendors": sorted(vendors),
+                              "vendor_count": len(vendors),
+                              "verification_records": matched[:20],
+                              "note": "SaaS/vendor verification tokens reveal the "
+                                      "third-party service footprint / attack surface.",
+                              "source": "txt-saas"})
+
+
+@register
+class ProxyCheck(Module):
+    id = "proxycheck"
+    name = "proxycheck.io VPN / proxy / risk (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "proxycheck expects an IP"})
+        d = _json(_get(ctx, f"https://proxycheck.io/v2/{ip}?vpn=1&asn=1&risk=1")) or {}
+        rec = d.get(ip) or {}
+        data = {"proxy": rec.get("proxy"), "type": rec.get("type"),
+                "provider": rec.get("provider"), "asn": rec.get("asn"),
+                "risk": rec.get("risk"), "country": rec.get("country"),
+                "source": "proxycheck"}
+        try:
+            if str(rec.get("proxy")).lower() == "yes" or int(rec.get("risk") or 0) >= 66:
+                data["severity"] = "high"
+        except (TypeError, ValueError):
+            pass
+        return self.ok(ip, data)
+
+
+@register
+class AsnPrefixes(Module):
+    id = "asnprefixes"
+    name = "ASN full-prefix expansion for a pivoted IP (keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "asnprefixes expects an IP"})
+        ipd = (_json(_get(ctx, f"https://api.bgpview.io/ip/{ip}")) or {}).get("data", {}) or {}
+        asn = None
+        for p in ipd.get("prefixes", []) or []:
+            asn = (p.get("asn") or {}).get("asn")
+            if asn:
+                break
+        if not asn:
+            return self.ok(ip, {"note": "no ASN for IP", "source": "asn-prefixes"})
+        pd = (_json(_get(ctx, f"https://api.bgpview.io/asn/{asn}/prefixes"))
+              or {}).get("data", {}) or {}
+        v4 = [p.get("prefix") for p in (pd.get("ipv4_prefixes") or []) if p.get("prefix")]
+        v6 = [p.get("prefix") for p in (pd.get("ipv6_prefixes") or []) if p.get("prefix")]
+        return self.ok(ip, {"asn": asn, "ipv4_prefixes": v4[:100],
+                            "ipv6_prefixes": v6[:50],
+                            "ipv4_count": len(v4), "ipv6_count": len(v6),
+                            "note": "full announced netblock footprint of the hosting AS.",
+                            "source": "asn-prefixes"})
