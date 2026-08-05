@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **466 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **477 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -139,6 +139,7 @@ python3 ghost_eye_web.py --open
 | `--scope <file>` | refuse targets outside an allow-list |
 | `--passive-only` | run only passive modules (no traffic to the target) |
 | `--adaptive-rate` | self-tuning throttle: back off when the target errors / rate-limits |
+| `--queue <db>` `--enqueue` `--worker` | distributed scanning: share a job queue across many worker hosts |
 | `--lang {en,he}` | interface / report language (Hebrew = RTL) |
 | `--plugins <dir>` | load extra module files from a directory |
 
@@ -267,6 +268,21 @@ kind filters, cluster-by-type and the risk heat-map, it now includes:
 - **▦ Findings table** (sortable/filterable) and an **🕓 interactive timeline**.
 - **🎯 Focus mode** (isolate a node's cluster), **per-node notes & tags**
   (kept in the browser), and **📊 Metrics / ⬇ Backup / ⬆ Restore** of saved scans.
+
+### Enterprise / infrastructure
+
+- **🔔 Custom alert rules** (`/api/alert-rules`) — change-monitoring fires only
+  when it matters: set a minimum severity, a minimum number of new items, ignore
+  event types (e.g. new subdomains), or restrict to specific targets.
+- **🔐 Encryption at rest** — set `GHOSTEYE_SECRET` and stored API keys (and any
+  JSON blob via `secure_store`) are sealed with PBKDF2 + Fernet (AES). Transparent
+  and backward-compatible; nothing changes until you set the passphrase.
+- **📥 Offline CVE mirror** — every exploit-intel lookup is cached in a local
+  SQLite mirror; seed the whole **CISA KEV** catalogue or import an NVD JSON feed,
+  then run fully offline with `GHOSTEYE_OFFLINE=1`.
+- **🖧 Distributed scanning** — a shared SQLite job queue lets many workers
+  (`--queue jobs.db --worker`, run on as many hosts as you like) cooperate on a
+  target list with an atomic claim, so no target is ever scanned twice.
 
 ### Install anywhere (Docker / Termux, feature 80)
 
@@ -658,7 +674,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**466 tests** pass in ~11s. A single **verification gate** runs the whole thing:
+**477 tests** pass in ~11s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

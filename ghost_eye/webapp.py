@@ -12,6 +12,7 @@ Binds to 127.0.0.1 (localhost only) by default. Authorised use only.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import time
@@ -238,8 +239,15 @@ class JobManager:
             diff["total_new"] = sum(len(v) for k, v in diff.items()
                                     if k.startswith("new_"))
             diff["changed"] = diff["total_new"] > 0
+            # custom alert rules (feature 49): decide whether this change is
+            # worth alerting on, and at what severity
+            from . import alert_rules
+            rules = (job.get("options") or {}).get("alert_rules") or alert_rules.load_rules()
+            verdict = alert_rules.evaluate(diff, rules, job["target"])
+            diff["alert"] = verdict
             job["surface_change"] = diff        # surfaced via the job snapshot
-            if diff.get("changed") and not diff.get("first_scan"):
+            if (diff.get("changed") and not diff.get("first_scan")
+                    and verdict.get("fire")):
                 workflow.notify_change(diff, url)
         except Exception as exc:  # noqa: BLE001
             record_error("surface alert", job.get("target", ""), exc)
@@ -501,6 +509,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._scope_get()
         if path == "/api/metrics":
             return self._metrics()
+        if path == "/api/alert-rules":
+            return self._alert_rules_get()
         if path == "/api/backup":
             return self._backup()
         if path.startswith("/api/scan/"):
@@ -520,6 +530,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._scope_set()
         if path == "/api/restore":
             return self._restore()
+        if path == "/api/alert-rules":
+            return self._alert_rules_set()
         if path == "/api/schedule":
             return self._schedule_create()
         if path == "/api/keys":
@@ -847,9 +859,19 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:  # noqa: BLE001
             pass
         up = int(time.time() - getattr(self.server, "started_at", time.time()))
+        mirror = {}
+        try:
+            from . import cve_mirror
+            m = cve_mirror.shared()
+            mirror = {"cves": m.stats().get("cves", 0),
+                      "kev": m.stats().get("kev", 0),
+                      "offline": cve_mirror.offline()}
+        except Exception:  # noqa: BLE001
+            mirror = {}
         return self._json({
             "version": ghost_eye.__version__,
             "modules": len(REGISTRY),
+            "cve_mirror": mirror,
             "jobs": {"total": len(all_jobs), "running": running,
                      "done": done, "error": errored},
             "saved_scans": scans,
@@ -858,6 +880,34 @@ class Handler(BaseHTTPRequestHandler):
             "schedules": len(self.server.scheduler.list_all())
             if getattr(self.server, "scheduler", None) else 0,
         })
+
+    def _alert_rules_path(self):
+        p = os.environ.get("GHOSTEYE_ALERT_RULES", "")
+        return Path(p) if p else Path.home() / ".ghosteye" / "alert_rules.json"
+
+    def _alert_rules_get(self):
+        from . import alert_rules
+        return self._json({"rules": alert_rules.load_rules(),
+                           "defaults": alert_rules.DEFAULT_RULES,
+                           "event_severity": alert_rules._EVENT_SEVERITY})
+
+    def _alert_rules_set(self):
+        from . import alert_rules
+        body = self._body()
+        rules = {**alert_rules.DEFAULT_RULES,
+                 **{k: v for k, v in body.items() if k in alert_rules.DEFAULT_RULES}}
+        try:
+            p = self._alert_rules_path()
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(p, "w", encoding="utf-8") as fh:
+                json.dump(rules, fh, indent=2)
+            try:
+                os.chmod(p, 0o600)
+            except OSError:
+                pass
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"save failed: {exc}"}, 500)
+        return self._json({"ok": True, "rules": rules})
 
     def _backup(self):
         """Download every saved scan as a portable JSON backup (feature 77).

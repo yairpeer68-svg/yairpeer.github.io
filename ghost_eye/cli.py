@@ -454,6 +454,14 @@ def build_parser() -> argparse.ArgumentParser:
                       help="interface language (#80)")
     flow.add_argument("--scope", default="",
                       help="scope file (hosts/CIDRs); refuse targets outside it")
+    flow.add_argument("--queue", default="",
+                      help="shared job-queue DB for distributed scanning")
+    flow.add_argument("--enqueue", action="store_true",
+                      help="add -t/-T targets to the --queue and exit")
+    flow.add_argument("--worker", action="store_true",
+                      help="process jobs from the --queue (run on many hosts)")
+    flow.add_argument("--max-jobs", type=int, default=0,
+                      help="worker: stop after N jobs (0 = until drained)")
     flow.add_argument("--deep", action="store_true",
                       help="recursive scan: fan out to discovered subdomains/IPs "
                            "and scan each (attack-surface sweep)")
@@ -695,6 +703,20 @@ def _watch_loop(mods, target, cfg, args):
             return 0
 
 
+def _collect_targets(args) -> List[str]:
+    """Targets from -t and/or -T (one per line, # comments ignored)."""
+    out: List[str] = []
+    if getattr(args, "target", None):
+        out.append(args.target.strip())
+    if getattr(args, "targets", None):
+        try:
+            out += [l.strip() for l in open(args.targets, encoding="utf-8")
+                    if l.strip() and not l.startswith("#")]
+        except OSError:
+            pass
+    return out
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -707,6 +729,28 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.doctor:
         workflow.doctor()
         return 0
+
+    # distributed scanning (feature 75): shared queue coordinator / worker
+    if getattr(args, "queue", ""):
+        from . import distributed
+        if getattr(args, "enqueue", False):
+            targets = _collect_targets(args)
+            if not targets:
+                Console.err("nothing to enqueue — pass -t/-T")
+                return 2
+            q = distributed.JobQueue(args.queue)
+            n = q.enqueue_many(targets, args.profile or "quick")
+            Console.good(f"enqueued {n} target(s) into {args.queue}")
+            Console.kv("queue", q.stats())
+            q.close()
+            return 0
+        if getattr(args, "worker", False):
+            Console.rule(f"worker on {args.queue}")
+            out = distributed.run_worker(args.queue, cfg,
+                                         max_jobs=getattr(args, "max_jobs", 0) or 0)
+            Console.good(f"worker {out['worker']} completed {out['completed']} job(s)")
+            Console.kv("queue", out["queue"])
+            return 0
 
     if args.config_init:
         path = cfg.write_template()

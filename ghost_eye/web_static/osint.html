@@ -310,6 +310,7 @@ a{color:var(--cyan);text-decoration:none}
       <button class="dlbtn" id="scopebtn">🛡 Scope guard</button>
       <button class="dlbtn" id="unifiedbtn">🕸 Unified graph</button>
       <button class="dlbtn" id="metricsbtn">📊 Metrics</button>
+      <button class="dlbtn" id="alertsbtn">🔔 Alert rules</button>
       <button class="dlbtn" id="backupbtn">⬇ Backup</button>
       <button class="dlbtn" id="restorebtn">⬆ Restore</button>
       <input type="file" id="restorefile" accept="application/json,.json" style="display:none">
@@ -1278,6 +1279,26 @@ $("metricsbtn").addEventListener("click",async()=>{
       `<div class="trow">saved scans <b>${d.saved_scans}</b> · schedules ${d.schedules} · error-log lines ${d.error_log_lines}</div>`+
       `<div class="trow">uptime ${h}h ${mnt}m</div>`);
   }catch(e){ tout(`<div class="trow">${esc(e.message)}</div>`); }
+});
+/* custom alert rules editor (feature 49) */
+$("alertsbtn").addEventListener("click",async()=>{
+  $("toolsmodal").classList.remove("hidden");
+  let d; try{ d=await api("/api/alert-rules"); }catch(e){ tout(`<div class="trow">${esc(e.message)}</div>`); return; }
+  const r=d.rules||{};
+  const ev=Object.keys(d.event_severity||{});
+  tout(`<div class="tout-head">🔔 alert rules — fire a change-alert only when it matters</div>`+
+    `<div class="trow"><label class="opt"><input type="checkbox" id="ar_en" ${r.enabled?'checked':''}> enabled</label></div>`+
+    `<div class="trow">min severity <select id="ar_sev">${["low","medium","high","critical"].map(s=>`<option ${r.min_severity===s?'selected':''}>${s}</option>`).join("")}</select> · min events <input id="ar_min" type="number" min="1" value="${r.min_events||1}" style="width:52px"></div>`+
+    `<div class="trow rel">ignore events:</div><div class="achips" id="ar_ignore">${ev.map(e=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-ev="${e}" ${(r.ignore||[]).includes(e)?'checked':''}> ${esc(e.replace('new_',''))}</label>`).join("")}</div>`+
+    `<div class="trow"><button class="save" id="ar_save">Save rules</button> <span class="rel" id="ar_msg"></span></div>`+
+    `<div class="trow rel">Applies to change-alerts on scheduled/continuous monitoring.</div>`);
+  $("ar_save").onclick=async()=>{
+    const ignore=[...document.querySelectorAll('#ar_ignore input:checked')].map(x=>x.dataset.ev);
+    const body={enabled:$("ar_en").checked,min_severity:$("ar_sev").value,min_events:parseInt($("ar_min").value||"1",10),ignore};
+    try{ await api("/api/alert-rules",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      $("ar_msg").textContent="saved ✓";
+    }catch(e){ $("ar_msg").textContent="save failed: "+e.message; }
+  };
 });
 $("backupbtn").addEventListener("click",()=>{
   window.open("/api/backup"+(TOKEN?`?token=${encodeURIComponent(TOKEN)}`:""),"_blank");

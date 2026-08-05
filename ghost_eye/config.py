@@ -130,6 +130,11 @@ class Config:
                 pass
         if self._cp.has_option(section, option):
             val = self._cp.get(section, option)
+            if val:
+                # encryption at rest (feature 79): transparently decrypt an
+                # enc: token; plaintext legacy values pass through unchanged.
+                from . import secure_store
+                val = secure_store.maybe_decrypt(val)
             return val or None
         return None
 
@@ -179,7 +184,11 @@ class Config:
         _, section, option = _ENV_MAP[name]
         if not self._cp.has_section(section):
             self._cp.add_section(section)
-        self._cp.set(section, option, value)
+        # encryption at rest (feature 79): when GHOSTEYE_SECRET is set (and the
+        # crypto backend is available) the value is sealed before it touches
+        # disk; otherwise it is stored as before.
+        from . import secure_store
+        self._cp.set(section, option, secure_store.maybe_encrypt(value))
         self._write_config(self._cp)
 
     def all_api_keys(self) -> Dict[str, str]:
