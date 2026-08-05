@@ -3864,3 +3864,132 @@ class GithubActivity(Module):
                               "note": "active repos + peak UTC hours can indicate "
                                       "role and working timezone.",
                               "source": "github-activity"})
+
+
+# =========================================================================== #
+#  Wave 36 — route-security + threat feed + TLS-auth posture + asset linkage:
+#    RPKI/ROA validation · Binary Defense ban list (IP)
+#    DANE/TLSA posture · homepage third-party link extraction (domain)
+# =========================================================================== #
+@register
+class Rpki(Module):
+    id = "rpki"
+    name = "RPKI / ROA route-origin validation for a pivoted IP (keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "rpki expects an IP"})
+        ni = (_json(_get(ctx, "https://stat.ripe.net/data/network-info/"
+                         f"data.json?resource={ip}")) or {}).get("data", {}) or {}
+        prefix = ni.get("prefix")
+        asns = ni.get("asns") or []
+        asn = asns[0] if asns else None
+        if not prefix or not asn:
+            return self.ok(ip, {"note": "no prefix/ASN for IP", "source": "rpki"})
+        d = (_json(_get(ctx, "https://stat.ripe.net/data/rpki-validation/"
+                        f"data.json?resource=AS{asn}&prefix={prefix}"))
+             or {}).get("data", {}) or {}
+        status = d.get("status")
+        data = {"prefix": prefix, "asn": asn, "status": status,
+                "roa_count": len(d.get("validating_roas") or []),
+                "source": "rpki-ripestat"}
+        if status and str(status).lower() == "invalid":
+            data["severity"] = "high"
+            data["note"] = "RPKI status INVALID — possible route hijack / misorigination."
+        elif status and str(status).lower() == "unknown":
+            data["note"] = "no ROA — prefix not protected by RPKI."
+        return self.ok(ip, data)
+
+
+@register
+class BinaryDefense(Module):
+    id = "binarydefense"
+    name = "Binary Defense IP ban-list membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "binarydefense expects an IP"})
+        text = _text(_get(ctx, "https://www.binarydefense.com/banlist.txt"))
+        listed = False
+        for line in text.splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and line == ip:
+                listed = True
+                break
+        data = {"listed": listed, "feed": "binarydefense-banlist",
+                "source": "binary-defense"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "IP on the Binary Defense ban list — known attacker/scanner."
+        return self.ok(ip, data)
+
+
+@register
+class DaneTlsa(Module):
+    id = "danetlsa"
+    name = "DANE / TLSA record posture via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        found = {}
+        for label, svc in (("_25._tcp", "SMTP"), ("_443._tcp", "HTTPS"),
+                           ("_465._tcp", "SMTPS")):
+            d = _json(_get(ctx, "https://dns.google/resolve"
+                           f"?name={label}.{host}&type=TLSA")) or {}
+            n = len([a for a in (d.get("Answer") or [])
+                     if isinstance(a, dict) and a.get("type") == 52])
+            if n:
+                found[svc] = n
+        return self.ok(host, {"dane_enabled": bool(found),
+                              "tlsa_by_service": found,
+                              "note": ("DANE/TLSA present — certificate pinning via DNSSEC."
+                                       if found else
+                                       "no DANE/TLSA records (common; not a finding by itself)."),
+                              "source": "dane-tlsa"})
+
+
+@register
+class PageLinks(Module):
+    id = "pagelinks"
+    name = "Homepage third-party / linked-domain extraction (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, f"https://api.hackertarget.com/pagelinks/?q={host}"))
+        if "error" in text.lower() or "api count" in text.lower():
+            text = ""
+        internal, external = set(), set()
+        base = ".".join(host.split(".")[-2:])
+        for line in text.splitlines():
+            line = line.strip()
+            m = re.search(r"https?://([^/\s]+)", line)
+            if not m:
+                continue
+            netloc = m.group(1).lower().split(":")[0]
+            if netloc.endswith(base):
+                internal.add(netloc)
+            elif "." in netloc:
+                external.add(netloc)
+        return self.ok(host, {"internal_hosts": sorted(internal)[:40],
+                              "external_domains": sorted(external)[:60],
+                              "internal_count": len(internal),
+                              "external_count": len(external),
+                              "note": "external domains linked from the homepage reveal "
+                                      "third-party services / partners / trackers.",
+                              "source": "pagelinks"})

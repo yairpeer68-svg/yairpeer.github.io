@@ -965,3 +965,30 @@ def test_wave35_dkim_soa_sslbl_ghactivity():
     assert sb["listed"] is True and sb["severity"] == "critical" and sb["port"] == 443
     ga = REGISTRY["githubactivity"].run("alice", _ctx(router)).data
     assert ga["events"] == 2 and "acme/app" in ga["active_repos"] and 9 in ga["peak_hours_utc"]
+
+
+def test_wave36_rpki_binarydefense_dane_pagelinks():
+    def router(url):
+        if "network-info" in url:
+            return _Resp(j={"data": {"prefix": "1.2.0.0/16", "asns": ["64500"]}})
+        if "rpki-validation" in url:
+            return _Resp(j={"data": {"status": "invalid",
+                            "validating_roas": [{"origin": "64501"}]}})
+        if "binarydefense.com/banlist" in url:
+            return _Resp(t="# banlist\n1.2.3.4\n9.9.9.9\n")
+        if "type=TLSA" in url and "_25._tcp" in url:
+            return _Resp(j={"Answer": [{"type": 52, "data": "3 1 1 abcd"}]})
+        if "type=TLSA" in url:
+            return _Resp(j={})
+        if "hackertarget.com/pagelinks" in url:
+            return _Resp(t="https://acme.com/a\nhttps://cdn.jsdelivr.net/x\n"
+                         "https://www.acme.com/b\nhttps://google-analytics.com/g")
+        return _Resp(j={})
+    rp = REGISTRY["rpki"].run("1.2.3.4", _ctx(router)).data
+    assert rp["status"] == "invalid" and rp["severity"] == "high" and rp["asn"] == "64500"
+    bd = REGISTRY["binarydefense"].run("1.2.3.4", _ctx(router)).data
+    assert bd["listed"] is True and bd["severity"] == "high"
+    dn = REGISTRY["danetlsa"].run("acme.com", _ctx(router)).data
+    assert dn["dane_enabled"] is True and dn["tlsa_by_service"].get("SMTP") == 1
+    pl = REGISTRY["pagelinks"].run("acme.com", _ctx(router)).data
+    assert "cdn.jsdelivr.net" in pl["external_domains"] and "www.acme.com" in pl["internal_hosts"]
