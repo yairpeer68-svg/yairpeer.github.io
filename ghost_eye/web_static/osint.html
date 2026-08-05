@@ -1105,8 +1105,9 @@ async function runTool(tool){
       // render the merged multi-hop graph
       buildGraph({knowledge_graph:d.knowledge_graph}); heat=false; $("heat").classList.remove("on");
       const hops=(d.hops||[]).map(h=>`<div class="trow"><b>hop ${h.hop}</b> <span class="rel">(${h.confidence})</span> · processed ${h.processed} · +${(h.discovered_counts||{}).domain||0} domains · +${(h.discovered_counts||{}).email||0} emails · +${(h.discovered_counts||{}).ip||0} IPs</div>`).join("");
-      const c=d.counts||{};
-      tout(`<div class="tout-head">🌐 deep OSINT — ${d.entities_processed} entities pivoted · graph ${c.entities||0} nodes</div>${hops}<div class="trow rel">${esc(d.note||'')}</div>`);
+      const c=d.counts||{}; const cf=(d.confidence&&d.confidence.by_confidence)||{};
+      const cfrow=`<div class="trow">entity confidence — <span style="color:var(--green)">high ${cf.high||0}</span> · <span style="color:var(--gold)">medium ${cf.medium||0}</span> · <span class="rel">low ${cf.low||0}</span> <span class="rel">(by independent-source corroboration)</span></div>`;
+      tout(`<div class="tout-head">🌐 deep OSINT — ${d.entities_processed} entities pivoted · graph ${c.entities||0} nodes</div>${hops}${cfrow}<div class="trow rel">${esc(d.note||'')}</div>`);
     } else if(tool==="table"){
       const d=await api(`/api/job/${CURJOB}/findings`);
       const f=d.findings||[];

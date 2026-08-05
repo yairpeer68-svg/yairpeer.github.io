@@ -188,3 +188,37 @@ def test_question_answer_and_ai_summary_offline():
     s = ai_summary(rep)                        # no key -> deterministic
     assert s["source"].startswith("deterministic")
     assert s["summary"]
+
+
+# --- OSINT power pack: email pattern, cert pivot, confidence ---------------
+
+def test_emailpattern_infers_and_generates():
+    m = REGISTRY["emailpattern"]
+    page = ('<p>John Smith - john.smith@acme.com</p>'
+            '<p>Jane Doe jane.doe@acme.com</p><p>CEO: Bob Jones</p>')
+    routes = {"acme.com": _Resp(page), "/team": _Resp(page)}
+    res = m.run("acme.com", _ctx(_Sess(routes)))
+    assert res.data["inferred_pattern"] == "first.last"
+    assert res.data["email_count"] >= 2
+    # an exec whose address was never published gets a generated candidate
+    assert "bob.jones@acme.com" in res.data.get("generated_candidates", [])
+
+
+def test_certpivot_handshake_failure_is_graceful():
+    m = REGISTRY["certpivot"]
+    res = m.run("no-such-host-xyz.invalid", _ctx(_Sess({})))
+    # a failed TLS handshake must not raise — it returns an error Result
+    assert res.status in ("error", "ok")
+
+
+def test_annotate_confidence_by_corroboration():
+    from ghost_eye.intelligence import annotate_confidence
+    kg = {"entities": [
+        {"id": "a", "kind": "ip", "sources": ["dns", "cert", "whois"]},
+        {"id": "b", "kind": "subdomain", "sources": ["subs"]},
+        {"id": "c", "kind": "domain", "sources": ["related", "cert"]}],
+        "relationships": []}
+    summary = annotate_confidence(kg)
+    assert summary["by_confidence"] == {"high": 1, "medium": 1, "low": 1}
+    by = {e["id"]: e["attrs"]["source_confidence"] for e in kg["entities"]}
+    assert by == {"a": "high", "b": "low", "c": "medium"}

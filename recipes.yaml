@@ -21,7 +21,7 @@ exposure: [vcs, backups, buckets, dirlisting, admin, dashboards, exposeddb, rdpv
 osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, related,
         subs, pdnsotx, pdnsht, pdnsanubis, pdnstm, rapiddns, riddler, waybackcdx,
         commoncrawl, urlscanio, bucketscan, faviconhash, socialrecon, ghleak,
-        hibpbreach, sectxt, robotsmap]
+        hibpbreach, sectxt, robotsmap, certpivot, emailpattern]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 

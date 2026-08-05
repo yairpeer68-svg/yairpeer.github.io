@@ -62,6 +62,7 @@ from . import (  # noqa: F401
     mobile,
     osint_sources,
     newscan_wave,
+    osint_power,
 )
 
 __all__ = [
@@ -77,5 +78,5 @@ __all__ = [
     "iot", "web_v3", "crypto", "osint_v3", "cloud_v3", "network_v3",
     "exploit_intel", "screenshot",
     "web_v4", "dns_v4", "email_v3", "tls_v3", "network_v4", "ai_v2", "mobile",
-    "osint_sources", "newscan_wave",
+    "osint_sources", "newscan_wave", "osint_power",
 ]

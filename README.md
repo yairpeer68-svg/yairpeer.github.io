@@ -11,12 +11,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **330 modules** across 19 categories
+- **332 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **479 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **484 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -255,6 +255,16 @@ decays with distance from the seed.
 ```bash
 python3 ghost_eye.py -t example.com --osint-deep 2 -o osint.json
 ```
+
+Two power modules feed the pivot: **`emailpattern`** harvests a company's public
+e-mails, infers its address format (`first.last` / `flast` / …) and **generates
+the most likely addresses** for people it finds on the site (even execs whose
+address was never published); **`certpivot`** reads the TLS certificate and turns
+every `subjectAltName` into a **sibling domain on the same cert** — a strong
+infrastructure link with no third-party service. Every graph entity is scored by
+**source corroboration** (`annotate_confidence`): confirmed by ≥3 independent
+modules → high, 2 → medium, 1 → low, so the OSINT picture is ranked, not a flat
+pile of hits.
 
 ### Graph-first dashboard & platform tooling
 
@@ -673,7 +683,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 330 modules
+- **All-module smoke test** — runs `run()` for every one of the 332 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions.
@@ -690,7 +700,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**479 tests** pass in ~11s. A single **verification gate** runs the whole thing:
+**484 tests** pass in ~11s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

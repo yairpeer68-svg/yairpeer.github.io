@@ -22,7 +22,8 @@ from ..core import REGISTRY, Result
 # Only ids that actually exist in the registry are used.
 PIVOT_MODULES: Dict[str, List[str]] = {
     "domain": ["whois", "dns", "subs", "emails", "related", "whoispivot",
-               "username", "dorks", "emailauth", "waybackcdx", "faviconhash"],
+               "username", "dorks", "emailauth", "waybackcdx", "faviconhash",
+               "certpivot", "emailpattern"],
     "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm"],
     "username": ["username"],
     "ip": ["geoip", "internetdb", "reputation", "rdap"],
@@ -31,6 +32,25 @@ PIVOT_MODULES: Dict[str, List[str]] = {
 _HOP_CONFIDENCE = ["high", "medium", "low", "low"]
 
 RunFn = Callable[[str, List[str], Any], List[Result]]
+
+
+def annotate_confidence(kg: Dict[str, Any]) -> Dict[str, Any]:
+    """Score every entity by **source corroboration**: an entity confirmed by
+    several independent modules/sources is more trustworthy than one seen once.
+    Writes ``corroboration`` (count) and ``source_confidence`` into each node's
+    attrs and returns a summary. This is what makes the OSINT picture defensible
+    rather than a pile of unranked hits."""
+    bands = {"high": 0, "medium": 0, "low": 0}
+    for e in kg.get("entities", []):
+        n = len(e.get("sources", []) or [])
+        conf = "high" if n >= 3 else "medium" if n == 2 else "low"
+        attrs = e.setdefault("attrs", {})
+        attrs["corroboration"] = n
+        attrs["source_confidence"] = conf
+        bands[conf] += 1
+    return {"by_confidence": bands,
+            "note": "entity confidence from independent-source corroboration "
+                    "(>=3 sources = high, 2 = medium, 1 = low)."}
 
 
 def _default_run_fn(target: str, module_ids: List[str], cfg: Any) -> List[Result]:
@@ -135,6 +155,7 @@ def deep_dive(seed: str, run_fn: Optional[RunFn] = None, cfg: Any = None,
     from .correlation import correlate
     intel = correlate(all_results, seed)
     kg = knowledge_graph(all_results, seed, intel)
+    confidence = annotate_confidence(kg)   # source-corroboration scoring
     return {
         "seed": seed,
         "depth": depth,
@@ -142,6 +163,7 @@ def deep_dive(seed: str, run_fn: Optional[RunFn] = None, cfg: Any = None,
         "hops": hops,
         "provenance": provenance,
         "knowledge_graph": kg,
+        "confidence": confidence,
         "counts": kg.get("counts", {}),
         "note": "automated multi-hop OSINT: each entity discovered by one hop is "
                 "pivoted on in the next. Confidence decays with distance from the "

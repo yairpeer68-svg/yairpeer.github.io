@@ -112,7 +112,7 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
               "subs", "pdnsotx", "pdnsht", "pdnsanubis", "pdnstm", "rapiddns",
               "riddler", "waybackcdx", "commoncrawl", "urlscanio", "bucketscan",
               "faviconhash", "socialrecon", "ghleak", "hibpbreach", "sectxt",
-              "robotsmap"],
+              "robotsmap", "certpivot", "emailpattern"],
     "passive": ["internetdb", "geoip", "proxytype", "torexit", "threatfeed",
                 "reputation", "urlscan", "breachcheck", "waybackadv", "pastebin"],
     "perimeter": ["dns", "subs", "nmap", "headers", "cert", "tlsgrade", "waf",
@@ -520,6 +520,9 @@ def intelligence_report(results, target: str = "",
     #  - external supply-chain dependencies (feature 24)
     enrich_tech_cve(kg, results)
     supply = supply_chain(kg, results, intel["target"])
+    # source-corroboration confidence per entity (advanced OSINT trust scoring)
+    from .intelligence import annotate_confidence
+    annotate_confidence(kg)
     # per-entity risk heat-map (feature 17) — writes risk/band into node attrs
     heat = risk_heatmap(kg)
     # scored attack paths from exposure/leak/CVE to the target (feature 18)
