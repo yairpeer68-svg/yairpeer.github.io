@@ -1007,8 +1007,12 @@ async function runTool(tool){
            :`<div class="trow">No screenshots — a headless Chromium is required (Termux: <code>pkg install chromium</code>).</div>`));
     } else if(tool==="exploits"){
       const d=await api(`/api/job/${CURJOB}/exploits?max=25`);
-      const rows=(d.findings||[]).map(f=>`<div class="trow"><span class="rpill ${(f.severity||'').toUpperCase()}">${esc(f.severity||'?')}</span> <b>${esc(f.cve)}</b> — ${f.exploit_available?`<span style="color:var(--red)">PUBLIC EXPLOIT</span>`:esc(f.verdict||'no public exploit')}</div>`).join("");
-      tout(`<div class="tout-head">🧨 exploit intel — ${d.cves_found||0} CVEs · ${d.exploitable_count||0} with public exploit</div>${rows||'<div class="trow">No CVEs surfaced by this scan.</div>'}`);
+      const rows=(d.findings||[]).map(f=>{
+        const kev=f.known_exploited?`<span style="color:#fff;background:var(--red);border-radius:5px;padding:1px 5px;font-size:9.5px">CISA KEV${f.kev_ransomware?" · RANSOMWARE":""}</span> `:"";
+        const ep=(f.epss!=null)?`<span class="rel">EPSS ${(f.epss*100).toFixed(1)}%</span> `:"";
+        const st=f.known_exploited?`<span style="color:var(--red)">ACTIVELY EXPLOITED</span>`:f.exploit_available?`<span style="color:var(--red)">PUBLIC EXPLOIT</span>`:esc(f.verdict||'no public exploit');
+        return `<div class="trow"><span class="rpill ${(f.severity||'').toUpperCase()}">${esc(f.severity||'?')}</span> <b>${esc(f.cve)}</b> ${kev}${ep}— ${st}</div>`;}).join("");
+      tout(`<div class="tout-head">🧨 exploit intel — ${d.cves_found||0} CVEs · ${d.kev_count||0} actively exploited · ${d.exploitable_count||0} with public exploit</div>${rows||'<div class="trow">No CVEs surfaced by this scan.</div>'}`);
     } else if(tool==="risk"){
       const d=await api(`/api/job/${CURJOB}/risk`);
       const rows=(d.prioritised||[]).slice(0,30).map(r=>`<div class="trow"><span class="rpill ${(r.severity||'').toUpperCase()}">${esc(r.severity||'?')}</span> <b>${esc(r.module)}</b> · ${esc(r.field||'')} <span class="rel">score ${esc(String(r.risk_score))}</span><br><span class="rel">${esc(String(r.detail||'').slice(0,90))}</span></div>`).join("");

@@ -11,12 +11,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **324 modules** across 19 categories
+- **327 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **443 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **455 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -300,11 +300,14 @@ Sources (all free, **no API key**):
 | **Metasploit / Rapid7** | Metasploit-module presence (via CIRCL) |
 | **CIRCL** | aggregated exploit-db / metasploit references |
 | **PacketStorm** | published exploit files mentioning the CVE |
+| **CISA KEV** | is the CVE *actively exploited in the wild*? (+ ransomware flag) |
+| **FIRST.org EPSS** | probability & percentile of exploitation in the next 30 days |
 | **OpenCVE / MITRE** | link-outs for manual review |
 
-Each CVE gets a verdict — `EXPLOIT PUBLIC`, `advisory only`, or
-`no public exploit found` — and a `weaponised` flag when a Metasploit module or
-Exploit-DB PoC exists.
+Each CVE gets a verdict — `ACTIVELY EXPLOITED (CISA KEV)` → `EXPLOIT PUBLIC` →
+`advisory only` → `no public exploit found` — plus a `weaponised` flag (Metasploit
+module or Exploit-DB PoC), an `epss` score and a `known_exploited` flag. Findings
+are ranked KEV-first, then public exploit, then EPSS, then CVSS.
 
 ```bash
 python3 ghost_eye.py -t example.com --all --exploit-intel
@@ -525,9 +528,18 @@ per-scan **knowledge-graph churn** — exactly which subdomains, IPs, technologi
 or leaks **appeared or disappeared** between scans. Re-correlated per scan,
 rule-based, offline.
 
-REST endpoints per job: `/api/job/<id>/{score,compliance,exploits,risk,intel,inventory,rollup,report,diff}`
-plus **POST** `/api/job/<id>/screenshots` (visual-recon sweep) and
-`/api/trend?target=<t>` (intelligence trend over saved history).
+REST endpoints per job: `/api/job/<id>/{score,compliance,exploits,risk,intel,inventory,rollup,report,diff,search,ticket}`
+plus **POST** `/api/job/<id>/screenshots` (visual-recon sweep),
+`/api/trend?target=<t>` (intelligence trend), `/api/unified?targets=…` (merged
+multi-target graph) and `/api/scope` (scope-guard editor).
+
+**Compliance frameworks** (`/api/job/<id>/compliance?framework=`): `owasp_top10`,
+`nist_csf`, `iso27001`, `pci_dss`, `soc2`.
+
+**New detection modules** in this line: `jssecrets` (leaked keys in the site's
+JavaScript), `sigscan` (a nuclei-style signature engine — bring your own
+`GHOSTEYE_SIGNATURES` YAML/JSON rules), `iamexpose` (exposed cloud IAM /
+credential files).
 
 ---
 
@@ -615,7 +627,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 324 modules
+- **All-module smoke test** — runs `run()` for every one of the 327 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions.
@@ -632,7 +644,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**443 tests** pass in ~11s. A single **verification gate** runs the whole thing:
+**455 tests** pass in ~11s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

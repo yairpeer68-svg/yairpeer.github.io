@@ -100,7 +100,8 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
               "vaultdetect", "consuldetect", "etcddetect"],
     "exposure": ["vcs", "backups", "buckets", "dirlisting", "admin", "dashboards",
                  "exposeddb", "rdpvnc", "snmp", "exposedfiles", "adminfinder",
-                 "dockerapi", "k8sadv", "ldap", "smb", "ftpanon"],
+                 "dockerapi", "k8sadv", "ldap", "smb", "ftpanon",
+                 "jssecrets", "sigscan", "iamexpose"],
     "osint": ["emails", "emailauth", "username", "dorks", "github",
               "whoispivot", "analytics", "related", "breachcheck", "social",
               "waybackadv", "pastebin", "gdork", "techstack", "threatfeed",
@@ -910,6 +911,33 @@ _COMPLIANCE_MAP = {
         "A09 Logging & Monitoring": ["securitytxt", "ratelimit", "waf"],
         "A10 SSRF": ["metassrf", "hostheader", "cachpoison"],
     },
+    "pci_dss": {
+        "Req 1 Network Security": ["nmap", "portscan", "waf", "origin", "cdn"],
+        "Req 2 Secure Config": ["headers", "cspgrade", "dirlisting", "backups",
+                                 "sigscan", "phpinfo"],
+        "Req 3 Protect Stored Data": ["s3enum", "buckets", "bucketscan",
+                                       "tfstate", "iamexpose"],
+        "Req 4 Encrypt Transmission": ["cert", "tlsgrade", "ciphers", "weakdh",
+                                        "starttls", "mixedcontent"],
+        "Req 6 Secure Systems": ["tech", "cve", "wpscan", "cmsdetect",
+                                  "depconfuse", "sigscan"],
+        "Req 8 Access Control": ["loginsurface", "jwtaudit", "admin",
+                                  "adminfinder", "defaultcreds"],
+        "Req 10 Monitor Access": ["securitytxt", "ratelimit", "waf"],
+    },
+    "soc2": {
+        "CC6.1 Logical Access": ["loginsurface", "jwtaudit", "admin",
+                                  "adminfinder", "cors", "iamexpose"],
+        "CC6.6 Boundary Protection": ["nmap", "portscan", "waf", "origin",
+                                       "smuggle"],
+        "CC6.7 Data in Transit": ["cert", "tlsgrade", "ciphers", "weakdh",
+                                   "mixedcontent"],
+        "CC7.1 Vuln Detection": ["tech", "cve", "wpscan", "sigscan",
+                                  "jssecrets", "depconfuse"],
+        "CC7.2 Anomaly Monitoring": ["securitytxt", "ratelimit", "waf"],
+        "C1.1 Confidentiality": ["s3enum", "buckets", "bucketscan", "backups",
+                                  "iamexpose", "jssecrets"],
+    },
 }
 
 
@@ -1215,17 +1243,24 @@ def exploit_intel(results, session=None, timeout: int = 20,
                                   throttle=0.4 if i else 0.0))
     exploitable = [f for f in findings if f["exploit_available"]]
     weaponised = [f for f in findings if f["weaponised"]]
-    findings.sort(key=lambda f: (f["exploit_available"], f["weaponised"],
-                                 f["cvss"] or 0), reverse=True)
+    kev = [f for f in findings if f.get("known_exploited")]
+    # rank: actively-exploited (KEV) first, then public exploit, then EPSS, CVSS
+    findings.sort(key=lambda f: (f.get("known_exploited", False),
+                                 f["exploit_available"], f["weaponised"],
+                                 f.get("epss") or 0, f["cvss"] or 0), reverse=True)
     return {
         "cves_found": len(cves),
         "exploitable_count": len(exploitable),
         "weaponised_count": len(weaponised),
+        "kev_count": len(kev),
+        "kev": [f["cve"] for f in kev],
         "exploitable": [f["cve"] for f in exploitable],
-        "verdict": ("PUBLIC EXPLOITS AVAILABLE" if exploitable
+        "verdict": ("ACTIVELY EXPLOITED CVEs PRESENT (CISA KEV)" if kev
+                    else "PUBLIC EXPLOITS AVAILABLE" if exploitable
                     else "no public exploits found for detected CVEs"),
         "findings": findings,
-        "note": "sourced from Exploit-DB, Metasploit, NVD, GitHub, PacketStorm & "
-                "CIRCL. 'weaponised' = a Metasploit module or Exploit-DB PoC "
-                "exists. Verify against the exact version before acting.",
+        "note": "sourced from Exploit-DB, Metasploit, NVD, GitHub, PacketStorm, "
+                "CIRCL, plus CISA KEV (actively exploited) and FIRST.org EPSS "
+                "(exploitation probability). 'weaponised' = a Metasploit module "
+                "or Exploit-DB PoC exists. Verify the exact version before acting.",
     }
