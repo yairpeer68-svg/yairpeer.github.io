@@ -936,3 +936,32 @@ def test_wave34_spfvendors_wildcard_asninfo_htdns():
     assert ai["asn"] == 64500 and "abuse@acme.com" in ai["abuse_contacts"] and ai["rir"] == "ARIN"
     hd = REGISTRY["htdns"].run("acme.com", _ctx(router)).data
     assert "A" in hd["record_types"] and "MX" in hd["record_types"] and hd["count"] == 3
+
+
+def test_wave35_dkim_soa_sslbl_ghactivity():
+    def router(url):
+        if "default._domainkey" in url:
+            return _Resp(j={"Answer": [{"data":
+                "v=DKIM1; k=rsa; p=" + "A" * 220}]})
+        if "_domainkey" in url:
+            return _Resp(j={})
+        if "type=SOA" in url:
+            return _Resp(j={"Answer": [{"type": 6,
+                "data": "ns1.acme.com. hostmaster.acme.com. 2024010101 7200 3600 1209600 3600"}]})
+        if "sslipblacklist.json" in url:
+            return _Resp(j=[{"ip_address": "6.6.6.6", "dstport": 443,
+                             "listing_reason": "Dridex C2", "listingdate": "2024-01-01"}])
+        if "api.github.com/users/alice/events" in url:
+            return _Resp(j=[{"type": "PushEvent", "repo": {"name": "acme/app"},
+                             "created_at": "2024-01-01T09:00:00Z"},
+                            {"type": "PushEvent", "repo": {"name": "acme/app"},
+                             "created_at": "2024-01-01T09:30:00Z"}])
+        return _Resp(j={})
+    dk = REGISTRY["dkimscan"].run("acme.com", _ctx(router)).data
+    assert dk["count"] == 1 and dk["selectors_found"][0]["selector"] == "default"
+    so = REGISTRY["soaintel"].run("acme.com", _ctx(router)).data
+    assert so["primary_ns"] == "ns1.acme.com" and so["admin_email"] == "hostmaster@acme.com"
+    sb = REGISTRY["sslbl"].run("6.6.6.6", _ctx(router)).data
+    assert sb["listed"] is True and sb["severity"] == "critical" and sb["port"] == 443
+    ga = REGISTRY["githubactivity"].run("alice", _ctx(router)).data
+    assert ga["events"] == 2 and "acme/app" in ga["active_repos"] and 9 in ga["peak_hours_utc"]

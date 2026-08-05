@@ -3710,3 +3710,157 @@ class HtDns(Module):
                               "record_types": sorted(records.keys()),
                               "count": sum(len(v) for v in records.values()),
                               "source": "hackertarget-dns"})
+
+
+# =========================================================================== #
+#  Wave 35 — DKIM inventory + DNS-admin intel + C2 blocklist + activity profile:
+#    DKIM selector discovery · SOA/admin intel (domain)
+#    abuse.ch SSL/C2 IP blocklist (IP) · GitHub activity timeline (username)
+# =========================================================================== #
+_DKIM_SELECTORS = ["default", "google", "selector1", "selector2", "k1", "k2",
+                   "dkim", "mail", "s1", "s2", "mandrill", "everlytickey1",
+                   "smtp", "mx", "email", "zoho", "protonmail", "fm1"]
+
+
+@register
+class DkimScan(Module):
+    id = "dkimscan"
+    name = "DKIM selector discovery + key inventory via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        found = []
+        for sel in _DKIM_SELECTORS:
+            txts = _doh_txt(ctx, f"{sel}._domainkey.{host}")
+            rec = next((t for t in txts if "p=" in t or "v=DKIM1" in t.upper()), "")
+            if not rec:
+                continue
+            m = re.search(r'p=([A-Za-z0-9+/=]+)', rec)
+            key_len = None
+            if m and m.group(1):
+                # base64 pubkey length -> rough RSA modulus bits
+                key_len = int(len(m.group(1)) * 6 / 8 * 8 / 1.4) // 128 * 128
+            found.append({"selector": sel,
+                          "revoked": bool(m and not m.group(1)),
+                          "approx_bits": key_len})
+        weak = [f["selector"] for f in found
+                if f.get("approx_bits") and f["approx_bits"] < 1024]
+        data = {"selectors_found": found[:20], "count": len(found),
+                "weak_keys": weak, "source": "dkim-scan"}
+        if weak:
+            data["severity"] = "medium"
+            data["note"] = "DKIM key(s) under 1024 bits — weak signing key."
+        return self.ok(host, data)
+
+
+@register
+class SoaIntel(Module):
+    id = "soaintel"
+    name = "SOA record / DNS-admin intelligence via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, f"https://dns.google/resolve?name={host}&type=SOA")) or {}
+        soa = ""
+        for ans in d.get("Answer") or []:
+            if isinstance(ans, dict) and ans.get("type") == 6 and ans.get("data"):
+                soa = ans["data"]
+                break
+        if not soa:
+            return self.ok(host, {"note": "no SOA record", "source": "soa-intel"})
+        parts = soa.split()
+        mname = parts[0].rstrip(".") if parts else ""
+        rname = parts[1].rstrip(".") if len(parts) > 1 else ""
+        admin_email = ""
+        if rname:
+            i = rname.find(".")
+            admin_email = (rname[:i] + "@" + rname[i+1:]) if i > 0 else rname
+        return self.ok(host, {"primary_ns": mname, "admin_email": admin_email,
+                              "serial": parts[2] if len(parts) > 2 else None,
+                              "refresh": parts[3] if len(parts) > 3 else None,
+                              "note": "SOA RNAME often exposes the DNS administrator "
+                                      "contact address.",
+                              "source": "soa-intel"})
+
+
+@register
+class SslblIp(Module):
+    id = "sslbl"
+    name = "abuse.ch SSL/C2 IP blocklist membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "sslbl expects an IP"})
+        arr = _json(_get(ctx, "https://sslbl.abuse.ch/blacklist/"
+                         "sslipblacklist.json")) or []
+        hit = None
+        for row in arr if isinstance(arr, list) else []:
+            if isinstance(row, dict) and row.get("ip_address") == ip:
+                hit = row
+                break
+        data = {"listed": hit is not None, "source": "abuse.ch-sslbl"}
+        if hit:
+            data.update({"port": hit.get("dstport"),
+                         "listing_reason": hit.get("listing_reason"),
+                         "listing_date": hit.get("listingdate"),
+                         "severity": "critical",
+                         "note": "IP on abuse.ch SSL/C2 blocklist — malware C2 indicator."})
+        return self.ok(ip, data)
+
+
+@register
+class GithubActivity(Module):
+    id = "githubactivity"
+    name = "GitHub public activity timeline (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubactivity expects a bare handle"})
+        arr = _json(_get(ctx, f"https://api.github.com/users/{user}/events/public"
+                         "?per_page=100",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": "GhostEye-OSINT/1.0"})) or []
+        repos: Dict[str, int] = {}
+        etypes: Dict[str, int] = {}
+        hours: Dict[int, int] = {}
+        latest = ""
+        for ev in arr if isinstance(arr, list) else []:
+            if not isinstance(ev, dict):
+                continue
+            r = (ev.get("repo") or {}).get("name")
+            if r:
+                repos[r] = repos.get(r, 0) + 1
+            t = ev.get("type")
+            if t:
+                etypes[t] = etypes.get(t, 0) + 1
+            ts = ev.get("created_at") or ""
+            latest = latest or ts
+            m = re.match(r".*T(\d{2}):", ts)
+            if m:
+                h = int(m.group(1))
+                hours[h] = hours.get(h, 0) + 1
+        peak = sorted(hours.items(), key=lambda kv: kv[1], reverse=True)[:3]
+        return self.ok(user, {"events": len(arr) if isinstance(arr, list) else 0,
+                              "active_repos": sorted(repos, key=repos.get, reverse=True)[:15],
+                              "event_types": etypes,
+                              "peak_hours_utc": [h for h, _ in peak],
+                              "latest_activity": latest,
+                              "note": "active repos + peak UTC hours can indicate "
+                                      "role and working timezone.",
+                              "source": "github-activity"})

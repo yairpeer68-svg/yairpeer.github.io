@@ -38,7 +38,7 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         sucuri, xposeddomain, crtshorg, tranco, otxmalware, otxurls,
         digitalside, dnsseccaa, dnslytics, lookalike,
         spfdmarc, certissuers, mxintel, nsintel, txtsaas,
-        spfvendors, wildcarddns, htdns]
+        spfvendors, wildcarddns, htdns, dkimscan, soaintel]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 
