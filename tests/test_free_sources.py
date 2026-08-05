@@ -347,3 +347,21 @@ def test_blocklistde_and_leakcheck():
     # wrong target kinds handled gracefully
     assert "note" in REGISTRY["blocklistde"].run("acme.com", _ctx(router)).data
     assert "note" in REGISTRY["leakcheck"].run("notanemail", _ctx(router)).data
+
+
+def test_otxpulse_and_ipinfo():
+    def router(url):
+        if "otx" in url:
+            return _Resp(j={"pulse_info": {"count": 2, "pulses": [
+                {"name": "Emotet campaign", "created": "2024-01-01T00:00:00",
+                 "tags": ["emotet"]}]}})
+        if "ipinfo.io" in url:
+            return _Resp(j={"hostname": "host.acme.com", "country": "US",
+                            "org": "AS64500 ACME"})
+        return _Resp(j={})
+    o = REGISTRY["otxpulse"].run("acme.com", _ctx(router)).data
+    assert o["threat_pulses"] == 2 and o["flagged"] is True
+    assert o["pulses"][0]["name"] == "Emotet campaign"
+    i = REGISTRY["ipinfo"].run("1.2.3.4", _ctx(router)).data
+    assert i["org"] == "AS64500 ACME" and i["country"] == "US"
+    assert "note" in REGISTRY["ipinfo"].run("acme.com", _ctx(router)).data

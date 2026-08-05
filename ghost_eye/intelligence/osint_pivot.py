@@ -28,12 +28,12 @@ PIVOT_MODULES: Dict[str, List[str]] = {
                "certspotter", "bufferover", "hackertarget", "subdomaincenter",
                "otxrep", "hudsonrock", "grepapp", "searchcode", "urlhaus",
                "spamhausdbl", "psbdmp", "keybase", "certdetails", "sitedossier",
-               "favicmmh3", "anubisjldc", "waybackparams", "wikidata", "commoncrawlmine", "phoneharvest", "extdomains"],
+               "favicmmh3", "anubisjldc", "waybackparams", "wikidata", "commoncrawlmine", "phoneharvest", "extdomains", "otxpulse"],
     "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm", "emailrep", "leakcheck"],
     "username": ["username"],
     "ip": ["geoip", "internetdb", "reputation", "rdap",
            "robtex", "bgpview", "ipapi", "cymruasn",
-           "reverseip", "otxip", "iptoasn", "feodo", "peeringdb", "ipwhois", "dnsbl", "stopforumspam", "ipapinet", "blocklistde"],
+           "reverseip", "otxip", "iptoasn", "feodo", "peeringdb", "ipwhois", "dnsbl", "stopforumspam", "ipapinet", "blocklistde", "ipinfo"],
 }
 # confidence decays with each hop away from the seed
 _HOP_CONFIDENCE = ["high", "medium", "low", "low"]

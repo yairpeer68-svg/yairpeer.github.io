@@ -1387,3 +1387,56 @@ class LeakCheck(Module):
             data["note"] = (f"e-mail found in {found} public breach(es) — "
                             "credentials may be compromised.")
         return self.ok(email, data)
+
+
+# =========================================================================== #
+#  Wave 13 — OTX threat pulses (domain) + ipinfo.io org (IP corroboration)
+# =========================================================================== #
+@register
+class OtxPulse(Module):
+    id = "otxpulse"
+    name = "AlienVault OTX threat pulses (domain)"
+    category = "Threat Intel"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://otx.alienvault.com/api/v1/indicators/domain/"
+                            f"{host}/general")) or {}
+        pinfo = d.get("pulse_info", {}) or {}
+        pulses = []
+        for p in (pinfo.get("pulses", []) or [])[:15]:
+            if isinstance(p, dict) and p.get("name"):
+                pulses.append({"name": p.get("name")[:100],
+                               "created": (p.get("created") or "")[:10],
+                               "tags": (p.get("tags") or [])[:6]})
+        count = int(pinfo.get("count", 0) or 0)
+        data: Dict[str, Any] = {"threat_pulses": count, "pulses": pulses,
+                                "flagged": count > 0, "source": "alienvault-otx"}
+        if count:
+            data["severity"] = "medium"
+            data["note"] = (f"domain referenced in {count} OTX threat pulse(s) — "
+                            "review the associated campaigns.")
+        return self.ok(host, data)
+
+
+@register
+class IpInfo(Module):
+    id = "ipinfo"
+    name = "ipinfo.io org / geo (IP, keyless basic)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "ipinfo expects an IP"})
+        d = _json(_get(ctx, f"https://ipinfo.io/{ip}/json")) or {}
+        if d.get("error") or not d:
+            return self.ok(ip, {"note": "no data", "source": "ipinfo.io"})
+        return self.ok(ip, {"hostname": d.get("hostname"), "city": d.get("city"),
+                            "region": d.get("region"), "country": d.get("country"),
+                            "org": d.get("org"), "source": "ipinfo.io"})
