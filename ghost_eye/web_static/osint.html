@@ -102,6 +102,11 @@ a{color:var(--cyan);text-decoration:none}
 .cbtn{background:var(--panel);border:1px solid var(--line2);color:var(--muted);border-radius:20px;padding:8px 12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase}
 .cbtn:hover{border-color:var(--cyan);color:var(--cyan)}
 .cbtn.on{border-color:var(--cyan);color:var(--cyan);background:rgba(56,225,214,.12)}
+.askans{position:absolute;left:14px;top:58px;max-width:min(440px,82vw);background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:11px 14px;z-index:7;box-shadow:0 16px 40px -16px rgba(0,0,0,.8)}
+.askans .aq{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan);margin-bottom:5px}
+.askans .aa{font-size:13px;color:var(--ink);line-height:1.5}
+.askans .ax{position:absolute;right:9px;top:7px;cursor:pointer;color:var(--muted);font-size:13px}
+.askans .achips{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
 .node-label{font-family:var(--mono);font-size:9px;fill:#aeb9cc;pointer-events:none;paint-order:stroke;stroke:#06080d;stroke-width:3px;stroke-linejoin:round}
 .nodeg.match circle.core{stroke:#38e1d6;stroke-width:2.5}
 .edge{stroke:#3a4860;stroke-opacity:.5}
@@ -169,6 +174,19 @@ a{color:var(--cyan);text-decoration:none}
 .keyrow .save{background:linear-gradient(180deg,var(--cyan),#1fbfb4);color:#052723;font-weight:700;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:0 15px;border-radius:10px}
 .keyrow .save:disabled{opacity:.5;cursor:default}
 .keyrow .ok{color:var(--green);font-size:11px;font-family:var(--mono);margin-top:6px}
+/* portfolio */
+.port-tot{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.port-tot .pt{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 13px;text-align:center;flex:1;min-width:78px}
+.port-tot .pt b{display:block;font-size:18px;font-family:var(--mono)}
+.port-tot .pt span{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+.prow{display:flex;align-items:center;gap:11px;padding:11px 10px;border-top:1px solid var(--line);cursor:pointer;border-radius:8px}
+.prow:hover{background:var(--panel2)}
+.prow .pr-t{flex:1;font-family:var(--mono);font-size:13px;color:var(--ink);word-break:break-all}
+.prow .pr-m{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.rpill{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:20px;min-width:64px;text-align:center}
+.rpill.CRITICAL,.rpill.HIGH{background:rgba(255,91,97,.14);color:var(--red)}
+.rpill.MEDIUM{background:rgba(240,181,69,.14);color:var(--gold)}
+.rpill.LOW,.rpill.INFO{background:rgba(55,211,154,.12);color:var(--green)}
 
 @media (max-width:960px){
   .stage{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
@@ -196,10 +214,20 @@ a{color:var(--cyan);text-decoration:none}
   </div>
   <div class="topright">
     <div class="status"><span class="dot" id="dot"></span><span id="statustxt">idle</span></div>
+    <button class="navlink" id="portbtn">▦ Portfolio</button>
     <button class="navlink" id="keysbtn">🔑 Keys</button>
     <a class="navlink" href="/" id="consolelink">▤ Console</a>
   </div>
 </header>
+
+<div id="portmodal" class="modal hidden">
+  <div class="modal-card" style="width:min(760px,96vw)">
+    <div class="modal-head"><b>▦ Portfolio — all monitored targets</b><button class="x" id="portclose">✕</button></div>
+    <div id="porttotals" class="port-tot"></div>
+    <div id="portlist"></div>
+    <p class="modal-note">Every target you investigate is saved automatically and appears here. Click a row to open it in the graph.</p>
+  </div>
+</div>
 
 <div id="keysmodal" class="modal hidden">
   <div class="modal-card">
@@ -223,10 +251,11 @@ a{color:var(--cyan);text-decoration:none}
   <div class="canvaswrap">
     <svg id="net"><g id="cam"><g id="edges"></g><g id="nodes"></g></g></svg>
     <div class="cbar">
-      <input id="gsearch" placeholder="🔍 search graph…" autocomplete="off" spellcheck="false">
+      <input id="gsearch" placeholder="🔍 search · or ask: subdomains? leaks? tech?" autocomplete="off" spellcheck="false">
       <button class="cbtn" id="cluster" title="cluster nodes by type">◱ Cluster</button>
       <button class="cbtn" id="export" title="export the graph as a PNG image">⤓ PNG</button>
     </div>
+    <div id="askans" class="askans hidden"></div>
     <div class="zoombar">
       <button id="zin" title="zoom in">+</button>
       <button id="zout" title="zoom out">−</button>
@@ -282,7 +311,7 @@ let REP=null;        // last /intel report
 let G={nodes:[],edges:[],byId:{}};
 let hidden=new Set(), selected=null;
 let cam={k:1,x:0,y:0}, W=1000, H=700;
-let clustered=false, searchSet=null;
+let clustered=false, searchSet=null, ACKS=new Set();
 
 /* ---------------- investigate ---------------- */
 async function investigate(){
@@ -313,6 +342,7 @@ async function loadProfile(jid,target){
   let d; try{ d=await api(`/api/job/${jid}/intel`);}catch(e){ fail("Intelligence failed: "+e.message); return; }
   REP=d; buildGraph(d); renderProfile(d); setStatus("done",`${target} · grade ${d.grade}`);
   $("go").disabled=false;
+  try{ const ak=await api(`/api/acks?target=${encodeURIComponent(target)}`); ACKS=new Set(ak.acks||[]); }catch(e){ ACKS=new Set(); }
 }
 function fail(msg){ setStatus("err","error"); $("go").disabled=false;
   $("note").classList.remove("hidden"); $("note").innerHTML=`<h2>Couldn't complete</h2><p>${esc(msg)}</p>`; }
@@ -535,18 +565,27 @@ function renderEntity(id){
     return {id:other,label:o.label,kind:o.kind,rel:dir};
   });
   const attrs=Object.entries(n.attrs||{}).filter(([k,v])=>v!=null&&v!=="");
+  const acked=ACKS.has(n.label);
   $("side").innerHTML=`
     <div class="back" id="back">← back to profile</div>
     <div class="ent-hero">
       <div class="ic" style="background:${m.c}22;border:1px solid ${m.c}">${m.i}</div>
       <div><div class="k">${esc(n.kind.replace("_"," "))}</div><div class="l">${esc(n.label)}</div></div>
     </div>
+    <button class="cbtn" id="ackbtn" style="width:100%;margin:2px 0 4px;justify-content:center">${acked?"🔕 Known — won't re-alert (click to un-mark)":"🔕 Mark as known (mute change-alerts)"}</button>
     ${attrs.length?`<div class="sec"><h4>Attributes</h4>${attrs.map(([k,v])=>`<div class="conn"><span class="rel">${esc(k)}</span><span>${esc(String(v).slice(0,80))}</span></div>`).join("")}</div>`:""}
     ${n.sources&&n.sources.length?`<div class="sec"><h4>Seen by</h4><div class="chips">${chips(n.sources)}</div></div>`:""}
     <div class="sec"><h4>Connections <em>${conns.length}</em></h4>
       ${conns.length?conns.map(c=>`<div class="conn" data-sel="${esc(c.id)}"><span>${km(c.kind).i}</span><span style="flex:1;word-break:break-all">${esc(c.label)}</span><span class="rel">${esc(c.rel)}</span></div>`).join(""):`<div class="chip mut">no connections</div>`}
     </div>`;
   $("back").onclick=()=>{ selected=null; render(); renderProfile(REP); };
+  $("ackbtn").onclick=async()=>{
+    const remove=ACKS.has(n.label);
+    try{ const r=await api("/api/acks",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({target:REP.target,item:n.label,remove})});
+      ACKS=new Set(r.acks||[]); renderEntity(id);
+    }catch(e){}
+  };
   $("side").querySelectorAll("[data-sel]").forEach(el=>el.addEventListener("click",()=>{const i=el.dataset.sel;selectNode(i);fitNode(i);}));
 }
 
@@ -556,8 +595,63 @@ $("gsearch").addEventListener("input",e=>{
   searchSet=q?new Set(G.nodes.filter(n=>String(n.label).toLowerCase().includes(q)||n.kind.includes(q)).map(n=>n.id)):null;
   render();
 });
-$("gsearch").addEventListener("keydown",e=>{ if(e.key==="Enter"&&searchSet&&searchSet.size){
-  const id=[...searchSet][0]; selectNode(id); fitNode(id); } });
+$("gsearch").addEventListener("keydown",e=>{ if(e.key==="Enter"){ askGraph(e.target.value.trim()); } });
+
+/* natural-language Q&A over the loaded intel + knowledge graph (rule-based) */
+function askGraph(q){
+  if(!q||!REP){ return; }
+  const ql=q.toLowerCase();
+  const intel=REP.intelligence||{}, kg=REP.knowledge_graph||{}, org=REP.organization||{}, an=REP.analysis||{}, tl=REP.timeline||{};
+  const ents=k=>(kg.entities||[]).filter(e=>e.kind===k);
+  const idsOf=k=>ents(k).map(e=>e.id);
+  const has=(...w)=>w.some(x=>ql.includes(x));
+  let a=null, ids=null, chips=[];
+  if(has("how many subdomain","count subdomain")||(has("subdomain","subs")&&has("how many","count","number"))){
+    a=`${(intel.subdomains||[]).length} subdomains discovered.`; ids=idsOf("subdomain"); chips=intel.subdomains;
+  } else if(has("subdomain","sub-domain","subs","hostname")){
+    const s=intel.subdomains||[]; a=`${s.length} subdomains — highlighted on the graph.`; ids=idsOf("subdomain"); chips=s;
+  } else if(has("ip","address","resolve")){
+    const s=intel.ips||[]; a=`${s.length} IP address(es).`; ids=idsOf("ip"); chips=s;
+  } else if(has("email","mail address","contact")){
+    const s=intel.emails||[]; a=s.length?`${s.length} email(s) found.`:"No emails were surfaced."; ids=idsOf("email"); chips=s;
+  } else if(has("leak","breach","password","credential","pwned","exposed")){
+    const s=intel.leak_indicators||[]; a=s.length?`⚠ ${s.length} leak indicator(s).`:"No leak indicators found."; ids=idsOf("leak"); chips=s;
+  } else if(has("tech","stack","cms","framework","server","built with","running")){
+    let t=[]; Object.values(intel.technologies||{}).forEach(x=>t=t.concat(x)); a=`Stack: ${t.join(", ")||"not fingerprinted"}.`; ids=idsOf("tech"); chips=t;
+  } else if(has("cloud","hosted","hosting","aws","azure","gcp")){
+    const s=(intel.cloud||[]).filter(x=>!/unknown/i.test(x)); a=s.length?`Hosted on: ${s.join(", ")}.`:"Cloud not identified."; ids=idsOf("cloud"); chips=s;
+  } else if(has("cve","vuln","exploit")){
+    const s=ents("cve").map(e=>e.label); a=s.length?`${s.length} CVE(s): ${s.join(", ")}.`:"No CVEs surfaced by this scan."; ids=idsOf("cve"); chips=s;
+  } else if(has("whois","owner","registr","organi","org","asn","network")){
+    const o=ents("org").map(e=>e.label), asn=ents("asn").map(e=>e.label);
+    a=`Owner: ${o.join(", ")||"unknown"}${asn.length?" · "+asn.join(", "):""}.`; ids=idsOf("org").concat(idsOf("asn")); chips=o.concat(asn);
+  } else if(has("cert","ssl","tls","issuer")){
+    const s=(intel.certificates||{}).issuers||[]; a=s.length?`Certificate issuer(s): ${s.join(", ")}.`:"No certificate data."; ids=idsOf("cert_issuer"); chips=s;
+  } else if(has("email security","spf","dkim","dmarc","spoof")){
+    const em=intel.email_security||{}; a=`Email posture ${em.score}/100 (${em.grade}) — SPF ${em.spf} · DKIM ${em.dkim} · DMARC ${em.dmarc}.`;
+  } else if(has("pivot","connected","central","important node")){
+    const pv=(REP.correlation||{}).pivot_points||[]; a=pv.length?`Top pivot: ${pv[0].entity} (${pv[0].kind}, degree ${pv[0].degree}).`:"No strong pivots."; ids=pv.slice(0,3).map(p=>{const e=(kg.entities||[]).find(x=>x.label===p.entity);return e&&e.id;}).filter(Boolean);
+  } else if(has("timeline","when","history","age","expir")){
+    const ins=(tl.insights||[]).filter(x=>x&&!x.startsWith("no dated")); a=ins.length?ins.join(" · "):"No dated intelligence in this scan.";
+  } else if(has("risk","grade","score","secure","posture","how bad")){
+    a=`${REP.target}: ${REP.risk_level} risk, grade ${REP.grade} (${REP.score}/100).`;
+  } else if(has("summary","overview","tell me","what is","attack surface","expose","brief")){
+    a=an.headline?an.headline+" — "+(an.summary||""):`${REP.target}: ${REP.counts.assets} assets, ${REP.counts.subdomains} subdomains.`;
+  } else {
+    // fall back to plain graph search
+    a=`No direct answer — showing nodes matching "${esc(q)}". Try: subdomains, IPs, emails, leaks, tech, cloud, CVEs, whois, risk, summary.`;
+    ids=(kg.entities||[]).filter(e=>String(e.label).toLowerCase().includes(ql)).map(e=>e.id);
+    chips=[];
+  }
+  searchSet=(ids&&ids.length)?new Set(ids):null; render(); if(searchSet) fitMatches(searchSet);
+  const box=$("askans"); box.classList.remove("hidden");
+  box.innerHTML=`<span class="ax" id="askx">✕</span><div class="aq">🔎 ${esc(q)}</div><div class="aa">${esc(a)}</div>`
+    +((chips&&chips.length)?`<div class="achips">${chips.slice(0,14).map(c=>`<span class="chip">${esc(c)}</span>`).join("")}</div>`:"");
+  $("askx").onclick=()=>{ box.classList.add("hidden"); searchSet=null; render(); };
+}
+function fitMatches(set){ const ns=G.nodes.filter(n=>set.has(n.id)); if(!ns.length)return;
+  const xs=ns.map(n=>n.x),ys=ns.map(n=>n.y); const minx=Math.min(...xs)-60,maxx=Math.max(...xs)+60,miny=Math.min(...ys)-60,maxy=Math.max(...ys)+60;
+  const k=Math.max(0.3,Math.min(2.2,Math.min(W/(maxx-minx),H/(maxy-miny)))); cam.k=k; cam.x=W/2-(minx+maxx)/2*k; cam.y=H/2-(miny+maxy)/2*k; applyCam(); }
 
 /* cluster toggle: regroup nodes spatially by entity type */
 $("cluster").addEventListener("click",()=>{
@@ -632,6 +726,31 @@ async function openKeys(){
     inp.addEventListener("keydown",e=>{ if(e.key==="Enter") save(); });
   });
 }
+/* ---------------- portfolio ---------------- */
+async function openPortfolio(){
+  $("portmodal").classList.remove("hidden");
+  $("portlist").innerHTML=`<p class="modal-note">loading…</p>`; $("porttotals").innerHTML="";
+  let d; try{ d=await api("/api/portfolio"); }
+  catch(e){ $("portlist").innerHTML=`<p class="modal-note" style="color:var(--red)">${esc(e.message)}</p>`; return; }
+  const t=d.totals||{};
+  $("porttotals").innerHTML=[["targets",t.targets||0],["at risk",t.at_risk||0],["assets",t.assets||0],["subdomains",t.subdomains||0],["leaks",t.leaks||0]]
+    .map(([l,v])=>`<div class="pt"><b${l==="leaks"&&v?' style="color:var(--red)"':""}>${v}</b><span>${l}</span></div>`).join("");
+  const rows=(d.targets||[]);
+  if(!rows.length){ $("portlist").innerHTML=`<p class="modal-note">No saved targets yet — investigate a target and it'll appear here.</p>`; return; }
+  $("portlist").innerHTML=rows.map(r=>{ const rl=r.risk_level||"LOW";
+    return `<div class="prow" data-t="${esc(r.target)}">
+      <span class="rpill ${esc(rl)}">${esc(rl)}</span>
+      <span class="pr-t">${esc(r.target)}</span>
+      <span class="pr-m">${r.subdomains} subs · ${r.ips} IP · ${r.assets} assets${r.leaks?` · <span style="color:var(--red)">${r.leaks} leaks</span>`:""}</span>
+    </div>`;}).join("");
+  $("portlist").querySelectorAll(".prow").forEach(row=>row.addEventListener("click",()=>{
+    $("portmodal").classList.add("hidden"); $("target").value=row.dataset.t; investigate();
+  }));
+}
+$("portbtn").addEventListener("click",openPortfolio);
+$("portclose").addEventListener("click",()=>$("portmodal").classList.add("hidden"));
+$("portmodal").addEventListener("click",e=>{ if(e.target===$("portmodal")) $("portmodal").classList.add("hidden"); });
+
 $("keysbtn").addEventListener("click",openKeys);
 $("keysclose").addEventListener("click",()=>$("keysmodal").classList.add("hidden"));
 $("keysmodal").addEventListener("click",e=>{ if(e.target===$("keysmodal")) $("keysmodal").classList.add("hidden"); });

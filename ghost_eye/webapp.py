@@ -195,6 +195,7 @@ class JobManager:
             # and fire an alert when new exposure appeared (new subdomain / IP /
             # port / CVE / leak). Turns periodic re-scans into a change monitor.
             self._maybe_alert(job, store)
+            self._maybe_report(job)
             risk = job.get("risk") or {}
             store.save_scan(job["id"], job["target"], job["_results_obj"],
                             risk.get("risk_level", ""), int(risk.get("risk_score", 0)))
@@ -218,11 +219,34 @@ class JobManager:
                                 for x in prev[-1]["results"]]
             diff = workflow.surface_diff(prev_results, job["_results_obj"],
                                          job["target"])
+            # triage: drop acknowledged ("known") items so they don't re-alert
+            from . import triage
+            for k in list(diff):
+                if k.startswith("new_") and isinstance(diff[k], list):
+                    diff[k] = triage.filter_new(job["target"], diff[k])
+            diff["total_new"] = sum(len(v) for k, v in diff.items()
+                                    if k.startswith("new_"))
+            diff["changed"] = diff["total_new"] > 0
             job["surface_change"] = diff        # surfaced via the job snapshot
             if diff.get("changed") and not diff.get("first_scan"):
                 workflow.notify_change(diff, url)
         except Exception as exc:  # noqa: BLE001
             record_error("surface alert", job.get("target", ""), exc)
+
+    def _maybe_report(self, job: dict) -> None:
+        """Scheduled report delivery: if a report_webhook is set, push a full
+        scan summary (grade + top findings) on every run — periodic reporting."""
+        url = (job.get("options") or {}).get("report_webhook", "").strip()
+        if not url or job.get("status") == "error":
+            return
+        try:
+            exploit = None
+            if job["options"].get("exploit_intel"):
+                exploit = workflow.exploit_intel(job["_results_obj"])
+            workflow.notify(job["_results_obj"], job["target"], url,
+                            exploit=exploit)
+        except Exception as exc:  # noqa: BLE001
+            record_error("scheduled report", job.get("target", ""), exc)
 
     def snapshot(self, jid: str) -> Optional[dict]:
         with self.lock:
@@ -440,6 +464,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"history": self._history()})
         if path == "/api/keys":
             return self._keys_get()
+        if path == "/api/portfolio":
+            return self._portfolio()
+        if path == "/api/acks":
+            from . import triage
+            target = (parse_qs(parsed.query).get("target", [""])[0]).strip()
+            return self._json({"target": target,
+                               "acks": triage.list_acks(target)})
         if path == "/api/trend":
             return self._trend(parsed)
         if path == "/api/compare":
@@ -463,6 +494,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._schedule_create()
         if path == "/api/keys":
             return self._keys_set()
+        if path == "/api/acks":
+            from . import triage
+            p = self._body()
+            target = (p.get("target") or "").strip()
+            item = (p.get("item") or "").strip()
+            if not target or not item:
+                return self._json({"error": "target and item required"}, 400)
+            acks = triage.ack(target, item, add=not p.get("remove"))
+            return self._json({"target": target, "acks": acks,
+                               "acked": item in acks})
         if path.startswith("/api/job/") and path.endswith("/cancel"):
             jid = path.split("/")[3]
             ok = self.server.jobs.cancel(jid)
@@ -743,6 +784,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": f"save failed: {exc}"}, 500)
         return self._json({"ok": True, "name": name, "set": True,
                            "backend": self.server.jobs.cfg.key_backend()})
+
+    def _portfolio(self):
+        """Multi-target ASM overview from the saved-scan history."""
+        try:
+            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            report = workflow.portfolio(store)
+            store.close()
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"portfolio failed: {exc}"}, 500)
+        return self._json(report)
 
     def _trend(self, parsed):
         """Intelligence trend for a target across its saved-scan history:

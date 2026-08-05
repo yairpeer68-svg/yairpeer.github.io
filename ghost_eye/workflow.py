@@ -622,6 +622,53 @@ def intelligence_trend(store, target: str) -> dict:
     }
 
 
+def portfolio(store, max_targets: int = 60) -> dict:
+    """A portfolio / multi-target ASM overview: for every distinct target in the
+    saved-scan history, the latest scan's re-correlated asset counts and risk —
+    one board for all monitored assets. Rule-based, offline."""
+    from .core import Result
+    from .intelligence import correlate
+    from .reporting_ext import score_findings
+
+    rows = store.recent_scans(500)          # newest first
+    latest = {}
+    for s in rows:                          # keep the newest scan per target
+        t = (s.get("target") or "").strip()
+        if t and t not in latest:
+            latest[t] = s
+    items = []
+    for t, s in list(latest.items())[:max_targets]:
+        try:
+            full = store.load_scan(s["id"]) or {}
+            results = [Result(x.get("module", ""), x.get("target", t),
+                              x.get("status", "ok"), x.get("data", {}) or {})
+                       for x in full.get("results", [])]
+            intel = correlate(results, t)
+            scored = score_findings(results)
+            c = intel["counts"]
+            items.append({
+                "target": t, "scan_id": s["id"], "ts": s.get("ts"),
+                "risk_level": scored["risk_level"], "risk_score": scored["risk_score"],
+                "assets": c["assets"], "subdomains": c["subdomains"],
+                "ips": c["ips"], "emails": c["emails"],
+                "technologies": c["technologies"], "leaks": c["leak_indicators"],
+            })
+        except Exception:  # noqa: BLE001 - a broken row must not sink the board
+            continue
+    order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4, "": 5}
+    items.sort(key=lambda x: (order.get(x["risk_level"], 5), -x["assets"]))
+    totals = {
+        "targets": len(items),
+        "assets": sum(i["assets"] for i in items),
+        "subdomains": sum(i["subdomains"] for i in items),
+        "leaks": sum(i["leaks"] for i in items),
+        "at_risk": sum(1 for i in items if i["risk_level"] in ("CRITICAL", "HIGH")),
+    }
+    return {"targets": items, "totals": totals,
+            "note": "latest saved scan per target; dashboard scans auto-save, so "
+                    "the board fills as you investigate more targets."}
+
+
 def module_report() -> dict:
     """A quality / capability report for every registered module: category,
     target kind, declared dependencies (needs), whether it is documented, and

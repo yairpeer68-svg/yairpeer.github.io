@@ -1267,10 +1267,11 @@ async function loadSchedules(){
   const scheds=(d.schedules||[]);
   const rows=scheds.map(s=>{
     const mon=(s.options&&s.options.alert_webhook)?`<span class="chip" style="color:#e9a23b" title="alerts on surface change">🔔 monitored</span>`:"";
+    const rep=(s.options&&s.options.report_webhook)?`<span class="chip" style="color:#6fb3ff" title="sends a report each run">📊 report</span>`:"";
     const runs=s.run_count?` · ${s.run_count} run(s)`:"";
     return `<div class="hist-row">
       <span class="hist-t">${esc(s.target||"?")}</span>
-      <span class="hist-m">every ${s.interval_minutes||60}m${runs} ${mon}</span>
+      <span class="hist-m">every ${s.interval_minutes||60}m${runs} ${mon} ${rep}</span>
       <button class="exp small sched-del" data-sid="${esc(s.id)}">Delete</button>
     </div>`;}).join("");
   renderIntel(`<div class="intel-head">Scheduled scans <em>${scheds.length}</em></div>
@@ -1280,6 +1281,8 @@ async function loadSchedules(){
       <label class="eyebrow" style="margin-top:8px">Interval (minutes)</label><input id="schedInt" type="number" value="60" min="1">
       <label class="eyebrow" style="margin-top:8px">🔔 Change-alert webhook (optional) — Slack / Discord / Telegram</label>
       <input id="schedAlert" placeholder="https://hooks.slack.com/… (alerts only on surface change)">
+      <label class="eyebrow" style="margin-top:8px">📊 Report webhook (optional) — a full summary every run</label>
+      <input id="schedReport" placeholder="https://hooks.slack.com/… (periodic report each scan)">
       <button class="exp" id="schedAdd" style="margin-top:12px">Add schedule ▸</button>
     </div>
     ${rows||'<div class="chip muted">No active schedules.</div>'}`);
@@ -1288,7 +1291,8 @@ async function loadSchedules(){
     if(!target){ return; }
     const interval=parseInt($("schedInt").value)||60;
     const alert=($("schedAlert").value||"").trim();
-    const options=alert?{alert_webhook:alert}:{};
+    const report=($("schedReport")?($("schedReport").value||"").trim():"");
+    const options={}; if(alert) options.alert_webhook=alert; if(report) options.report_webhook=report;
     try{ await api("/api/schedule",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target,interval_minutes:interval,options})}); }
     catch(e){ showBanner("Schedule failed: "+e.message); return; }
     loadSchedules();

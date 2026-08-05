@@ -207,6 +207,104 @@ def test_keys_endpoints_save_and_report(tmp_path, monkeypatch):
     assert Config().api_key("virustotal") == "SECRET123"
 
 
+def test_portfolio_endpoint(tmp_path, monkeypatch):
+    """The portfolio board summarises the latest saved scan per target."""
+    from ghost_eye import reporting
+    monkeypatch.setenv("GHOSTEYE_DB", str(tmp_path / "p.db"))
+    st = reporting.Store(str(tmp_path / "p.db"))
+    st.save_scan("a1", "acme.com",
+                 [Result("Subs", "acme.com", "ok",
+                         {"subdomains": ["a.acme.com", "b.acme.com"]})], "LOW", 5)
+    st.save_scan("b1", "foo.com",
+                 [Result("Subs", "foo.com", "ok",
+                         {"subdomains": ["x.foo.com"]})], "LOW", 5)
+    st.close()
+    httpd = _make_server()
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/portfolio",
+                                    timeout=15) as r:
+            d = json.loads(r.read())
+    finally:
+        httpd.shutdown()
+    targets = {t["target"] for t in d["targets"]}
+    assert {"acme.com", "foo.com"} <= targets
+    assert d["totals"]["targets"] == 2
+
+
+def test_triage_ack_endpoints_and_mute(tmp_path, monkeypatch):
+    """Acknowledged items persist, are filtered from new-exposure lists, and a
+    re-scan that only adds an acked item does not alert."""
+    from ghost_eye import triage, workflow
+    monkeypatch.setenv("GHOSTEYE_ACKS", str(tmp_path / "acks.json"))
+    monkeypatch.setenv("GHOSTEYE_DB", str(tmp_path / "db.sqlite"))
+
+    # endpoints
+    httpd = _make_server()
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/api/acks", method="POST",
+            data=json.dumps({"target": "x.com", "item": "dev.x.com"}).encode())
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=10) as r:
+            assert "dev.x.com" in json.loads(r.read())["acks"]
+        with urllib.request.urlopen(
+                f"http://127.0.0.1:{port}/api/acks?target=x.com", timeout=10) as r:
+            assert json.loads(r.read())["acks"] == ["dev.x.com"]
+    finally:
+        httpd.shutdown()
+    assert triage.filter_new("x.com", ["dev.x.com", "new.x.com"]) == ["new.x.com"]
+
+    # a re-scan adding only the acked subdomain must NOT fire an alert
+    fired = []
+    monkeypatch.setattr(workflow, "notify_change",
+                        lambda diff, url, **k: fired.append(diff) or True)
+    jm = JobManager(Config())
+    store = jm.cfg  # noqa: F841 (ensure attr exists)
+    from ghost_eye import reporting
+    st = reporting.Store(str(tmp_path / "db.sqlite"))
+    st.save_scan("old", "x.com",
+                 [Result("Subs", "x.com", "ok", {"subdomains": ["api.x.com"]})],
+                 "LOW", 5)
+    st.close()
+    job = {"id": "n", "target": "x.com", "status": "done",
+           "_results_obj": [Result("Subs", "x.com", "ok",
+                                   {"subdomains": ["api.x.com", "dev.x.com"]})],
+           "results": [], "risk": {},
+           "options": {"alert_webhook": "https://hooks.slack.com/x"}}
+    jm._persist(job)
+    assert not fired, "acked-only change must not alert"
+    assert job["surface_change"]["changed"] is False
+
+
+def test_scheduled_report_delivery(tmp_path, monkeypatch):
+    """A job with a report_webhook pushes a summary on completion."""
+    from ghost_eye import workflow
+    monkeypatch.setenv("GHOSTEYE_DB", str(tmp_path / "db.sqlite"))
+    sent = []
+    monkeypatch.setattr(workflow, "notify",
+                        lambda results, target, url, **k: sent.append((target, url)) or True)
+    jm = JobManager(Config())
+    job = {"id": "r", "target": "x.com", "status": "done",
+           "_results_obj": [Result("Subs", "x.com", "ok", {"subdomains": ["a.x.com"]})],
+           "results": [], "risk": {},
+           "options": {"report_webhook": "https://hooks.slack.com/rep"}}
+    jm._persist(job)
+    assert sent and sent[0][1].endswith("/rep")
+
+
+def test_new_features_static_wiring():
+    osint = (_INDEX.parent / "osint.html").read_text(encoding="utf-8")
+    for tok in ('id="portbtn"', "function openPortfolio(", "function askGraph(",
+                'id="ackbtn"', "/api/acks", "/api/portfolio"):
+        assert tok in osint, f"osint.html missing {tok}"
+    console = _INDEX.read_text(encoding="utf-8")
+    assert 'id="schedReport"' in console and "report_webhook" in console
+
+
 def test_static_app_has_mobile_drawer():
     """The controls panel is a slide-in drawer on mobile (starts collapsed,
     backdrop scrim, toggle wiring) — the professional-UI redesign."""

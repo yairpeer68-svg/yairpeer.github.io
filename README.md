@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **406 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **411 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -396,10 +396,25 @@ Two dashboards, one server:
   the analyst headline). Cross-linked with the console. The graph supports
   **search/highlight**, **cluster-by-type**, and **PNG export**.
 
-**🔑 API keys in the browser** — a **Keys** panel (in the OSINT bar) lets you paste
+**🔑 API keys in the browser** — a **Keys** panel (in both dashboards) lets you paste
 optional API keys (VirusTotal / AbuseIPDB / DeepSeek) and **save them** straight
 from the dashboard; they persist to the OS keyring or the `0600` config file
 (`GET/POST /api/keys`). Keys are never shown back or returned by the API.
+
+More platform features, all in the browser:
+
+- **📱 Installable PWA** — a web-app manifest + service worker (offline shell) and
+  app icons; "Add to home screen" on Android/Termux for an app-like launch.
+- **▦ Portfolio** — a multi-target board (`/api/portfolio`): the latest scan per
+  target with risk + asset counts, sorted by risk; click a row to open it.
+- **💬 Ask (natural language)** — ask the graph in plain English ("how many
+  subdomains?", "any leaks?", "what tech?", "who owns it?"); a rule-based engine
+  answers from the loaded intel and highlights the matching nodes (no LLM).
+- **📊 Scheduled reports** — give a schedule a *report webhook* and it pushes a
+  full summary every run; give it an *alert webhook* and it pings only on change.
+- **🔕 Triage / acknowledge** — mark a surfaced item (subdomain/IP/CVE/leak) as
+  *known* from the entity panel; acknowledged items are muted from change-alerts
+  (`GET/POST /api/acks`, stored 0600 locally).
 
 A polished single-page console (mobile-first, dark, RTL-aware): configure a scan
 (profile / category / modules / all), watch findings stream in live with a
@@ -559,7 +574,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**406 tests** pass in ~10s. A single **verification gate** runs the whole thing:
+**411 tests** pass in ~12s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
@@ -635,6 +650,7 @@ ghost_eye/
   reporting.py     JSON/CSV/HTML/PDF exporters + SQLite history
   reporting_ext.py Markdown/SARIF/Prometheus/dashboard + executive report
   inventory.py     asset correlation, host rollup, deep-scan asset collection
+  triage.py        acknowledgement store (mute known items from change-alerts)
   intelligence/    the Personal Cyber Intelligence Platform layer:
     correlation.py   assets, tech/cloud classification, email posture, certs
     entities.py      typed Knowledge Graph + smart entity correlation
