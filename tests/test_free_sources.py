@@ -413,3 +413,22 @@ def test_npmsearch_and_dockerhub():
     assert n["npm_packages"][0]["publisher"] == "acmedev"
     dh = REGISTRY["dockerhub"].run("acme.com", _ctx(router)).data
     assert dh["query"] == "acme" and dh["docker_images"][0]["repo"] == "acme/api"
+
+
+def test_package_registries():
+    def router(url):
+        if "crates.io" in url:
+            return _Resp(j={"crates": [{"name": "acme-cli", "description": "Acme CLI",
+                                        "downloads": 1200}]})
+        if "rubygems.org" in url:
+            return _Resp(j=[{"name": "acme_client", "info": "Acme client",
+                             "downloads": 500}])
+        if "packagist.org" in url:
+            return _Resp(j={"results": [{"name": "acme/sdk", "description": "SDK",
+                                         "downloads": 300}]})
+        return _Resp(j={})
+    assert REGISTRY["cratesio"].run("acme.com", _ctx(router)).data["crates"][0]["name"] == "acme-cli"
+    assert REGISTRY["rubygems"].run("acme.com", _ctx(router)).data["gems"][0]["name"] == "acme_client"
+    assert REGISTRY["packagist"].run("acme.com", _ctx(router)).data["packages"][0]["name"] == "acme/sdk"
+    # org label derived from the second-level domain
+    assert REGISTRY["cratesio"].run("acme.com", _ctx(router)).data["query"] == "acme"

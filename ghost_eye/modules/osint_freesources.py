@@ -1579,3 +1579,87 @@ class DockerHub(Module):
                               "official": bool(r.get("is_official"))})
         return self.ok(host, {"query": org, "docker_images": repos[:25],
                               "count": len(repos), "source": "docker-hub"})
+
+
+# =========================================================================== #
+#  Wave 16 — more org package registries (Rust / Ruby / PHP), keyless
+# =========================================================================== #
+def _org_label(host: str) -> str:
+    return host.split(".")[-2] if host.count(".") >= 1 else host
+
+
+@register
+class CratesIo(Module):
+    id = "cratesio"
+    name = "crates.io Rust packages (org, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, f"https://crates.io/api/v1/crates?q={org}&per_page=20",
+                       headers={"User-Agent": "GhostEye-OSINT (ghost-eye)"})) or {}
+        crates = []
+        for c in d.get("crates", []) or []:
+            if c.get("name"):
+                crates.append({"name": c.get("name"),
+                               "description": (c.get("description") or "")[:100],
+                               "downloads": c.get("downloads", 0),
+                               "repository": c.get("repository") or ""})
+        return self.ok(host, {"query": org, "crates": crates[:20],
+                              "count": len(crates), "source": "crates.io"})
+
+
+@register
+class RubyGems(Module):
+    id = "rubygems"
+    name = "RubyGems packages (org, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, f"https://rubygems.org/api/v1/search.json?query={org}"))
+        rows = d if isinstance(d, list) else []
+        gems = []
+        for g in rows:
+            if isinstance(g, dict) and g.get("name"):
+                gems.append({"name": g.get("name"),
+                             "info": (g.get("info") or "")[:100],
+                             "downloads": g.get("downloads", 0),
+                             "homepage": g.get("homepage_uri") or g.get("project_uri") or ""})
+        return self.ok(host, {"query": org, "gems": gems[:20],
+                              "count": len(gems), "source": "rubygems"})
+
+
+@register
+class Packagist(Module):
+    id = "packagist"
+    name = "Packagist PHP packages (org, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, f"https://packagist.org/search.json?q={org}&per_page=20")) or {}
+        pkgs = []
+        for p in d.get("results", []) or []:
+            if p.get("name"):
+                pkgs.append({"name": p.get("name"),
+                             "description": (p.get("description") or "")[:100],
+                             "downloads": p.get("downloads", 0),
+                             "url": p.get("url") or p.get("repository") or ""})
+        return self.ok(host, {"query": org, "packages": pkgs[:20],
+                              "count": len(pkgs), "source": "packagist"})
