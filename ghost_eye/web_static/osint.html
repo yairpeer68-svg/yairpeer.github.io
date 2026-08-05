@@ -18,7 +18,15 @@
   --cyan:#38e1d6; --violet:#a97bf5; --gold:#f0b545; --pink:#ff6fb2; --green:#37d39a; --red:#ff5b61; --blue:#5aa9ff;
   --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
   --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --fg:#e9eff8;
   --r:12px;
+}
+/* light theme (feature 47) — toggled via data-theme on <html> */
+:root[data-theme="light"]{
+  --bg:#f4f6fb; --bg2:#ffffff; --panel:#ffffff; --panel2:#eef2f8;
+  --line:#dbe2ec; --line2:#c6d0de; --line3:#aab6c8;
+  --ink:#131a26; --muted:#4a5568; --faint:#77839a; --fg:#131a26;
+  --cyan:#0f9c93; --violet:#7a4fd0; --gold:#c98a12; --green:#1a9e6e; --red:#d63a41;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden}
@@ -197,6 +205,14 @@ a{color:var(--cyan);text-decoration:none}
 @media(max-width:520px){.tool-grid{grid-template-columns:1fr}}
 .toolbtn{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:11px;padding:12px;font-size:13px;text-align:left;transition:border-color .15s,background .15s}
 .toolbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.pal-card{position:absolute;top:12%;left:50%;transform:translateX(-50%);width:min(560px,94vw);background:var(--panel);border:1px solid var(--line2);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.8)}
+.pal-card #palinp{width:100%;padding:14px 16px;background:transparent;border:none;border-bottom:1px solid var(--line);color:var(--fg);font-size:14px;font-family:var(--sans)}
+.pal-list{max-height:50vh;overflow:auto}
+.pal-item{padding:9px 16px;font-size:13px;cursor:pointer}
+.pal-item.on,.pal-item:hover{background:var(--panel2);color:var(--cyan)}
+.ftable{width:100%;border-collapse:collapse;font-size:12px}
+.ftable th{text-align:left;color:var(--faint);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:4px 8px;border-bottom:1px solid var(--line2);position:sticky;top:0;background:var(--panel)}
+.ftable td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .mod-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
 .mod-controls input{flex:1;min-width:140px;background:var(--panel);border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:8px 10px;font-size:13px}
 .modprofiles{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
@@ -279,6 +295,7 @@ a{color:var(--cyan);text-decoration:none}
     <button class="navlink" id="modbtn">🧩 Modules</button>
     <button class="navlink" id="keysbtn">🔑 Keys</button>
     <button class="navlink" id="langbtn" title="language">🌐 עב</button>
+    <button class="navlink" id="themebtn" title="light / dark">🌓</button>
     <a class="navlink" href="/console" id="consolelink">▤ Console</a>
   </div>
 </header>
@@ -312,6 +329,8 @@ a{color:var(--cyan);text-decoration:none}
       <button class="toolbtn" data-tool="summary">🧠 AI summary</button>
       <button class="toolbtn" data-tool="fixes">🩹 Remediation</button>
       <button class="toolbtn" data-tool="brief">👔 Exec brief</button>
+      <button class="toolbtn" data-tool="table">▦ Findings table</button>
+      <button class="toolbtn" data-tool="timeline">🕓 Timeline</button>
     </div>
     <div class="dl-row">
       <span class="dl-label">download report:</span>
@@ -367,6 +386,13 @@ a{color:var(--cyan);text-decoration:none}
     </div>
     <div id="modsched_list" class="modsched-list"></div>
     <p class="modal-note">Pick exactly the modules you want, run them now, save the set as a named profile (kept in this browser), or schedule it to re-run on an interval. Passive-only and adaptive rate-limit follow the ⚙ Tools settings.</p>
+  </div>
+</div>
+
+<div id="palette" class="modal hidden">
+  <div class="pal-card">
+    <input id="palinp" placeholder="Type a command or entity…  (Esc to close)" autocomplete="off" spellcheck="false">
+    <div id="pallist" class="pal-list"></div>
   </div>
 </div>
 
@@ -460,7 +486,26 @@ let hidden=new Set(), selected=null;
 let cam={k:1,x:0,y:0}, W=1000, H=700;
 let clustered=false, searchSet=null, ACKS=new Set(), heat=false;
 let pathSet=null, pathEdges=null;   // shift-click path-finding (feature 5)
+let focusSet=null;                  // focus mode: isolate a cluster (feature 45)
 let CURJOB=null, CURTARGET="";
+
+/* focus mode (45): isolate the connected component of a node */
+function focusOn(id){
+  const adj={}; G.nodes.forEach(n=>adj[n.id]=[]);
+  G.edges.forEach(e=>{ if(adj[e.from]&&adj[e.to]){adj[e.from].push(e.to);adj[e.to].push(e.from);} });
+  const seen=new Set([id]), q=[id];
+  while(q.length){ const c=q.shift(); (adj[c]||[]).forEach(n=>{ if(!seen.has(n)){seen.add(n);q.push(n);} }); }
+  focusSet=seen; render(); renderEntity(id);
+  const ns=G.nodes.filter(n=>seen.has(n.id)); if(ns.length) fitMatches(seen);
+}
+function clearFocus(){ focusSet=null; render(); if(selected)renderEntity(selected); }
+
+/* per-node notes / tags (44), persisted in this browser keyed by target+label */
+function noteKey(){ return "ge_notes_"+(CURTARGET||(REP&&REP.target)||"_"); }
+function allNotes(){ try{ return JSON.parse(localStorage.getItem(noteKey())||"{}"); }catch(e){ return {}; } }
+function noteFor(label){ return allNotes()[label]||""; }
+function setNote(label,val){ const n=allNotes(); if(val)n[label]=val; else delete n[label];
+  try{ localStorage.setItem(noteKey(),JSON.stringify(n)); }catch(e){} }
 
 /* BFS shortest path between two nodes; highlights the chain (feature 5) */
 function tracePath(a,b){
@@ -582,7 +627,7 @@ function layout(nodes,edges){
 /* ---------------- render ---------------- */
 function neighborsOf(id){ const s=new Set(); G.edges.forEach(e=>{ if(e.from===id)s.add(e.to); if(e.to===id)s.add(e.from);}); return s; }
 function render(){
-  const vis=id=>!hidden.has(G.byId[id].kind);
+  const vis=id=>!hidden.has(G.byId[id].kind)&&(!focusSet||focusSet.has(id));
   const foc=selected, nbr=foc?neighborsOf(foc):null;
   let e="";
   G.edges.forEach(ed=>{ if(!vis(ed.from)||!vis(ed.to))return;
@@ -594,7 +639,7 @@ function render(){
   });
   $("edges").innerHTML=e;
   let n="";
-  G.nodes.forEach(nd=>{ if(hidden.has(nd.kind))return;
+  G.nodes.forEach(nd=>{ if(hidden.has(nd.kind))return; if(focusSet&&!focusSet.has(nd.id))return;
     const m=km(nd.kind), isT=nd.kind==="target";
     const r=isT?13:Math.min(11,6+Math.sqrt(nd.deg||1)*1.4);
     const isMatch=searchSet&&searchSet.has(nd.id);
@@ -803,13 +848,23 @@ function renderEntity(id){
       <div class="ic" style="background:${m.c}22;border:1px solid ${m.c}">${m.i}</div>
       <div><div class="k">${esc(n.kind.replace("_"," "))}</div><div class="l">${esc(n.label)}</div></div>
     </div>
-    <button class="cbtn" id="ackbtn" style="width:100%;margin:2px 0 4px;justify-content:center">${acked?"🔕 Known — won't re-alert (click to un-mark)":"🔕 Mark as known (mute change-alerts)"}</button>
+    <div style="display:flex;gap:6px;margin:2px 0 4px">
+      <button class="cbtn" id="focusbtn" style="flex:1;justify-content:center" title="isolate this node's cluster">${focusSet?'✕ Unfocus':'🎯 Focus'}</button>
+      <button class="cbtn" id="ackbtn" style="flex:2;justify-content:center">${acked?"🔕 Known":"🔕 Mark known"}</button>
+    </div>
+    <div class="sec"><h4>Notes & tags</h4>
+      <div id="noteview" class="rel" style="margin-bottom:5px">${esc(noteFor(n.label)||"— none —")}</div>
+      <div style="display:flex;gap:6px"><input id="noteinp" placeholder="add a note / #tag" style="flex:1;background:var(--panel);border:1px solid var(--line2);color:var(--fg);border-radius:6px;padding:6px 8px;font-size:11.5px"><button class="cbtn" id="notesave">save</button></div>
+    </div>
     ${attrs.length?`<div class="sec"><h4>Attributes</h4>${attrs.map(([k,v])=>`<div class="conn"><span class="rel">${esc(k)}</span><span>${esc(String(v).slice(0,80))}</span></div>`).join("")}</div>`:""}
     ${n.sources&&n.sources.length?`<div class="sec"><h4>Seen by</h4><div class="chips">${chips(n.sources)}</div></div>`:""}
     <div class="sec"><h4>Connections <em>${conns.length}</em></h4>
       ${conns.length?conns.map(c=>`<div class="conn" data-sel="${esc(c.id)}"><span>${km(c.kind).i}</span><span style="flex:1;word-break:break-all">${esc(c.label)}</span><span class="rel">${esc(c.rel)}</span></div>`).join(""):`<div class="chip mut">no connections</div>`}
     </div>`;
   $("back").onclick=()=>{ selected=null; render(); renderProfile(REP); };
+  $("focusbtn").onclick=()=>{ focusSet?clearFocus():focusOn(id); };
+  $("notesave").onclick=()=>{ setNote(n.label,$("noteinp").value.trim()); renderEntity(id); };
+  const ni=$("noteinp"); if(ni) ni.addEventListener("keydown",ev=>{ if(ev.key==="Enter"){ setNote(n.label,ni.value.trim()); renderEntity(id);} });
   $("ackbtn").onclick=async()=>{
     const remove=ACKS.has(n.label);
     try{ const r=await api("/api/acks",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -1038,6 +1093,22 @@ async function runTool(tool){
       const sens=(REP&&REP.asset_sensitivity&&REP.asset_sensitivity.counts)||{};
       tout(`<div class="tout-head">👔 executive brief</div><div class="trow"><b>${esc(b.headline||'')}</b></div>${pts}`+
         `<div class="trow rel">asset sensitivity — critical ${sens.critical||0} · high ${sens.high||0} · medium ${sens.medium||0} · low ${sens.low||0}</div>`);
+    } else if(tool==="table"){
+      const d=await api(`/api/job/${CURJOB}/findings`);
+      const f=d.findings||[];
+      const rows=f.map(x=>`<tr><td><span class="rpill ${(x.severity||'').toUpperCase()}">${esc(x.severity||'?')}</span></td><td>${esc(x.module)}</td><td>${esc(x.field||'')}</td><td>${esc(String(x.detail||'').slice(0,120))}</td></tr>`).join("");
+      tout(`<div class="tout-head">▦ findings — ${f.length} <input id="ftfilter" placeholder="filter…" style="margin-left:8px;padding:4px 8px;background:var(--panel);border:1px solid var(--line2);color:var(--fg);border-radius:6px;font-size:11px"></div>`+
+        `<div style="overflow:auto;max-height:52vh"><table class="ftable"><thead><tr><th>sev</th><th>module</th><th>field</th><th>detail</th></tr></thead><tbody id="ftbody">${rows||'<tr><td colspan=4>no findings</td></tr>'}</tbody></table></div>`);
+      const filt=$("ftfilter"); if(filt) filt.addEventListener("input",()=>{
+        const q=filt.value.toLowerCase();
+        $("ftbody").querySelectorAll("tr").forEach(tr=>{ tr.style.display=tr.textContent.toLowerCase().includes(q)?"":"none"; });
+      });
+    } else if(tool==="timeline"){
+      const tl=(REP&&REP.timeline)||{}; const ev=tl.events||tl||[];
+      const list=Array.isArray(ev)?ev:(ev.events||[]);
+      const rows=list.map(e=>`<div class="trow"><span class="rel">${esc((e.date||e.ts||'').slice(0,10))}</span> · <b>${esc(e.label||e.title||e.event||'')}</b>${e.detail?`<br><span class="rel">${esc(String(e.detail).slice(0,110))}</span>`:''}</div>`).join("");
+      const ins=(tl.insights||[]).map(i=>`<div class="trow rel">• ${esc(i)}</div>`).join("");
+      tout(`<div class="tout-head">🕓 intelligence timeline — ${list.length} event(s)</div>${rows||'<div class="trow">no dated events extracted.</div>'}${ins}`);
     } else if(tool==="paths"){
       const ap=(REP&&REP.attack_paths)||{}; const ps=ap.paths||[];
       const rows=ps.map(p=>`<div class="trow"><span class="rpill ${(p.band||'').toUpperCase()}">${esc(p.band||'?')}</span> <span class="rel">score ${esc(String(p.score))} · ${p.length} hops</span><br>${(p.steps||[]).map(s=>esc(s.label)).join(' <span class="rel">→</span> ')}</div>`).join("");
@@ -1285,6 +1356,68 @@ function applyLang(l){
 }
 let LANG="en";
 $("langbtn").addEventListener("click",()=>applyLang(LANG==="en"?"he":"en"));
+
+/* command palette (feature 46): Ctrl/⌘+K */
+function paletteActions(){
+  const A=[
+    ["🔎 Focus target input",()=>{$("target").focus();}],
+    ["⚙ Open Tools",()=>openTools()],
+    ["🧩 Modules editor",()=>openMods()],
+    ["▦ Portfolio",()=>openPortfolio()],
+    ["🔑 API keys",()=>openKeys()],
+    ["🛡 Scope guard",()=>openScope()],
+    ["◱ Toggle cluster",()=>$("cluster").click()],
+    ["🔥 Toggle heat-map",()=>$("heat").click()],
+    ["🌓 Toggle theme",()=>$("themebtn").click()],
+    ["🌐 Toggle language",()=>$("langbtn").click()],
+    ["📊 Metrics",()=>$("metricsbtn").click()],
+    ["⤓ Export PNG",()=>$("export").click()],
+    ["⊡ Fit graph",()=>fit()],
+  ];
+  return A;
+}
+function openPalette(){
+  $("palette").classList.remove("hidden"); $("palinp").value=""; renderPalette(""); $("palinp").focus();
+}
+function renderPalette(q){
+  q=(q||"").toLowerCase();
+  const acts=paletteActions().filter(a=>a[0].toLowerCase().includes(q))
+    .map((a,i)=>({label:a[0],run:a[1]}));
+  const ents=(q&&G.nodes?G.nodes.filter(n=>String(n.label).toLowerCase().includes(q)).slice(0,8)
+    .map(n=>({label:`◆ ${n.label} (${n.kind})`,run:()=>{selectNode(n.id);fitNode(n.id);}})):[]);
+  PALITEMS=acts.concat(ents);
+  $("pallist").innerHTML=PALITEMS.map((it,i)=>`<div class="pal-item${i===0?' on':''}" data-i="${i}">${esc(it.label)}</div>`).join("")||`<div class="pal-item rel">no match</div>`;
+  $("pallist").querySelectorAll("[data-i]").forEach(el=>el.addEventListener("click",()=>runPalette(+el.dataset.i)));
+  PALSEL=0;
+}
+let PALITEMS=[], PALSEL=0;
+function runPalette(i){ const it=PALITEMS[i]; $("palette").classList.add("hidden"); if(it&&it.run) it.run(); }
+$("palinp")&&$("palinp").addEventListener("input",e=>renderPalette(e.target.value));
+$("palinp")&&$("palinp").addEventListener("keydown",e=>{
+  if(e.key==="Escape"){ $("palette").classList.add("hidden"); }
+  else if(e.key==="Enter"){ runPalette(PALSEL); }
+  else if(e.key==="ArrowDown"||e.key==="ArrowUp"){ e.preventDefault();
+    PALSEL=Math.max(0,Math.min(PALITEMS.length-1,PALSEL+(e.key==="ArrowDown"?1:-1)));
+    $("pallist").querySelectorAll(".pal-item").forEach((el,i)=>el.classList.toggle("on",i===PALSEL));
+  }
+});
+$("palette")&&$("palette").addEventListener("click",e=>{ if(e.target===$("palette")) $("palette").classList.add("hidden"); });
+document.addEventListener("keydown",e=>{
+  if((e.ctrlKey||e.metaKey)&&(e.key==="k"||e.key==="K")){ e.preventDefault(); openPalette(); }
+});
+
+/* theme toggle: light / dark (feature 47) */
+function applyTheme(t){
+  if(t==="light") document.documentElement.setAttribute("data-theme","light");
+  else document.documentElement.removeAttribute("data-theme");
+  try{ localStorage.setItem("ge_theme",t); }catch(e){}
+  if(G&&G.nodes&&G.nodes.length) render();   // re-tint minimap/heat swatches
+}
+$("themebtn").addEventListener("click",()=>{
+  const cur=document.documentElement.getAttribute("data-theme")==="light"?"dark":"light";
+  applyTheme(cur);
+});
+try{ if(localStorage.getItem("ge_theme")==="light") applyTheme("light"); }catch(e){}
 try{ const sv=localStorage.getItem("ge_lang"); if(sv==="he") applyLang("he"); }catch(e){}
 
 /* wire the search */

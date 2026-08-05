@@ -262,7 +262,11 @@ kind filters, cluster-by-type and the risk heat-map, it now includes:
 - **🎫 Ticketing** — file a finding as a **Jira** or **ServiceNow** ticket
   (`POST /api/job/<id>/ticket`; credentials from `JIRA_*` / `SERVICENOW_*` env,
   with a safe dry-run preview).
-- **🌐 EN / עברית** interface toggle.
+- **🌐 EN / עברית** interface toggle and a **🌓 light / dark theme**.
+- **⌘K command palette** — jump to any action or graph entity from the keyboard.
+- **▦ Findings table** (sortable/filterable) and an **🕓 interactive timeline**.
+- **🎯 Focus mode** (isolate a node's cluster), **per-node notes & tags**
+  (kept in the browser), and **📊 Metrics / ⬇ Backup / ⬆ Restore** of saved scans.
 
 ### Install anywhere (Docker / Termux, feature 80)
 

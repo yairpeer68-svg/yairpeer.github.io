@@ -597,6 +597,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_intel(jid)
         if sub == "search":
             return self._job_search(jid, parsed)
+        if sub == "findings":
+            return self._job_findings(jid)
         if sub == "ask":
             return self._job_ask(jid, parsed)
         if sub == "summary":
@@ -729,6 +731,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(full_text_search(results, q))
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"search failed: {exc}"}, 500)
+
+    def _job_findings(self, jid: str):
+        """All severity-tagged findings of a job as a flat table (feature 42)."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        try:
+            scored = reporting_ext.score_findings(results)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"findings failed: {exc}"}, 500)
+        return self._json({"findings": scored.get("findings", []),
+                           "counts": scored.get("counts", {}),
+                           "risk_level": scored.get("risk_level", "")})
 
     def _job_ask(self, jid: str, parsed):
         """Deterministic Q&A over a scan's intelligence (feature 66).
