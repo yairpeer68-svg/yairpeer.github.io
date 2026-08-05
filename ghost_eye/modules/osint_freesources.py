@@ -1963,3 +1963,104 @@ class Codeberg(Module):
                               "url": r.get("html_url") or ""})
         return self.ok(host, {"query": org, "repos": repos[:20],
                               "count": len(repos), "source": "codeberg"})
+
+
+# =========================================================================== #
+#  Wave 21 — more independent corroboration sources:
+#    ip.guide (IP net/AS, keyless)  · Mnemonic passive DNS (subdomains, keyless)
+#    Software Heritage (public source archives)  · Columbus subdomain index
+# =========================================================================== #
+@register
+class IpGuide(Module):
+    id = "ipguide"
+    name = "ip.guide network / AS (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "ip.guide expects an IP"})
+        d = _json(_get(ctx, f"https://ip.guide/{ip}")) or {}
+        net = d.get("network") or {}
+        asn = net.get("autonomous_system") or {}
+        loc = d.get("location") or {}
+        return self.ok(ip, {"prefix": net.get("cidr"),
+                            "asn": asn.get("asn"),
+                            "org": asn.get("organization") or asn.get("name"),
+                            "country": loc.get("country"),
+                            "city": loc.get("city"),
+                            "source": "ip.guide"})
+
+
+@register
+class MnemonicPdns(Module):
+    id = "pdnsmnemonic"
+    name = "Mnemonic passive DNS subdomains (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://api.mnemonic.no/pdns/v3/search"
+                       f"?query=%2A.{host}&limit=500")) or {}
+        hosts = set()
+        for rec in d.get("data") or []:
+            for key in ("query", "answer"):
+                val = rec.get(key)
+                if isinstance(val, str):
+                    hosts.add(val)
+        subs = _subs_of(list(hosts), host)
+        return self.ok(host, {"subdomains": subs[:300], "count": len(subs),
+                              "source": "mnemonic-pdns"})
+
+
+@register
+class SoftwareHeritage(Module):
+    id = "swheritage"
+    name = "Software Heritage public source archives (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _get(ctx, "https://archive.softwareheritage.org/api/1/origin/search/"
+                 f"{org}/?limit=20&with_visit=true")
+        arr = _json(d) or []
+        origins = []
+        for o in arr if isinstance(arr, list) else []:
+            u = o.get("url") or ""
+            if u:
+                origins.append({"url": u, "type": o.get("origin_visit_type") or ""})
+        return self.ok(host, {"query": org, "origins": origins[:20],
+                              "count": len(origins), "source": "software-heritage"})
+
+
+@register
+class Columbus(Module):
+    id = "columbus"
+    name = "Columbus Project subdomain index (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        arr = _json(_get(ctx, f"https://columbus.elmasy.com/api/lookup/{host}",
+                         headers={"Accept": "application/json"})) or []
+        hosts = []
+        for label in arr if isinstance(arr, list) else []:
+            if isinstance(label, str) and label:
+                hosts.append(f"{label}.{host}" if label != host else host)
+        subs = _subs_of(hosts, host)
+        return self.ok(host, {"subdomains": subs[:300], "count": len(subs),
+                              "source": "columbus"})

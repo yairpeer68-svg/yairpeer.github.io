@@ -514,3 +514,29 @@ def test_wikipedia_and_codeberg():
     cb = REGISTRY["codeberg"].run("acme.com", _ctx(router)).data
     assert cb["count"] == 1 and cb["repos"][0]["repo"] == "acme/tools"
     assert cb["repos"][0]["stars"] == 9
+
+
+def test_wave21_ipguide_pdns_swh_columbus():
+    def router(url):
+        if "ip.guide" in url:
+            return _Resp(j={"network": {"cidr": "1.2.0.0/16",
+                            "autonomous_system": {"asn": 64500,
+                                                  "organization": "Acme Net"}},
+                            "location": {"country": "US", "city": "NYC"}})
+        if "mnemonic.no" in url:
+            return _Resp(j={"data": [{"query": "acme.com", "answer": "vpn.acme.com"},
+                                     {"query": "mail.acme.com", "answer": "1.2.3.4"}]})
+        if "softwareheritage" in url:
+            return _Resp(j=[{"url": "https://github.com/acme/repo",
+                             "origin_visit_type": "git"}])
+        if "columbus.elmasy.com" in url:
+            return _Resp(j=["www", "api", "vpn"])
+        return _Resp(j={})
+    ig = REGISTRY["ipguide"].run("1.2.3.4", _ctx(router)).data
+    assert ig["asn"] == 64500 and ig["org"] == "Acme Net" and ig["prefix"] == "1.2.0.0/16"
+    pd = REGISTRY["pdnsmnemonic"].run("acme.com", _ctx(router)).data
+    assert "vpn.acme.com" in pd["subdomains"] and "mail.acme.com" in pd["subdomains"]
+    sw = REGISTRY["swheritage"].run("acme.com", _ctx(router)).data
+    assert sw["count"] == 1 and sw["origins"][0]["url"].endswith("acme/repo")
+    cb = REGISTRY["columbus"].run("acme.com", _ctx(router)).data
+    assert "www.acme.com" in cb["subdomains"] and "api.acme.com" in cb["subdomains"]

@@ -117,7 +117,7 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
               "certspotter", "bufferover", "hackertarget", "subdomaincenter",
               "otxrep", "hudsonrock", "grepapp", "searchcode", "threatfox",
               "urlhaus", "spamhausdbl", "psbdmp", "keybase", "certdetails",
-              "sitedossier", "favicmmh3", "anubisjldc", "phishstats", "waybackparams", "wikidata", "commoncrawlmine", "waybacksecrets", "phoneharvest", "extdomains", "otxpulse", "merklemap", "uriblock", "npmsearch", "dockerhub", "cratesio", "rubygems", "packagist", "nuget", "artifacthub", "gitlabsearch", "hackernews", "reddit", "gdelt", "stackexchange", "secedgar", "wikipedia", "codeberg"],
+              "sitedossier", "favicmmh3", "anubisjldc", "phishstats", "waybackparams", "wikidata", "commoncrawlmine", "waybacksecrets", "phoneharvest", "extdomains", "otxpulse", "merklemap", "uriblock", "npmsearch", "dockerhub", "cratesio", "rubygems", "packagist", "nuget", "artifacthub", "gitlabsearch", "hackernews", "reddit", "gdelt", "stackexchange", "secedgar", "wikipedia", "codeberg", "pdnsmnemonic", "swheritage", "columbus"],
     "passive": ["internetdb", "geoip", "proxytype", "torexit", "threatfeed",
                 "reputation", "urlscan", "breachcheck", "waybackadv", "pastebin"],
     "perimeter": ["dns", "subs", "nmap", "headers", "cert", "tlsgrade", "waf",

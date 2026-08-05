@@ -31,7 +31,7 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         cratesio, rubygems, packagist,
         nuget, artifacthub, gitlabsearch,
         hackernews, reddit, gdelt, stackexchange, secedgar,
-        wikipedia, codeberg]
+        wikipedia, codeberg, pdnsmnemonic, swheritage, columbus]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 
