@@ -842,3 +842,34 @@ def test_wave31_ripeiprdap_dnslytics_devto_lookalike():
     la = REGISTRY["lookalike"].run("acme.com", _ctx(router)).data
     assert la["count"] == 1 and la["registered_lookalikes"][0]["domain"] == "ace.com"
     assert la["registered_lookalikes"][0]["ips"] == ["6.6.6.6"] and la["severity"] == "medium"
+
+
+def test_wave32_iprdap_spfdmarc_certissuers_mxintel():
+    def router(url):
+        if "rdap.org/ip" in url:
+            return _Resp(j={"name": "APNIC-NET", "handle": "AP-1",
+                            "country": "SG", "type": "ALLOCATED",
+                            "cidr0_cidrs": [{"v4prefix": "1.2.0.0", "length": 16}],
+                            "entities": [{"vcardArray": ["vcard", [
+                                ["version", {}, "text", "4.0"],
+                                ["fn", {}, "text", "Acme APAC"]]]}]})
+        if "type=TXT" in url and "_dmarc" in url:
+            return _Resp(j={"Answer": [{"data": "v=DMARC1; p=none; rua=mailto:x@acme.com"}]})
+        if "type=TXT" in url:
+            return _Resp(j={"Answer": [{"data": "v=spf1 include:a include:b include:c +all"}]})
+        if "type=MX" in url:
+            return _Resp(j={"Answer": [{"data": "10 acme-com.mail.protection.outlook.com."}]})
+        if "crt.sh" in url:
+            return _Resp(j=[{"issuer_name": "C=US, O=Let's Encrypt, CN=R3"},
+                            {"issuer_name": "C=US, O=Let's Encrypt, CN=R3"},
+                            {"issuer_name": "C=US, O=DigiCert Inc, CN=X"}])
+        return _Resp(j={})
+    ir = REGISTRY["iprdap"].run("1.2.3.4", _ctx(router)).data
+    assert ir["org"] == "Acme APAC" and "1.2.0.0/16" in ir["cidrs"] and ir["type"] == "ALLOCATED"
+    sd = REGISTRY["spfdmarc"].run("acme.com", _ctx(router)).data
+    assert sd["spf_all"] == "+all" and sd["dmarc_policy"] == "none" and sd["spoofable"] is True
+    assert sd["severity"] == "high"
+    ci = REGISTRY["certissuers"].run("acme.com", _ctx(router)).data
+    assert ci["total_certs"] == 3 and ci["issuers"][0]["ca"] == "Let's Encrypt" and ci["issuers"][0]["certs"] == 2
+    mx = REGISTRY["mxintel"].run("acme.com", _ctx(router)).data
+    assert "Microsoft 365" in mx["mail_providers"] and mx["mx_count"] == 1

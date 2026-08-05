@@ -3222,3 +3222,178 @@ class Lookalike(Module):
             data["note"] = (f"{len(registered)} lookalike domain(s) resolve — "
                             "possible typosquatting / phishing infrastructure.")
         return self.ok(host, data)
+
+
+# =========================================================================== #
+#  Wave 32 — authoritative infra + email spoofing posture + CA intel:
+#    Global IP RDAP (any RIR) · SPF+DMARC analyzer · crt.sh CA issuance
+#    MX enumeration + mail-provider fingerprint (all keyless)
+# =========================================================================== #
+@register
+class IpRdap(Module):
+    id = "iprdap"
+    name = "Global IP RDAP via bootstrap — any RIR (keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "iprdap expects an IP"})
+        d = _json(_get(ctx, f"https://rdap.org/ip/{ip}",
+                       headers={"Accept": "application/rdap+json"})) or {}
+        cidrs = []
+        for c in d.get("cidr0_cidrs") or []:
+            if isinstance(c, dict):
+                pfx = c.get("v4prefix") or c.get("v6prefix")
+                length = c.get("length")
+                if pfx and length is not None:
+                    cidrs.append(f"{pfx}/{length}")
+        org = ""
+        for ent in d.get("entities") or []:
+            if isinstance(ent, dict):
+                varr = ent.get("vcardArray")
+                if isinstance(varr, list) and len(varr) > 1:
+                    for item in varr[1]:
+                        if isinstance(item, list) and len(item) >= 4 and item[0] == "fn":
+                            org = item[3]
+                            break
+            if org:
+                break
+        return self.ok(ip, {"name": d.get("name"), "handle": d.get("handle"),
+                            "org": org, "country": d.get("country"),
+                            "type": d.get("type"), "cidrs": cidrs[:10],
+                            "start": d.get("startAddress"), "end": d.get("endAddress"),
+                            "source": "rdap-bootstrap"})
+
+
+def _doh_txt(ctx, name):
+    d = _json(_get(ctx, f"https://dns.google/resolve?name={name}&type=TXT")) or {}
+    out = []
+    for ans in d.get("Answer") or []:
+        v = ans.get("data")
+        if isinstance(v, str):
+            out.append(v.strip().strip('"').replace('" "', ""))
+    return out
+
+
+@register
+class SpfDmarc(Module):
+    id = "spfdmarc"
+    name = "SPF + DMARC spoofing-posture analyzer via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        spf = next((t for t in _doh_txt(ctx, host) if t.lower().startswith("v=spf1")), "")
+        dmarc = next((t for t in _doh_txt(ctx, f"_dmarc.{host}")
+                      if t.lower().startswith("v=dmarc1")), "")
+        spf_all = ""
+        m = re.search(r'([~\-+?])all', spf)
+        if m:
+            spf_all = m.group(0)
+        spf_lookups = len(re.findall(r'\b(include|a|mx|ptr|exists|redirect)[:=]', spf))
+        dmarc_p = ""
+        mp = re.search(r'\bp=(\w+)', dmarc)
+        if mp:
+            dmarc_p = mp.group(1).lower()
+        issues = []
+        if not spf:
+            issues.append("no SPF record")
+        elif spf_all in ("+all", "?all"):
+            issues.append(f"weak SPF all-qualifier ({spf_all})")
+        if spf and spf_lookups > 10:
+            issues.append(f"SPF exceeds 10 DNS lookups ({spf_lookups}) — permerror")
+        if not dmarc:
+            issues.append("no DMARC record")
+        elif dmarc_p in ("", "none"):
+            issues.append("DMARC policy p=none (monitoring only)")
+        data = {"spf": spf[:300], "spf_all": spf_all, "spf_lookups": spf_lookups,
+                "dmarc": dmarc[:300], "dmarc_policy": dmarc_p,
+                "issues": issues, "spoofable": bool(issues),
+                "source": "spf-dmarc-doh"}
+        if issues:
+            data["severity"] = "high" if (not dmarc or dmarc_p in ("", "none")) else "medium"
+            data["note"] = "email spoofing posture weaknesses: " + "; ".join(issues)
+        return self.ok(host, data)
+
+
+@register
+class CertIssuers(Module):
+    id = "certissuers"
+    name = "crt.sh CA issuance intelligence (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        arr = _json(_get(ctx, f"https://crt.sh/?q={host}&output=json")) or []
+        issuers: Dict[str, int] = {}
+        total = 0
+        for row in arr if isinstance(arr, list) else []:
+            if not isinstance(row, dict):
+                continue
+            total += 1
+            iss = row.get("issuer_name") or ""
+            m = re.search(r'O\s*=\s*"?([^,"]+)', iss)
+            ca = (m.group(1).strip() if m else iss)[:80] or "unknown"
+            issuers[ca] = issuers.get(ca, 0) + 1
+        ranked = sorted(issuers.items(), key=lambda kv: kv[1], reverse=True)
+        return self.ok(host, {"total_certs": total,
+                              "issuers": [{"ca": k, "certs": v} for k, v in ranked[:15]],
+                              "distinct_cas": len(issuers),
+                              "note": "compare issuing CAs against your CAA policy to "
+                                      "spot unauthorized issuance.",
+                              "source": "crt.sh-issuers"})
+
+
+_MAIL_PROVIDERS = [
+    ("google.com", "Google Workspace"), ("googlemail.com", "Google Workspace"),
+    ("outlook.com", "Microsoft 365"), ("protection.outlook.com", "Microsoft 365"),
+    ("pphosted.com", "Proofpoint"), ("ppe-hosted.com", "Proofpoint"),
+    ("mimecast.com", "Mimecast"), ("messagelabs.com", "Symantec MessageLabs"),
+    ("mailgun.org", "Mailgun"), ("sendgrid.net", "SendGrid"),
+    ("amazonaws.com", "Amazon SES/WorkMail"), ("zoho.com", "Zoho Mail"),
+    ("yandex.net", "Yandex"), ("qq.com", "Tencent QQ"),
+    ("secureserver.net", "GoDaddy"), ("emailsrvr.com", "Rackspace"),
+    ("barracudanetworks.com", "Barracuda"), ("cloudflare.net", "Cloudflare Email"),
+]
+
+
+@register
+class MxIntel(Module):
+    id = "mxintel"
+    name = "MX enumeration + mail-provider fingerprint via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, f"https://dns.google/resolve?name={host}&type=MX")) or {}
+        mxs = []
+        for ans in d.get("Answer") or []:
+            v = ans.get("data")
+            if isinstance(v, str):
+                parts = v.split()
+                mxs.append(parts[-1].rstrip(".").lower() if parts else v)
+        providers = set()
+        for mx in mxs:
+            for needle, label in _MAIL_PROVIDERS:
+                if mx.endswith(needle) or needle in mx:
+                    providers.add(label)
+        return self.ok(host, {"mx_records": mxs[:15], "mx_count": len(mxs),
+                              "mail_providers": sorted(providers),
+                              "self_hosted": bool(mxs) and not providers,
+                              "note": "identified mail provider(s) reveal the email "
+                                      "security stack / attack surface.",
+                              "source": "mx-intel"})
