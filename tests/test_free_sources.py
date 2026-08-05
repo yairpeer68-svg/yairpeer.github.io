@@ -567,3 +567,32 @@ def test_wave22_crtsh_bitbucket_sourcegraph_greynoise():
     assert sg["count"] == 1 and sg["hits"][0]["repo"] == "github.com/acme/app"
     gn = REGISTRY["greynoise"].run("9.9.9.9", _ctx(router)).data
     assert gn["noise"] is True and gn["classification"] == "malicious"
+
+
+def test_wave23_doh_openphish_ipquery():
+    def router(url):
+        if "cloudflare-dns.com" in url or "dns.google" in url:
+            if "type=MX" in url:
+                return _Resp(j={"Answer": [{"data": "10 mail.acme.com."}]})
+            if "type=TXT" in url:
+                return _Resp(j={"Answer": [{"data": "\"v=spf1 include:_spf.acme.com ~all\""}]})
+            if "type=A" in url:
+                return _Resp(j={"Answer": [{"data": "1.2.3.4"}]})
+            return _Resp(j={})
+        if "openphish.com" in url:
+            return _Resp(t="https://evil.test/acme.com/login\nhttps://other.test/x\n")
+        if "ipquery.io" in url:
+            return _Resp(j={"isp": {"asn": "AS64500", "org": "Acme", "isp": "AcmeISP"},
+                            "location": {"country": "US", "city": "NYC"},
+                            "risk": {"is_vpn": False, "is_proxy": True,
+                                     "is_tor": False, "risk_score": 42}})
+        return _Resp(j={})
+    cf = REGISTRY["dohcloudflare"].run("acme.com", _ctx(router)).data
+    assert cf["A"] == ["1.2.3.4"] and cf["MX"] == ["10 mail.acme.com."]
+    assert cf["TXT"][0].startswith("v=spf1")
+    gg = REGISTRY["dohgoogle"].run("acme.com", _ctx(router)).data
+    assert gg["A"] == ["1.2.3.4"]
+    op = REGISTRY["openphish"].run("acme.com", _ctx(router)).data
+    assert op["count"] == 1 and "acme.com" in op["phishing_urls"][0]
+    iq = REGISTRY["ipquery"].run("1.2.3.4", _ctx(router)).data
+    assert iq["asn"] == "AS64500" and iq["is_proxy"] is True and iq["risk_score"] == 42

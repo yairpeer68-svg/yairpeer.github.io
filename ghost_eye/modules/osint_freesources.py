@@ -2167,3 +2167,104 @@ class GreyNoiseCommunity(Module):
                             "classification": d.get("classification"),
                             "name": d.get("name"), "last_seen": d.get("last_seen"),
                             "source": "greynoise"})
+
+
+# =========================================================================== #
+#  Wave 23 — independent resolvers + brand-abuse + IP enrichment:
+#    Cloudflare DoH · Google DoH (independent record corroboration)
+#    OpenPhish feed (phishing brand-abuse) · ipquery.io (IP ISP/ASN/geo/risk)
+# =========================================================================== #
+def _doh_records(ctx, url_base, host, accept_json=True):
+    """Query A/AAAA/MX/NS/TXT over a DNS-over-HTTPS JSON resolver, defensively."""
+    out = {"A": [], "AAAA": [], "MX": [], "NS": [], "TXT": []}
+    hdr = {"Accept": "application/dns-json"} if accept_json else {}
+    for rtype in ("A", "AAAA", "MX", "NS", "TXT"):
+        d = _json(_get(ctx, f"{url_base}?name={host}&type={rtype}", headers=hdr)) or {}
+        for ans in d.get("Answer") or []:
+            val = ans.get("data")
+            if isinstance(val, str) and val:
+                out[rtype].append(val.strip().strip('"'))
+    return {k: v[:20] for k, v in out.items()}
+
+
+@register
+class DohCloudflare(Module):
+    id = "dohcloudflare"
+    name = "Cloudflare DNS-over-HTTPS records (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        rec = _doh_records(ctx, "https://cloudflare-dns.com/dns-query", host)
+        rec["source"] = "cloudflare-doh"
+        return self.ok(host, rec)
+
+
+@register
+class DohGoogle(Module):
+    id = "dohgoogle"
+    name = "Google DNS-over-HTTPS records (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        rec = _doh_records(ctx, "https://dns.google/resolve", host)
+        rec["source"] = "google-doh"
+        return self.ok(host, rec)
+
+
+@register
+class OpenPhish(Module):
+    id = "openphish"
+    name = "OpenPhish feed brand-abuse check (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, "https://openphish.com/feed.txt"))
+        hits = []
+        for line in text.splitlines():
+            line = line.strip()
+            if line and host in line.lower():
+                hits.append(line[:200])
+        return self.ok(host, {"phishing_urls": hits[:50], "count": len(hits),
+                              "note": "URLs on the OpenPhish live feed that mention "
+                                      "this domain (impersonation / hosted phishing).",
+                              "source": "openphish"})
+
+
+@register
+class IpQuery(Module):
+    id = "ipquery"
+    name = "ipquery.io ISP / ASN / geo / risk (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "ipquery expects an IP"})
+        d = _json(_get(ctx, f"https://api.ipquery.io/{ip}")) or {}
+        isp = d.get("isp") or {}
+        loc = d.get("location") or {}
+        risk = d.get("risk") or {}
+        return self.ok(ip, {"asn": isp.get("asn"), "org": isp.get("org"),
+                            "isp": isp.get("isp"),
+                            "country": loc.get("country"), "city": loc.get("city"),
+                            "is_vpn": risk.get("is_vpn"),
+                            "is_proxy": risk.get("is_proxy"),
+                            "is_tor": risk.get("is_tor"),
+                            "risk_score": risk.get("risk_score"),
+                            "source": "ipquery"})
