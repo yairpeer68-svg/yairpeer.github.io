@@ -933,3 +933,144 @@ class PeeringDb(Module):
             "notes": (n.get("notes") or "")[:200],
             "source": "peeringdb",
         })
+
+
+# =========================================================================== #
+#  Wave 6 — deep archive mining (CommonCrawl endpoints/params, Wayback secrets)
+# =========================================================================== #
+import json as _jsonmod
+from urllib.parse import parse_qs as _parse_qs, urlparse as _urlparse
+
+_INTERESTING_EXT = re.compile(
+    r"\.(?:json|xml|sql|bak|old|env|config|conf|yml|yaml|ini|zip|tar|gz|db|"
+    r"sqlite|pem|key|p12|pfx|log|swp)(?:$|\?)", re.I)
+
+
+def _mine_urls(urls, host):
+    """Shared: extract endpoints / params / interesting files from a URL list."""
+    params: Set[str] = set()
+    endpoints: Set[str] = set()
+    interesting: Set[str] = set()
+    for u in urls:
+        try:
+            p = _urlparse(u)
+        except Exception:  # noqa: BLE001
+            continue
+        if p.path and p.path != "/":
+            endpoints.add(p.path[:120])
+        for k in _parse_qs(p.query or ""):
+            params.add(k[:60])
+        if _INTERESTING_EXT.search(u):
+            interesting.add(u[:180])
+    return params, endpoints, interesting
+
+
+@register
+class CommonCrawlMine(Module):
+    id = "commoncrawlmine"
+    name = "CommonCrawl deep mining (endpoints + params)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        # pick the latest CommonCrawl index, then query its CDX for the domain
+        idx = _json(_get(ctx, "https://index.commoncrawl.org/collinfo.json"))
+        api = None
+        if isinstance(idx, list) and idx:
+            api = (idx[0] or {}).get("cdx-api")
+        if not api:
+            return self.ok(host, {"note": "CommonCrawl index unavailable",
+                                  "source": "commoncrawl"})
+        resp = _get(ctx, f"{api}?url={host}/*&output=json&fl=url&limit=3000")
+        txt = _text(resp)
+        urls: List[str] = []
+        for line in txt.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = _jsonmod.loads(line)
+                if rec.get("url"):
+                    urls.append(rec["url"])
+            except Exception:  # noqa: BLE001
+                continue
+        params, endpoints, interesting = _mine_urls(urls, host)
+        data: Dict[str, Any] = {
+            "indexed_urls": len(urls),
+            "unique_endpoints": len(endpoints),
+            "unique_parameters": len(params),
+            "parameters": sorted(params)[:80],
+            "endpoints_sample": sorted(endpoints)[:60],
+            "source": "commoncrawl",
+        }
+        if interesting:
+            data["interesting_files"] = sorted(interesting)[:30]
+            data["severity"] = "medium"
+        return self.ok(host, data)
+
+
+@register
+class WaybackSecrets(Module):
+    id = "waybacksecrets"
+    name = "Wayback historical secret scan (archived JS/config)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    _WANT = re.compile(r"\.(?:js|json|env|config|conf|yml|yaml|txt|map)(?:$|\?)", re.I)
+    _MAX_FETCH = 8
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        cdx = _json(_get(ctx,
+                    "http://web.archive.org/cdx/search/cdx?"
+                    f"url={host}/*&output=json&fl=original,timestamp"
+                    "&collapse=urlkey&limit=4000"))
+        rows = cdx if isinstance(cdx, list) else []
+        # rows[0] is the header; pick archived JS/config snapshots
+        candidates: List[tuple] = []
+        for r in rows[1:] if rows else []:
+            if isinstance(r, list) and len(r) >= 2 and self._WANT.search(r[0]):
+                candidates.append((r[1], r[0]))       # (timestamp, original)
+        # import the high-signal secret patterns from the JS-secret scanner
+        try:
+            from .newscan_wave import _SECRET_PATTERNS, _redact
+        except Exception:  # noqa: BLE001
+            return self.ok(host, {"note": "secret patterns unavailable"})
+
+        findings: List[Dict[str, Any]] = []
+        seen: Set[tuple] = set()
+        scanned = 0
+        for ts, original in candidates[:self._MAX_FETCH]:
+            snap = f"https://web.archive.org/web/{ts}id_/{original}"
+            body = _text(_get(ctx, snap))
+            if not body:
+                continue
+            scanned += 1
+            for kind, rx in _SECRET_PATTERNS.items():
+                for m in rx.findall(body)[:5]:
+                    val = m if isinstance(m, str) else (m[0] if m else "")
+                    key = (kind, val)
+                    if not val or key in seen:
+                        continue
+                    seen.add(key)
+                    findings.append({"type": kind, "match": _redact(val),
+                                     "archived_url": original[:150],
+                                     "timestamp": ts})
+        data: Dict[str, Any] = {"archived_assets": len(candidates),
+                                "scanned": scanned,
+                                "secrets_found": len(findings),
+                                "source": "wayback"}
+        if findings:
+            data["findings"] = findings[:30]
+            data["severity"] = "high"
+            data["note"] = ("secrets found in ARCHIVED content — they may have "
+                            "been removed from the live site but are still leaked "
+                            "in the Wayback Machine. Rotate them.")
+        return self.ok(host, data)

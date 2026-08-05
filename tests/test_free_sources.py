@@ -228,3 +228,34 @@ def test_peeringdb_network_owner(monkeypatch):
     assert d["asn"] == "AS64500" and d["network_name"] == "ACME-NET"
     # a non-IP target is handled gracefully
     assert "note" in REGISTRY["peeringdb"].run("acme.com", _ctx(_router5)).data
+
+
+def _router6(url):
+    if "collinfo.json" in url:
+        return _Resp(j=[{"cdx-api": "https://index.commoncrawl.org/CC-MAIN-2024-10-index"}])
+    if "CC-MAIN" in url:
+        return _Resp(t='{"url":"http://acme.com/api?token=1"}\n'
+                       '{"url":"http://acme.com/backup.sql"}\n'
+                       '{"url":"http://acme.com/p?q=2"}')
+    if "cdx/search" in url:
+        return _Resp(j=[["original", "timestamp"],
+                        ["http://acme.com/app.js", "20200101000000"]])
+    if "id_/http://acme.com/app.js" in url:
+        return _Resp(t='var k="AKIAIOSFODNN7EXAMPLE";')
+    return _Resp(j={}, t="")
+
+
+def test_commoncrawl_deep_mining():
+    d = REGISTRY["commoncrawlmine"].run("acme.com", _ctx(_router6)).data
+    assert d["indexed_urls"] == 3
+    assert set(d["parameters"]) >= {"q", "token"}
+    assert any("backup.sql" in f for f in d.get("interesting_files", []))
+
+
+def test_wayback_historical_secret_scan():
+    d = REGISTRY["waybacksecrets"].run("acme.com", _ctx(_router6)).data
+    assert d["secrets_found"] >= 1
+    assert d["findings"][0]["type"] == "aws_access_key_id"
+    # the raw key is redacted, never echoed
+    assert "AKIAIOSFODNN7EXAMPLE" != d["findings"][0]["match"]
+    assert d.get("severity") == "high"
