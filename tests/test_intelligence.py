@@ -331,6 +331,34 @@ def test_notify_change_only_sends_on_change():
         {"changed": False}, "https://hooks.slack.com/x", session=s) is False
 
 
+def test_graph_excludes_osint_reference_noise():
+    """OSINT dork reference sites (github/pastebin/google) and URL-encode
+    artifacts must never appear as graph entities — only the target's own hosts."""
+    from ghost_eye.intelligence import correlate, knowledge_graph
+    from ghost_eye.intelligence.correlation import is_noise_domain
+    assert is_noise_domain("github.com", "example.com")
+    assert is_noise_domain("3agithub.com", "example.com")     # %3a artifact
+    assert is_noise_domain("20example.com", "example.com")    # %20 artifact
+    assert is_noise_domain("2a.example.com", "example.com")   # %2a artifact
+    assert not is_noise_domain("api.partner.com", "example.com")
+
+    res = [
+        Result("OSINT dork", "example.com", "ok",
+               {"result": "site:github.com found", "ref": "pastebin.com"}),
+        Result("DNS records", "example.com", "ok",
+               {"ns": "https://www.google.com/search?q=site:github.com",
+                "a": ["93.184.216.34"]}),
+        Result("Subdomain enumeration", "example.com", "ok",
+               {"subdomains": ["api.example.com"]}),
+    ]
+    intel = correlate(res, "example.com")
+    kg = knowledge_graph(res, "example.com", intel)
+    labels = {e["label"] for e in kg["entities"]}
+    assert not (labels & {"github.com", "pastebin.com", "www.google.com",
+                          "3agithub.com"})
+    assert "api.example.com" in labels        # real subdomain kept
+
+
 def test_intelligence_report_and_html(tmp_path):
     from ghost_eye import reporting_ext, workflow
     rep = workflow.intelligence_report(_sample(), "example.com")

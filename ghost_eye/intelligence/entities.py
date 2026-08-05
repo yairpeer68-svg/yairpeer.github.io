@@ -111,19 +111,37 @@ def _dns_map(results: List[Result]) -> Dict[str, List[str]]:
     return {h: sorted(v) for h, v in out.items() if h}
 
 
-def _mx_ns(results: List[Result]) -> Tuple[List[str], List[str], List[str]]:
-    """(mx hosts, ns hosts, org names) from DNS/WHOIS output."""
+# only these keys are treated as nameserver/MX fields — a loose endswith("ns")
+# used to match unrelated keys ("columns", "connections", …) and drag dork URLs
+# in as fake nameservers.
+_NS_KEYS = ("ns", "nameserver", "nameservers", "name_server", "name_servers",
+            "name server", "name servers", "soa")
+_MX_KEYS = ("mx", "mail exchang", "mailserver", "mail_server", "mail exchanger")
+
+
+def _mx_ns(results: List[Result], target: str = "") -> Tuple[
+        List[str], List[str], List[str]]:
+    """(mx hosts, ns hosts, org names) from DNS/WHOIS output — filtered so OSINT
+    reference sites and URL-encode artifacts don't become fake mail/name servers."""
+    from .correlation import is_noise_domain
     mx, ns, orgs = set(), set(), set()
+
+    def _hosts(sv: str):
+        for h in _HOSTRE.findall(sv.lower()):
+            if h.count(".") >= 1 and not is_noise_domain(h, target):
+                yield h
+
     for r in results:
         flat = _flat(r)
         for k, v in flat.items():
             kl, sv = k.lower(), str(v)
-            if "mx" in kl or "mail exchang" in kl:
-                for h in _HOSTRE.findall(sv.lower()):
-                    mx.add(h)
-            if kl.endswith("ns") or "nameserver" in kl or "name server" in kl:
-                for h in _HOSTRE.findall(sv.lower()):
-                    ns.add(h)
+            if any(t == kl or kl.endswith("." + t) or kl.endswith("_" + t)
+                   or (" " + t) in (" " + kl) for t in _MX_KEYS):
+                mx.update(_hosts(sv))
+            if any(t == kl or kl.endswith("." + t) or kl.endswith("_" + t)
+                   or ("nameserver" in kl) or ("name server" in kl)
+                   for t in _NS_KEYS):
+                ns.update(_hosts(sv))
             if any(t in kl for t in ("org", "registrant", "organization",
                                      "owner", "netname")) and 2 < len(sv) < 60:
                 if not _HOSTRE.fullmatch(sv.lower()) and not _valid_ip(sv):
@@ -198,7 +216,7 @@ def knowledge_graph(results: List[Result], target: str,
     for em in intel.get("emails", [])[:20]:
         eid = g.add("email", em, "osint")
         g.link(eid, "registered_to", tid, "low")
-    mx, ns, orgs = _mx_ns(results)
+    mx, ns, orgs = _mx_ns(results, tgt)
     for h in mx:
         g.link(g.add("mailserver", h, "dns"), "mx_for", tid, "high")
     for h in ns:

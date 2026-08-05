@@ -2,7 +2,7 @@
   "name": "Ghost Eye — OSINT",
   "short_name": "Ghost Eye",
   "description": "Personal Cyber Intelligence Platform — recon, OSINT and exposure detection.",
-  "start_url": "/osint",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",

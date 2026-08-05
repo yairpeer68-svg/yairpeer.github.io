@@ -445,10 +445,12 @@ class Handler(BaseHTTPRequestHandler):
     def _do_get(self):
         parsed = urlparse(self.path)
         path = parsed.path
-        if path in ("/", "/index.html"):
-            return self._serve_index()
-        if path in ("/osint", "/osint.html"):
+        # the graph-first OSINT dashboard is the default home; the recon console
+        # lives at /console.
+        if path in ("/", "/osint", "/osint.html"):
             return self._serve_page("osint.html")
+        if path in ("/console", "/console.html", "/index.html"):
+            return self._serve_page("index.html")
         if path == "/manifest.webmanifest":
             return self._serve_asset("manifest.webmanifest", "application/manifest+json")
         if path == "/sw.js":
@@ -980,8 +982,9 @@ def serve(host: str = "127.0.0.1", port: int = 8777,
     httpd.auth_token = token             # type: ignore[attr-defined]
     disp_host = host if host != "0.0.0.0" else "127.0.0.1"
     url = f"http://{disp_host}:{port}" + (f"/?token={token}" if token else "")
-    print(f"{Colors.CYAN}{Colors.BOLD}Ghost Eye dashboard{Colors.RESET} "
+    print(f"{Colors.CYAN}{Colors.BOLD}Ghost Eye — OSINT dashboard{Colors.RESET} "
           f"-> {Colors.GREEN}{url}{Colors.RESET}")
+    Console.info("recon console (advanced scans/schedules) at /console")
     if host == "0.0.0.0":
         Console.warn("bound to 0.0.0.0 - reachable by anything on your network")
     if token:

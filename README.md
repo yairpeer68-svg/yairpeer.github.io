@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **411 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **412 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -383,18 +383,20 @@ python3 ghost_eye_web.py --open          # open a browser
 python3 ghost_eye_web.py --host 0.0.0.0 --port 9000 --scope scope.txt
 ```
 
-Two dashboards, one server:
+Two dashboards, one server — the **graph-first OSINT investigator is the home page**:
 
-- **`/`** — the **recon console**: configure and run scans, watch findings stream.
-- **`/osint`** — a **graph-first OSINT investigator** (Maltego / BloodHound style):
+- **`/`** (and `/osint`) — the **OSINT investigator** (Maltego / BloodHound style):
   type a target, hit *Investigate*, and Ghost Eye correlates its footprint into a
   live **force-directed entity graph** (typed nodes — target, subdomain, IP, ASN,
   cloud, tech, cert, email, org, CVE, leak — with icons and colours). Pan, zoom,
   drag nodes, **click any node to pivot** to its typed relationships, and filter
   by entity kind. The right rail is a **unified OSINT profile** (subdomains, IPs,
   emails, WHOIS/ASN, tech, cloud, leaks, email posture, timeline, screenshots and
-  the analyst headline). Cross-linked with the console. The graph supports
-  **search/highlight**, **cluster-by-type**, and **PNG export**.
+  the analyst headline). The recon console (advanced scans / schedules / exports)
+  lives at **`/console`**, cross-linked from the OSINT bar. The graph supports
+  **search/highlight**, natural-language **Ask**, **cluster-by-type**, **PNG
+  export**, and only ever shows the target's *own* related hosts (OSINT-reference
+  sites like github/pastebin and URL-encode artifacts are filtered out).
 
 **🔑 API keys in the browser** — a **Keys** panel (in both dashboards) lets you paste
 optional API keys (VirusTotal / AbuseIPDB / DeepSeek) and **save them** straight
@@ -574,7 +576,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**411 tests** pass in ~12s. A single **verification gate** runs the whole thing:
+**412 tests** pass in ~11s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

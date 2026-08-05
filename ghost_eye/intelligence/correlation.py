@@ -68,6 +68,56 @@ _LEAK_SIGNALS = ("breach", "leak", "pwned", "credential", "pastebin",
 _DEV_MARKERS = ("dev", "staging", "stg", "test", "qa", "uat", "sandbox",
                 "preprod", "beta", "internal")
 
+# third-party sites that OSINT dorks reference (the target is *mentioned* there,
+# they are not the target's own assets) — kept out of the related-domain graph.
+_REFERENCE_DOMAINS = {
+    "github.com", "gitlab.com", "bitbucket.org", "pastebin.com", "ghostbin.com",
+    "google.com", "www.google.com", "bing.com", "duckduckgo.com", "yandex.com",
+    "twitter.com", "x.com", "facebook.com", "linkedin.com", "youtube.com",
+    "instagram.com", "reddit.com", "medium.com", "stackoverflow.com", "t.me",
+    "shodan.io", "censys.io", "virustotal.com", "crt.sh", "archive.org",
+    "web.archive.org", "wikipedia.org", "pastecode.io", "controlc.com",
+}
+# leading tokens that are un-decoded URL-encode artifacts (%2A→2a, %20→20, …)
+_ENC_TOKENS = ("2a", "20", "2f", "3a", "3d", "26", "2b", "2c", "3f", "5b",
+               "5d", "7c", "25", "23", "40", "252")
+
+
+def is_noise_domain(host: str, target: str) -> bool:
+    """True if `host` is OSINT noise for `target`: a third-party reference site
+    (github.com, pastebin.com, google.com…) or a URL-encode artifact of the
+    target itself ('3agithub.com', '20example.com', '2a.example.com')."""
+    d = (host or "").lower().rstrip(".")
+    tgt = (target or "").lower().rstrip(".")
+    if not d or d in _REFERENCE_DOMAINS:
+        return True
+    labels = d.split(".")
+    first, rest = labels[0], ".".join(labels[1:])
+    # pure artifact label, e.g. '2a.example.com' -> real host is the rest
+    if first in _ENC_TOKENS and (rest == tgt or rest in _REFERENCE_DOMAINS
+                                 or not rest):
+        return True
+    # glued artifact, e.g. '3agithub.com' / '20example.com'
+    for tok in _ENC_TOKENS:
+        if first.startswith(tok) and len(first) > len(tok):
+            cand = first[len(tok):] + (("." + rest) if rest else "")
+            if cand == tgt or cand in _REFERENCE_DOMAINS:
+                return True
+    return False
+
+
+def _clean_related(domains: List[str], target: str) -> List[str]:
+    """Drop OSINT-reference sites, URL-encode artifacts and the target itself from
+    the related-domain set, so the graph shows the target's *own* related
+    domains — not github.com / pastebin.com / mangled dork leftovers."""
+    tgt = (target or "").lower().rstrip(".")
+    out: List[str] = []
+    for d in domains:
+        dl = (d or "").lower().rstrip(".")
+        if dl and dl != tgt and not is_noise_domain(dl, tgt):
+            out.append(dl)
+    return out
+
 
 def _blob(results: List[Result]) -> str:
     parts = []
@@ -194,7 +244,8 @@ def correlate(results: List[Result], target: str = "") -> Dict[str, Any]:
     hosts = inv["hosts"]
     suffix = "." + tgt if tgt else ""
     subdomains = [h for h in hosts if tgt and (h == tgt or h.endswith(suffix))]
-    other_domains = [h for h in hosts if h not in subdomains and not is_ip(h)]
+    other_domains = _clean_related(
+        [h for h in hosts if h not in subdomains and not is_ip(h)], tgt)
 
     tech = _classify_tech(inv.get("technologies", []), blob)
     cloud = _detect_cloud(blob)

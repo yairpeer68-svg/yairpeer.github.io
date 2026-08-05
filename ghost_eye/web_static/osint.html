@@ -216,7 +216,7 @@ a{color:var(--cyan);text-decoration:none}
     <div class="status"><span class="dot" id="dot"></span><span id="statustxt">idle</span></div>
     <button class="navlink" id="portbtn">▦ Portfolio</button>
     <button class="navlink" id="keysbtn">🔑 Keys</button>
-    <a class="navlink" href="/" id="consolelink">▤ Console</a>
+    <a class="navlink" href="/console" id="consolelink">▤ Console</a>
   </div>
 </header>
 
@@ -285,7 +285,7 @@ async function api(path,opts={}){
   if(!r.ok) throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
   return r.json();
 }
-if(TOKEN) $("consolelink").href="/?token="+encodeURIComponent(TOKEN);
+if(TOKEN) $("consolelink").href="/console?token="+encodeURIComponent(TOKEN);
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
 /* iris */
