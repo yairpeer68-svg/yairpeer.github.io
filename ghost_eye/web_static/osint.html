@@ -292,6 +292,10 @@ a{color:var(--cyan);text-decoration:none}
       <label class="opt"><input type="checkbox" id="optadaptive"> adaptive rate-limit</label>
       <button class="dlbtn" id="scopebtn">🛡 Scope guard</button>
       <button class="dlbtn" id="unifiedbtn">🕸 Unified graph</button>
+      <button class="dlbtn" id="metricsbtn">📊 Metrics</button>
+      <button class="dlbtn" id="backupbtn">⬇ Backup</button>
+      <button class="dlbtn" id="restorebtn">⬆ Restore</button>
+      <input type="file" id="restorefile" accept="application/json,.json" style="display:none">
     </div>
     <div class="tool-grid">
       <button class="toolbtn" data-tool="screenshots">📸 Screenshot subdomains</button>
@@ -1190,6 +1194,32 @@ $("modsched").addEventListener("click",async()=>{
       body:JSON.stringify({target:t,interval_minutes:mins,selection:modSelection(),options:modOptions()})});
     loadSchedules();
   }catch(e){ alert("schedule failed: "+e.message); }
+});
+
+/* metrics / backup / restore (features 80 / 77) */
+$("metricsbtn").addEventListener("click",async()=>{
+  $("toolsmodal").classList.remove("hidden");
+  try{ const d=await api("/api/metrics");
+    const up=d.uptime_seconds||0, h=Math.floor(up/3600), mnt=Math.floor((up%3600)/60);
+    tout(`<div class="tout-head">📊 system metrics</div>`+
+      `<div class="trow">version <b>${esc(d.version)}</b> · <b>${d.modules}</b> modules</div>`+
+      `<div class="trow">jobs — total ${d.jobs.total} · running ${d.jobs.running} · done ${d.jobs.done} · error ${d.jobs.error}</div>`+
+      `<div class="trow">saved scans <b>${d.saved_scans}</b> · schedules ${d.schedules} · error-log lines ${d.error_log_lines}</div>`+
+      `<div class="trow">uptime ${h}h ${mnt}m</div>`);
+  }catch(e){ tout(`<div class="trow">${esc(e.message)}</div>`); }
+});
+$("backupbtn").addEventListener("click",()=>{
+  window.open("/api/backup"+(TOKEN?`?token=${encodeURIComponent(TOKEN)}`:""),"_blank");
+});
+$("restorebtn").addEventListener("click",()=>$("restorefile").click());
+$("restorefile").addEventListener("change",async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  try{ const blob=JSON.parse(await f.text());
+    const d=await api("/api/restore",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(blob)});
+    $("toolsmodal").classList.remove("hidden");
+    tout(`<div class="tout-head">⬆ restore</div><div class="trow">imported <b>${d.imported}</b> saved scan(s).</div>`);
+  }catch(err){ alert("restore failed: "+err.message); }
+  e.target.value="";
 });
 
 /* scope-guard editor (feature 72) */

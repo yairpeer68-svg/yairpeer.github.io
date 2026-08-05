@@ -499,6 +499,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._unified(parsed)
         if path == "/api/scope":
             return self._scope_get()
+        if path == "/api/metrics":
+            return self._metrics()
+        if path == "/api/backup":
+            return self._backup()
         if path.startswith("/api/scan/"):
             return self._saved_scan(path.split("/")[3] if len(path.split("/")) > 3 else "")
         if path.startswith("/api/job/"):
@@ -514,6 +518,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._scan_start()
         if path == "/api/scope":
             return self._scope_set()
+        if path == "/api/restore":
+            return self._restore()
         if path == "/api/schedule":
             return self._schedule_create()
         if path == "/api/keys":
@@ -797,6 +803,77 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "no saved scans for those targets — "
                                "run & save them first"}, 404)
         return self._json(unified_graph(graphs))
+
+    def _metrics(self):
+        """System / health metrics for the dashboard (feature 80)."""
+        import ghost_eye
+        jobs = getattr(self.server, "jobs", None)
+        if jobs is not None:
+            with jobs.lock:
+                all_jobs = list(jobs.jobs.values())
+        else:
+            all_jobs = []
+        running = sum(1 for j in all_jobs if j.get("status") == "running")
+        done = sum(1 for j in all_jobs if j.get("status") == "done")
+        errored = sum(1 for j in all_jobs if j.get("status") == "error")
+        scans = 0
+        try:
+            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            scans = len(store.recent_scans(limit=100000))
+            store.close()
+        except Exception:  # noqa: BLE001
+            pass
+        err_log = 0
+        try:
+            from .core import errorlog_path
+            p = errorlog_path()
+            if p.exists():
+                err_log = sum(1 for _ in p.open(encoding="utf-8", errors="ignore"))
+        except Exception:  # noqa: BLE001
+            pass
+        up = int(time.time() - getattr(self.server, "started_at", time.time()))
+        return self._json({
+            "version": ghost_eye.__version__,
+            "modules": len(REGISTRY),
+            "jobs": {"total": len(all_jobs), "running": running,
+                     "done": done, "error": errored},
+            "saved_scans": scans,
+            "error_log_lines": err_log,
+            "uptime_seconds": up,
+            "schedules": len(self.server.scheduler.list_all())
+            if getattr(self.server, "scheduler", None) else 0,
+        })
+
+    def _backup(self):
+        """Download every saved scan as a portable JSON backup (feature 77).
+        Scan findings only — never API keys or secrets."""
+        try:
+            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            blob = store.export_all()
+            store.close()
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"backup failed: {exc}"}, 500)
+        body = json.dumps(blob, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Disposition",
+                         'attachment; filename="ghosteye-backup.json"')
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _restore(self):
+        """Restore saved scans from an uploaded backup JSON (feature 77)."""
+        blob = self._body()
+        try:
+            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            n = store.import_all(blob)
+            store.close()
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"restore failed: {exc}"}, 500)
+        return self._json({"ok": True, "imported": n})
 
     def _scope_get(self):
         """Return the current scope-guard allow-list (feature 72)."""
@@ -1131,6 +1208,7 @@ def serve(host: str = "127.0.0.1", port: int = 8777,
     httpd.scope = Scope.from_file(scope_file)   # type: ignore[attr-defined]
     httpd.jobs.scope = httpd.scope      # deep scans honour the same scope
     httpd.quiet = quiet                 # type: ignore[attr-defined]
+    httpd.started_at = time.time()      # type: ignore[attr-defined]
     # require a token whenever the dashboard is reachable off-localhost, so a
     # network peer can't drive scans through the API. localhost stays frictionless.
     local = host in ("127.0.0.1", "localhost", "::1", "")

@@ -396,3 +396,123 @@ class OriginHunt(Module):
             data["note"] = ("no non-CDN origin candidate found via passive "
                             "channels; the origin may be well isolated.")
         return self.ok(host, data)
+
+
+# =========================================================================== #
+#  51  expirymon — domain + TLS certificate expiry monitor
+# =========================================================================== #
+import datetime as _dt
+import ssl as _ssl
+
+
+def _cert_not_after(host: str, timeout: int) -> "tuple":
+    try:
+        ctx = _ssl.create_default_context()
+        with socket.create_connection((host, 443), timeout=timeout) as sock:
+            with ctx.wrap_socket(sock, server_hostname=host) as ss:
+                cert = ss.getpeercert()
+        na = cert.get("notAfter")
+        if not na:
+            return None, None
+        exp = _dt.datetime.strptime(na, "%b %d %H:%M:%S %Y %Z")
+        days = (exp - _dt.datetime.utcnow()).days
+        return exp.strftime("%Y-%m-%d"), days
+    except Exception:  # noqa: BLE001
+        return None, None
+
+
+def _domain_expiry(host: str) -> "tuple":
+    try:
+        import whois  # optional dep
+        w = whois.whois(host)
+        exp = w.expiration_date
+        if isinstance(exp, list):
+            exp = exp[0] if exp else None
+        if not exp:
+            return None, None
+        days = (exp - _dt.datetime.now()).days
+        return exp.strftime("%Y-%m-%d"), days
+    except Exception:  # noqa: BLE001
+        return None, None
+
+
+@register
+class ExpiryMon(Module):
+    id = "expirymon"
+    name = "Domain + TLS certificate expiry monitor"
+    category = "Threat Intel"
+    target_kind = "domain"
+
+    def run(self, target: str, ctx: Context) -> Result:
+        try:
+            host = clean_host(target)
+        except ValueError as exc:
+            return self.fail(target, str(exc))
+        t = getattr(ctx, "timeout", 15)
+        cert_date, cert_days = _cert_not_after(host, t)
+        dom_date, dom_days = _domain_expiry(host)
+        data: Dict[str, Any] = {}
+        warns: List[str] = []
+        if cert_date is not None:
+            data["cert_expires"] = cert_date
+            data["cert_days_left"] = cert_days
+            if cert_days is not None and cert_days < 30:
+                warns.append(f"TLS certificate expires in {cert_days} day(s)")
+        if dom_date is not None:
+            data["domain_expires"] = dom_date
+            data["domain_days_left"] = dom_days
+            if dom_days is not None and dom_days < 45:
+                warns.append(f"domain registration expires in {dom_days} day(s)")
+        if warns:
+            data["warnings"] = warns
+            soon = min([d for d in (cert_days, dom_days) if d is not None] or [999])
+            data["severity"] = ("high" if soon < 14 else
+                                "medium" if soon < 30 else "low")
+        if not data:
+            data["note"] = "could not read certificate/whois expiry"
+        return self.ok(host, data)
+
+
+# =========================================================================== #
+#  52  dnschange — stable DNS fingerprint for change / defacement monitoring
+# =========================================================================== #
+import hashlib as _hashlib
+
+
+@register
+class DnsChange(Module):
+    id = "dnschange"
+    name = "DNS fingerprint (change monitoring)"
+    category = "DNS"
+    target_kind = "domain"
+
+    def run(self, target: str, ctx: Context) -> Result:
+        try:
+            host = clean_host(target)
+        except ValueError as exc:
+            return self.fail(target, str(exc))
+        records: Dict[str, List[str]] = {}
+        try:
+            import dns.resolver
+            for rtype in ("A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"):
+                try:
+                    ans = dns.resolver.resolve(host, rtype)
+                    records[rtype] = sorted(str(r).strip('"').rstrip(".")
+                                            for r in ans)
+                except Exception:  # noqa: BLE001
+                    continue
+        except Exception:  # noqa: BLE001
+            # fall back to a plain A lookup so the module still fingerprints
+            ips = _resolve(host)
+            if ips:
+                records["A"] = ips
+        # stable fingerprint over the sorted record set — the change-monitor
+        # / alert layer diffs this between scans to detect DNS drift.
+        blob = "\n".join(f"{k}={','.join(v)}" for k, v in sorted(records.items()))
+        fp = _hashlib.sha256(blob.encode()).hexdigest()[:16] if blob else ""
+        data: Dict[str, Any] = {"records": records,
+                                "record_types": len(records),
+                                "dns_fingerprint": fp}
+        if not records:
+            data["note"] = "no DNS records resolved"
+        return self.ok(host, data)

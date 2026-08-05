@@ -28,6 +28,32 @@ def _rows(results: List[Result]) -> List[Dict[str, str]]:
     return rows
 
 
+def dedup_findings(results: List[Result]) -> Dict[str, Any]:
+    """Collapse duplicate findings across modules (feature 76): the same
+    field=value seen in several modules is reported once, with the list of
+    modules that produced it. Returns {unique, duplicates_removed, findings}."""
+    buckets: Dict[tuple, Dict[str, Any]] = {}
+    total = 0
+    for row in _rows(results):
+        total += 1
+        key = (row["field"].lower(), row["value"].lower())
+        b = buckets.get(key)
+        if not b:
+            buckets[key] = {"field": row["field"], "value": row["value"][:200],
+                            "modules": [row["module"]], "count": 1}
+        else:
+            b["count"] += 1
+            if row["module"] not in b["modules"]:
+                b["modules"].append(row["module"])
+    unique = list(buckets.values())
+    return {
+        "total_findings": total,
+        "unique": len(unique),
+        "duplicates_removed": total - len(unique),
+        "findings": sorted(unique, key=lambda x: x["count"], reverse=True)[:200],
+    }
+
+
 def _snippet(text: str, q: str, width: int = 90) -> str:
     low = text.lower()
     i = low.find(q.lower())

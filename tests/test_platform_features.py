@@ -120,3 +120,40 @@ def test_scope_to_lines_round_trip():
     s2 = Scope.from_lines(lines)
     assert s2.allows("api.example.com")[0] is True
     assert s2.allows("evil.test")[0] is False
+
+
+# --- dedup + backup/restore (features 76, 77) -----------------------------
+
+def test_dedup_findings_collapses_duplicates():
+    from ghost_eye.search import dedup_findings
+    r = [Result("m1", "x", "ok", {"ip": "1.2.3.4", "port": "80"}),
+         Result("m2", "x", "ok", {"ip": "1.2.3.4"}),
+         Result("m3", "x", "ok", {"port": "443"})]
+    d = dedup_findings(r)
+    assert d["total_findings"] == 4 and d["unique"] == 3
+    assert d["duplicates_removed"] == 1
+    iprow = next(f for f in d["findings"] if f["value"] == "1.2.3.4")
+    assert set(iprow["modules"]) == {"m1", "m2"}
+
+
+def test_store_backup_restore_round_trip(tmp_path):
+    from ghost_eye.reporting import Store
+    a = Store(str(tmp_path / "a.db"))
+    a.save_scan("j1", "example.com",
+                [Result("dns", "example.com", "ok", {"A": ["1.2.3.4"]})], "LOW", 20)
+    blob = a.export_all()
+    a.close()
+    assert blob["format"] == "ghosteye-backup" and len(blob["scans"]) == 1
+    b = Store(str(tmp_path / "b.db"))
+    assert b.import_all(blob) == 1
+    assert len(b.recent_scans()) == 1
+    b.close()
+
+
+def test_import_all_rejects_foreign_blob(tmp_path):
+    from ghost_eye.reporting import Store
+    s = Store(str(tmp_path / "c.db"))
+    import pytest
+    with pytest.raises(ValueError):
+        s.import_all({"format": "something-else"})
+    s.close()

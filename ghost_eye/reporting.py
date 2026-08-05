@@ -194,6 +194,44 @@ class Store:
              risk, score, len(results), payload))
         self.conn.commit()
 
+    def export_all(self) -> dict:
+        """Dump every saved scan as a portable JSON structure (feature 77).
+        Contains only scan findings — never API keys or secrets."""
+        import json as _json
+        cur = self.conn.execute(
+            "SELECT id,target,ts,risk,score,modules,results FROM scans")
+        scans = []
+        for i, t, ts, rk, sc, m, res in cur.fetchall():
+            try:
+                results = _json.loads(res)
+            except Exception:  # noqa: BLE001
+                results = []
+            scans.append({"id": i, "target": t, "ts": ts, "risk": rk,
+                          "score": sc, "modules": m, "results": results})
+        return {"format": "ghosteye-backup", "version": 1, "scans": scans}
+
+    def import_all(self, blob: dict) -> int:
+        """Restore scans from an ``export_all`` structure. Returns the number of
+        scans imported (INSERT OR REPLACE by id). Ignores anything else."""
+        import json as _json
+        if not isinstance(blob, dict) or blob.get("format") != "ghosteye-backup":
+            raise ValueError("not a Ghost Eye backup file")
+        n = 0
+        for s in blob.get("scans", []) or []:
+            try:
+                self.conn.execute(
+                    "INSERT OR REPLACE INTO scans(id,target,ts,risk,score,"
+                    "modules,results) VALUES(?,?,?,?,?,?,?)",
+                    (s.get("id"), s.get("target", ""), s.get("ts", ""),
+                     s.get("risk", ""), int(s.get("score", 0) or 0),
+                     int(s.get("modules", 0) or 0),
+                     _json.dumps(s.get("results", []), ensure_ascii=False)))
+                n += 1
+            except Exception:  # noqa: BLE001
+                continue
+        self.conn.commit()
+        return n
+
     def recent_scans(self, limit: int = 30):
         cur = self.conn.execute(
             "SELECT id,target,ts,risk,score,modules FROM scans "
