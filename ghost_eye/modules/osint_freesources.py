@@ -2730,3 +2730,121 @@ class GithubUser(Module):
                               "created_at": d.get("created_at"),
                               "profile": d.get("html_url"),
                               "source": "github-user"})
+
+
+# =========================================================================== #
+#  Wave 28 — deeper username pivots + IP registration + hosted-URL intel:
+#    GitLab user · Hacker News user (username)  · ARIN RDAP (IP registration)
+#    AlienVault OTX url_list (domain hosted/observed URLs)
+# =========================================================================== #
+@register
+class GitlabUser(Module):
+    id = "gitlabuser"
+    name = "GitLab user lookup (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "gitlabuser expects a bare handle"})
+        arr = _json(_get(ctx, f"https://gitlab.com/api/v4/users?username={user}")) or []
+        for u in arr if isinstance(arr, list) else []:
+            if isinstance(u, dict) and u.get("username"):
+                return self.ok(user, {"id": u.get("id"),
+                                      "username": u.get("username"),
+                                      "name": u.get("name"),
+                                      "state": u.get("state"),
+                                      "profile": u.get("web_url"),
+                                      "source": "gitlab-user"})
+        return self.ok(user, {"note": "no public GitLab user", "source": "gitlab-user"})
+
+
+@register
+class HackerNewsUser(Module):
+    id = "hnuser"
+    name = "Hacker News user profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "hnuser expects a bare handle"})
+        d = _json(_get(ctx, "https://hacker-news.firebaseio.com/v0/user/"
+                       f"{user}.json")) or {}
+        if not d.get("id"):
+            return self.ok(user, {"note": "no HN user", "source": "hn-user"})
+        about = re.sub(r"<[^>]+>", " ", d.get("about") or "").strip()
+        return self.ok(user, {"id": d.get("id"), "karma": d.get("karma"),
+                              "created": d.get("created"),
+                              "about": about[:400],
+                              "submissions": len(d.get("submitted") or []),
+                              "profile": f"https://news.ycombinator.com/user?id={d.get('id')}",
+                              "source": "hn-user"})
+
+
+@register
+class ArinRdap(Module):
+    id = "arinrdap"
+    name = "ARIN RDAP IP registration (org / netname / CIDR, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "arinrdap expects an IP"})
+        d = _json(_get(ctx, f"https://rdap.arin.net/registry/ip/{ip}",
+                       headers={"Accept": "application/rdap+json"})) or {}
+        cidrs = []
+        for c in d.get("cidr0_cidrs") or []:
+            if isinstance(c, dict):
+                pfx = c.get("v4prefix") or c.get("v6prefix")
+                length = c.get("length")
+                if pfx and length is not None:
+                    cidrs.append(f"{pfx}/{length}")
+        org = ""
+        for ent in d.get("entities") or []:
+            if isinstance(ent, dict):
+                varr = ent.get("vcardArray")
+                if isinstance(varr, list) and len(varr) > 1:
+                    for item in varr[1]:
+                        if isinstance(item, list) and len(item) >= 4 and item[0] == "fn":
+                            org = item[3]
+                            break
+            if org:
+                break
+        return self.ok(ip, {"name": d.get("name"), "handle": d.get("handle"),
+                            "org": org, "cidrs": cidrs[:10],
+                            "start": d.get("startAddress"), "end": d.get("endAddress"),
+                            "source": "arin-rdap"})
+
+
+@register
+class OtxUrls(Module):
+    id = "otxurls"
+    name = "AlienVault OTX observed URLs for the domain (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://otx.alienvault.com/api/v1/indicators/domain/"
+                       f"{host}/url_list?limit=100")) or {}
+        urls, hosts = [], set()
+        for u in d.get("url_list", []) or []:
+            if isinstance(u, dict):
+                if u.get("url"):
+                    urls.append(u.get("url")[:300])
+                hn = u.get("hostname")
+                if isinstance(hn, str):
+                    hosts.add(hn.lower())
+        subs = _subs_of(list(hosts), host)
+        return self.ok(host, {"urls": urls[:60], "url_count": len(urls),
+                              "subdomains": subs[:100],
+                              "total": d.get("actual_size") or len(urls),
+                              "source": "otx-urls"})

@@ -719,3 +719,34 @@ def test_wave27_tranco_otxmalware_iplocation_githubuser():
     assert il["country"] == "United States" and il["isp"] == "AcmeISP"
     gu = REGISTRY["githubuser"].run("octocat", _ctx(router)).data
     assert gu["login"] == "octocat" and gu["followers"] == 9000 and gu["company"] == "@github"
+
+
+def test_wave28_gitlabuser_hnuser_arinrdap_otxurls():
+    def router(url):
+        if "gitlab.com/api/v4/users" in url:
+            return _Resp(j=[{"id": 42, "username": "alice", "name": "Alice",
+                             "state": "active", "web_url": "https://gitlab.com/alice"}])
+        if "hacker-news.firebaseio.com" in url:
+            return _Resp(j={"id": "pg", "karma": 155000, "created": 1160418111,
+                            "about": "Founder of <a href=x>YC</a>",
+                            "submitted": [1, 2, 3]})
+        if "rdap.arin.net" in url:
+            return _Resp(j={"name": "ACME-NET", "handle": "NET-1-2-0-0-1",
+                            "startAddress": "1.2.0.0", "endAddress": "1.2.255.255",
+                            "cidr0_cidrs": [{"v4prefix": "1.2.0.0", "length": 16}],
+                            "entities": [{"vcardArray": ["vcard", [
+                                ["version", {}, "text", "4.0"],
+                                ["fn", {}, "text", "Acme Corp"]]]}]})
+        if "otx.alienvault.com" in url and "url_list" in url:
+            return _Resp(j={"actual_size": 2, "url_list": [
+                {"url": "http://acme.com/a", "hostname": "acme.com"},
+                {"url": "http://x.acme.com/b", "hostname": "x.acme.com"}]})
+        return _Resp(j={})
+    gl = REGISTRY["gitlabuser"].run("alice", _ctx(router)).data
+    assert gl["id"] == 42 and gl["username"] == "alice"
+    hn = REGISTRY["hnuser"].run("pg", _ctx(router)).data
+    assert hn["karma"] == 155000 and "YC" in hn["about"] and hn["submissions"] == 3
+    ar = REGISTRY["arinrdap"].run("1.2.3.4", _ctx(router)).data
+    assert ar["name"] == "ACME-NET" and ar["org"] == "Acme Corp" and "1.2.0.0/16" in ar["cidrs"]
+    ou = REGISTRY["otxurls"].run("acme.com", _ctx(router)).data
+    assert ou["url_count"] == 2 and "x.acme.com" in ou["subdomains"]
