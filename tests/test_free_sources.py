@@ -365,3 +365,32 @@ def test_otxpulse_and_ipinfo():
     i = REGISTRY["ipinfo"].run("1.2.3.4", _ctx(router)).data
     assert i["org"] == "AS64500 ACME" and i["country"] == "US"
     assert "note" in REGISTRY["ipinfo"].run("acme.com", _ctx(router)).data
+
+
+def test_merklemap_filters_to_domain():
+    def router(url):
+        if "merklemap" in url:
+            return _Resp(j={"results": [{"domain": "api.acme.com"},
+                                        {"domain": "www.acme.com"},
+                                        {"domain": "evil.com"}]})
+        return _Resp(j={})
+    d = REGISTRY["merklemap"].run("acme.com", _ctx(router)).data
+    assert set(d["subdomains"]) == {"api.acme.com", "www.acme.com"}
+
+
+def test_uriblock_uses_dns(monkeypatch):
+    import dns.resolver
+
+    class _Ans:
+        def __init__(self, v): self.v = v
+        def __iter__(self): return iter([self.v])
+
+    def fake_resolve(self, qname, rtype):
+        if qname.startswith("acme.com.multi.surbl.org"):
+            return _Ans("127.0.0.2")           # listed on SURBL
+        raise Exception("NXDOMAIN")
+
+    monkeypatch.setattr(dns.resolver.Resolver, "resolve", fake_resolve)
+    d = REGISTRY["uriblock"].run("acme.com", _ctx(lambda u: _Resp(j={}))).data
+    assert "SURBL" in d["listed_on"] and d["listed_count"] == 1
+    assert d["severity"] == "medium"

@@ -1440,3 +1440,84 @@ class IpInfo(Module):
         return self.ok(ip, {"hostname": d.get("hostname"), "city": d.get("city"),
                             "region": d.get("region"), "country": d.get("country"),
                             "org": d.get("org"), "source": "ipinfo.io"})
+
+
+# =========================================================================== #
+#  Wave 14 — MerkleMap CT subdomains + multi-list domain URI reputation
+# =========================================================================== #
+@register
+class MerkleMap(Module):
+    id = "merklemap"
+    name = "MerkleMap certificate-transparency (subdomains)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, f"https://api.merklemap.com/search?query=*.{host}"))
+        names: Set[str] = set()
+        rows = []
+        if isinstance(d, dict):
+            rows = d.get("results") or d.get("data") or []
+        elif isinstance(d, list):
+            rows = d
+        for r in rows or []:
+            if isinstance(r, dict):
+                for k in ("domain", "hostname", "name", "common_name"):
+                    if r.get(k):
+                        names.add(str(r[k]))
+            elif isinstance(r, str):
+                names.add(r)
+        subs = _subs_of(names, host)
+        return self.ok(host, {"subdomains": subs, "count": len(subs),
+                              "source": "merklemap"})
+
+
+# public domain URI block-lists (query the domain directly under each zone)
+_URIBL_ZONES = {
+    "SURBL": "multi.surbl.org",
+    "URIBL": "black.uribl.com",
+    "Spamhaus DBL": "dbl.spamhaus.org",
+    "SORBS RHSBL": "rhsbl.sorbs.net",
+}
+
+
+@register
+class UriBlock(Module):
+    id = "uriblock"
+    name = "Multi-list domain URI reputation (DNS, keyless)"
+    category = "Threat Intel"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        listed: List[str] = []
+        try:
+            import dns.resolver
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = min(getattr(ctx, "timeout", 8), 8)
+            for name, zone in _URIBL_ZONES.items():
+                try:
+                    ans = resolver.resolve(f"{host}.{zone}", "A")
+                    if any(str(a).startswith("127.") for a in ans):
+                        listed.append(name)
+                except Exception:  # noqa: BLE001 - NXDOMAIN = not listed
+                    continue
+        except Exception:  # noqa: BLE001
+            return self.ok(host, {"note": "dnspython unavailable",
+                                  "source": "uriblock"})
+        data: Dict[str, Any] = {"checked": len(_URIBL_ZONES),
+                                "listed_on": listed,
+                                "listed_count": len(listed),
+                                "source": "uriblock"}
+        if listed:
+            data["severity"] = "high" if len(listed) >= 2 else "medium"
+            data["note"] = (f"domain is on {len(listed)} URI block-list(s) — "
+                            "associated with spam/abuse/malware.")
+        return self.ok(host, data)
