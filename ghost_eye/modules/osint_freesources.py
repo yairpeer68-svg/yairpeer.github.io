@@ -2626,3 +2626,107 @@ class IpWhoisApp(Module):
                             "city": d.get("city"), "isp": d.get("isp"),
                             "org": d.get("org"), "asn": d.get("asn"),
                             "source": "ipwhois.app"})
+
+
+# =========================================================================== #
+#  Wave 27 — popularity + malware corroboration + IP geo + username pivot:
+#    Tranco rank  · AlienVault OTX malware (domain)  · iplocation.net (IP)
+#    GitHub user profile (username pivot)
+# =========================================================================== #
+@register
+class Tranco(Module):
+    id = "tranco"
+    name = "Tranco popularity rank (legitimacy signal, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        reg = ".".join(host.split(".")[-2:])
+        d = _json(_get(ctx, f"https://tranco-list.eu/api/ranks/domain/{reg}")) or {}
+        ranks = d.get("ranks") or []
+        latest = None
+        for r in ranks:
+            if isinstance(r, dict) and r.get("rank"):
+                latest = r.get("rank")
+                break
+        return self.ok(host, {"domain": reg, "latest_rank": latest,
+                              "history_points": len(ranks),
+                              "ranked": latest is not None,
+                              "note": "presence on the Tranco top-list is a weak "
+                                      "legitimacy/age signal.",
+                              "source": "tranco"})
+
+
+@register
+class OtxMalware(Module):
+    id = "otxmalware"
+    name = "AlienVault OTX malware samples for the domain (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://otx.alienvault.com/api/v1/indicators/domain/"
+                       f"{host}/malware")) or {}
+        samples = []
+        for m in d.get("data", []) or []:
+            if isinstance(m, dict) and m.get("hash"):
+                samples.append({"hash": m.get("hash"),
+                                "detections": m.get("detections")})
+        count = d.get("count") if isinstance(d.get("count"), int) else len(samples)
+        data = {"samples": samples[:30], "count": count, "source": "otx-malware"}
+        if count:
+            data["severity"] = "high"
+            data["note"] = f"{count} malware sample(s) associated with this domain in OTX."
+        return self.ok(host, data)
+
+
+@register
+class IpLocationNet(Module):
+    id = "iplocationnet"
+    name = "iplocation.net geo / ISP (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "iplocation.net expects an IP"})
+        d = _json(_get(ctx, f"https://api.iplocation.net/?ip={ip}")) or {}
+        return self.ok(ip, {"country": d.get("country_name"),
+                            "country_code": d.get("country_code2"),
+                            "isp": d.get("isp"),
+                            "source": "iplocation.net"})
+
+
+@register
+class GithubUser(Module):
+    id = "githubuser"
+    name = "GitHub user profile + public activity (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubuser expects a bare handle"})
+        hdr = {"Accept": "application/vnd.github+json",
+               "User-Agent": "GhostEye-OSINT/1.0"}
+        d = _json(_get(ctx, f"https://api.github.com/users/{user}", headers=hdr)) or {}
+        if not d.get("login"):
+            return self.ok(user, {"note": "no public GitHub user", "source": "github-user"})
+        return self.ok(user, {"login": d.get("login"), "name": d.get("name"),
+                              "company": d.get("company"), "blog": d.get("blog"),
+                              "location": d.get("location"), "email": d.get("email"),
+                              "public_repos": d.get("public_repos"),
+                              "followers": d.get("followers"),
+                              "created_at": d.get("created_at"),
+                              "profile": d.get("html_url"),
+                              "source": "github-user"})

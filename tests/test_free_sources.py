@@ -691,3 +691,31 @@ def test_wave26_sucuri_xposeddomain_crtshorg_ipwhoisapp():
     assert "acme.com" in co["cert_domains"] and "acme.net" in co["registrable_domains"]
     iw = REGISTRY["ipwhoisapp"].run("1.2.3.4", _ctx(router)).data
     assert iw["asn"] == "AS64500" and iw["city"] == "NYC"
+
+
+def test_wave27_tranco_otxmalware_iplocation_githubuser():
+    def router(url):
+        if "tranco-list.eu" in url:
+            return _Resp(j={"ranks": [{"date": "2024-01-01", "rank": 1500},
+                                      {"date": "2023-12-01", "rank": 1600}]})
+        if "otx.alienvault.com" in url and "/malware" in url:
+            return _Resp(j={"count": 2, "data": [
+                {"hash": "abc123", "detections": {"avast": "X"}},
+                {"hash": "def456"}]})
+        if "api.iplocation.net" in url:
+            return _Resp(j={"country_name": "United States", "country_code2": "US",
+                            "isp": "AcmeISP"})
+        if "api.github.com/users/octocat" in url:
+            return _Resp(j={"login": "octocat", "name": "The Octocat",
+                            "company": "@github", "location": "SF",
+                            "public_repos": 8, "followers": 9000,
+                            "html_url": "https://github.com/octocat"})
+        return _Resp(j={})
+    tr = REGISTRY["tranco"].run("acme.com", _ctx(router)).data
+    assert tr["latest_rank"] == 1500 and tr["ranked"] is True
+    om = REGISTRY["otxmalware"].run("acme.com", _ctx(router)).data
+    assert om["count"] == 2 and om["severity"] == "high" and om["samples"][0]["hash"] == "abc123"
+    il = REGISTRY["iplocationnet"].run("1.2.3.4", _ctx(router)).data
+    assert il["country"] == "United States" and il["isp"] == "AcmeISP"
+    gu = REGISTRY["githubuser"].run("octocat", _ctx(router)).data
+    assert gu["login"] == "octocat" and gu["followers"] == 9000 and gu["company"] == "@github"
