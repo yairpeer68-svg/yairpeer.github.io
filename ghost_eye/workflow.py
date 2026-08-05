@@ -112,7 +112,11 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
               "subs", "pdnsotx", "pdnsht", "pdnsanubis", "pdnstm", "rapiddns",
               "riddler", "waybackcdx", "commoncrawl", "urlscanio", "bucketscan",
               "faviconhash", "socialrecon", "ghleak", "hibpbreach", "sectxt",
-              "robotsmap", "certpivot", "emailpattern"],
+              "robotsmap", "certpivot", "emailpattern",
+              # free/keyless multi-source breadth (many sources per data type)
+              "certspotter", "bufferover", "hackertarget", "subdomaincenter",
+              "otxrep", "hudsonrock", "grepapp", "searchcode", "threatfox",
+              "urlhaus"],
     "passive": ["internetdb", "geoip", "proxytype", "torexit", "threatfeed",
                 "reputation", "urlscan", "breachcheck", "waybackadv", "pastebin"],
     "perimeter": ["dns", "subs", "nmap", "headers", "cert", "tlsgrade", "waf",

@@ -23,10 +23,14 @@ from ..core import REGISTRY, Result
 PIVOT_MODULES: Dict[str, List[str]] = {
     "domain": ["whois", "dns", "subs", "emails", "related", "whoispivot",
                "username", "dorks", "emailauth", "waybackcdx", "faviconhash",
-               "certpivot", "emailpattern"],
-    "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm"],
+               "certpivot", "emailpattern",
+               # free/keyless multi-source breadth
+               "certspotter", "bufferover", "hackertarget", "subdomaincenter",
+               "otxrep", "hudsonrock", "grepapp", "searchcode", "urlhaus"],
+    "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm", "emailrep"],
     "username": ["username"],
-    "ip": ["geoip", "internetdb", "reputation", "rdap"],
+    "ip": ["geoip", "internetdb", "reputation", "rdap",
+           "robtex", "bgpview", "ipapi", "cymruasn"],
 }
 # confidence decays with each hop away from the seed
 _HOP_CONFIDENCE = ["high", "medium", "low", "low"]
