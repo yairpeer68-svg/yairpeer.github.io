@@ -116,7 +116,8 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
               # free/keyless multi-source breadth (many sources per data type)
               "certspotter", "bufferover", "hackertarget", "subdomaincenter",
               "otxrep", "hudsonrock", "grepapp", "searchcode", "threatfox",
-              "urlhaus"],
+              "urlhaus", "spamhausdbl", "psbdmp", "keybase", "certdetails",
+              "sitedossier"],
     "passive": ["internetdb", "geoip", "proxytype", "torexit", "threatfeed",
                 "reputation", "urlscan", "breachcheck", "waybackadv", "pastebin"],
     "perimeter": ["dns", "subs", "nmap", "headers", "cert", "tlsgrade", "waf",

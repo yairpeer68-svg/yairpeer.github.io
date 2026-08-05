@@ -26,11 +26,13 @@ PIVOT_MODULES: Dict[str, List[str]] = {
                "certpivot", "emailpattern",
                # free/keyless multi-source breadth
                "certspotter", "bufferover", "hackertarget", "subdomaincenter",
-               "otxrep", "hudsonrock", "grepapp", "searchcode", "urlhaus"],
+               "otxrep", "hudsonrock", "grepapp", "searchcode", "urlhaus",
+               "spamhausdbl", "psbdmp", "keybase", "certdetails", "sitedossier"],
     "email": ["breachcheck", "hibpbreach", "gravatar", "emailperm", "emailrep"],
     "username": ["username"],
     "ip": ["geoip", "internetdb", "reputation", "rdap",
-           "robtex", "bgpview", "ipapi", "cymruasn"],
+           "robtex", "bgpview", "ipapi", "cymruasn",
+           "reverseip", "otxip", "iptoasn", "feodo"],
 }
 # confidence decays with each hop away from the seed
 _HOP_CONFIDENCE = ["high", "medium", "low", "low"]

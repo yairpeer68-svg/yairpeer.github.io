@@ -451,3 +451,221 @@ class SearchCode(Module):
                 repos.add(str(r["repo"]))
         return self.ok(host, {"code_results": len(results or []),
                               "repos": sorted(repos)[:25], "source": "searchcode"})
+
+
+# =========================================================================== #
+#  Wave 2 — more free / keyless sources (co-hosting, ASN, C2, dumps, identity)
+# =========================================================================== #
+@register
+class ReverseIp(Module):
+    id = "reverseip"
+    name = "Reverse IP — co-hosted domains (HackerTarget)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "reverse-IP expects an IP"})
+        txt = _text(_get(ctx, f"https://api.hackertarget.com/reverseiplookup/?q={ip}"))
+        domains: Set[str] = set()
+        if txt and "error" not in txt.lower() and "API count" not in txt:
+            for line in txt.splitlines():
+                d = line.strip().lower()
+                if d and _HOSTRE.fullmatch(d):
+                    domains.add(d)
+        return self.ok(ip, {"related_domains": sorted(domains)[:80],
+                            "count": len(domains), "source": "reverseip"})
+
+
+@register
+class OtxIp(Module):
+    id = "otxip"
+    name = "AlienVault OTX (IP passive DNS + reputation)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "OTX IP lookup expects an IP"})
+        base = f"https://otx.alienvault.com/api/v1/indicators/IPv4/{ip}"
+        pdns = _json(_get(ctx, base + "/passive_dns")) or {}
+        gen = _json(_get(ctx, base + "/general")) or {}
+        domains: Set[str] = set()
+        for rec in pdns.get("passive_dns", []) or []:
+            if rec.get("hostname"):
+                domains.add(str(rec["hostname"]).lower())
+        pulses = ((gen.get("pulse_info") or {}).get("count")) or 0
+        return self.ok(ip, {"related_domains": sorted(domains)[:60],
+                            "threat_pulses": pulses,
+                            "flagged": pulses > 0, "source": "alienvault-otx"})
+
+
+@register
+class IpToAsn(Module):
+    id = "iptoasn"
+    name = "iptoasn.com ASN / org (IP)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "iptoasn expects an IP"})
+        d = _json(_get(ctx, f"https://api.iptoasn.com/v1/as/ip/{ip}")) or {}
+        return self.ok(ip, {"asn": d.get("as_number"),
+                            "asn_org": d.get("as_description"),
+                            "country": d.get("as_country_code"),
+                            "announced": d.get("announced"),
+                            "source": "iptoasn"})
+
+
+@register
+class Feodo(Module):
+    id = "feodo"
+    name = "Feodo Tracker botnet C2 (abuse.ch)"
+    category = "Threat Intel"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "feodo expects an IP"})
+        d = _json(_get(ctx, "https://feodotracker.abuse.ch/downloads/ipblocklist.json"))
+        listed = False
+        info: Dict[str, Any] = {}
+        if isinstance(d, list):
+            for row in d:
+                if isinstance(row, dict) and row.get("ip_address") == ip:
+                    listed = True
+                    info = {"malware": row.get("malware"),
+                            "first_seen": row.get("first_seen"),
+                            "status": row.get("status")}
+                    break
+        data = {"c2_listed": listed, "source": "feodotracker"}
+        if listed:
+            data.update(info)
+            data["severity"] = "critical"
+            data["note"] = "IP is a known botnet command-and-control server."
+        return self.ok(ip, data)
+
+
+@register
+class SpamhausDbl(Module):
+    id = "spamhausdbl"
+    name = "Spamhaus DBL domain block-list (DNS)"
+    category = "Threat Intel"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        listed = False
+        code = ""
+        try:
+            import dns.resolver
+            ans = dns.resolver.resolve(f"{host}.dbl.spamhaus.org", "A")
+            code = str(ans[0])
+            listed = code.startswith("127.0.1.")
+        except Exception:  # noqa: BLE001
+            listed = False
+        data = {"dbl_listed": listed, "source": "spamhaus-dbl"}
+        if listed:
+            data["return_code"] = code
+            data["severity"] = "high"
+            data["note"] = "domain is on the Spamhaus Domain Block List."
+        return self.ok(host, data)
+
+
+@register
+class Psbdmp(Module):
+    id = "psbdmp"
+    name = "Pastebin-dump search (psbdmp.cc)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, f"https://psbdmp.cc/api/search/{host}")) or {}
+        rows = d.get("data") if isinstance(d.get("data"), list) else []
+        dumps = [{"id": r.get("id"), "date": r.get("time") or r.get("date")}
+                 for r in (rows or [])[:20]]
+        data = {"paste_dumps": len(dumps), "dumps": dumps, "source": "psbdmp"}
+        if dumps:
+            data["severity"] = "medium"
+            data["note"] = "domain appeared in public paste dumps — review for leaks."
+        return self.ok(host, data)
+
+
+@register
+class Keybase(Module):
+    id = "keybase"
+    name = "Keybase identities by domain"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://keybase.io/_/api/1.0/user/lookup.json"
+                           f"?domain={host}")) or {}
+        users = []
+        for u in d.get("them", []) or []:
+            basics = (u or {}).get("basics", {}) or {}
+            if basics.get("username"):
+                users.append(basics["username"])
+        return self.ok(host, {"keybase_users": users[:40], "count": len(users),
+                              "source": "keybase"})
+
+
+@register
+class CertDetails(Module):
+    id = "certdetails"
+    name = "Certificate transparency (certificatedetails.com)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, f"https://certificatedetails.com/api/list/{host}")) or {}
+        names: Set[str] = set()
+        rows = d if isinstance(d, list) else d.get("certificates", []) if isinstance(d, dict) else []
+        for cert in rows or []:
+            if isinstance(cert, dict):
+                for n in (cert.get("DNSNames") or cert.get("dns_names") or []):
+                    names.add(n)
+                if cert.get("CommonName"):
+                    names.add(cert["CommonName"])
+        subs = _subs_of(names, host)
+        return self.ok(host, {"subdomains": subs, "count": len(subs),
+                              "source": "certificatedetails"})
+
+
+@register
+class SiteDossier(Module):
+    id = "sitedossier"
+    name = "SiteDossier subdomain listing"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        txt = _text(_get(ctx, f"http://www.sitedossier.com/parentdomain/{host}"))
+        names = set(m.lower() for m in _HOSTRE.findall(txt or ""))
+        subs = _subs_of(names, host)
+        return self.ok(host, {"subdomains": subs, "count": len(subs),
+                              "source": "sitedossier"})

@@ -100,3 +100,43 @@ def test_all_free_sources_registered():
                 "otxrep", "robtex", "bgpview", "ipapi", "cymruasn", "threatfox",
                 "urlhaus", "hudsonrock", "emailrep", "grepapp", "searchcode"):
         assert mid in REGISTRY
+
+
+def _router2(url):
+    if "reverseiplookup" in url:
+        return _Resp(t="acme.com\nblog.acme.com\nother-tenant.com")
+    if "iptoasn" in url:
+        return _Resp(j={"as_number": 64500, "as_description": "ACME-AS",
+                        "as_country_code": "US", "announced": True})
+    if "feodotracker" in url:
+        return _Resp(j=[{"ip_address": "1.2.3.4", "malware": "Emotet",
+                         "status": "online", "first_seen": "2024-01-01"}])
+    if "keybase" in url:
+        return _Resp(j={"them": [{"basics": {"username": "alice"}},
+                                 {"basics": {"username": "bob"}}]})
+    if "psbdmp" in url:
+        return _Resp(j={"data": [{"id": "abc", "time": "2024-01-01"}]})
+    if "IPv4" in url and "passive_dns" in url:
+        return _Resp(j={"passive_dns": [{"hostname": "x.acme.com"}]})
+    if "IPv4" in url and "general" in url:
+        return _Resp(j={"pulse_info": {"count": 3}})
+    return _Resp(j={})
+
+
+def test_wave2_ip_sources():
+    ctx = _ctx(_router2)
+    rev = REGISTRY["reverseip"].run("1.2.3.4", ctx).data
+    assert "acme.com" in rev["related_domains"]
+    assert REGISTRY["iptoasn"].run("1.2.3.4", ctx).data["asn"] == 64500
+    feo = REGISTRY["feodo"].run("1.2.3.4", ctx).data
+    assert feo["c2_listed"] is True and feo["severity"] == "critical"
+    otx = REGISTRY["otxip"].run("1.2.3.4", ctx).data
+    assert otx["flagged"] is True and "x.acme.com" in otx["related_domains"]
+
+
+def test_wave2_domain_sources():
+    ctx = _ctx(_router2)
+    kb = REGISTRY["keybase"].run("acme.com", ctx).data
+    assert set(kb["keybase_users"]) == {"alice", "bob"}
+    ps = REGISTRY["psbdmp"].run("acme.com", ctx).data
+    assert ps["paste_dumps"] == 1 and ps.get("severity") == "medium"
