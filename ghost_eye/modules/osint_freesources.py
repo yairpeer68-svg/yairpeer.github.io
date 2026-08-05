@@ -1074,3 +1074,88 @@ class WaybackSecrets(Module):
                             "been removed from the live site but are still leaked "
                             "in the Wayback Machine. Rotate them.")
         return self.ok(host, data)
+
+
+# =========================================================================== #
+#  Wave 8 — phone-number OSINT + a second free IP org source (corroboration)
+# =========================================================================== #
+_PHONE_RE = re.compile(r"\+?\d[\d\s().\-]{7,17}\d")
+
+
+@register
+class PhoneHarvest(Module):
+    id = "phoneharvest"
+    name = "Phone-number harvest + parse (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    _PAGES = ("", "/contact", "/contact-us", "/about", "/about-us", "/support",
+              "/impressum", "/legal")
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        from urllib.parse import urljoin
+        base = f"https://{host}"
+        raw: Set[str] = set()
+        for path in self._PAGES:
+            txt = _text(_get(ctx, urljoin(base, path)))
+            if not txt:
+                continue
+            for m in _PHONE_RE.findall(txt):
+                digits = re.sub(r"[^\d+]", "", m)
+                if 8 <= len(re.sub(r"\D", "", digits)) <= 15:
+                    raw.add(digits)
+            if len(raw) >= 40:
+                break
+
+        numbers: List[Dict[str, Any]] = []
+        try:
+            import phonenumbers
+            from phonenumbers import geocoder, number_type, PhoneNumberType
+            type_name = {getattr(PhoneNumberType, n): n.lower()
+                         for n in ("MOBILE", "FIXED_LINE", "FIXED_LINE_OR_MOBILE",
+                                   "TOLL_FREE", "VOIP") if hasattr(PhoneNumberType, n)}
+            for r in sorted(raw):
+                try:
+                    pn = phonenumbers.parse(r, None)  # needs +country
+                    if phonenumbers.is_valid_number(pn):
+                        numbers.append({
+                            "e164": phonenumbers.format_number(
+                                pn, phonenumbers.PhoneNumberFormat.E164),
+                            "region": geocoder.description_for_number(pn, "en"),
+                            "type": type_name.get(number_type(pn), "unknown")})
+                        continue
+                except Exception:  # noqa: BLE001
+                    pass
+                numbers.append({"raw": r})
+        except Exception:  # noqa: BLE001 - phonenumbers optional
+            numbers = [{"raw": r} for r in sorted(raw)]
+
+        return self.ok(host, {"phone_numbers": numbers[:40],
+                              "count": len(raw),
+                              "parsed": sum(1 for n in numbers if n.get("e164")),
+                              "source": "phone-harvest"})
+
+
+@register
+class IpWhois(Module):
+    id = "ipwhois"
+    name = "ipwho.is geo / org (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "ipwho.is expects an IP"})
+        d = _json(_get(ctx, f"https://ipwho.is/{ip}")) or {}
+        if not d.get("success", False) and "connection" not in d:
+            return self.ok(ip, {"note": "no data", "source": "ipwho.is"})
+        conn = d.get("connection", {}) or {}
+        return self.ok(ip, {"country": d.get("country"), "city": d.get("city"),
+                            "org": conn.get("org"), "isp": conn.get("isp"),
+                            "asn": conn.get("asn"), "domain": conn.get("domain"),
+                            "source": "ipwho.is"})

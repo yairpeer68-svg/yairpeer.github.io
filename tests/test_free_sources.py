@@ -259,3 +259,30 @@ def test_wayback_historical_secret_scan():
     # the raw key is redacted, never echoed
     assert "AKIAIOSFODNN7EXAMPLE" != d["findings"][0]["match"]
     assert d.get("severity") == "high"
+
+
+def test_phoneharvest_extracts_numbers():
+    class _R:
+        status_code = 200
+        def __init__(self, t): self.text = t
+        def json(self): return {}
+    class _S:
+        def get(self, url, timeout=15, **kw):
+            return _R("Call +1 415-555-2671 or +44 20 7946 0958") \
+                if ("contact" in url or url.rstrip("/").endswith("acme.com")) else _R("")
+    ctx = _ctx(lambda u: None); ctx.session = _S()
+    d = REGISTRY["phoneharvest"].run("acme.com", ctx).data
+    assert d["count"] >= 2
+    raws = {n.get("raw") or n.get("e164") for n in d["phone_numbers"]}
+    assert "+14155552671" in raws
+
+
+def test_ipwhois_parses():
+    def router(url):
+        if "ipwho.is" in url:
+            return _Resp(j={"success": True, "country": "United States",
+                            "connection": {"org": "ACME", "asn": 64500}})
+        return _Resp(j={})
+    d = REGISTRY["ipwhois"].run("1.2.3.4", _ctx(router)).data
+    assert d["org"] == "ACME" and d["asn"] == 64500
+    assert "note" in REGISTRY["ipwhois"].run("acme.com", _ctx(router)).data
