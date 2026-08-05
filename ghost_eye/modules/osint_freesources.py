@@ -1896,3 +1896,70 @@ class SecEdgar(Module):
                               "total": total.get("value", len(filings))
                               if isinstance(total, dict) else len(filings),
                               "count": len(filings), "source": "sec-edgar"})
+
+
+# =========================================================================== #
+#  Wave 20 — org encyclopedia context (Wikipedia) + Codeberg/Gitea repos
+# =========================================================================== #
+@register
+class Wikipedia(Module):
+    id = "wikipedia"
+    name = "Wikipedia organisation article (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        api = "https://en.wikipedia.org/w/api.php"
+        srch = _json(_get(ctx, f"{api}?action=query&list=search&srsearch={org}"
+                          "&format=json&srlimit=1",
+                          headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}
+        results = ((srch.get("query") or {}).get("search")) or []
+        if not results:
+            return self.ok(host, {"note": "no Wikipedia match", "source": "wikipedia"})
+        title = results[0].get("title", "")
+        ext = _json(_get(ctx, f"{api}?action=query&prop=extracts&exintro&explaintext"
+                         f"&redirects=1&format=json&titles={title}",
+                         headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}
+        pages = ((ext.get("query") or {}).get("pages")) or {}
+        extract = ""
+        for _pid, page in pages.items():
+            extract = (page.get("extract") or "")[:600]
+            break
+        return self.ok(host, {
+            "title": title,
+            "summary": extract,
+            "url": f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}" if title else "",
+            "note": "top text match for the org label — verify it is the right entity.",
+            "source": "wikipedia",
+        })
+
+
+@register
+class Codeberg(Module):
+    id = "codeberg"
+    name = "Codeberg / Gitea public repos (org, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, f"https://codeberg.org/api/v1/repos/search?q={org}&limit=20")) or {}
+        repos = []
+        for r in d.get("data", []) or []:
+            if r.get("full_name"):
+                repos.append({"repo": r.get("full_name"),
+                              "description": (r.get("description") or "")[:100],
+                              "stars": r.get("stars_count", 0),
+                              "language": r.get("language"),
+                              "url": r.get("html_url") or ""})
+        return self.ok(host, {"query": org, "repos": repos[:20],
+                              "count": len(repos), "source": "codeberg"})

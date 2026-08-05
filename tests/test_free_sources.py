@@ -492,3 +492,25 @@ def test_news_devqa_filings():
     assert se["posts"][0]["question_id"] == 123
     sec = REGISTRY["secedgar"].run("acme.com", _ctx(router)).data
     assert sec["filings"][0]["company"] == "ACME INC" and sec["total"] == 3
+
+
+def test_wikipedia_and_codeberg():
+    def router(url):
+        if "list=search" in url:
+            return _Resp(j={"query": {"search": [{"title": "Acme Corporation"}]}})
+        if "prop=extracts" in url:
+            return _Resp(j={"query": {"pages": {"42": {
+                "extract": "Acme Corporation is a fictional company."}}}})
+        if "codeberg.org" in url:
+            return _Resp(j={"data": [{"full_name": "acme/tools",
+                                      "description": "Acme tools", "stars_count": 9,
+                                      "language": "Go",
+                                      "html_url": "https://codeberg.org/acme/tools"}]})
+        return _Resp(j={})
+    wp = REGISTRY["wikipedia"].run("acme.com", _ctx(router)).data
+    assert wp["title"] == "Acme Corporation"
+    assert wp["summary"].startswith("Acme Corporation")
+    assert wp["url"] == "https://en.wikipedia.org/wiki/Acme_Corporation"
+    cb = REGISTRY["codeberg"].run("acme.com", _ctx(router)).data
+    assert cb["count"] == 1 and cb["repos"][0]["repo"] == "acme/tools"
+    assert cb["repos"][0]["stars"] == 9
