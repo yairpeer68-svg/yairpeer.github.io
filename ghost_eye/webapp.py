@@ -425,6 +425,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_index()
         if path in ("/osint", "/osint.html"):
             return self._serve_page("osint.html")
+        if path == "/manifest.webmanifest":
+            return self._serve_asset("manifest.webmanifest", "application/manifest+json")
+        if path == "/sw.js":
+            return self._serve_asset("sw.js", "application/javascript")
         if path.startswith("/static/"):
             return self._serve_static(path)
         if not self._authed(parsed):               # gate every /api/* route
@@ -819,6 +823,12 @@ class Handler(BaseHTTPRequestHandler):
         if not page.exists():
             return self._json({"error": f"{name} missing"}, 500)
         self._bytes(page.read_bytes(), "text/html")
+
+    def _serve_asset(self, name: str, ctype: str):
+        f = (STATIC_DIR / name).resolve()
+        if STATIC_DIR.resolve() not in f.parents or not f.exists():
+            return self._json({"error": "not found"}, 404)
+        self._bytes(f.read_bytes(), ctype)
 
     def _serve_static(self, path: str):
         name = path[len("/static/"):]

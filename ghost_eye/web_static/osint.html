@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Ghost Eye — OSINT investigator</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#06080d">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
 :root{
   --bg:#06080d; --bg2:#0a0e16; --panel:#0f1420; --panel2:#151c2b;
@@ -635,6 +641,7 @@ $("go").addEventListener("click",investigate);
 $("target").addEventListener("keydown",e=>{ if(e.key==="Enter") investigate(); });
 // prefill from ?target=
 const qt=new URLSearchParams(location.search).get("target"); if(qt){ $("target").value=qt; investigate(); }
+if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{})); }
 </script>
 </body>
 </html>

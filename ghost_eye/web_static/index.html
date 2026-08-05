@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ghost Eye — recon console</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#080b11">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
 :root{
   --bg:#080b11; --bg2:#0b0f17; --panel:#121824; --panel2:#182130;
@@ -224,6 +230,24 @@ a{color:var(--cyan);text-decoration:none}
 .panel-toggle{display:none}
 #scrim{position:fixed;inset:0;background:rgba(4,7,12,.6);backdrop-filter:blur(2px);z-index:44;
   opacity:0;pointer-events:none;transition:opacity .25s}
+/* keys modal */
+.kmodal{position:fixed;inset:0;background:rgba(4,7,12,.72);backdrop-filter:blur(3px);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
+.kmodal-card{background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:var(--shadow-lg);width:min(440px,94vw);max-height:86vh;overflow-y:auto;padding:18px}
+.kmodal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.kmodal-head b{font-size:15px}
+.kmodal-head .kx{width:30px;height:30px;border-radius:9px;border:1px solid var(--line2);color:var(--muted);font-size:14px}
+.kmodal-head .kx:hover{color:var(--crit);border-color:var(--crit)}
+.kmodal-note{font-size:11px;color:var(--faint);line-height:1.55;margin:8px 0}
+.keyrow{border-top:1px solid var(--line);padding:12px 0}
+.keyrow .kh{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.keyrow .kh b{font-size:13px}
+.kbadge{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:20px}
+.kbadge.on{background:rgba(69,196,141,.14);color:var(--ok)} .kbadge.off{background:var(--panel2);color:var(--faint)}
+.keyrow .kin{display:flex;gap:7px}
+.keyrow input{flex:1;background:var(--bg);border:1px solid var(--line2);color:var(--ink);border-radius:10px;padding:10px 12px;outline:none;font-family:var(--mono);font-size:12px}
+.keyrow input:focus{border-color:var(--amber);box-shadow:var(--ring)}
+.keyrow .ksave{background:linear-gradient(180deg,var(--amber),var(--amber2));color:var(--gold-ink);font-weight:700;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:0 15px;border-radius:10px}
+.keyrow .kok{color:var(--ok);font-size:11px;font-family:var(--mono);margin-top:6px}
 @media (max-width:900px){
   .wrap{grid-template-columns:1fr;height:calc(100vh - 60px)}
   .panel{position:fixed;top:0;bottom:0;left:0;width:min(360px,88vw);z-index:45;
@@ -333,6 +357,7 @@ a{color:var(--cyan);text-decoration:none}
   <button class="panel-toggle" id="ptoggle">▤ Controls</button>
   <div class="hud">
     <a class="chip" id="osintlink" href="/osint" title="OSINT graph view">🕸 OSINT</a>
+    <button class="chip" id="keysbtn" title="API keys">🔑 <span>Keys</span></button>
     <button class="chip" id="langtoggle" title="Language / שפה">🌐 <span id="langlbl">עברית</span></button>
     <div class="status"><span class="dot" id="dot"></span><span id="statustxt">Idle — configure a scan</span></div>
     <div class="risk hidden" id="riskbox">
@@ -348,6 +373,14 @@ a{color:var(--cyan);text-decoration:none}
 </header>
 
 <div id="scrim"></div>
+<div id="keysmodal" class="kmodal hidden">
+  <div class="kmodal-card">
+    <div class="kmodal-head"><b>🔑 API keys</b><button class="kx" id="keysclose">✕</button></div>
+    <p class="kmodal-note" id="keysbackend"></p>
+    <div id="keyslist"></div>
+    <p class="kmodal-note">Optional — only a few modules need them (VirusTotal, AbuseIPDB, DeepSeek). Saved locally on this machine; never shown back or sent anywhere.</p>
+  </div>
+</div>
 <div class="wrap">
   <!-- ============ config panel ============ -->
   <aside class="panel collapsed" id="panel">
@@ -1281,7 +1314,37 @@ function esc(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;","
 function showBanner(msg){ $("banner").innerHTML=`<div class="banner">${esc(msg)}</div>`; }
 function clearBanner(){ $("banner").innerHTML=""; }
 
+/* ---------- API keys modal ---------- */
+async function openKeys(){
+  $("keysmodal").classList.remove("hidden");
+  $("keyslist").innerHTML=`<p class="kmodal-note">loading…</p>`;
+  let d; try{ d=await api("/api/keys"); }
+  catch(e){ $("keyslist").innerHTML=`<p class="kmodal-note" style="color:var(--crit)">${esc(e.message)}</p>`; return; }
+  $("keysbackend").textContent="Stored via: "+(d.backend||"config file");
+  $("keyslist").innerHTML=(d.keys||[]).map(k=>`
+    <div class="keyrow" data-name="${esc(k.name)}">
+      <div class="kh"><b>${esc(k.label)}</b><span class="kbadge ${k.set?"on":"off"}">${k.set?"set":"not set"}</span></div>
+      <div class="kin"><input type="password" placeholder="${k.set?"•••••• (enter a new key to replace)":"paste your "+esc(k.label)+" key"}" autocomplete="off"><button class="ksave">Save</button></div>
+      <div class="kok hidden">✓ saved</div>
+    </div>`).join("");
+  $("keyslist").querySelectorAll(".keyrow").forEach(row=>{
+    const inp=row.querySelector("input"), btn=row.querySelector(".ksave"), ok=row.querySelector(".kok");
+    const save=async()=>{ const value=inp.value.trim(); if(!value)return; btn.disabled=true; btn.textContent="…";
+      try{ const r=await api("/api/keys",{method:"POST",body:JSON.stringify({name:row.dataset.name,value})});
+        inp.value=""; inp.placeholder="•••••• (saved)";
+        row.querySelector(".kbadge").className="kbadge on"; row.querySelector(".kbadge").textContent="set";
+        ok.classList.remove("hidden"); $("keysbackend").textContent="Stored via: "+(r.backend||"config file"); setTimeout(()=>ok.classList.add("hidden"),2500);
+      }catch(e){ ok.textContent="✗ "+e.message; ok.style.color="var(--crit)"; ok.classList.remove("hidden"); }
+      btn.disabled=false; btn.textContent="Save"; };
+    btn.addEventListener("click",save); inp.addEventListener("keydown",e=>{ if(e.key==="Enter") save(); });
+  });
+}
+$("keysbtn") && $("keysbtn").addEventListener("click",openKeys);
+$("keysclose") && $("keysclose").addEventListener("click",()=>$("keysmodal").classList.add("hidden"));
+$("keysmodal") && $("keysmodal").addEventListener("click",e=>{ if(e.target===$("keysmodal")) $("keysmodal").classList.add("hidden"); });
+
 init();
+if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{})); }
 </script>
 <script>
 /* ---- self-contained Hebrew / RTL layer (does not touch scan logic) ---- */

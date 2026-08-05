@@ -1,0 +1,16 @@
+{
+  "name": "Ghost Eye — OSINT",
+  "short_name": "Ghost Eye",
+  "description": "Personal Cyber Intelligence Platform — recon, OSINT and exposure detection.",
+  "start_url": "/osint",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#06080d",
+  "theme_color": "#06080d",
+  "icons": [
+    { "src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/static/icon-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -120,6 +120,32 @@ def test_osint_static_graph_wiring():
     assert 'href="/osint"' in _INDEX.read_text(encoding="utf-8")
 
 
+def test_pwa_assets_served():
+    """The dashboard is an installable PWA: manifest + service worker + icons are
+    served from the root with correct content types."""
+    httpd = _make_server()
+    port = httpd.server_address[1]
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    try:
+        checks = {}
+        for path, want in [("/manifest.webmanifest", "manifest"),
+                           ("/sw.js", "javascript"),
+                           ("/static/icon-192.png", "image/png")]:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}",
+                                        timeout=10) as r:
+                checks[path] = (r.getcode() == 200,
+                                want in r.headers.get("Content-Type", ""),
+                                len(r.read()) > 0)
+    finally:
+        httpd.shutdown()
+    for path, (ok_code, ok_type, ok_body) in checks.items():
+        assert ok_code and ok_type and ok_body, f"{path}: {checks[path]}"
+    # both pages register the service worker and link the manifest
+    for name in ("index.html", "osint.html"):
+        html = (_INDEX.parent / name).read_text(encoding="utf-8")
+        assert 'rel="manifest"' in html and 'navigator.serviceWorker.register' in html
+
+
 def test_osint_graph_polish_and_keys_wiring():
     """The OSINT page has graph search / cluster / PNG export and the API-keys
     modal wired in."""
