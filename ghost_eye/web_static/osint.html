@@ -50,7 +50,9 @@ a{color:var(--cyan);text-decoration:none}
   font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
   padding:9px 16px;border-radius:18px;white-space:nowrap;box-shadow:0 6px 16px -8px rgba(56,225,214,.6)}
 .go:disabled{background:var(--panel2);color:var(--faint);box-shadow:none;cursor:not-allowed}
-.topright{margin-left:auto;display:flex;align-items:center;gap:12px}
+.topright{display:flex;align-items:center;gap:12px}
+#statuswrap{margin-left:auto}
+.navtoggle{display:none;font-size:17px;padding:7px 12px}
 .status{font-family:var(--mono);font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:8px;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
 .dot.run{background:var(--cyan);animation:pulse 1.3s infinite}
@@ -188,16 +190,35 @@ a{color:var(--cyan);text-decoration:none}
 .rpill.MEDIUM{background:rgba(240,181,69,.14);color:var(--gold)}
 .rpill.LOW,.rpill.INFO{background:rgba(55,211,154,.12);color:var(--green)}
 
-@media (max-width:960px){
-  .stage{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
-  .rail{display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;border-right:none;border-bottom:1px solid var(--line);padding:10px;white-space:nowrap}
-  .rail h3,.railstat,.hint{display:none}
-  .kind{flex:0 0 auto;padding:6px 10px;border:1px solid var(--line2);border-radius:20px}
-  .kind .lbl{display:none}
-  .side{border-left:none;border-top:1px solid var(--line);max-height:44vh}
-  .canvaswrap{min-height:38vh}
-  .searchbox{max-width:none}
+@media (max-width:820px){
+  /* phone-first: bar wraps into brand-row + full-width search; nav collapses */
+  .bar{flex-wrap:wrap;height:auto;gap:9px 10px;padding:10px 12px}
+  .brand b{font-size:13px;letter-spacing:.12em}
   .brand .tag{display:none}
+  #statuswrap{margin-left:auto;order:1}
+  .navtoggle{display:inline-flex;order:2}
+  .searchbox{order:4;flex-basis:100%;max-width:none;padding-left:12px}
+  .searchbox .eyebrow{display:none}
+  .go{padding:9px 12px;flex:0 0 auto}
+  .topright{order:5;flex-basis:100%;display:none;gap:8px;flex-wrap:wrap}
+  .bar.navopen .topright{display:flex}
+  .topright .navlink{flex:1;justify-content:center;text-align:center;padding:10px}
+
+  .stage{grid-template-columns:1fr;grid-template-rows:auto minmax(46vh,1fr) auto;height:calc(100dvh - 52px)}
+  .rail{overflow-x:auto;overflow-y:hidden;border-right:none;border-bottom:1px solid var(--line);padding:9px 10px;-webkit-overflow-scrolling:touch}
+  .rail::-webkit-scrollbar{display:none}
+  .rail h3,.railstat,.hint{display:none}
+  #kinds{display:flex;gap:6px;width:max-content}
+  .kind{flex:0 0 auto;padding:6px 9px;border:1px solid var(--line2);border-radius:20px;gap:6px;margin:0}
+  .kind .lbl{display:none}
+  .canvaswrap{min-height:46vh}
+  .side{border-left:none;border-top:1px solid var(--line2);max-height:40vh;padding:14px 13px}
+  .tiles{grid-template-columns:1fr 1fr 1fr}
+  .cbar input{max-width:56vw}
+  .askans{max-width:88vw}
+  .zoombar{right:10px;bottom:10px}
+  .zoombar button{width:40px;height:40px}
+  .modal-card{padding:16px 14px}
 }
 </style>
 </head>
@@ -212,8 +233,9 @@ a{color:var(--cyan);text-decoration:none}
     <input id="target" placeholder="example.com  ·  8.8.8.8  ·  press Enter to investigate" autocomplete="off" spellcheck="false">
     <button class="go" id="go">Investigate ▸</button>
   </div>
-  <div class="topright">
-    <div class="status"><span class="dot" id="dot"></span><span id="statustxt">idle</span></div>
+  <div class="status" id="statuswrap"><span class="dot" id="dot"></span><span id="statustxt">idle</span></div>
+  <button class="navlink navtoggle" id="navtoggle" aria-label="menu">☰</button>
+  <div class="topright" id="topright">
     <button class="navlink" id="portbtn">▦ Portfolio</button>
     <button class="navlink" id="keysbtn">🔑 Keys</button>
     <a class="navlink" href="/console" id="consolelink">▤ Console</a>
@@ -751,6 +773,8 @@ $("portbtn").addEventListener("click",openPortfolio);
 $("portclose").addEventListener("click",()=>$("portmodal").classList.add("hidden"));
 $("portmodal").addEventListener("click",e=>{ if(e.target===$("portmodal")) $("portmodal").classList.add("hidden"); });
 
+/* mobile: toggle the collapsed nav (Portfolio / Keys / Console) */
+$("navtoggle").addEventListener("click",()=>document.querySelector(".bar").classList.toggle("navopen"));
 $("keysbtn").addEventListener("click",openKeys);
 $("keysclose").addEventListener("click",()=>$("keysmodal").classList.add("hidden"));
 $("keysmodal").addEventListener("click",e=>{ if(e.target===$("keysmodal")) $("keysmodal").classList.add("hidden"); });
