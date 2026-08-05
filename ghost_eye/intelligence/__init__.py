@@ -26,6 +26,7 @@ from .advisor import (  # noqa: F401
     remediation,
 )
 from .graph_export import to_gexf, to_graphml, unified_graph  # noqa: F401
+from .osint_pivot import deep_dive  # noqa: F401
 from .risk import (  # noqa: F401
     attack_paths,
     enrich_tech_cve,

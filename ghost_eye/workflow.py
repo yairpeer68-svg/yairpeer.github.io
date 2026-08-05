@@ -558,6 +558,17 @@ def intelligence_report(results, target: str = "",
     return out
 
 
+def osint_deepdive(seed: str, cfg=None, depth: int = 1,
+                   max_per_hop: int = 12) -> dict:
+    """Advanced OSINT: an automated multi-hop investigation from a single seed.
+    Runs OSINT sources, pivots onto every entity they reveal (related domains,
+    e-mails, IPs) up to ``depth``, and merges everything into one Knowledge
+    Graph with provenance. Reconnaissance/detection only."""
+    from .intelligence import deep_dive
+    return deep_dive(seed, cfg=cfg, depth=max(0, min(3, int(depth))),
+                     max_per_hop=max_per_hop)
+
+
 def platform_report(results, target: str = "",
                     exploit: Optional[dict] = None) -> dict:
     """Personal Cyber Intelligence Platform view — the full intelligence

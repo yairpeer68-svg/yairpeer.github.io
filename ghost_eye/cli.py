@@ -454,6 +454,9 @@ def build_parser() -> argparse.ArgumentParser:
                       help="interface language (#80)")
     flow.add_argument("--scope", default="",
                       help="scope file (hosts/CIDRs); refuse targets outside it")
+    flow.add_argument("--osint-deep", nargs="?", type=int, const=1, default=None,
+                      metavar="DEPTH",
+                      help="advanced OSINT: automated multi-hop pivot from -t (default depth 1)")
     flow.add_argument("--queue", default="",
                       help="shared job-queue DB for distributed scanning")
     flow.add_argument("--enqueue", action="store_true",
@@ -751,6 +754,30 @@ def main(argv: Optional[List[str]] = None) -> int:
             Console.good(f"worker {out['worker']} completed {out['completed']} job(s)")
             Console.kv("queue", out["queue"])
             return 0
+
+    # advanced OSINT deep-dive (multi-hop auto-pivot from a single seed)
+    if getattr(args, "osint_deep", None) is not None:
+        if not args.target:
+            Console.err("--osint-deep needs a seed: -t <domain>")
+            return 2
+        print_banner()
+        Console.rule(f"OSINT deep-dive: {args.target} (depth {args.osint_deep})")
+        out = workflow.osint_deepdive(args.target, cfg, depth=args.osint_deep)
+        for h in out.get("hops", []):
+            dc = h.get("discovered_counts", {})
+            Console.kv(f"hop {h['hop']} ({h['confidence']})",
+                       f"processed {h['processed']} · +{dc.get('domain',0)} domains "
+                       f"+{dc.get('email',0)} emails +{dc.get('ip',0)} IPs")
+        c = out.get("counts", {})
+        Console.good(f"merged graph: {c.get('entities',0)} entities, "
+                     f"{c.get('relationships',0)} relationships "
+                     f"({out.get('entities_processed',0)} entities pivoted)")
+        if args.output:
+            import json as _json
+            with open(args.output, "w", encoding="utf-8") as fh:
+                _json.dump(out, fh, ensure_ascii=False, indent=2)
+            Console.good(f"wrote {args.output}")
+        return 0
 
     if args.config_init:
         path = cfg.write_template()

@@ -483,3 +483,53 @@ def test_unified_graph_merges_and_links_shared_infra():
     shared = {r["type"] for r in u["relationships"]}
     assert "shared_between" in shared
     assert any(s["kind"] == "ip" for s in u["shared_infrastructure"])
+
+
+# --- advanced OSINT: multi-hop deep-dive auto-pivot ------------------------
+
+def test_osint_deep_dive_pivots_and_merges():
+    from ghost_eye.core import Result
+    from ghost_eye.intelligence import deep_dive
+
+    def run_fn(target, module_ids, cfg):
+        if target == "acme.com":
+            return [Result("related", "acme.com", "ok",
+                           {"related_domains": ["acme-corp.com"]}),
+                    Result("emails", "acme.com", "ok",
+                           {"emails": ["ceo@acme.com"]}),
+                    Result("subs", "acme.com", "ok",
+                           {"subdomains": ["www.acme.com", "api.acme.com"]})]
+        if target == "acme-corp.com":
+            return [Result("subs", "acme-corp.com", "ok",
+                           {"subdomains": ["mail.acme-corp.com"]})]
+        if target == "ceo@acme.com":
+            return [Result("breachcheck", "ceo@acme.com", "ok",
+                           {"breach": "found in 2 leaks"})]
+        return []
+
+    out = deep_dive("acme.com", run_fn=run_fn, depth=1)
+    assert out["seed"] == "acme.com"
+    # hop 0 processes the seed and discovers a related domain + an email
+    assert out["hops"][0]["discovered_counts"]["domain"] >= 1
+    assert out["hops"][0]["discovered_counts"]["email"] >= 1
+    # hop 1 pivots onto them (so more than one entity is processed in total)
+    assert out["entities_processed"] >= 3
+    # provenance records the parent that led to each discovered entity
+    parents = {p["entity"]: p["parent"] for p in out["provenance"]}
+    assert parents.get("acme-corp.com") == "acme.com"
+    # everything merges into one graph
+    assert out["counts"]["entities"] >= 5
+
+
+def test_osint_deep_dive_depth_zero_is_seed_only():
+    from ghost_eye.core import Result
+    from ghost_eye.intelligence import deep_dive
+    calls = []
+
+    def run_fn(target, module_ids, cfg):
+        calls.append(target)
+        return [Result("related", target, "ok",
+                       {"related_domains": ["other.com"]})]
+
+    out = deep_dive("acme.com", run_fn=run_fn, depth=0)
+    assert out["entities_processed"] == 1 and calls == ["acme.com"]

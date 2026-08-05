@@ -332,6 +332,7 @@ a{color:var(--cyan);text-decoration:none}
       <button class="toolbtn" data-tool="brief">👔 Exec brief</button>
       <button class="toolbtn" data-tool="table">▦ Findings table</button>
       <button class="toolbtn" data-tool="timeline">🕓 Timeline</button>
+      <button class="toolbtn" data-tool="deep">🌐 Deep OSINT (auto-pivot)</button>
     </div>
     <div class="dl-row">
       <span class="dl-label">download report:</span>
@@ -1094,6 +1095,18 @@ async function runTool(tool){
       const sens=(REP&&REP.asset_sensitivity&&REP.asset_sensitivity.counts)||{};
       tout(`<div class="tout-head">👔 executive brief</div><div class="trow"><b>${esc(b.headline||'')}</b></div>${pts}`+
         `<div class="trow rel">asset sensitivity — critical ${sens.critical||0} · high ${sens.high||0} · medium ${sens.medium||0} · low ${sens.low||0}</div>`);
+    } else if(tool==="deep"){
+      const t=CURTARGET||(REP&&REP.target)||$("target").value.trim();
+      if(!t){ tout(`<div class="trow">investigate a target first.</div>`); return; }
+      const depth=parseInt(prompt("OSINT deep-dive depth (1-2). Higher = more pivots, slower:","1")||"1",10);
+      tout(`<div class="tout-head">🌐 deep OSINT on ${esc(t)} — auto-pivoting…</div><div class="spinner" style="margin:14px auto"></div><div class="trow rel">running OSINT sources and pivoting onto every entity they reveal — this can take a minute.</div>`);
+      let d; try{ d=await api("/api/osint-deep",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:t,depth:Math.max(1,Math.min(2,depth||1))})}); }
+      catch(e){ tout(`<div class="tout-head">🌐 deep OSINT</div><div class="trow">${esc(e.message)}</div>`); return; }
+      // render the merged multi-hop graph
+      buildGraph({knowledge_graph:d.knowledge_graph}); heat=false; $("heat").classList.remove("on");
+      const hops=(d.hops||[]).map(h=>`<div class="trow"><b>hop ${h.hop}</b> <span class="rel">(${h.confidence})</span> · processed ${h.processed} · +${(h.discovered_counts||{}).domain||0} domains · +${(h.discovered_counts||{}).email||0} emails · +${(h.discovered_counts||{}).ip||0} IPs</div>`).join("");
+      const c=d.counts||{};
+      tout(`<div class="tout-head">🌐 deep OSINT — ${d.entities_processed} entities pivoted · graph ${c.entities||0} nodes</div>${hops}<div class="trow rel">${esc(d.note||'')}</div>`);
     } else if(tool==="table"){
       const d=await api(`/api/job/${CURJOB}/findings`);
       const f=d.findings||[];

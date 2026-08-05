@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **477 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **479 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -137,6 +137,7 @@ python3 ghost_eye_web.py --open
 | `--watch <seconds>` | re-run on an interval, alert on change |
 | `--resume` | skip already-done targets (batch) |
 | `--scope <file>` | refuse targets outside an allow-list |
+| `--osint-deep [depth]` | advanced OSINT: automated multi-hop pivot from `-t` (default depth 1) |
 | `--passive-only` | run only passive modules (no traffic to the target) |
 | `--adaptive-rate` | self-tuning throttle: back off when the target errors / rate-limits |
 | `--queue <db>` `--enqueue` `--worker` | distributed scanning: share a job queue across many worker hosts |
@@ -239,6 +240,21 @@ Produces a single **Ghost Eye Intelligence Report** HTML page: the analyst
 assessment, attack-surface graph, **knowledge graph**, pivot points & shared
 infrastructure, the **intelligence timeline**, visual gallery, org profile,
 tech, cloud, email score, certificates and leaks.
+
+### Advanced OSINT — automated multi-hop deep-dive
+
+`--osint-deep [depth]` (CLI) and the dashboard's **🌐 Deep OSINT** tool
+(`POST /api/osint-deep`) turn the OSINT modules into an **autonomous
+investigation**: from a single seed domain Ghost Eye runs OSINT sources,
+extracts every entity they reveal (related domains, e-mails, IPs) and **pivots
+onto each of them** — running the right modules per entity kind — up to the
+chosen depth. Everything merges into one Knowledge Graph with **provenance**
+(which hop, and which parent, discovered each entity) and a **confidence** that
+decays with distance from the seed.
+
+```bash
+python3 ghost_eye.py -t example.com --osint-deep 2 -o osint.json
+```
 
 ### Graph-first dashboard & platform tooling
 
@@ -674,7 +690,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**477 tests** pass in ~11s. A single **verification gate** runs the whole thing:
+**479 tests** pass in ~11s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

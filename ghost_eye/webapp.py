@@ -530,6 +530,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._scope_set()
         if path == "/api/restore":
             return self._restore()
+        if path == "/api/osint-deep":
+            return self._osint_deep()
         if path == "/api/alert-rules":
             return self._alert_rules_set()
         if path == "/api/schedule":
@@ -880,6 +882,29 @@ class Handler(BaseHTTPRequestHandler):
             "schedules": len(self.server.scheduler.list_all())
             if getattr(self.server, "scheduler", None) else 0,
         })
+
+    def _osint_deep(self):
+        """Advanced OSINT: automated multi-hop pivot from a seed (bounded so it
+        returns in reasonable time). POST {target, depth}."""
+        body = self._body()
+        target = (body.get("target") or "").strip()
+        if not target:
+            return self._json({"error": "target required"}, 400)
+        scope = getattr(self.server, "scope", None)
+        if scope is not None and not scope.empty:
+            allowed, reason = scope.allows(target)
+            if not allowed:
+                return self._json({"error": f"out of scope: {reason}"}, 403)
+        try:
+            depth = max(0, min(2, int(body.get("depth", 1))))
+        except (TypeError, ValueError):
+            depth = 1
+        try:
+            out = workflow.osint_deepdive(target, self.server.jobs.cfg,
+                                          depth=depth, max_per_hop=8)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"osint deep-dive failed: {exc}"}, 500)
+        return self._json(out)
 
     def _alert_rules_path(self):
         p = os.environ.get("GHOSTEYE_ALERT_RULES", "")
