@@ -266,6 +266,8 @@ a{color:var(--cyan);text-decoration:none}
       <button class="toolbtn" data-tool="screenshots">📸 Screenshot subdomains</button>
       <button class="toolbtn" data-tool="exploits">🧨 Exploit intel</button>
       <button class="toolbtn" data-tool="risk">🎯 Risk</button>
+      <button class="toolbtn" data-tool="paths">🛤 Attack paths</button>
+      <button class="toolbtn" data-tool="supply">🔗 Supply chain</button>
       <button class="toolbtn" data-tool="compliance">⚖ Compliance</button>
       <button class="toolbtn" data-tool="inventory">📋 Inventory</button>
       <button class="toolbtn" data-tool="rollup">🖧 Host rollup</button>
@@ -318,6 +320,7 @@ a{color:var(--cyan);text-decoration:none}
     <div class="cbar">
       <input id="gsearch" placeholder="🔍 search · or ask: subdomains? leaks? tech?" autocomplete="off" spellcheck="false">
       <button class="cbtn" id="cluster" title="cluster nodes by type">◱ Cluster</button>
+      <button class="cbtn" id="heat" title="colour nodes by risk (heat-map)">🔥 Heat</button>
       <button class="cbtn" id="export" title="export the graph as a PNG image">⤓ PNG</button>
     </div>
     <div id="askans" class="askans hidden"></div>
@@ -370,13 +373,16 @@ const KMETA={
   mailserver:{c:"#a5d6ff",i:"✉"}, nameserver:{c:"#a5d6ff",i:"🛰"}, service:{c:"#e3b341",i:"⚙"}
 };
 const km=k=>KMETA[k]||{c:"#8390a6",i:"◆"};
+// risk heat-map palette (feature 17): colour a node by how dangerous it is
+const RISKC={critical:"#ff3b47",high:"#ff7b39",medium:"#f0b545",low:"#37d39a"};
+const riskColor=nd=>RISKC[(nd.attrs&&nd.attrs.risk_band)||"low"]||"#37d39a";
 const KCAP={subdomain:48,ip:36,tech:24,cve:30,email:24,service:24}; // per-kind graph cap
 
 let REP=null;        // last /intel report
 let G={nodes:[],edges:[],byId:{}};
 let hidden=new Set(), selected=null;
 let cam={k:1,x:0,y:0}, W=1000, H=700;
-let clustered=false, searchSet=null, ACKS=new Set();
+let clustered=false, searchSet=null, ACKS=new Set(), heat=false;
 let CURJOB=null, CURTARGET="";
 
 /* ---------------- investigate ---------------- */
@@ -490,11 +496,12 @@ function render(){
     const isMatch=searchSet&&searchSet.has(nd.id);
     const dim=(nbr&&nd.id!==foc&&!nbr.has(nd.id))||(searchSet&&!isMatch);
     const op=dim?0.16:1;
-    const ring=(nd.id===foc)?`<circle r="${r+5}" fill="none" stroke="${m.c}" stroke-opacity=".9" stroke-width="1.5"/>`:"";
+    const fill=heat?riskColor(nd):m.c;
+    const ring=(nd.id===foc)?`<circle r="${r+5}" fill="none" stroke="${fill}" stroke-opacity=".9" stroke-width="1.5"/>`:"";
     const showLabel=isT||nd.id===foc||isMatch||(nbr&&nbr.has(nd.id))|| nd.deg>=2 || G.nodes.length<40;
     n+=`<g class="nodeg${isMatch?" match":""}" data-id="${esc(nd.id)}" transform="translate(${nd.x.toFixed(1)},${nd.y.toFixed(1)})" opacity="${op}">
       ${ring}
-      <circle class="core" r="${r}" fill="${m.c}" fill-opacity="${isT?1:.9}" stroke="#06080d" stroke-width="1.5"/>
+      <circle class="core" r="${r}" fill="${fill}" fill-opacity="${isT?1:.9}" stroke="#06080d" stroke-width="1.5"/>
       <text text-anchor="middle" dy="${r*0.34}" font-size="${(r*0.9).toFixed(1)}" pointer-events="none">${m.i}</text>
       ${showLabel?`<text class="node-label" text-anchor="middle" y="${r+11}">${esc(String(nd.label).slice(0,22))}</text>`:""}
     </g>`;
@@ -518,9 +525,14 @@ function buildKindFilters(){
     render();
   }));
   const c=(REP.counts)||{};
-  $("railstat").innerHTML=[["entities",(G.nodes.length)],["relationships",G.edges.length],
+  let stat=[["entities",(G.nodes.length)],["relationships",G.edges.length],
     ["assets",c.assets||0],["risk",REP.risk_level||"—"]]
     .map(([l,v])=>`<div class="row"><span>${l}</span><b>${esc(v)}</b></div>`).join("");
+  if(heat){ const bc=(REP.risk_heatmap&&REP.risk_heatmap.band_counts)||{};
+    stat+=`<div class="row" style="margin-top:6px;font-size:10px;opacity:.7">RISK HEAT-MAP</div>`+
+      ["critical","high","medium","low"].map(b=>`<div class="row"><span><span class="swatch" style="background:${RISKC[b]}"></span> ${b}</span><b>${bc[b]||0}</b></div>`).join("");
+  }
+  $("railstat").innerHTML=stat;
 }
 
 /* ---------------- interaction: pan / zoom / drag / select ---------------- */
@@ -728,6 +740,13 @@ $("cluster").addEventListener("click",()=>{
   layout(G.nodes,G.edges); render(); fit();
 });
 
+/* heat-map toggle: colour every node by its risk band (feature 17) */
+$("heat").addEventListener("click",()=>{
+  if(!G.nodes.length)return;
+  heat=!heat; $("heat").classList.toggle("on",heat);
+  buildKindFilters(); render();
+});
+
 /* export the current graph as a PNG */
 $("export").addEventListener("click",exportPNG);
 function exportPNG(){
@@ -848,6 +867,14 @@ async function runTool(tool){
       const d=await api(`/api/job/${CURJOB}/risk`);
       const rows=(d.prioritised||[]).slice(0,30).map(r=>`<div class="trow"><span class="rpill ${(r.severity||'').toUpperCase()}">${esc(r.severity||'?')}</span> <b>${esc(r.module)}</b> · ${esc(r.field||'')} <span class="rel">score ${esc(String(r.risk_score))}</span><br><span class="rel">${esc(String(r.detail||'').slice(0,90))}</span></div>`).join("");
       tout(`<div class="tout-head">🎯 risk — overall ${esc(String(d.overall_risk))} · ${d.count} findings</div>${rows||'<div class="trow">no scored risks</div>'}`);
+    } else if(tool==="paths"){
+      const ap=(REP&&REP.attack_paths)||{}; const ps=ap.paths||[];
+      const rows=ps.map(p=>`<div class="trow"><span class="rpill ${(p.band||'').toUpperCase()}">${esc(p.band||'?')}</span> <span class="rel">score ${esc(String(p.score))} · ${p.length} hops</span><br>${(p.steps||[]).map(s=>esc(s.label)).join(' <span class="rel">→</span> ')}</div>`).join("");
+      tout(`<div class="tout-head">🛤 attack paths — ${ps.length} chain(s) to the target</div>${rows||'<div class="trow">No exposure/leak/CVE reaches the target in the graph.</div>'}`);
+    } else if(tool==="supply"){
+      const sc=(REP&&REP.supply_chain)||{}; const ds=sc.dependencies||[];
+      const rows=ds.map(d=>`<div class="trow"><b>${esc(d.provider)}</b> <span class="rel">${(d.hosts||[]).length} host(s)</span><div class="achips" style="margin-top:5px">${(d.hosts||[]).slice(0,10).map(h=>`<span class="chip">${esc(h)}</span>`).join("")}</div></div>`).join("");
+      tout(`<div class="tout-head">🔗 supply chain — ${ds.length} external provider(s)</div>${rows||'<div class="trow">No third-party runtime dependencies detected.</div>'}`);
     } else if(tool==="compliance"){
       const d=await api(`/api/job/${CURJOB}/compliance?framework=owasp_top10`);
       const rows=Object.entries(d.controls||{}).map(([n,c])=>{const pct=c.coverage_pct||0,col=pct>=70?'var(--green)':pct>=35?'var(--gold)':'var(--red)';

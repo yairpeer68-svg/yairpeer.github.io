@@ -468,12 +468,22 @@ def intelligence_report(results, target: str = "",
     technologies, cloud footprint, email posture, certificates, leak indicators,
     an organization profile and the attack-surface graph — assembled from the
     output of every module that ran."""
-    from .intelligence import (analyze, build_graph, build_timeline,
-                               correlate, entity_correlation,
-                               knowledge_graph, organization_profile)
+    from .intelligence import (analyze, attack_paths, build_graph,
+                               build_timeline, correlate, enrich_tech_cve,
+                               entity_correlation, knowledge_graph,
+                               organization_profile, risk_heatmap, supply_chain)
     intel = correlate(results, target)
     profile = organization_profile(intel, results)
     kg = knowledge_graph(results, intel["target"], intel)
+    # enrich the graph before scoring so new nodes/edges feed the heat-map:
+    #  - tech->CVE correlation (feature 19)
+    #  - external supply-chain dependencies (feature 24)
+    enrich_tech_cve(kg, results)
+    supply = supply_chain(kg, results, intel["target"])
+    # per-entity risk heat-map (feature 17) — writes risk/band into node attrs
+    heat = risk_heatmap(kg)
+    # scored attack paths from exposure/leak/CVE to the target (feature 18)
+    apaths = attack_paths(kg)
     corr = entity_correlation(kg)
     tline = build_timeline(results, intel["target"])
     a = attack_score(results)
@@ -488,6 +498,9 @@ def intelligence_report(results, target: str = "",
         "graph": build_graph(intel),
         "knowledge_graph": kg,
         "correlation": corr,
+        "risk_heatmap": heat,
+        "attack_paths": apaths,
+        "supply_chain": supply,
         "timeline": tline,
     }
     # the rule-based AI analyst reasons over the fully assembled picture

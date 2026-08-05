@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **429 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **433 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -202,6 +202,19 @@ offline (no LLM, no external API)**:
   entities an attacker/analyst moves through), **shared infrastructure** (one IP
   / netblock / cloud that ties many hosts together) and **clusters** (assets that
   provably belong together, via connected components of the graph).
+- **🔥 Risk heat-map** — every graph node is scored **0-100** and banded
+  (low/medium/high/critical); a host inherits danger from the leaks, CVEs and
+  exposures attached to it. Toggle **🔥 Heat** on the dashboard graph to colour
+  the whole map by risk.
+- **🛤 Attack-path scoring** — the shortest chain from each exposure / leak /
+  CVE to the target, scored by the average danger of the nodes it crosses ("how
+  an attacker actually gets in").
+- **🧩 tech → CVE correlation** — draws `tech --affected_by--> cve` edges by
+  matching a CVE's context to a fingerprinted technology, so the graph shows
+  *which* component a vulnerability belongs to.
+- **🔗 Supply-chain mapping** — external hosts loaded at runtime (CDNs, JS
+  libraries, analytics, payment/widget providers) are mapped as `dependency`
+  entities linked to the target — the third parties in your software supply chain.
 - **🕓 Intelligence Timeline** — dated events extracted from WHOIS, certificates,
   breach data and HTTP, ordered chronologically, with insights (upcoming/expired
   certs, domain age, most-recent breach, last infrastructure change).
@@ -215,7 +228,8 @@ python3 ghost_eye.py -t example.com --all --intel                 # console summ
 python3 ghost_eye.py -t example.com --all --intel-report intel.html
 python3 ghost_eye.py -t example.com -p perimeter --screenshots 15 --intel-report intel.html
 # dashboard: GET /api/job/<id>/intel   ·   GET /api/job/<id>/risk
-# the /intel payload now carries knowledge_graph, correlation, timeline & analysis
+# the /intel payload now carries knowledge_graph (nodes scored with risk/band),
+# correlation, risk_heatmap, attack_paths, supply_chain, timeline & analysis
 ```
 
 Produces a single **Ghost Eye Intelligence Report** HTML page: the analyst
@@ -579,7 +593,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**429 tests** pass in ~11s. A single **verification gate** runs the whole thing:
+**433 tests** pass in ~11s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

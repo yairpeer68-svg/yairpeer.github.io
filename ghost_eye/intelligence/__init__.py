@@ -17,11 +17,18 @@ from .graph import (  # noqa: F401
     render_knowledge_svg,
     render_svg,
 )
+from .risk import (  # noqa: F401
+    attack_paths,
+    enrich_tech_cve,
+    risk_heatmap,
+    supply_chain,
+)
 from .timeline import build_timeline  # noqa: F401
 
 __all__ = [
     "correlate", "organization_profile",
     "build_graph", "render_svg", "render_knowledge_svg",
     "knowledge_graph", "entity_correlation",
+    "risk_heatmap", "attack_paths", "enrich_tech_cve", "supply_chain",
     "build_timeline", "analyze",
 ]

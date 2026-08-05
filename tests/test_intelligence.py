@@ -371,3 +371,74 @@ def test_intelligence_report_and_html(tmp_path):
     assert "<svg" in html
     assert "Intelligence Report" in html
     assert "WordPress" in html and "AWS" in html
+
+
+# --- graph risk analytics (wave 2: features 17-19, 24) --------------------
+
+def _risk_sample():
+    return _sample() + [
+        Result("CVE correlation (NVD)", "example.com", "ok",
+               {"cves": ["nginx affected by CVE-2021-23017",
+                         "CVE-2019-11043"]}),
+        Result("Security headers", "example.com", "ok",
+               {"scripts": ["https://cdn.jsdelivr.net/npm/jquery@3/jquery.js",
+                            "https://www.googleapis.com/maps/api.js",
+                            "https://cdnjs.cloudflare.com/ajax/x.js"]}),
+    ]
+
+
+def test_risk_heatmap_scores_and_bands():
+    from ghost_eye.intelligence import knowledge_graph, risk_heatmap, correlate
+    res = _risk_sample()
+    intel = correlate(res, "example.com")
+    kg = knowledge_graph(res, "example.com", intel)
+    heat = risk_heatmap(kg)
+    # every entity now carries a numeric risk + a band in its attrs
+    for e in kg["entities"]:
+        assert 0 <= e["attrs"]["risk"] <= 100
+        assert e["attrs"]["risk_band"] in ("low", "medium", "high", "critical")
+    assert heat["max"] >= 25          # leaks/cves push at least one node up
+    assert sum(heat["band_counts"].values()) == len(kg["entities"])
+    # the target should be among the hottest hosts (it inherits leak+cve danger)
+    assert any(h["kind"] == "target" for h in heat["hottest_hosts"])
+
+
+def test_attack_paths_reach_target():
+    from ghost_eye.intelligence import (knowledge_graph, risk_heatmap,
+                                        attack_paths, correlate)
+    res = _risk_sample()
+    intel = correlate(res, "example.com")
+    kg = knowledge_graph(res, "example.com", intel)
+    risk_heatmap(kg)
+    ap = attack_paths(kg)
+    assert ap["count"] >= 1
+    p = ap["paths"][0]
+    assert p["steps"][-1]["kind"] == "target"     # every chain ends at target
+    assert p["entry_kind"] in ("leak", "cve", "exposure")
+    assert p["band"] in ("low", "medium", "high", "critical")
+
+
+def test_enrich_tech_cve_links_and_supply_chain():
+    from ghost_eye.intelligence import (knowledge_graph, enrich_tech_cve,
+                                        supply_chain, correlate)
+    res = _risk_sample()
+    intel = correlate(res, "example.com")
+    kg = knowledge_graph(res, "example.com", intel)
+    added = enrich_tech_cve(kg, res)
+    assert added >= 1
+    tech_cve = [r for r in kg["relationships"]
+                if r["type"] == "affected_by" and r["from"].startswith("tech:")]
+    assert tech_cve                                # nginx -> CVE edge exists
+    sc = supply_chain(kg, res, "example.com")
+    provs = {d["provider"] for d in sc["dependencies"]}
+    assert "jsdelivr" in provs                     # specific brand, not "cdn"
+    # dependency nodes are added to the graph and linked to the target
+    assert any(e["kind"] == "dependency" for e in kg["entities"])
+
+
+def test_report_exposes_wave2_sections():
+    from ghost_eye import workflow
+    rep = workflow.intelligence_report(_risk_sample(), "example.com")
+    assert "risk_heatmap" in rep and "attack_paths" in rep
+    assert "supply_chain" in rep
+    assert rep["risk_heatmap"]["band_counts"]
