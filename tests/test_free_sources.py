@@ -779,3 +779,33 @@ def test_wave29_dockeruser_reddituser_digitalside_incolumitas():
     assert ds["listed"] is True and ds["severity"] == "critical"
     ic = REGISTRY["incolumitas"].run("1.2.3.4", _ctx(router)).data
     assert ic["asn"] == "AS64500" and ic["is_datacenter"] is True and ic["is_abuser"] is True
+
+
+def test_wave30_npmuser_gists_ipapiis_dnsseccaa():
+    def router(url):
+        if "registry.npmjs.org" in url:
+            return _Resp(j={"objects": [{"package": {"name": "acme-sdk",
+                            "version": "1.0.0", "description": "SDK"}}]})
+        if "api.github.com/users/alice/gists" in url:
+            return _Resp(j=[{"id": "g1", "description": "dotfiles",
+                             "files": {"config.env": {}, "notes.md": {}},
+                             "html_url": "https://gist.github.com/alice/g1"}])
+        if "api.ipapi.is" in url:
+            return _Resp(j={"asn": {"asn": 64500, "org": "Acme"},
+                            "company": {"name": "Acme Corp", "type": "hosting"},
+                            "location": {"country": "US"},
+                            "is_datacenter": True, "is_abuser": False,
+                            "abuse": {"email": "abuse@acme.com"}})
+        if "dns.google/resolve" in url and "type=DNSKEY" in url:
+            return _Resp(j={"Answer": [{"data": "257 3 13 abc"}]})
+        if "dns.google/resolve" in url and "type=CAA" in url:
+            return _Resp(j={"Answer": [{"data": "0 issue \"letsencrypt.org\""}]})
+        return _Resp(j={})
+    nu = REGISTRY["npmuser"].run("alice", _ctx(router)).data
+    assert nu["count"] == 1 and nu["packages"][0]["name"] == "acme-sdk"
+    gg = REGISTRY["githubgists"].run("alice", _ctx(router)).data
+    assert gg["count"] == 1 and "config.env" in gg["gists"][0]["files"]
+    ia = REGISTRY["ipapiis"].run("1.2.3.4", _ctx(router)).data
+    assert ia["asn"] == 64500 and ia["is_datacenter"] is True and ia["abuse_email"] == "abuse@acme.com"
+    dc = REGISTRY["dnsseccaa"].run("acme.com", _ctx(router)).data
+    assert dc["dnssec_enabled"] is True and "letsencrypt.org" in dc["caa_issuers"]

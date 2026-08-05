@@ -2953,3 +2953,116 @@ class Incolumitas(Module):
                             "is_vpn": d.get("is_vpn"), "is_proxy": d.get("is_proxy"),
                             "is_tor": d.get("is_tor"), "is_abuser": d.get("is_abuser"),
                             "source": "incolumitas"})
+
+
+# =========================================================================== #
+#  Wave 30 — package-author + gist leak surface + IP intel + DNSSEC/CAA posture:
+#    npm author packages · GitHub gists (username)  · ipapi.is (IP)
+#    DNSSEC + CAA policy via DoH (domain security posture)
+# =========================================================================== #
+@register
+class NpmUser(Module):
+    id = "npmuser"
+    name = "npm packages authored by the handle (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "npmuser expects a bare handle"})
+        d = _json(_get(ctx, "https://registry.npmjs.org/-/v1/search"
+                       f"?text=author:{user}&size=20")) or {}
+        pkgs = []
+        for o in d.get("objects", []) or []:
+            p = (o or {}).get("package") or {}
+            if p.get("name"):
+                pkgs.append({"name": p.get("name"), "version": p.get("version"),
+                             "description": (p.get("description") or "")[:100]})
+        return self.ok(user, {"packages": pkgs[:20], "count": len(pkgs),
+                              "source": "npm-user"})
+
+
+@register
+class GithubGists(Module):
+    id = "githubgists"
+    name = "GitHub public gists — leak surface (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubgists expects a bare handle"})
+        arr = _json(_get(ctx, f"https://api.github.com/users/{user}/gists?per_page=30",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": "GhostEye-OSINT/1.0"})) or []
+        gists = []
+        for g in arr if isinstance(arr, list) else []:
+            if isinstance(g, dict) and g.get("id"):
+                gists.append({"id": g.get("id"),
+                              "description": (g.get("description") or "")[:120],
+                              "files": list((g.get("files") or {}).keys())[:10],
+                              "url": g.get("html_url")})
+        return self.ok(user, {"gists": gists[:30], "count": len(gists),
+                              "note": "public gists frequently leak keys/config — review.",
+                              "source": "github-gists"})
+
+
+@register
+class IpApiIs(Module):
+    id = "ipapiis"
+    name = "ipapi.is IP intel — asn/company/datacenter/abuse (keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "ipapi.is expects an IP"})
+        d = _json(_get(ctx, f"https://api.ipapi.is/?q={ip}")) or {}
+        asn = d.get("asn") or {}
+        company = d.get("company") or {}
+        loc = d.get("location") or {}
+        abuse = d.get("abuse") or {}
+        return self.ok(ip, {"asn": asn.get("asn"), "asn_org": asn.get("org") or asn.get("descr"),
+                            "company": company.get("name"), "company_type": company.get("type"),
+                            "country": loc.get("country"),
+                            "is_datacenter": d.get("is_datacenter"),
+                            "is_vpn": d.get("is_vpn"), "is_proxy": d.get("is_proxy"),
+                            "is_tor": d.get("is_tor"), "is_abuser": d.get("is_abuser"),
+                            "abuse_email": abuse.get("email"),
+                            "source": "ipapi.is"})
+
+
+@register
+class DnssecCaa(Module):
+    id = "dnsseccaa"
+    name = "DNSSEC + CAA policy posture via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        base = "https://dns.google/resolve"
+        dnskey = _json(_get(ctx, f"{base}?name={host}&type=DNSKEY")) or {}
+        dnssec_enabled = bool(dnskey.get("Answer"))
+        caa = _json(_get(ctx, f"{base}?name={host}&type=CAA")) or {}
+        issuers = []
+        for ans in caa.get("Answer") or []:
+            val = ans.get("data")
+            if isinstance(val, str):
+                m = re.search(r'issue(?:wild)?\s+"?([^"\s]+)"?', val)
+                if m:
+                    issuers.append(m.group(1))
+        return self.ok(host, {"dnssec_enabled": dnssec_enabled,
+                              "caa_issuers": sorted(set(issuers))[:15],
+                              "caa_present": bool(issuers),
+                              "note": ("no DNSSEC and/or no CAA policy — weaker "
+                                       "spoofing/mis-issuance posture."
+                                       if not (dnssec_enabled and issuers) else
+                                       "DNSSEC + CAA present."),
+                              "source": "doh-dnssec-caa"})
