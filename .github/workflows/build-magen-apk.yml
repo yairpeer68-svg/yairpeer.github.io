@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -44,3 +46,24 @@ jobs:
           path: magen-android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30
+
+      # קישור התקנה ישיר: מפרסם את ה-APK כ-Release עם תג יציב, כך שיש
+      # כתובת קבועה וניתנת-להתקנה מהטלפון (בלי התחברות ובלי zip).
+      - name: Prepare APK for release
+        run: cp magen-android/app/build/outputs/apk/debug/*.apk shomer-habrit.apk
+
+      - name: Publish Release
+        if: github.ref == 'refs/heads/claude/general-review-ymfmyo'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-latest
+          name: "שומר הברית — גרסת בדיקה"
+          prerelease: true
+          files: shomer-habrit.apk
+          body: |
+            APK להתקנה ידנית (Debug build).
+
+            התקנה: הורד את `shomer-habrit.apk`, אשר "התקנה ממקורות לא ידועים",
+            ופתח את הקובץ. לאחר ההתקנה, המדריך באפליקציה ינחה אותך שלב-אחר-שלב.
+
+            נבנה אוטומטית מ-commit ${{ github.sha }}.
