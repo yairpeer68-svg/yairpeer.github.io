@@ -305,6 +305,9 @@ a{color:var(--cyan);text-decoration:none}
       <button class="toolbtn" data-tool="trend">📈 Trend</button>
       <button class="toolbtn" data-tool="find">🔎 Search findings</button>
       <button class="toolbtn" data-tool="ticket">🎫 File ticket</button>
+      <button class="toolbtn" data-tool="summary">🧠 AI summary</button>
+      <button class="toolbtn" data-tool="fixes">🩹 Remediation</button>
+      <button class="toolbtn" data-tool="brief">👔 Exec brief</button>
     </div>
     <div class="dl-row">
       <span class="dl-label">download report:</span>
@@ -1017,6 +1020,20 @@ async function runTool(tool){
       const d=await api(`/api/job/${CURJOB}/risk`);
       const rows=(d.prioritised||[]).slice(0,30).map(r=>`<div class="trow"><span class="rpill ${(r.severity||'').toUpperCase()}">${esc(r.severity||'?')}</span> <b>${esc(r.module)}</b> · ${esc(r.field||'')} <span class="rel">score ${esc(String(r.risk_score))}</span><br><span class="rel">${esc(String(r.detail||'').slice(0,90))}</span></div>`).join("");
       tout(`<div class="tout-head">🎯 risk — overall ${esc(String(d.overall_risk))} · ${d.count} findings</div>${rows||'<div class="trow">no scored risks</div>'}`);
+    } else if(tool==="summary"){
+      const d=await api(`/api/job/${CURJOB}/summary`);
+      tout(`<div class="tout-head">🧠 AI summary <span class="rel">(${esc(d.source||'')})</span></div><div class="trow">${esc(d.summary||'—')}</div>`+
+        (d.source&&d.source.startsWith('deterministic')?`<div class="trow rel">Tip: save a DeepSeek key in 🔑 Keys for an LLM-written summary.</div>`:''));
+    } else if(tool==="fixes"){
+      const rm=(REP&&REP.remediation)||{}; const recs=rm.recommendations||[];
+      const rows=recs.map(r=>`<div class="trow"><span class="rpill ${(r.severity||'').toUpperCase()}">${esc(r.severity||'?')}</span> <b>${esc(r.issue)}</b><br><span class="rel">${esc(r.fix)}</span></div>`).join("");
+      tout(`<div class="tout-head">🩹 remediation — ${recs.length} prioritised fix(es)</div>${rows||'<div class="trow">no specific fixes mapped.</div>'}`);
+    } else if(tool==="brief"){
+      const b=(REP&&REP.management_brief)||{};
+      const pts=(b.points||[]).map(p=>`<div class="trow">• ${esc(p)}</div>`).join("");
+      const sens=(REP&&REP.asset_sensitivity&&REP.asset_sensitivity.counts)||{};
+      tout(`<div class="tout-head">👔 executive brief</div><div class="trow"><b>${esc(b.headline||'')}</b></div>${pts}`+
+        `<div class="trow rel">asset sensitivity — critical ${sens.critical||0} · high ${sens.high||0} · medium ${sens.medium||0} · low ${sens.low||0}</div>`);
     } else if(tool==="paths"){
       const ap=(REP&&REP.attack_paths)||{}; const ps=ap.paths||[];
       const rows=ps.map(p=>`<div class="trow"><span class="rpill ${(p.band||'').toUpperCase()}">${esc(p.band||'?')}</span> <span class="rel">score ${esc(String(p.score))} · ${p.length} hops</span><br>${(p.steps||[]).map(s=>esc(s.label)).join(' <span class="rel">→</span> ')}</div>`).join("");

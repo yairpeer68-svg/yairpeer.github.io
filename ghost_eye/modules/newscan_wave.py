@@ -15,12 +15,15 @@ FOR AUTHORISED SECURITY TESTING ONLY.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
+import socket
 from typing import Any, Dict, List
 from urllib.parse import urljoin, urlparse
 
-from ..core import Context, Module, Result, ensure_scheme, record_error, register
+from ..core import (Context, Module, Result, clean_host, ensure_scheme,
+                    record_error, register)
 
 
 def _get(ctx: Context, url: str):
@@ -254,3 +257,142 @@ class IamExpose(Module):
             data["findings"] = hits
             data["severity"] = "high"
         return self.ok(target, data)
+
+
+# =========================================================================== #
+#  originhunt — reveal the real server IP behind a CDN / WAF
+# =========================================================================== #
+# Published CDN IPv4 ranges (stable). An A record OUTSIDE all of these, reached
+# via an origin-revealing channel (SPF/MX/origin subdomains), is a likely true
+# origin. Detection/correlation only — no traffic tricks, no exploitation.
+_CDN_RANGES = {
+    "Cloudflare": [
+        "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22",
+        "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18",
+        "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22",
+        "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
+        "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+    ],
+    "Fastly": ["151.101.0.0/16", "199.232.0.0/16", "23.235.32.0/20"],
+    "CloudFront": ["13.32.0.0/15", "13.224.0.0/14", "52.84.0.0/15",
+                   "54.192.0.0/16", "99.84.0.0/16", "205.251.192.0/19"],
+    "Akamai": ["23.32.0.0/11", "23.192.0.0/11", "104.64.0.0/10", "184.24.0.0/13"],
+}
+_CDN_NETS = {name: [ipaddress.ip_network(c) for c in cidrs]
+             for name, cidrs in _CDN_RANGES.items()}
+# subdomain prefixes that usually point straight at the origin (not fronted)
+_ORIGIN_PREFIXES = ("origin", "direct", "direct-connect", "dev", "staging",
+                    "stage", "test", "cpanel", "webmail", "mail", "smtp",
+                    "ftp", "server", "backend", "api", "vpn", "portal",
+                    "old", "legacy", "app")
+
+
+def _resolve(name: str) -> List[str]:
+    try:
+        _, _, ips = socket.gethostbyname_ex(name)
+        return sorted(set(ips))
+    except OSError:
+        return []
+
+
+def _cdn_of(ip: str) -> str:
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return ""
+    for name, nets in _CDN_NETS.items():
+        if any(addr in n for n in nets):
+            return name
+    return ""
+
+
+def _spf_ips(host: str, ctx: Context) -> List[str]:
+    """IPs / include-hosts pulled from the SPF record — mail infra often shares
+    the real origin netblock."""
+    out: List[str] = []
+    try:
+        import dns.resolver
+        for rr in dns.resolver.resolve(host, "TXT"):
+            txt = str(rr).strip('"')
+            if "v=spf1" not in txt.lower():
+                continue
+            for tok in txt.split():
+                if tok.startswith("ip4:"):
+                    out.append(tok[4:].split("/")[0])
+                elif tok.startswith("include:") or tok.startswith("a:"):
+                    inc = tok.split(":", 1)[1]
+                    out.extend(_resolve(inc))
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+@register
+class OriginHunt(Module):
+    id = "originhunt"
+    name = "Origin server IP hunter (behind CDN/WAF)"
+    category = "Network"
+    target_kind = "domain"
+
+    def run(self, target: str, ctx: Context) -> Result:
+        try:
+            host = clean_host(target)
+        except ValueError as exc:
+            return self.fail(target, str(exc))
+
+        fronted = _resolve(host)
+        fronted_cdn = {ip: _cdn_of(ip) for ip in fronted}
+        cdn_name = next((c for c in fronted_cdn.values() if c), "")
+
+        # gather candidate IPs from origin-revealing channels
+        candidates: Dict[str, List[str]] = {}
+
+        def _add(via: str, ips: List[str]):
+            for ip in ips:
+                candidates.setdefault(ip, [])
+                if via not in candidates[ip]:
+                    candidates[ip].append(via)
+
+        for pfx in _ORIGIN_PREFIXES:
+            _add(f"sub:{pfx}", _resolve(f"{pfx}.{host}"))
+        _add("spf", _spf_ips(host, ctx))
+        try:
+            import dns.resolver
+            for m in dns.resolver.resolve(host, "MX"):
+                mx = str(m.exchange).rstrip(".")
+                _add(f"mx:{mx}", _resolve(mx))
+        except Exception:  # noqa: BLE001
+            pass
+
+        # classify: a candidate not in any CDN range and not equal to a fronted
+        # CDN IP is a likely true origin
+        likely: List[Dict[str, Any]] = []
+        cdn_hits: List[str] = []
+        for ip, vias in candidates.items():
+            cdn = _cdn_of(ip)
+            if cdn:
+                cdn_hits.append(ip)
+                continue
+            if ip in fronted and not cdn_name:
+                continue  # apex not behind a known CDN — nothing to unmask
+            likely.append({"ip": ip, "via": vias,
+                           "confidence": "high" if any(
+                               v.startswith(("sub:origin", "sub:direct", "mx:",
+                                             "spf")) for v in vias) else "medium"})
+        likely.sort(key=lambda x: 0 if x["confidence"] == "high" else 1)
+
+        data: Dict[str, Any] = {
+            "fronted_ips": fronted or "none",
+            "cdn_detected": cdn_name or "none (may be direct)",
+            "candidate_origins": len(likely),
+        }
+        if likely:
+            data["likely_origins"] = likely[:15]
+            data["severity"] = "medium" if cdn_name else "info"
+            data["note"] = ("these IPs were reached via origin-revealing channels "
+                            "and are NOT in a known CDN range — verify one hosts "
+                            "the same site to confirm the true origin.")
+        else:
+            data["note"] = ("no non-CDN origin candidate found via passive "
+                            "channels; the origin may be well isolated.")
+        return self.ok(host, data)

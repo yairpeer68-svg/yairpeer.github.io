@@ -591,6 +591,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_intel(jid)
         if sub == "search":
             return self._job_search(jid, parsed)
+        if sub == "ask":
+            return self._job_ask(jid, parsed)
+        if sub == "summary":
+            return self._job_summary(jid)
         snap = self.server.jobs.snapshot(jid)
         if snap is None:
             return self._json({"error": "unknown job"}, 404)
@@ -719,6 +723,42 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(full_text_search(results, q))
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"search failed: {exc}"}, 500)
+
+    def _job_ask(self, jid: str, parsed):
+        """Deterministic Q&A over a scan's intelligence (feature 66).
+        GET /api/job/<id>/ask?q=<question>."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        q = (parse_qs(parsed.query).get("q", [""])[0]).strip()
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        from .intelligence import question_answer
+        try:
+            report = workflow.intelligence_report(results, target)
+            return self._json(question_answer(report, q))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"ask failed: {exc}"}, 500)
+
+    def _job_summary(self, jid: str):
+        """Natural-language summary of a scan (feature 65). Uses an LLM when a
+        DeepSeek key is configured, else a deterministic summary."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        from .intelligence import ai_summary
+        try:
+            report = workflow.intelligence_report(results, target)
+            key = ""
+            try:
+                key = self.server.jobs.cfg.api_key("deepseek") or ""
+            except Exception:  # noqa: BLE001
+                key = ""
+            return self._json(ai_summary(report, api_key=key))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"summary failed: {exc}"}, 500)
 
     def _unified(self, parsed):
         """Merge several targets' knowledge graphs into one unified graph

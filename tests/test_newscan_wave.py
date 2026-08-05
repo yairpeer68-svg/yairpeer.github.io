@@ -131,3 +131,60 @@ def test_pci_and_soc2_frameworks_available():
         assert rep["framework"] == fw
         assert rep.get("controls")
         assert "error" not in rep
+
+
+# --- originhunt CDN classification (origin-IP unmasking) -------------------
+
+def test_originhunt_cdn_range_classification():
+    import ghost_eye.modules.newscan_wave as nw
+    assert nw._cdn_of("104.16.1.1") == "Cloudflare"
+    assert nw._cdn_of("151.101.1.1") == "Fastly"
+    assert nw._cdn_of("13.32.0.5") == "CloudFront"
+    assert nw._cdn_of("8.8.8.8") == ""          # a normal IP is not a CDN
+    assert nw._cdn_of("not-an-ip") == ""
+
+
+def test_originhunt_runs_and_returns_result():
+    m = REGISTRY["originhunt"]
+    res = m.run("example.com", _ctx(_Sess({})))
+    assert res.status in ("ok", "empty")
+    assert "cdn_detected" in res.data and "candidate_origins" in res.data
+
+
+# --- advisor layer (features 68/69/70/72/65/66) ---------------------------
+
+def _report():
+    from ghost_eye.core import Result
+    from ghost_eye import workflow
+    r = [Result("Security headers", "admin.example.com", "ok", {"hsts": "missing"}),
+         Result("subs", "example.com", "ok",
+                {"subs": ["admin.example.com", "api.example.com", "www.example.com"]}),
+         Result("github", "example.com", "ok", {"leaks": ["api_key leaked"]})]
+    return workflow.intelligence_report(r, "example.com")
+
+
+def test_report_carries_advisor_sections():
+    rep = _report()
+    assert "asset_sensitivity" in rep and "remediation" in rep
+    assert "management_brief" in rep
+    assert rep["asset_sensitivity"]["counts"]["critical"] >= 1   # admin.*
+    assert rep["remediation"]["count"] >= 1
+    assert rep["management_brief"]["headline"]
+
+
+def test_anomaly_detection_flags_growth():
+    from ghost_eye.intelligence import anomaly_detection
+    rep = _report()
+    a = anomaly_detection(rep, {"assets": 1, "subdomains": 1, "leaks": 0, "score": 95})
+    assert a["anomalies"]
+    assert a["verdict"]
+
+
+def test_question_answer_and_ai_summary_offline():
+    from ghost_eye.intelligence import question_answer, ai_summary
+    rep = _report()
+    assert "subdomain" in question_answer(rep, "list subdomains").get("answer", "").lower() \
+        or question_answer(rep, "list subdomains").get("items")
+    s = ai_summary(rep)                        # no key -> deterministic
+    assert s["source"].startswith("deterministic")
+    assert s["summary"]

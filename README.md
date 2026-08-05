@@ -11,12 +11,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **327 modules** across 19 categories
+- **328 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **455 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **461 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -539,7 +539,17 @@ multi-target graph) and `/api/scope` (scope-guard editor).
 **New detection modules** in this line: `jssecrets` (leaked keys in the site's
 JavaScript), `sigscan` (a nuclei-style signature engine — bring your own
 `GHOSTEYE_SIGNATURES` YAML/JSON rules), `iamexpose` (exposed cloud IAM /
-credential files).
+credential files), `originhunt` (**reveal the real server IP behind a
+CDN/WAF** — classifies A-records against published Cloudflare/Fastly/CloudFront/
+Akamai ranges and pivots via SPF, MX and origin-revealing subdomains).
+
+**Advisory layer** (folded into the `/intel` report): `remediation` (a concrete,
+prioritised fix per finding), `asset_sensitivity` (hosts classified critical→low
+by name), `management_brief` (a plain-language executive summary), plus
+`anomaly_detection` (flag metrics that deviate from the historical baseline).
+Dashboard **⚙ Tools** adds 🧠 AI summary (`/api/job/<id>/summary` — LLM when a
+DeepSeek key is set, deterministic otherwise), 🩹 Remediation, 👔 Exec brief, and
+`/api/job/<id>/ask?q=` for offline Q&A over the findings.
 
 ---
 
@@ -627,7 +637,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 327 modules
+- **All-module smoke test** — runs `run()` for every one of the 328 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions.
@@ -644,7 +654,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**455 tests** pass in ~11s. A single **verification gate** runs the whole thing:
+**461 tests** pass in ~11s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

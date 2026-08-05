@@ -116,7 +116,7 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
     "passive": ["internetdb", "geoip", "proxytype", "torexit", "threatfeed",
                 "reputation", "urlscan", "breachcheck", "waybackadv", "pastebin"],
     "perimeter": ["dns", "subs", "nmap", "headers", "cert", "tlsgrade", "waf",
-                  "cdn", "origin", "exposeddb", "dashboards", "vcs",
+                  "cdn", "origin", "originhunt", "exposeddb", "dashboards", "vcs",
                   "subtakeover", "dnssecchain", "fwinfer", "svcver", "sshaudit"],
     "dns": ["dns", "whois", "subs", "dnssecchain", "dnswildcard", "domainage",
             "subtakeover", "dnsprop", "emailauth", "dnsrebind", "nsdelegation",
@@ -505,10 +505,13 @@ def intelligence_report(results, target: str = "",
     technologies, cloud footprint, email posture, certificates, leak indicators,
     an organization profile and the attack-surface graph — assembled from the
     output of every module that ran."""
-    from .intelligence import (analyze, attack_paths, build_graph,
-                               build_timeline, correlate, enrich_tech_cve,
-                               entity_correlation, knowledge_graph,
-                               organization_profile, risk_heatmap, supply_chain)
+    from .intelligence import (analyze, asset_sensitivity, attack_paths,
+                               build_graph, build_timeline, correlate,
+                               enrich_tech_cve, entity_correlation,
+                               knowledge_graph, management_translation,
+                               organization_profile, remediation, risk_heatmap,
+                               supply_chain)
+    from .reporting_ext import score_findings
     intel = correlate(results, target)
     profile = organization_profile(intel, results)
     kg = knowledge_graph(results, intel["target"], intel)
@@ -522,6 +525,11 @@ def intelligence_report(results, target: str = "",
     # scored attack paths from exposure/leak/CVE to the target (feature 18)
     apaths = attack_paths(kg)
     corr = entity_correlation(kg)
+    # advisory layer: classify host sensitivity (70), map fixes (69) and a
+    # plain-language management brief (72)
+    sensitivity = asset_sensitivity(kg)
+    scored = score_findings(results)
+    remedy = remediation({}, scored.get("findings", []))
     tline = build_timeline(results, intel["target"])
     a = attack_score(results)
     out = {
@@ -538,10 +546,13 @@ def intelligence_report(results, target: str = "",
         "risk_heatmap": heat,
         "attack_paths": apaths,
         "supply_chain": supply,
+        "asset_sensitivity": sensitivity,
+        "remediation": remedy,
         "timeline": tline,
     }
     # the rule-based AI analyst reasons over the fully assembled picture
     out["analysis"] = analyze(out)
+    out["management_brief"] = management_translation(out)
     if exploit is not None:
         out["exploitable_cves"] = exploit.get("exploitable", [])
     return out

@@ -17,6 +17,14 @@ from .graph import (  # noqa: F401
     render_knowledge_svg,
     render_svg,
 )
+from .advisor import (  # noqa: F401
+    ai_summary,
+    anomaly_detection,
+    asset_sensitivity,
+    management_translation,
+    question_answer,
+    remediation,
+)
 from .graph_export import to_gexf, to_graphml, unified_graph  # noqa: F401
 from .risk import (  # noqa: F401
     attack_paths,
@@ -32,5 +40,7 @@ __all__ = [
     "knowledge_graph", "entity_correlation",
     "risk_heatmap", "attack_paths", "enrich_tech_cve", "supply_chain",
     "to_graphml", "to_gexf", "unified_graph",
+    "remediation", "asset_sensitivity", "anomaly_detection",
+    "management_translation", "ai_summary", "question_answer",
     "build_timeline", "analyze",
 ]
