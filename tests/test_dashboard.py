@@ -301,6 +301,22 @@ def test_new_features_static_wiring():
     for tok in ('id="portbtn"', "function openPortfolio(", "function askGraph(",
                 'id="ackbtn"', "/api/acks", "/api/portfolio"):
         assert tok in osint, f"osint.html missing {tok}"
+
+
+def test_osint_tools_menu_has_cli_parity():
+    """The OSINT dashboard's Tools menu exposes the CLI actions (screenshots,
+    exploit intel, risk, compliance, inventory, rollup, trend) and report
+    downloads."""
+    osint = (_INDEX.parent / "osint.html").read_text(encoding="utf-8")
+    assert 'id="toolsbtn"' in osint and "function runTool(" in osint
+    for tool in ("screenshots", "exploits", "risk", "compliance",
+                 "inventory", "rollup", "trend"):
+        assert f'data-tool="{tool}"' in osint, f"missing tool {tool}"
+    for fmt in ("exec", "intel", "json"):
+        assert f'data-fmt="{fmt}"' in osint
+    # the screenshot action drives the real sweep endpoint
+    assert "/screenshots?max=" in osint
+    assert "/report?format=" in osint
     console = _INDEX.read_text(encoding="utf-8")
     assert 'id="schedReport"' in console and "report_webhook" in console
 

@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **412 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **413 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only
@@ -394,7 +394,10 @@ Two dashboards, one server — the **graph-first OSINT investigator is the home 
   emails, WHOIS/ASN, tech, cloud, leaks, email posture, timeline, screenshots and
   the analyst headline). The recon console (advanced scans / schedules / exports)
   lives at **`/console`**, cross-linked from the OSINT bar. The graph supports
-  **search/highlight**, natural-language **Ask**, **cluster-by-type**, **PNG
+  a **⚙ Tools** menu brings full CLI parity into the dashboard — screenshot
+  every subdomain, exploit intel, risk, compliance, inventory, host rollup,
+  trend and one-click report downloads (Exec/Intel/HTML/JSON/MD/SARIF/CSV).
+    **search/highlight**, natural-language **Ask**, **cluster-by-type**, **PNG
   export**, and only ever shows the target's *own* related hosts (OSINT-reference
   sites like github/pastebin and URL-encode artifacts are filtered out).
 
@@ -576,7 +579,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**412 tests** pass in ~11s. A single **verification gate** runs the whole thing:
+**413 tests** pass in ~12s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

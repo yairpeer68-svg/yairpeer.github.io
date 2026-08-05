@@ -189,6 +189,22 @@ a{color:var(--cyan);text-decoration:none}
 .rpill.CRITICAL,.rpill.HIGH{background:rgba(255,91,97,.14);color:var(--red)}
 .rpill.MEDIUM{background:rgba(240,181,69,.14);color:var(--gold)}
 .rpill.LOW,.rpill.INFO{background:rgba(55,211,154,.12);color:var(--green)}
+/* tools modal */
+.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+@media(max-width:520px){.tool-grid{grid-template-columns:1fr}}
+.toolbtn{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:11px;padding:12px;font-size:13px;text-align:left;transition:border-color .15s,background .15s}
+.toolbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.dl-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:1px solid var(--line);padding-top:11px;margin-top:4px}
+.dl-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:4px}
+.dlbtn{background:var(--panel);border:1px solid var(--line2);color:var(--muted);border-radius:20px;padding:7px 11px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+.dlbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.toolout{margin-top:12px;max-height:44vh;overflow-y:auto}
+.toolout:empty{display:none}
+.tout-head{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--cyan);margin:6px 0 8px}
+.trow{border-top:1px solid var(--line);padding:8px 0;font-size:12px;color:#c7d2e4}
+.trow b{color:var(--ink)} .trow .rel{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.bar-mini{height:5px;background:var(--bg);border-radius:20px;overflow:hidden;margin:4px 0}
+.bar-mini>i{display:block;height:100%}
 
 @media (max-width:820px){
   /* phone-first: bar wraps into brand-row + full-width search; nav collapses */
@@ -236,11 +252,38 @@ a{color:var(--cyan);text-decoration:none}
   <div class="status" id="statuswrap"><span class="dot" id="dot"></span><span id="statustxt">idle</span></div>
   <button class="navlink navtoggle" id="navtoggle" aria-label="menu">☰</button>
   <div class="topright" id="topright">
+    <button class="navlink" id="toolsbtn">⚙ Tools</button>
     <button class="navlink" id="portbtn">▦ Portfolio</button>
     <button class="navlink" id="keysbtn">🔑 Keys</button>
     <a class="navlink" href="/console" id="consolelink">▤ Console</a>
   </div>
 </header>
+
+<div id="toolsmodal" class="modal hidden">
+  <div class="modal-card" style="width:min(640px,96vw)">
+    <div class="modal-head"><b>⚙ Tools — <span id="toolstgt"></span></b><button class="x" id="toolsclose">✕</button></div>
+    <div class="tool-grid">
+      <button class="toolbtn" data-tool="screenshots">📸 Screenshot subdomains</button>
+      <button class="toolbtn" data-tool="exploits">🧨 Exploit intel</button>
+      <button class="toolbtn" data-tool="risk">🎯 Risk</button>
+      <button class="toolbtn" data-tool="compliance">⚖ Compliance</button>
+      <button class="toolbtn" data-tool="inventory">📋 Inventory</button>
+      <button class="toolbtn" data-tool="rollup">🖧 Host rollup</button>
+      <button class="toolbtn" data-tool="trend">📈 Trend</button>
+    </div>
+    <div class="dl-row">
+      <span class="dl-label">download report:</span>
+      <button class="dlbtn" data-fmt="exec">Exec</button>
+      <button class="dlbtn" data-fmt="intel">Intel</button>
+      <button class="dlbtn" data-fmt="html">HTML</button>
+      <button class="dlbtn" data-fmt="json">JSON</button>
+      <button class="dlbtn" data-fmt="md">MD</button>
+      <button class="dlbtn" data-fmt="sarif">SARIF</button>
+      <button class="dlbtn" data-fmt="csv">CSV</button>
+    </div>
+    <div id="toolout" class="toolout"></div>
+  </div>
+</div>
 
 <div id="portmodal" class="modal hidden">
   <div class="modal-card" style="width:min(760px,96vw)">
@@ -334,6 +377,7 @@ let G={nodes:[],edges:[],byId:{}};
 let hidden=new Set(), selected=null;
 let cam={k:1,x:0,y:0}, W=1000, H=700;
 let clustered=false, searchSet=null, ACKS=new Set();
+let CURJOB=null, CURTARGET="";
 
 /* ---------------- investigate ---------------- */
 async function investigate(){
@@ -362,7 +406,8 @@ function poll(jid,target){
 async function loadProfile(jid,target){
   setStatus("run","correlating intelligence…");
   let d; try{ d=await api(`/api/job/${jid}/intel`);}catch(e){ fail("Intelligence failed: "+e.message); return; }
-  REP=d; buildGraph(d); renderProfile(d); setStatus("done",`${target} · grade ${d.grade}`);
+  REP=d; CURJOB=jid; CURTARGET=target;
+  buildGraph(d); renderProfile(d); setStatus("done",`${target} · grade ${d.grade}`);
   $("go").disabled=false;
   try{ const ak=await api(`/api/acks?target=${encodeURIComponent(target)}`); ACKS=new Set(ak.acks||[]); }catch(e){ ACKS=new Set(); }
 }
@@ -775,6 +820,65 @@ $("portmodal").addEventListener("click",e=>{ if(e.target===$("portmodal")) $("po
 
 /* mobile: toggle the collapsed nav (Portfolio / Keys / Console) */
 $("navtoggle").addEventListener("click",()=>document.querySelector(".bar").classList.toggle("navopen"));
+
+/* ---------------- Tools (CLI parity: screenshots / exploit / risk / compliance / inventory / rollup / reports) ---------------- */
+function tout(h){ $("toolout").innerHTML=h; }
+function openTools(){
+  if(!CURJOB){ alert("Investigate a target first."); return; }
+  $("toolstgt").textContent=CURTARGET||REP.target||"";
+  $("toolout").innerHTML=""; $("toolsmodal").classList.remove("hidden");
+}
+const _sevc={critical:"var(--red)",high:"#ff9145",medium:"var(--gold)",low:"var(--green)","":"var(--muted)"};
+async function runTool(tool){
+  if(!CURJOB) return;
+  tout(`<div class="tout-head">${tool}</div><div class="spinner" style="margin:14px auto"></div>`);
+  try{
+    if(tool==="screenshots"){
+      tout(`<div class="tout-head">📸 capturing target + subdomains…</div><div class="spinner" style="margin:14px auto"></div><div class="trow">this launches a headless browser for each host — give it a moment.</div>`);
+      const d=await api(`/api/job/${CURJOB}/screenshots?max=20`,{method:"POST"});
+      await loadProfile(CURJOB,CURTARGET);        // refresh so the gallery shows them
+      tout(`<div class="tout-head">📸 visual recon</div><div class="trow"><b>${d.count}</b> screenshot(s) captured and added to the profile's Visual recon gallery.</div>`
+        + (d.count?`<div class="gal" style="margin-top:8px">${(d.screenshots||[]).slice(0,8).map(s=>`<figure><img loading="lazy" src="${s.image}" alt=""><figcaption>${esc(s.host||"")}</figcaption></figure>`).join("")}</div>`
+           :`<div class="trow">No screenshots — a headless Chromium is required (Termux: <code>pkg install chromium</code>).</div>`));
+    } else if(tool==="exploits"){
+      const d=await api(`/api/job/${CURJOB}/exploits?max=25`);
+      const rows=(d.findings||[]).map(f=>`<div class="trow"><span class="rpill ${(f.severity||'').toUpperCase()}">${esc(f.severity||'?')}</span> <b>${esc(f.cve)}</b> — ${f.exploit_available?`<span style="color:var(--red)">PUBLIC EXPLOIT</span>`:esc(f.verdict||'no public exploit')}</div>`).join("");
+      tout(`<div class="tout-head">🧨 exploit intel — ${d.cves_found||0} CVEs · ${d.exploitable_count||0} with public exploit</div>${rows||'<div class="trow">No CVEs surfaced by this scan.</div>'}`);
+    } else if(tool==="risk"){
+      const d=await api(`/api/job/${CURJOB}/risk`);
+      const rows=(d.prioritised||[]).slice(0,30).map(r=>`<div class="trow"><span class="rpill ${(r.severity||'').toUpperCase()}">${esc(r.severity||'?')}</span> <b>${esc(r.module)}</b> · ${esc(r.field||'')} <span class="rel">score ${esc(String(r.risk_score))}</span><br><span class="rel">${esc(String(r.detail||'').slice(0,90))}</span></div>`).join("");
+      tout(`<div class="tout-head">🎯 risk — overall ${esc(String(d.overall_risk))} · ${d.count} findings</div>${rows||'<div class="trow">no scored risks</div>'}`);
+    } else if(tool==="compliance"){
+      const d=await api(`/api/job/${CURJOB}/compliance?framework=owasp_top10`);
+      const rows=Object.entries(d.controls||{}).map(([n,c])=>{const pct=c.coverage_pct||0,col=pct>=70?'var(--green)':pct>=35?'var(--gold)':'var(--red)';
+        return `<div class="trow"><b>${esc(n)}</b> <span class="rel" style="color:${col}">${pct}%</span><div class="bar-mini"><i style="width:${pct}%;background:${col}"></i></div></div>`;}).join("");
+      tout(`<div class="tout-head">⚖ compliance — ${esc(d.framework||'')} · ${d.overall_pct||0}% overall</div>${rows}`);
+    } else if(tool==="inventory"){
+      const d=await api(`/api/job/${CURJOB}/inventory`);
+      const sec=(t,a)=>a&&a.length?`<div class="trow"><b>${t}</b> <span class="rel">${a.length}</span><div class="achips" style="margin-top:5px">${a.slice(0,40).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div></div>`:"";
+      tout(`<div class="tout-head">📋 asset inventory</div>${sec("Hosts",d.hosts)}${sec("IPs",d.ips)}${sec("Services",d.services)}${sec("Emails",d.emails)}${sec("URLs",d.urls)}${sec("Technologies",d.technologies)}`);
+    } else if(tool==="rollup"){
+      const d=await api(`/api/job/${CURJOB}/rollup`);
+      const hosts=d.hosts||d||{}; const keys=Object.keys(hosts).filter(k=>typeof hosts[k]==="object");
+      const rows=keys.map(h=>{const i=hosts[h];return `<div class="trow"><b>${esc(h)}</b> <span class="rel">${(i.findings!=null?i.findings+' findings':'')}${i.severity?' · '+i.severity:''}</span><br><span class="rel">ports ${(i.ports||[]).join(', ')||'—'} · ${(i.cves||[]).length} CVEs</span></div>`;}).join("");
+      tout(`<div class="tout-head">🖧 per-host rollup — ${keys.length} hosts</div>${rows||'<div class="trow">no hosts</div>'}`);
+    } else if(tool==="trend"){
+      const d=await api(`/api/trend?target=${encodeURIComponent(CURTARGET)}`);
+      if((d.scans||0)<1){ tout(`<div class="tout-head">📈 trend</div><div class="trow">No saved history yet for ${esc(CURTARGET)} — investigate it again over time.</div>`); return; }
+      const rows=(d.series||[]).map(s=>`<div class="trow"><span class="rel">${esc((s.ts||'').slice(0,16).replace('T',' '))}</span> · assets ${s.assets} · subs ${s.subdomains} · risk ${s.risk_score}${(s.new_count?` · <span style="color:var(--red)">+${s.new_count} new</span>`:'')}</div>`).join("");
+      tout(`<div class="tout-head">📈 intelligence trend — ${d.scans} scans · ${esc(d.direction)}</div>${rows}`);
+    }
+  }catch(e){ tout(`<div class="trow" style="color:var(--red)">${esc(e.message)}</div>`); }
+}
+$("toolsbtn").addEventListener("click",openTools);
+$("toolsclose").addEventListener("click",()=>$("toolsmodal").classList.add("hidden"));
+$("toolsmodal").addEventListener("click",e=>{ if(e.target===$("toolsmodal")) $("toolsmodal").classList.add("hidden"); });
+$("toolsmodal").addEventListener("click",e=>{
+  const t=e.target.closest("[data-tool]"); if(t){ runTool(t.dataset.tool); return; }
+  const d=e.target.closest("[data-fmt]");
+  if(d && CURJOB){ window.open(`/api/job/${CURJOB}/report?format=${d.dataset.fmt}`+(TOKEN?`&token=${encodeURIComponent(TOKEN)}`:""),"_blank"); }
+});
+
 $("keysbtn").addEventListener("click",openKeys);
 $("keysclose").addEventListener("click",()=>$("keysmodal").classList.add("hidden"));
 $("keysmodal").addEventListener("click",e=>{ if(e.target===$("keysmodal")) $("keysmodal").classList.add("hidden"); });
