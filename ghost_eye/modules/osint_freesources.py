@@ -3066,3 +3066,159 @@ class DnssecCaa(Module):
                                        if not (dnssec_enabled and issuers) else
                                        "DNSSEC + CAA present."),
                               "source": "doh-dnssec-caa"})
+
+
+# =========================================================================== #
+#  Wave 31 — high-value: authoritative IP registration + reverse infra +
+#  identity cross-linking + brand-abuse lookalike detection:
+#    RIPE RDAP (IP) · DNSlytics domain->IP (domain) · DEV.to (username)
+#    Lookalike/typosquat domain detection via DoH (domain)
+# =========================================================================== #
+@register
+class RipeIpRdap(Module):
+    id = "ripeiprdap"
+    name = "RIPE RDAP IP registration — org/netname/CIDR (keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "ripeiprdap expects an IP"})
+        d = _json(_get(ctx, f"https://rdap.db.ripe.net/ip/{ip}",
+                       headers={"Accept": "application/rdap+json"})) or {}
+        cidrs = []
+        for c in d.get("cidr0_cidrs") or []:
+            if isinstance(c, dict):
+                pfx = c.get("v4prefix") or c.get("v6prefix")
+                length = c.get("length")
+                if pfx and length is not None:
+                    cidrs.append(f"{pfx}/{length}")
+        org = ""
+        for ent in d.get("entities") or []:
+            if isinstance(ent, dict):
+                varr = ent.get("vcardArray")
+                if isinstance(varr, list) and len(varr) > 1:
+                    for item in varr[1]:
+                        if isinstance(item, list) and len(item) >= 4 and item[0] == "fn":
+                            org = item[3]
+                            break
+            if org:
+                break
+        return self.ok(ip, {"name": d.get("name"), "handle": d.get("handle"),
+                            "org": org, "country": d.get("country"),
+                            "cidrs": cidrs[:10],
+                            "start": d.get("startAddress"), "end": d.get("endAddress"),
+                            "source": "ripe-rdap"})
+
+
+@register
+class DnsLytics(Module):
+    id = "dnslytics"
+    name = "DNSlytics domain -> IP / shared-hosting reverse (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        reg = ".".join(host.split(".")[-2:])
+        d = _json(_get(ctx, f"https://freeapi.dnslytics.net/v1/domain2ip/{reg}")) or {}
+        recs = []
+        for r in d.get("data", []) or []:
+            if isinstance(r, dict) and r.get("ip"):
+                recs.append({"ip": r.get("ip"), "type": r.get("type"),
+                             "domains_on_ip": r.get("domains") or r.get("count")})
+        return self.ok(host, {"domain": reg, "records": recs[:20],
+                              "count": len(recs), "source": "dnslytics"})
+
+
+@register
+class DevToUser(Module):
+    id = "devtouser"
+    name = "DEV.to profile — cross-links GitHub/Twitter (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "devtouser expects a bare handle"})
+        d = _json(_get(ctx, "https://dev.to/api/users/by_username"
+                       f"?url={user}")) or {}
+        if not d.get("username"):
+            return self.ok(user, {"note": "no DEV.to user", "source": "devto-user"})
+        return self.ok(user, {"username": d.get("username"), "name": d.get("name"),
+                              "github": d.get("github_username"),
+                              "twitter": d.get("twitter_username"),
+                              "location": d.get("location"),
+                              "summary": (d.get("summary") or "")[:200],
+                              "joined": d.get("joined_at"),
+                              "source": "devto-user"})
+
+
+def _lookalikes(domain: str):
+    """Generate a bounded set of typosquat/homoglyph permutations of a domain."""
+    parts = domain.split(".")
+    if len(parts) < 2:
+        return []
+    name, tld = ".".join(parts[:-1]), parts[-1]
+    homo = {"o": "0", "l": "1", "i": "1", "e": "3", "a": "4", "s": "5"}
+    alt_tlds = ["com", "net", "org", "co", "io", "info", "online", "app"]
+    out: Set[str] = set()
+    # character omission
+    for i in range(len(name)):
+        out.add(f"{name[:i] + name[i+1:]}.{tld}")
+    # adjacent transposition
+    for i in range(len(name) - 1):
+        lst = list(name)
+        lst[i], lst[i+1] = lst[i+1], lst[i]
+        out.add(f"{''.join(lst)}.{tld}")
+    # homoglyph substitution (first occurrence of each mapped char)
+    for ch, sub in homo.items():
+        if ch in name:
+            out.add(f"{name.replace(ch, sub, 1)}.{tld}")
+    # doubled character
+    for i in range(len(name)):
+        out.add(f"{name[:i+1] + name[i] + name[i+1:]}.{tld}")
+    # TLD swap
+    for t in alt_tlds:
+        if t != tld:
+            out.add(f"{name}.{t}")
+    out.discard(domain)
+    return sorted(out)[:40]
+
+
+@register
+class Lookalike(Module):
+    id = "lookalike"
+    name = "Lookalike / typosquat domain detection via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        reg = ".".join(host.split(".")[-2:])
+        candidates = _lookalikes(reg)
+        registered = []
+        for cand in candidates:
+            d = _json(_get(ctx, "https://dns.google/resolve"
+                           f"?name={cand}&type=A")) or {}
+            answers = d.get("Answer") or []
+            ips = [a.get("data") for a in answers
+                   if isinstance(a, dict) and a.get("type") == 1 and a.get("data")]
+            if ips or d.get("Status") == 0 and answers:
+                registered.append({"domain": cand, "ips": ips[:3]})
+        data = {"base": reg, "candidates_tested": len(candidates),
+                "registered_lookalikes": registered[:40],
+                "count": len(registered), "source": "lookalike-doh"}
+        if registered:
+            data["severity"] = "medium"
+            data["note"] = (f"{len(registered)} lookalike domain(s) resolve — "
+                            "possible typosquatting / phishing infrastructure.")
+        return self.ok(host, data)

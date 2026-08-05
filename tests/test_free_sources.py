@@ -809,3 +809,36 @@ def test_wave30_npmuser_gists_ipapiis_dnsseccaa():
     assert ia["asn"] == 64500 and ia["is_datacenter"] is True and ia["abuse_email"] == "abuse@acme.com"
     dc = REGISTRY["dnsseccaa"].run("acme.com", _ctx(router)).data
     assert dc["dnssec_enabled"] is True and "letsencrypt.org" in dc["caa_issuers"]
+
+
+def test_wave31_ripeiprdap_dnslytics_devto_lookalike():
+    def router(url):
+        if "rdap.db.ripe.net" in url:
+            return _Resp(j={"name": "ACME-RIPE", "handle": "NET-EU",
+                            "country": "NL",
+                            "cidr0_cidrs": [{"v4prefix": "1.2.0.0", "length": 16}],
+                            "entities": [{"vcardArray": ["vcard", [
+                                ["version", {}, "text", "4.0"],
+                                ["fn", {}, "text", "Acme Europe BV"]]]}]})
+        if "freeapi.dnslytics.net" in url:
+            return _Resp(j={"data": [{"ip": "1.2.3.4", "type": "A", "domains": 12}]})
+        if "dev.to/api/users" in url:
+            return _Resp(j={"username": "alice", "name": "Alice",
+                            "github_username": "alice-gh",
+                            "twitter_username": "alice_tw", "location": "NYC"})
+        if "dns.google/resolve" in url:
+            # only the omission "ace.com" is "registered"
+            if "name=ace.com" in url:
+                return _Resp(j={"Status": 0, "Answer": [
+                    {"type": 1, "data": "6.6.6.6"}]})
+            return _Resp(j={"Status": 3, "Answer": []})
+        return _Resp(j={})
+    rr = REGISTRY["ripeiprdap"].run("1.2.3.4", _ctx(router)).data
+    assert rr["org"] == "Acme Europe BV" and "1.2.0.0/16" in rr["cidrs"]
+    dl = REGISTRY["dnslytics"].run("acme.com", _ctx(router)).data
+    assert dl["count"] == 1 and dl["records"][0]["domains_on_ip"] == 12
+    dv = REGISTRY["devtouser"].run("alice", _ctx(router)).data
+    assert dv["github"] == "alice-gh" and dv["twitter"] == "alice_tw"
+    la = REGISTRY["lookalike"].run("acme.com", _ctx(router)).data
+    assert la["count"] == 1 and la["registered_lookalikes"][0]["domain"] == "ace.com"
+    assert la["registered_lookalikes"][0]["ips"] == ["6.6.6.6"] and la["severity"] == "medium"
