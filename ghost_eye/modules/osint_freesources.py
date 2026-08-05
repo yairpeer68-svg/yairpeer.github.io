@@ -1159,3 +1159,118 @@ class IpWhois(Module):
                             "org": conn.get("org"), "isp": conn.get("isp"),
                             "asn": conn.get("asn"), "domain": conn.get("domain"),
                             "source": "ipwho.is"})
+
+
+# =========================================================================== #
+#  Wave 10 — third-party domains (from the page) + multi-DNSBL IP reputation
+# =========================================================================== #
+_SRC_ATTR = re.compile(
+    r"(?:src|href|action|data-src)\s*=\s*['\"]([^'\"]+)['\"]", re.I)
+_VENDOR_HINT = {
+    "cdn": r"cdn|jsdelivr|unpkg|cloudflare|akamai|fastly|cloudfront|gstatic|jquery|bootstrap",
+    "analytics": r"google-analytics|googletagmanager|gtag|segment|hotjar|mixpanel|amplitude|matomo|plausible",
+    "advertising": r"doubleclick|adservice|adsystem|adnxs|criteo|taboola|outbrain",
+    "payment": r"stripe|paypal|braintree|adyen|checkout|squareup",
+    "social": r"facebook|connect\.facebook|twitter|x\.com|linkedin|instagram|youtube",
+    "font": r"fonts\.googleapis|fonts\.gstatic|typekit|fontawesome",
+    "support": r"zendesk|intercom|drift|freshdesk|livechat|tawk",
+    "error": r"sentry|bugsnag|rollbar|newrelic|datadog",
+}
+
+
+@register
+class ExtDomains(Module):
+    id = "extdomains"
+    name = "Third-party domains referenced by the site"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        html = _text(_get(ctx, f"https://{host}")) or _text(_get(ctx, f"http://{host}"))
+        if not html:
+            return self.ok(host, {"note": "could not fetch homepage",
+                                  "source": "extdomains"})
+        domains: Set[str] = set()
+        for ref in _SRC_ATTR.findall(html):
+            m = re.match(r"(?:https?:)?//([a-z0-9.\-]+\.[a-z]{2,})", ref, re.I)
+            if m:
+                d = m.group(1).lower().rstrip(".")
+                if d != host and not d.endswith("." + host):
+                    domains.add(d)
+        # also pull hosts out of a CSP header if the server sent one
+        # (best-effort: some responses expose it in a <meta http-equiv>)
+        for m in re.finditer(r"content-security-policy[^>]*content=['\"]([^'\"]+)",
+                             html, re.I):
+            for d in _HOSTRE.findall(m.group(1).lower()):
+                if d != host and not d.endswith("." + host):
+                    domains.add(d)
+
+        by_type: Dict[str, List[str]] = {}
+        for d in domains:
+            label = "other"
+            for typ, pat in _VENDOR_HINT.items():
+                if re.search(pat, d):
+                    label = typ
+                    break
+            by_type.setdefault(label, []).append(d)
+        return self.ok(host, {
+            "third_party_domains": sorted(domains)[:80],
+            "related_domains": sorted(domains)[:60],   # feeds correlator/pivot
+            "count": len(domains),
+            "by_type": {k: sorted(v)[:20] for k, v in by_type.items()},
+            "source": "page-references",
+        })
+
+
+# public DNS block-lists (A-record lookup of the reversed IP under each zone)
+_DNSBL_ZONES = {
+    "Spamhaus ZEN": "zen.spamhaus.org",
+    "SpamCop": "bl.spamcop.net",
+    "Barracuda": "b.barracudacentral.org",
+    "SORBS": "dnsbl.sorbs.net",
+    "s5h": "all.s5h.net",
+    "UCEPROTECT-1": "dnsbl-1.uceprotect.net",
+}
+
+
+@register
+class DnsBl(Module):
+    id = "dnsbl"
+    name = "Multi-blocklist IP reputation (DNS, keyless)"
+    category = "Threat Intel"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip) or ":" in ip:
+            return self.ok(ip, {"note": "DNSBL check expects an IPv4"})
+        rev = ".".join(reversed(ip.split(".")))
+        listed: List[str] = []
+        try:
+            import dns.resolver
+            resolver = dns.resolver.Resolver()
+            resolver.lifetime = min(getattr(ctx, "timeout", 8), 8)
+            for name, zone in _DNSBL_ZONES.items():
+                try:
+                    resolver.resolve(f"{rev}.{zone}", "A")
+                    listed.append(name)
+                except Exception:  # noqa: BLE001 - NXDOMAIN = not listed
+                    continue
+        except Exception:  # noqa: BLE001
+            return self.ok(ip, {"note": "dnspython unavailable",
+                                "source": "dnsbl"})
+        data: Dict[str, Any] = {
+            "checked": len(_DNSBL_ZONES),
+            "listed_on": listed,
+            "listed_count": len(listed),
+            "source": "dnsbl",
+        }
+        if listed:
+            data["severity"] = "high" if len(listed) >= 2 else "medium"
+            data["note"] = (f"IP is on {len(listed)} block-list(s) — poor "
+                            "reputation, possibly spam/abuse infrastructure.")
+        return self.ok(ip, data)

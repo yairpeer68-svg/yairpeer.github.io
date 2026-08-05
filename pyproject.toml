@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ghost-eye"
-version = "3.35.0"
+version = "3.36.0"
 description = "Modular reconnaissance / OSINT / exposure-detection toolkit with a web dashboard"
 readme = "README.md"
 requires-python = ">=3.9"

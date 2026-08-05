@@ -286,3 +286,28 @@ def test_ipwhois_parses():
     d = REGISTRY["ipwhois"].run("1.2.3.4", _ctx(router)).data
     assert d["org"] == "ACME" and d["asn"] == 64500
     assert "note" in REGISTRY["ipwhois"].run("acme.com", _ctx(router)).data
+
+
+def test_extdomains_classifies_third_parties():
+    html = ('<script src="https://cdn.jsdelivr.net/x.js"></script>'
+            '<img src="//www.google-analytics.com/a">'
+            '<a href="https://acme.com/x">home</a>'
+            '<script src="https://js.stripe.com/v3"></script>')
+    class _R:
+        status_code = 200
+        def __init__(self, t): self.text = t
+        def json(self): return {}
+    class _S:
+        def get(self, url, timeout=15, **kw):
+            return _R(html) if "acme.com" in url else _R("")
+    ctx = _ctx(lambda u: None); ctx.session = _S()
+    d = REGISTRY["extdomains"].run("acme.com", ctx).data
+    assert d["count"] == 3
+    assert "cdn.jsdelivr.net" in d["third_party_domains"]
+    assert "acme.com" not in d["third_party_domains"]     # target excluded
+    assert "js.stripe.com" in d["by_type"].get("payment", [])
+
+
+def test_dnsbl_non_ip_is_graceful():
+    d = REGISTRY["dnsbl"].run("acme.com", _ctx(lambda u: _Resp(j={}))).data
+    assert "note" in d
