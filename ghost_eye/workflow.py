@@ -538,8 +538,9 @@ def intelligence_report(results, target: str = "",
     sensitivity = asset_sensitivity(kg)
     scored = score_findings(results)
     remedy = remediation({}, scored.get("findings", []))
-    from .intelligence import identity_graph
+    from .intelligence import identity_graph, source_matrix
     identity = identity_graph(results, intel["target"])
+    srcmatrix = source_matrix(results, intel["target"])
     tline = build_timeline(results, intel["target"])
     a = attack_score(results)
     out = {
@@ -559,6 +560,7 @@ def intelligence_report(results, target: str = "",
         "asset_sensitivity": sensitivity,
         "remediation": remedy,
         "identity_graph": identity,
+        "source_matrix": srcmatrix,
         "timeline": tline,
     }
     # the rule-based AI analyst reasons over the fully assembled picture

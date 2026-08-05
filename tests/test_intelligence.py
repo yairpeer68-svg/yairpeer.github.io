@@ -533,3 +533,21 @@ def test_osint_deep_dive_depth_zero_is_seed_only():
 
     out = deep_dive("acme.com", run_fn=run_fn, depth=0)
     assert out["entities_processed"] == 1 and calls == ["acme.com"]
+
+
+def test_source_matrix_attributes_assets():
+    from ghost_eye.core import Result
+    from ghost_eye.intelligence import source_matrix
+    res = [Result("certspotter", "x", "ok", {"subdomains": ["api.acme.com", "www.acme.com"]}),
+           Result("hackertarget", "x", "ok", {"subdomains": ["api.acme.com"]}),
+           Result("otxrep", "x", "ok", {"subdomains": ["api.acme.com"], "ips": ["1.2.3.4"]}),
+           Result("sitedossier", "x", "ok", {"subdomains": ["weird.acme.com"]})]
+    m = source_matrix(res, "acme.com")
+    top = m["subdomains"][0]
+    assert top["asset"] == "api.acme.com" and top["corroboration"] == 3
+    assert top["confidence"] == "high"
+    assert set(top["sources"]) == {"certspotter", "hackertarget", "otxrep"}
+    assert m["summary"]["multi_source_subdomains"] == 1
+    # a single-source asset is low confidence
+    weird = next(r for r in m["subdomains"] if r["asset"] == "weird.acme.com")
+    assert weird["confidence"] == "low"

@@ -334,6 +334,7 @@ a{color:var(--cyan);text-decoration:none}
       <button class="toolbtn" data-tool="timeline">🕓 Timeline</button>
       <button class="toolbtn" data-tool="deep">🌐 Deep OSINT (auto-pivot)</button>
       <button class="toolbtn" data-tool="identity">🧑‍🤝‍🧑 Identity graph</button>
+      <button class="toolbtn" data-tool="sources">📊 Source matrix</button>
     </div>
     <div class="dl-row">
       <span class="dl-label">download report:</span>
@@ -1119,6 +1120,13 @@ async function runTool(tool){
       }).join("");
       const c=(ig.counts||{}).by_kind||{};
       tout(`<div class="tout-head">🧑‍🤝‍🧑 identity graph — ${ig.resolved_identities||0} resolved · ${(ig.people||[]).length} people · ${(ig.emails||[]).length} emails · ${(ig.usernames||[]).length} handles</div>${ppl||'<div class="trow">no people correlated yet — run a scan with e-mail/username OSINT.</div>'}<div class="trow rel">${esc(ig.note||'')}</div>`);
+    } else if(tool==="sources"){
+      const sm=(REP&&REP.source_matrix)||{}; const s=sm.summary||{};
+      const rows=(sm.subdomains||[]).slice(0,60).map(r=>{
+        const col=r.confidence==="high"?"var(--green)":r.confidence==="medium"?"var(--gold)":"var(--faint)";
+        return `<div class="trow"><b>${esc(r.asset)}</b> <span style="color:${col}">●${r.corroboration}</span><br><span class="rel">${(r.sources||[]).map(esc).join(", ")}</span></div>`;
+      }).join("");
+      tout(`<div class="tout-head">📊 source matrix — ${s.subdomains||0} subdomains from ${s.distinct_sources||0} sources · ${s.multi_source_subdomains||0} multi-source</div>${rows||'<div class="trow">no assets attributed yet.</div>'}<div class="trow rel">${esc(sm.note||'')}</div>`);
     } else if(tool==="table"){
       const d=await api(`/api/job/${CURJOB}/findings`);
       const f=d.findings||[];
