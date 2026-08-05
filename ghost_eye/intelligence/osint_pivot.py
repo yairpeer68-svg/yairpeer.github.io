@@ -33,7 +33,7 @@ PIVOT_MODULES: Dict[str, List[str]] = {
     "username": ["username"],
     "ip": ["geoip", "internetdb", "reputation", "rdap",
            "robtex", "bgpview", "ipapi", "cymruasn",
-           "reverseip", "otxip", "iptoasn", "feodo", "peeringdb", "ipwhois", "dnsbl"],
+           "reverseip", "otxip", "iptoasn", "feodo", "peeringdb", "ipwhois", "dnsbl", "stopforumspam", "ipapinet"],
 }
 # confidence decays with each hop away from the seed
 _HOP_CONFIDENCE = ["high", "medium", "low", "low"]

@@ -311,3 +311,20 @@ def test_extdomains_classifies_third_parties():
 def test_dnsbl_non_ip_is_graceful():
     d = REGISTRY["dnsbl"].run("acme.com", _ctx(lambda u: _Resp(j={}))).data
     assert "note" in d
+
+
+def test_stopforumspam_and_ipapinet():
+    def router(url):
+        if "stopforumspam" in url:
+            return _Resp(j={"ip": {"appears": 1, "frequency": 42,
+                                   "lastseen": "2024-01-01"}})
+        if "ipapi.co" in url:
+            return _Resp(j={"country_name": "United States", "org": "ACME",
+                            "asn": "AS64500"})
+        return _Resp(j={})
+    s = REGISTRY["stopforumspam"].run("1.2.3.4", _ctx(router)).data
+    assert s["listed"] is True and s["frequency"] == 42 and s["severity"] == "medium"
+    i = REGISTRY["ipapinet"].run("1.2.3.4", _ctx(router)).data
+    assert i["org"] == "ACME" and i["asn"] == "AS64500"
+    # non-IP handled gracefully
+    assert "note" in REGISTRY["stopforumspam"].run("acme.com", _ctx(router)).data

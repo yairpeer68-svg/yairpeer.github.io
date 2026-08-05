@@ -1274,3 +1274,52 @@ class DnsBl(Module):
             data["note"] = (f"IP is on {len(listed)} block-list(s) — poor "
                             "reputation, possibly spam/abuse infrastructure.")
         return self.ok(ip, data)
+
+
+# =========================================================================== #
+#  Wave 11 — more corroborating free sources (spam reputation + IP intel)
+# =========================================================================== #
+@register
+class StopForumSpam(Module):
+    id = "stopforumspam"
+    name = "StopForumSpam abuse reputation (IP, keyless)"
+    category = "Threat Intel"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "stopforumspam expects an IP"})
+        d = _json(_get(ctx, f"https://api.stopforumspam.org/api?ip={ip}&json")) or {}
+        rec = d.get("ip", {}) or {}
+        appears = bool(rec.get("appears"))
+        data: Dict[str, Any] = {
+            "listed": appears,
+            "frequency": rec.get("frequency", 0),
+            "last_seen": rec.get("lastseen", ""),
+            "source": "stopforumspam",
+        }
+        if appears:
+            data["severity"] = "medium"
+            data["note"] = ("IP appears in the StopForumSpam abuse database "
+                            f"({rec.get('frequency', 0)} reports).")
+        return self.ok(ip, data)
+
+
+@register
+class IpApiNet(Module):
+    id = "ipapinet"
+    name = "ipapi.co geo / org (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "ipapi.co expects an IP"})
+        d = _json(_get(ctx, f"https://ipapi.co/{ip}/json/")) or {}
+        if d.get("error"):
+            return self.ok(ip, {"note": "no data", "source": "ipapi.co"})
+        return self.ok(ip, {"country": d.get("country_name"), "city": d.get("city"),
+                            "org": d.get("org"), "asn": d.get("asn"),
+                            "network": d.get("network"), "source": "ipapi.co"})
