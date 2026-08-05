@@ -2848,3 +2848,108 @@ class OtxUrls(Module):
                               "subdomains": subs[:100],
                               "total": d.get("actual_size") or len(urls),
                               "source": "otx-urls"})
+
+
+# =========================================================================== #
+#  Wave 29 — more username pivots + malware-domain feed + IP intel:
+#    Docker Hub user · Reddit user (username)  · DigitalSide threat feed (domain)
+#    incolumitas.com (IP asn/company/datacenter/abuse flags)
+# =========================================================================== #
+@register
+class DockerUser(Module):
+    id = "dockeruser"
+    name = "Docker Hub user profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "dockeruser expects a bare handle"})
+        d = _json(_get(ctx, f"https://hub.docker.com/v2/users/{user}/")) or {}
+        if not d.get("username"):
+            return self.ok(user, {"note": "no Docker Hub user", "source": "docker-user"})
+        return self.ok(user, {"username": d.get("username"),
+                              "full_name": d.get("full_name"),
+                              "company": d.get("company"),
+                              "location": d.get("location"),
+                              "date_joined": d.get("date_joined"),
+                              "profile": f"https://hub.docker.com/u/{d.get('username')}",
+                              "source": "docker-user"})
+
+
+@register
+class RedditUser(Module):
+    id = "reddituser"
+    name = "Reddit user profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@").lstrip("u/")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "reddituser expects a bare handle"})
+        d = (_json(_get(ctx, f"https://www.reddit.com/user/{user}/about.json",
+                        headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}).get("data", {}) or {}
+        if not d.get("name"):
+            return self.ok(user, {"note": "no Reddit user", "source": "reddit-user"})
+        return self.ok(user, {"name": d.get("name"),
+                              "link_karma": d.get("link_karma"),
+                              "comment_karma": d.get("comment_karma"),
+                              "created_utc": d.get("created_utc"),
+                              "verified": d.get("verified"),
+                              "is_gold": d.get("is_gold"),
+                              "profile": f"https://reddit.com/user/{d.get('name')}",
+                              "source": "reddit-user"})
+
+
+@register
+class DigitalSide(Module):
+    id = "digitalside"
+    name = "OSINT.DigitalSide malware-domain feed check (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, "https://osint.digitalside.it/Threat-Intel/lists/"
+                          "latestdomains.txt"))
+        listed = False
+        for line in text.splitlines():
+            line = line.strip().lower()
+            if line and not line.startswith("#") and (line == host or line == f"www.{host}"):
+                listed = True
+                break
+        data = {"listed": listed, "feed": "digitalside-latestdomains",
+                "source": "digitalside"}
+        if listed:
+            data["severity"] = "critical"
+            data["note"] = "domain present on the DigitalSide malware-domain feed."
+        return self.ok(host, data)
+
+
+@register
+class Incolumitas(Module):
+    id = "incolumitas"
+    name = "incolumitas.com IP intel — asn/company/datacenter/abuse (keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "incolumitas expects an IP"})
+        d = _json(_get(ctx, f"https://api.incolumitas.com/?q={ip}")) or {}
+        asn = d.get("asn") or {}
+        company = d.get("company") or {}
+        loc = d.get("location") or {}
+        return self.ok(ip, {"asn": asn.get("asn"), "asn_org": asn.get("org"),
+                            "company": company.get("name"),
+                            "country": loc.get("country"),
+                            "is_datacenter": d.get("is_datacenter"),
+                            "is_vpn": d.get("is_vpn"), "is_proxy": d.get("is_proxy"),
+                            "is_tor": d.get("is_tor"), "is_abuser": d.get("is_abuser"),
+                            "source": "incolumitas"})

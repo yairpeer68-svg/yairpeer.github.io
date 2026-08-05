@@ -750,3 +750,32 @@ def test_wave28_gitlabuser_hnuser_arinrdap_otxurls():
     assert ar["name"] == "ACME-NET" and ar["org"] == "Acme Corp" and "1.2.0.0/16" in ar["cidrs"]
     ou = REGISTRY["otxurls"].run("acme.com", _ctx(router)).data
     assert ou["url_count"] == 2 and "x.acme.com" in ou["subdomains"]
+
+
+def test_wave29_dockeruser_reddituser_digitalside_incolumitas():
+    def router(url):
+        if "hub.docker.com/v2/users/alice" in url:
+            return _Resp(j={"username": "alice", "full_name": "Alice A",
+                            "company": "Acme", "location": "NYC",
+                            "date_joined": "2015-01-01"})
+        if "reddit.com/user/bob" in url:
+            return _Resp(j={"data": {"name": "bob", "link_karma": 500,
+                            "comment_karma": 1200, "created_utc": 1300000000,
+                            "verified": True, "is_gold": False}})
+        if "osint.digitalside.it" in url:
+            return _Resp(t="# feed\nevil.com\nacme.com\nbad.net\n")
+        if "api.incolumitas.com" in url:
+            return _Resp(j={"asn": {"asn": "AS64500", "org": "Acme"},
+                            "company": {"name": "Acme Corp"},
+                            "location": {"country": "US"},
+                            "is_datacenter": True, "is_vpn": False,
+                            "is_proxy": False, "is_tor": False, "is_abuser": True})
+        return _Resp(j={})
+    du = REGISTRY["dockeruser"].run("alice", _ctx(router)).data
+    assert du["username"] == "alice" and du["company"] == "Acme"
+    ru = REGISTRY["reddituser"].run("bob", _ctx(router)).data
+    assert ru["comment_karma"] == 1200 and ru["verified"] is True
+    ds = REGISTRY["digitalside"].run("acme.com", _ctx(router)).data
+    assert ds["listed"] is True and ds["severity"] == "critical"
+    ic = REGISTRY["incolumitas"].run("1.2.3.4", _ctx(router)).data
+    assert ic["asn"] == "AS64500" and ic["is_datacenter"] is True and ic["is_abuser"] is True
