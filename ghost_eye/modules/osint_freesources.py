@@ -1663,3 +1663,86 @@ class Packagist(Module):
                              "url": p.get("url") or p.get("repository") or ""})
         return self.ok(host, {"query": org, "packages": pkgs[:20],
                               "count": len(pkgs), "source": "packagist"})
+
+
+# =========================================================================== #
+#  Wave 17 — .NET + cloud-native registries + public GitLab projects (keyless)
+# =========================================================================== #
+@register
+class NuGet(Module):
+    id = "nuget"
+    name = "NuGet .NET packages (org, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, f"https://azuresearch-usnc.nuget.org/query?q={org}&take=20")) or {}
+        pkgs = []
+        for p in d.get("data", []) or []:
+            if p.get("id"):
+                pkgs.append({"id": p.get("id"),
+                             "description": (p.get("description") or "")[:100],
+                             "downloads": p.get("totalDownloads", 0),
+                             "authors": p.get("authors")})
+        return self.ok(host, {"query": org, "packages": pkgs[:20],
+                              "count": len(pkgs), "source": "nuget"})
+
+
+@register
+class ArtifactHub(Module):
+    id = "artifacthub"
+    name = "Artifact Hub (Helm / cloud-native, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, "https://artifacthub.io/api/v1/packages/search"
+                            f"?ts_query_web={org}&limit=20&facets=false")) or {}
+        pkgs = []
+        for p in d.get("packages", []) or []:
+            if p.get("name"):
+                repo = p.get("repository", {}) or {}
+                pkgs.append({"name": p.get("name"),
+                             "kind": repo.get("kind"),
+                             "repository": repo.get("name"),
+                             "description": (p.get("description") or "")[:100],
+                             "stars": p.get("stars", 0)})
+        return self.ok(host, {"query": org, "artifacts": pkgs[:20],
+                              "count": len(pkgs), "source": "artifacthub"})
+
+
+@register
+class GitLabSearch(Module):
+    id = "gitlabsearch"
+    name = "GitLab public projects (org, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        org = _org_label(host)
+        d = _json(_get(ctx, "https://gitlab.com/api/v4/projects"
+                            f"?search={org}&per_page=20&order_by=star_count"))
+        rows = d if isinstance(d, list) else []
+        projects = []
+        for p in rows:
+            if isinstance(p, dict) and p.get("path_with_namespace"):
+                projects.append({"path": p.get("path_with_namespace"),
+                                 "description": (p.get("description") or "")[:100],
+                                 "stars": p.get("star_count", 0),
+                                 "url": p.get("web_url") or ""})
+        return self.ok(host, {"query": org, "projects": projects[:20],
+                              "count": len(projects), "source": "gitlab"})

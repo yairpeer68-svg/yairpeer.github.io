@@ -432,3 +432,21 @@ def test_package_registries():
     assert REGISTRY["packagist"].run("acme.com", _ctx(router)).data["packages"][0]["name"] == "acme/sdk"
     # org label derived from the second-level domain
     assert REGISTRY["cratesio"].run("acme.com", _ctx(router)).data["query"] == "acme"
+
+
+def test_dotnet_cloudnative_gitlab_registries():
+    def router(url):
+        if "nuget.org" in url:
+            return _Resp(j={"data": [{"id": "Acme.Sdk", "description": "SDK",
+                                      "totalDownloads": 9000, "authors": "Acme"}]})
+        if "artifacthub.io" in url:
+            return _Resp(j={"packages": [{"name": "acme-chart",
+                                          "repository": {"name": "acme", "kind": 0},
+                                          "stars": 5}]})
+        if "gitlab.com" in url:
+            return _Resp(j=[{"path_with_namespace": "acme/backend",
+                             "description": "backend", "star_count": 12}])
+        return _Resp(j={})
+    assert REGISTRY["nuget"].run("acme.com", _ctx(router)).data["packages"][0]["id"] == "Acme.Sdk"
+    assert REGISTRY["artifacthub"].run("acme.com", _ctx(router)).data["artifacts"][0]["name"] == "acme-chart"
+    assert REGISTRY["gitlabsearch"].run("acme.com", _ctx(router)).data["projects"][0]["path"] == "acme/backend"
