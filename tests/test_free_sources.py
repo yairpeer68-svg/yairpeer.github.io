@@ -450,3 +450,23 @@ def test_dotnet_cloudnative_gitlab_registries():
     assert REGISTRY["nuget"].run("acme.com", _ctx(router)).data["packages"][0]["id"] == "Acme.Sdk"
     assert REGISTRY["artifacthub"].run("acme.com", _ctx(router)).data["artifacts"][0]["name"] == "acme-chart"
     assert REGISTRY["gitlabsearch"].run("acme.com", _ctx(router)).data["projects"][0]["path"] == "acme/backend"
+
+
+def test_public_mentions_hn_reddit():
+    def router(url):
+        if "hn.algolia" in url:
+            return _Resp(j={"hits": [{"title": "Acme raises Series B",
+                                      "author": "pg", "points": 120,
+                                      "num_comments": 45, "objectID": "999",
+                                      "created_at": "2024-01-01T00:00:00Z"}]})
+        if "reddit.com" in url:
+            return _Resp(j={"data": {"children": [{"data": {
+                "title": "Acme outage", "subreddit": "sysadmin", "score": 88,
+                "num_comments": 30, "permalink": "/r/sysadmin/x"}}]}})
+        return _Resp(j={})
+    hn = REGISTRY["hackernews"].run("acme.com", _ctx(router)).data
+    assert hn["count"] == 1 and hn["mentions"][0]["title"] == "Acme raises Series B"
+    assert hn["mentions"][0]["hn"].endswith("id=999")
+    rd = REGISTRY["reddit"].run("acme.com", _ctx(router)).data
+    assert rd["count"] == 1 and rd["mentions"][0]["subreddit"] == "sysadmin"
+    assert rd["mentions"][0]["permalink"] == "https://reddit.com/r/sysadmin/x"

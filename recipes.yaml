@@ -29,7 +29,8 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         commoncrawlmine, waybacksecrets, phoneharvest, extdomains, otxpulse,
         merklemap, uriblock, npmsearch, dockerhub,
         cratesio, rubygems, packagist,
-        nuget, artifacthub, gitlabsearch]
+        nuget, artifacthub, gitlabsearch,
+        hackernews, reddit]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 

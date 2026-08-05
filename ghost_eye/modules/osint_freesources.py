@@ -1746,3 +1746,66 @@ class GitLabSearch(Module):
                                  "url": p.get("web_url") or ""})
         return self.ok(host, {"query": org, "projects": projects[:20],
                               "count": len(projects), "source": "gitlab"})
+
+
+# =========================================================================== #
+#  Wave 18 — public-mention / brand monitoring (Hacker News + Reddit), keyless
+# =========================================================================== #
+@register
+class HackerNews(Module):
+    id = "hackernews"
+    name = "Hacker News mentions (Algolia, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://hn.algolia.com/api/v1/search"
+                            f"?query={host}&hitsPerPage=25")) or {}
+        hits = []
+        for h in d.get("hits", []) or []:
+            title = h.get("title") or h.get("story_title") or ""
+            if not (title or h.get("url")):
+                continue
+            oid = h.get("objectID", "")
+            hits.append({"title": title[:120], "author": h.get("author"),
+                         "points": h.get("points", 0),
+                         "comments": h.get("num_comments", 0),
+                         "url": h.get("url") or "",
+                         "hn": f"https://news.ycombinator.com/item?id={oid}" if oid else "",
+                         "date": (h.get("created_at") or "")[:10]})
+        return self.ok(host, {"mentions": hits[:25], "count": len(hits),
+                              "source": "hacker-news"})
+
+
+@register
+class Reddit(Module):
+    id = "reddit"
+    name = "Reddit mentions (keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, f"https://www.reddit.com/search.json?q={host}&limit=25",
+                       headers={"User-Agent": "GhostEye-OSINT/1.0 (research)"})) or {}
+        posts = []
+        for c in ((d.get("data", {}) or {}).get("children", []) or []):
+            p = (c or {}).get("data", {}) or {}
+            if not p.get("title"):
+                continue
+            posts.append({"title": p.get("title", "")[:120],
+                          "subreddit": p.get("subreddit"),
+                          "score": p.get("score", 0),
+                          "comments": p.get("num_comments", 0),
+                          "permalink": ("https://reddit.com" + p.get("permalink", ""))
+                          if p.get("permalink") else "",
+                          "date": p.get("created_utc")})
+        return self.ok(host, {"mentions": posts[:25], "count": len(posts),
+                              "source": "reddit"})
