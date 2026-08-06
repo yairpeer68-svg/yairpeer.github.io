@@ -5724,3 +5724,111 @@ class CratesUser(Module):
                               "profile": u.get("url"),
                               "avatar": u.get("avatar"),
                               "source": "crates-user"})
+
+
+# =========================================================================== #
+#  Wave 50 — chat infra + editor identity + HN activity + IP geo:
+#    Matrix homeserver discovery (domain) · Wikipedia editor · HN author
+#    (username) · techniknews geo/proxy (IP)
+# =========================================================================== #
+@register
+class MatrixSrv(Module):
+    id = "matrixsrv"
+    name = "Matrix homeserver / federation discovery (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        srv = _json(_get(ctx, f"https://{host}/.well-known/matrix/server",
+                         headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}
+        cli = _json(_get(ctx, f"https://{host}/.well-known/matrix/client",
+                         headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}
+        server = srv.get("m.server") if isinstance(srv, dict) else ""
+        base = ((cli.get("m.homeserver") or {}).get("base_url")
+                if isinstance(cli, dict) else "") or ""
+        found = bool(server or base)
+        return self.ok(host, {"matrix": found, "delegated_server": server,
+                              "homeserver_base_url": base,
+                              "note": "Matrix federation delegation reveals self-hosted "
+                                      "chat infrastructure." if found else
+                                      "no Matrix homeserver delegation.",
+                              "source": "matrix-srv"})
+
+
+@register
+class WikipediaUser(Module):
+    id = "wikipediauser"
+    name = "Wikipedia editor profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user:
+            return self.ok(user, {"note": "wikipediauser expects a handle"})
+        d = _json(_get(ctx, "https://en.wikipedia.org/w/api.php?action=query&list=users"
+                       f"&ususers={user}&usprop=editcount|registration|groups&format=json",
+                       headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}
+        users = ((d.get("query") or {}).get("users")) or []
+        u = users[0] if users else {}
+        if not u.get("name") or "missing" in u:
+            return self.ok(user, {"note": "no Wikipedia editor", "source": "wikipedia-user"})
+        groups = [g for g in (u.get("groups") or [])
+                  if g not in ("*", "user", "autoconfirmed")]
+        return self.ok(user, {"name": u.get("name"), "editcount": u.get("editcount"),
+                              "registration": u.get("registration"),
+                              "groups": groups[:10],
+                              "profile": f"https://en.wikipedia.org/wiki/User:{user}",
+                              "source": "wikipedia-user"})
+
+
+@register
+class HnAuthor(Module):
+    id = "hnauthor"
+    name = "Hacker News author activity via Algolia (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "hnauthor expects a bare handle"})
+        d = _json(_get(ctx, "https://hn.algolia.com/api/v1/search_by_date"
+                       f"?tags=author_{user}&hitsPerPage=20")) or {}
+        items = []
+        for h in d.get("hits", []) or []:
+            if isinstance(h, dict):
+                items.append({"title": h.get("title") or (h.get("comment_text") or "")[:80],
+                              "url": h.get("url"),
+                              "points": h.get("points"),
+                              "created": h.get("created_at"),
+                              "id": h.get("objectID")})
+        return self.ok(user, {"activity": items[:20],
+                              "total": d.get("nbHits", len(items)),
+                              "note": "HN posting history reveals interests, timezone "
+                                      "and sometimes employer.",
+                              "source": "hn-author"})
+
+
+@register
+class TechnikNews(Module):
+    id = "techniknews"
+    name = "techniknews.net geo / proxy (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "techniknews expects an IP"})
+        d = _json(_get(ctx, f"https://api.techniknews.net/ipgeo/{ip}")) or {}
+        if d.get("status") and d.get("status") != "success":
+            return self.ok(ip, {"note": "no data", "source": "techniknews"})
+        return self.ok(ip, {"country": d.get("country"), "city": d.get("city"),
+                            "isp": d.get("isp"), "org": d.get("org"),
+                            "asn": d.get("as"), "proxy": d.get("proxy"),
+                            "source": "techniknews"})

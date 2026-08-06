@@ -1349,3 +1349,31 @@ def test_wave49_manifest_cnamemap_spamhausdrop_cratesuser():
     assert sd["listed"] is True and sd["severity"] == "critical" and sd["matched_range"] == "1.2.0.0/16"
     cu = REGISTRY["cratesuser"].run("alice", _ctx(router)).data
     assert cu["login"] == "alice" and cu["name"] == "Alice A"
+
+
+def test_wave50_matrix_wikipedia_hnauthor_techniknews():
+    def router(url):
+        if "/.well-known/matrix/server" in url:
+            return _Resp(j={"m.server": "matrix.acme.com:8448"})
+        if "/.well-known/matrix/client" in url:
+            return _Resp(j={"m.homeserver": {"base_url": "https://matrix.acme.com"}})
+        if "list=users" in url:
+            return _Resp(j={"query": {"users": [{"name": "Alice", "editcount": 4200,
+                            "registration": "2010-01-01T00:00:00Z",
+                            "groups": ["*", "user", "sysop"]}]}})
+        if "hn.algolia.com" in url:
+            return _Resp(j={"nbHits": 2, "hits": [
+                {"title": "Show HN: Acme", "url": "https://acme.com", "points": 50,
+                 "created_at": "2024-01-01", "objectID": "1"}]})
+        if "api.techniknews.net" in url:
+            return _Resp(j={"status": "success", "country": "US", "city": "NYC",
+                            "isp": "AcmeISP", "as": "AS64500", "proxy": False})
+        return _Resp(j={})
+    mx = REGISTRY["matrixsrv"].run("acme.com", _ctx(router)).data
+    assert mx["matrix"] is True and mx["delegated_server"] == "matrix.acme.com:8448"
+    wu = REGISTRY["wikipediauser"].run("Alice", _ctx(router)).data
+    assert wu["editcount"] == 4200 and "sysop" in wu["groups"]
+    ha = REGISTRY["hnauthor"].run("alice", _ctx(router)).data
+    assert ha["total"] == 2 and ha["activity"][0]["title"] == "Show HN: Acme"
+    tn = REGISTRY["techniknews"].run("1.2.3.4", _ctx(router)).data
+    assert tn["asn"] == "AS64500" and tn["city"] == "NYC"
