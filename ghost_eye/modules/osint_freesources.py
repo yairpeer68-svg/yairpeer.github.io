@@ -4768,3 +4768,129 @@ class GithubSocials(Module):
                               "note": "social links declared on the GitHub profile "
                                       "directly cross-link identities.",
                               "source": "github-socials"})
+
+
+# =========================================================================== #
+#  Wave 43 — identity proofs + commit-email deanonymisation + site structure:
+#    Keybase proofs · GitHub commit emails (username)
+#    sitemap.xml structure · humans.txt team (domain)
+# =========================================================================== #
+@register
+class KeybaseUser(Module):
+    id = "keybaseuser"
+    name = "Keybase identity proofs -> linked accounts (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "keybaseuser expects a bare handle"})
+        d = _json(_get(ctx, "https://keybase.io/_/api/1.0/user/lookup.json"
+                       f"?usernames={user}&fields=proofs_summary,basics")) or {}
+        them = d.get("them") or []
+        rec = them[0] if isinstance(them, list) and them else (them if isinstance(them, dict) else {})
+        proofs = []
+        for p in (((rec or {}).get("proofs_summary") or {}).get("all")) or []:
+            if isinstance(p, dict) and p.get("proof_type"):
+                proofs.append({"service": p.get("proof_type"),
+                               "handle": p.get("nametag"),
+                               "url": p.get("service_url") or p.get("proof_url")})
+        return self.ok(user, {"proofs": proofs[:25], "count": len(proofs),
+                              "services": sorted({p["service"] for p in proofs
+                                                  if p.get("service")}),
+                              "note": "cryptographically-verified links between this "
+                                      "handle and other platforms/domains.",
+                              "source": "keybase-user"})
+
+
+@register
+class GithubEmail(Module):
+    id = "githubemail"
+    name = "GitHub commit-email deanonymisation via public events (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubemail expects a bare handle"})
+        arr = _json(_get(ctx, f"https://api.github.com/users/{user}/events/public"
+                         "?per_page=100",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": "GhostEye-OSINT/1.0"})) or []
+        emails: Dict[str, str] = {}
+        for ev in arr if isinstance(arr, list) else []:
+            if not isinstance(ev, dict) or ev.get("type") != "PushEvent":
+                continue
+            for c in ((ev.get("payload") or {}).get("commits")) or []:
+                a = (c or {}).get("author") or {}
+                em = a.get("email")
+                if em and "noreply" not in em and "@" in em:
+                    emails.setdefault(em.lower(), a.get("name") or "")
+        found = [{"email": k, "name": v} for k, v in emails.items()]
+        return self.ok(user, {"emails": found[:20], "count": len(found),
+                              "note": "author e-mails leaked in the handle's public "
+                                      "commit history (identity deanonymisation).",
+                              "source": "github-email"})
+
+
+@register
+class SitemapScan(Module):
+    id = "sitemapscan"
+    name = "sitemap.xml structure extraction (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        urls: Set[str] = set()
+        for path in ("/sitemap.xml", "/sitemap_index.xml", "/sitemap-index.xml"):
+            text = _text(_get(ctx, f"https://{host}{path}",
+                              headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            if not text or "<loc>" not in text.lower():
+                continue
+            for m in re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", text, re.I):
+                urls.add(m.strip())
+            if urls:
+                break
+        paths = sorted({re.sub(r"^https?://[^/]+", "", u) or "/" for u in urls})
+        return self.ok(host, {"urls_found": len(urls),
+                              "sample_urls": sorted(urls)[:40],
+                              "sample_paths": paths[:40],
+                              "note": "sitemap reveals site structure / hidden sections.",
+                              "source": "sitemap"})
+
+
+@register
+class HumansTxt(Module):
+    id = "humanstxt"
+    name = "humans.txt team / credits (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, f"https://{host}/humans.txt",
+                          headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        if not text or "<html" in text.lower():
+            return self.ok(host, {"present": False, "source": "humans-txt"})
+        names, socials = [], []
+        for line in text.splitlines():
+            line = line.strip()
+            m = re.match(r"(?:Name|Developer|Author|Contact)\s*:\s*(.+)", line, re.I)
+            if m:
+                names.append(m.group(1).strip()[:80])
+            for tok in re.findall(r"@[A-Za-z0-9_]{2,}", line):
+                socials.append(tok)
+        return self.ok(host, {"present": True, "names": names[:20],
+                              "handles": sorted(set(socials))[:20],
+                              "excerpt": text.strip()[:400],
+                              "note": "humans.txt often lists staff names / handles.",
+                              "source": "humans-txt"})

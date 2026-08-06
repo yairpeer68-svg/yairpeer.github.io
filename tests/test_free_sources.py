@@ -1150,3 +1150,31 @@ def test_wave42_mobileapps_adstxt_geoip_ghsocials():
     assert rg["city"] == "NYC" and rg["country_code"] == "US"
     gs = REGISTRY["githubsocials"].run("alice", _ctx(router)).data
     assert gs["count"] == 2 and "twitter" in gs["providers"] and "mastodon" in gs["providers"]
+
+
+def test_wave43_keybase_ghemail_sitemap_humans():
+    def router(url):
+        if "keybase.io" in url:
+            return _Resp(j={"them": [{"proofs_summary": {"all": [
+                {"proof_type": "twitter", "nametag": "alice",
+                 "service_url": "https://twitter.com/alice"},
+                {"proof_type": "github", "nametag": "alice-gh",
+                 "service_url": "https://github.com/alice-gh"}]}}]})
+        if "api.github.com/users/alice/events" in url:
+            return _Resp(j=[{"type": "PushEvent", "payload": {"commits": [
+                {"author": {"email": "alice@acme.com", "name": "Alice"}},
+                {"author": {"email": "1234+alice@users.noreply.github.com", "name": "Alice"}}]}}])
+        if "/sitemap.xml" in url:
+            return _Resp(t="<urlset><url><loc>https://acme.com/admin</loc></url>"
+                         "<url><loc>https://acme.com/blog/x</loc></url></urlset>")
+        if "/humans.txt" in url:
+            return _Resp(t="/* TEAM */\nName: Jane Doe\nSite: @jane_d")
+        return _Resp(j={})
+    kb = REGISTRY["keybaseuser"].run("alice", _ctx(router)).data
+    assert kb["count"] == 2 and "twitter" in kb["services"] and "github" in kb["services"]
+    ge = REGISTRY["githubemail"].run("alice", _ctx(router)).data
+    assert ge["count"] == 1 and ge["emails"][0]["email"] == "alice@acme.com"
+    sm = REGISTRY["sitemapscan"].run("acme.com", _ctx(router)).data
+    assert sm["urls_found"] == 2 and "/admin" in sm["sample_paths"]
+    hu = REGISTRY["humanstxt"].run("acme.com", _ctx(router)).data
+    assert hu["present"] is True and "Jane Doe" in hu["names"] and "@jane_d" in hu["handles"]
