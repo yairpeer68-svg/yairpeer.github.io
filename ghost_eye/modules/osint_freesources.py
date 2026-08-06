@@ -5576,3 +5576,151 @@ class GithubStars(Module):
                               "note": "starred repos profile a developer's interests / "
                                       "tools in use.",
                               "source": "github-stars"})
+
+
+# =========================================================================== #
+#  Wave 49 — PWA manifest + hosting fingerprint + hijack netblocks + Rust devs:
+#    web-app manifest · CNAME hosting/SaaS fingerprint (domain)
+#    Spamhaus DROP (IP) · crates.io user (username)
+# =========================================================================== #
+@register
+class Manifest(Module):
+    id = "manifest"
+    name = "Web-app manifest + related native apps (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        for path in ("/manifest.json", "/manifest.webmanifest", "/site.webmanifest"):
+            d = _json(_get(ctx, f"https://{host}{path}",
+                          headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            if isinstance(d, dict) and (d.get("name") or d.get("short_name")):
+                related = []
+                for r in d.get("related_applications") or []:
+                    if isinstance(r, dict):
+                        related.append({"platform": r.get("platform"),
+                                        "id": r.get("id"), "url": r.get("url")})
+                return self.ok(host, {"found": True, "path": path,
+                                      "name": d.get("name"),
+                                      "short_name": d.get("short_name"),
+                                      "start_url": d.get("start_url"),
+                                      "related_applications": related[:10],
+                                      "note": "manifest related_applications link the "
+                                              "site to its native mobile apps.",
+                                      "source": "manifest"})
+        return self.ok(host, {"found": False, "source": "manifest"})
+
+
+_HOSTING_CNAME = [
+    ("github.io", "GitHub Pages"), ("herokuapp.com", "Heroku"),
+    ("herokudns.com", "Heroku"), ("cloudfront.net", "AWS CloudFront"),
+    ("elasticbeanstalk.com", "AWS Elastic Beanstalk"), ("azurewebsites.net", "Azure App Service"),
+    ("azureedge.net", "Azure CDN"), ("trafficmanager.net", "Azure Traffic Manager"),
+    ("fastly.net", "Fastly"), ("netlify.app", "Netlify"), ("netlify.com", "Netlify"),
+    ("vercel-dns.com", "Vercel"), ("vercel.app", "Vercel"),
+    ("myshopify.com", "Shopify"), ("wpengine.com", "WP Engine"),
+    ("pantheonsite.io", "Pantheon"), ("wixdns.net", "Wix"), ("squarespace.com", "Squarespace"),
+    ("readthedocs.io", "Read the Docs"), ("ghost.io", "Ghost"),
+    ("cloudflare.net", "Cloudflare"), ("cdn.shopify.com", "Shopify"),
+    ("hubspot.net", "HubSpot"), ("zendesk.com", "Zendesk"),
+    ("statuspage.io", "Statuspage"), ("akamaiedge.net", "Akamai"),
+    ("edgekey.net", "Akamai"), ("googlehosted.com", "Google"),
+]
+
+
+@register
+class CnameMap(Module):
+    id = "cnamemap"
+    name = "CNAME -> hosting / SaaS provider fingerprint via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        providers = {}
+        chains = {}
+        for name in (host, f"www.{host}"):
+            d = _json(_get(ctx, f"https://dns.google/resolve?name={name}&type=CNAME")) or {}
+            targets = [a.get("data", "").rstrip(".").lower()
+                       for a in (d.get("Answer") or [])
+                       if isinstance(a, dict) and a.get("type") == 5 and a.get("data")]
+            if targets:
+                chains[name] = targets
+                for tgt in targets:
+                    for needle, label in _HOSTING_CNAME:
+                        if needle in tgt:
+                            providers[name] = label
+                            break
+        return self.ok(host, {"cname_chains": chains,
+                              "providers": providers,
+                              "hosting": sorted(set(providers.values())),
+                              "note": "CNAME targets fingerprint the hosting / SaaS "
+                                      "platform serving the site.",
+                              "source": "cname-map"})
+
+
+@register
+class SpamhausDrop(Module):
+    id = "spamhausdrop"
+    name = "Spamhaus DROP hijacked/criminal netblock membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip) or ":" in ip:
+            return self.ok(ip, {"note": "spamhausdrop expects an IPv4 address"})
+        text = _text(_get(ctx, "https://www.spamhaus.org/drop/drop.txt"))
+        import ipaddress
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return self.ok(ip, {"note": "invalid IP", "source": "spamhaus-drop"})
+        listed, matched, sbl = False, "", ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith(";"):
+                continue
+            cidr = line.split(";")[0].strip()
+            try:
+                if addr in ipaddress.ip_network(cidr, strict=False):
+                    listed, matched = True, cidr
+                    sbl = line.split(";")[-1].strip()
+                    break
+            except ValueError:
+                continue
+        data = {"listed": listed, "matched_range": matched, "sbl_ref": sbl,
+                "feed": "spamhaus-drop", "source": "spamhaus-drop"}
+        if listed:
+            data["severity"] = "critical"
+            data["note"] = "IP within a Spamhaus DROP (hijacked/criminal) netblock."
+        return self.ok(ip, data)
+
+
+@register
+class CratesUser(Module):
+    id = "cratesuser"
+    name = "crates.io user profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "cratesuser expects a bare handle"})
+        d = _json(_get(ctx, f"https://crates.io/api/v1/users/{user}",
+                       headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}
+        u = d.get("user") or {}
+        if not u.get("login"):
+            return self.ok(user, {"note": "no crates.io user", "source": "crates-user"})
+        return self.ok(user, {"login": u.get("login"), "name": u.get("name"),
+                              "profile": u.get("url"),
+                              "avatar": u.get("avatar"),
+                              "source": "crates-user"})

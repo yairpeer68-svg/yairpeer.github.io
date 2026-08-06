@@ -1322,3 +1322,30 @@ def test_wave48_openapi_wpstack_talos_ghstars():
     assert tl["listed"] is True and tl["severity"] == "high"
     gs = REGISTRY["githubstars"].run("alice", _ctx(router)).data
     assert "torvalds/linux" in gs["starred_sample"] and "C" in gs["top_interests"]
+
+
+def test_wave49_manifest_cnamemap_spamhausdrop_cratesuser():
+    def router(url):
+        if "/manifest.json" in url:
+            return _Resp(j={"name": "Acme App", "short_name": "Acme",
+                            "start_url": "/", "related_applications": [
+                                {"platform": "play", "id": "com.acme.app"}]})
+        if "type=CNAME" in url and "name=acme.com" in url:
+            return _Resp(j={"Answer": [{"type": 5, "data": "acme.myshopify.com."}]})
+        if "type=CNAME" in url:
+            return _Resp(j={"Answer": [{"type": 5, "data": "d123.cloudfront.net."}]})
+        if "spamhaus.org/drop" in url:
+            return _Resp(t="; comment\n1.2.0.0/16 ; SBL123\n")
+        if "crates.io/api/v1/users/alice" in url:
+            return _Resp(j={"user": {"login": "alice", "name": "Alice A",
+                            "url": "https://crates.io/users/alice"}})
+        return _Resp(j={})
+    mf = REGISTRY["manifest"].run("acme.com", _ctx(router)).data
+    assert mf["found"] is True and mf["name"] == "Acme App"
+    assert mf["related_applications"][0]["id"] == "com.acme.app"
+    cm = REGISTRY["cnamemap"].run("acme.com", _ctx(router)).data
+    assert "Shopify" in cm["hosting"] and "AWS CloudFront" in cm["hosting"]
+    sd = REGISTRY["spamhausdrop"].run("1.2.3.4", _ctx(router)).data
+    assert sd["listed"] is True and sd["severity"] == "critical" and sd["matched_range"] == "1.2.0.0/16"
+    cu = REGISTRY["cratesuser"].run("alice", _ctx(router)).data
+    assert cu["login"] == "alice" and cu["name"] == "Alice A"
