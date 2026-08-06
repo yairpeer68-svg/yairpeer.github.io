@@ -55,8 +55,11 @@ public class OnboardingActivity extends BaseActivity {
     private final List<Step> steps = new ArrayList<>();
     private int index = 0;
 
+    /** שלבים שבהם המשתמש כבר לחץ "הענק הרשאה" — פותח מוצא-מילוט. */
+    private final java.util.Set<Integer> attempted = new java.util.HashSet<>();
+
     private TextView tvStep, tvTitle, tvBody, tvStatus;
-    private Button btnGrant, btnNext, btnSkip;
+    private Button btnGrant, btnNext, btnSkip, btnRestricted;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -189,6 +192,8 @@ public class OnboardingActivity extends BaseActivity {
         btnGrant.setOnClickListener(v -> {
             Step s = steps.get(index);
             if (s.launch == null) return;
+            // מסמנים שניסינו — כדי לפתוח מוצא-מילוט אם המערכת חוסמת בשקט
+            attempted.add(index);
             // חייב להיות עטוף: מסכי הרשאה של המערכת לא קיימים בכל ROM
             // (ActivityNotFoundException ודומיו), וקריסה כאן הפילה את כל
             // ההתקנה בשלב מנהל המכשיר.
@@ -218,6 +223,22 @@ public class OnboardingActivity extends BaseActivity {
             }
         });
         root.addView(btnGrant);
+
+        // כפתור עזרה — פותח את מסך פרטי האפליקציה, שם נמצא התפריט (⋮)
+        // "אפשר הגדרות מוגבלות". באנדרואיד 13+ אנדרואיד חוסם *בשקט* הפעלת
+        // נגישות/מנהל-מכשיר לאפליקציה שהותקנה מקובץ APK, וזו הדרך לפתוח.
+        btnRestricted = new Button(this);
+        btnRestricted.setAllCaps(false);
+        btnRestricted.setText(R.string.onb_open_app_settings);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        rlp.topMargin = dp(10);
+        btnRestricted.setLayoutParams(rlp);
+        btnRestricted.setOnClickListener(v ->
+            com.magen.family.util.SafeLaunch.open(this,
+                new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.parse("package:" + getPackageName()))));
+        root.addView(btnRestricted);
 
         btnNext = new Button(this);
         btnNext.setAllCaps(false);
@@ -265,6 +286,11 @@ public class OnboardingActivity extends BaseActivity {
         }
         tvStep.setText(counter);
 
+        // כפתור "פתח הגדרות אפליקציה" מוצג רק אחרי ניסיון שלא הצליח —
+        // אז הוא רלוונטי (הגדרות מוגבלות), ולא מבלבל לפני כן.
+        btnRestricted.setVisibility(
+            !informational && !granted && attempted.contains(index) ? View.VISIBLE : View.GONE);
+
         if (informational) {
             tvStatus.setText("");
             btnGrant.setVisibility(View.GONE);
@@ -277,19 +303,28 @@ public class OnboardingActivity extends BaseActivity {
             btnSkip.setVisibility(View.GONE);
             btnNext.setVisibility(View.VISIBLE);
         } else if (s.required) {
-            // הרשאה קריטית שעוד לא הוענקה — אי אפשר להתקדם.
+            // הרשאה קריטית שעוד לא הוענקה.
             tvStatus.setText(R.string.onb_required);
             tvStatus.setTextColor(ContextCompat.getColor(this, R.color.accent));
             btnGrant.setVisibility(View.VISIBLE);
             btnGrant.setText(R.string.onb_grant);
-            btnSkip.setVisibility(View.GONE);
             btnNext.setVisibility(View.GONE);
+            // מוצא-מילוט: אחרי שניסית לפתוח את המסך ולא הצלחת (למשל כשאנדרואיד
+            // חוסם בשקט "הגדרה מוגבלת"), חייבת להיות דרך להמשיך — אחרת
+            // המשתמש תקוע לנצח ולא יכול לסיים את ההתקנה בכלל.
+            if (attempted.contains(index)) {
+                btnSkip.setVisibility(View.VISIBLE);
+                btnSkip.setText(R.string.onb_skip_required);
+            } else {
+                btnSkip.setVisibility(View.GONE);
+            }
         } else {
             // הרשאה מומלצת — אפשר לדלג.
             tvStatus.setText("");
             btnGrant.setVisibility(View.VISIBLE);
             btnGrant.setText(R.string.onb_grant);
             btnSkip.setVisibility(View.VISIBLE);
+            btnSkip.setText(R.string.onb_skip);   // איפוס: השלב הקודם אולי שינה את הכיתוב
             btnNext.setVisibility(View.VISIBLE);
         }
 
@@ -306,12 +341,13 @@ public class OnboardingActivity extends BaseActivity {
     }
 
     private void finishOnboarding() {
-        // הגנה: onboarding_done נדלק *רק* כשכל ההרשאות ה"חובה" פעילות — כי
-        // ההגנה העצמית (חסימת מסך ההרשאות/הסוללה) מותנית בדגל הזה. אם משהו
-        // קריטי כובה בין לבין, קופצים חזרה לשלב החסר במקום לסיים.
+        // מחזירים לשלב חובה שעדיין לא הוענק — אבל *רק* אם המשתמש עוד לא ניסה
+        // אותו. אם ניסה והמערכת חסמה (למשל "הגדרה מוגבלת" של אנדרואיד על
+        // אפליקציה שהותקנה מקובץ), חסימה כאן הייתה נועלת אותו מחוץ לאפליקציה
+        // לנצח. עדיף להיכנס עם הגנה חלקית מאשר לא להיכנס בכלל.
         for (int i = 0; i < steps.size(); i++) {
             Step s = steps.get(i);
-            if (s.required && s.check != null && !s.check.granted()) {
+            if (s.required && s.check != null && !s.check.granted() && !attempted.contains(i)) {
                 index = i;
                 render();
                 android.widget.Toast.makeText(this, R.string.onb_missing,

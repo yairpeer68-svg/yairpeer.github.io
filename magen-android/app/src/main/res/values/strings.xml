@@ -233,4 +233,6 @@
     <string name="update_hint">כתובת לקובץ JSON סטטי (GitHub Raw/Release) עם versionCode ו-url. בלי שרת. השאר ריק כדי לכבות.</string>
     <string name="ach_title">הישג חדש! 🏆</string>
     <string name="ach_body">%1$d ימים נקיים ברצף. תמשיך ככה — אתה בונה משהו אמיתי.</string>
+    <string name="onb_skip_required">המשך בכל זאת (הגנה חלקית)</string>
+    <string name="onb_open_app_settings">⚙️ פתח הגדרות אפליקציה (להסרת חסימה)</string>
 </resources>
