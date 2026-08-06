@@ -146,6 +146,7 @@
     <string name="onb_done_title">Protection is active ✓</string>
     <string name="onb_done_body">All essential permissions are on. From now on:\n\n• Inappropriate content is blocked automatically across all apps.\n• Any attempt to bypass, remove, or disable protection is blocked and requires your covenant code.\n• The covenant code is the only key to changing settings or uninstalling. Guard it, and consider giving a copy to an accountability partner.\n\nBe strong. You are not alone in this.</string>
     <string name="onb_missing">Enable every permission marked \"Required\" to finish.</string>
+    <string name="onb_open_failed">We couldn\'t open the permission screen on this device. Open it manually: Settings → Security → Device admin apps, and enable Covenant Guard.</string>
 
     <!-- Content filter -->
     <string name="main_content_filter">Content filter</string>

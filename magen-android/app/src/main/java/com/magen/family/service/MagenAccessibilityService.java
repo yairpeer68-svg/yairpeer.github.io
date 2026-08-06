@@ -349,13 +349,24 @@ public class MagenAccessibilityService extends AccessibilityService {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
                 try {
+                    // האם ההגדרה הראשונית הושלמה? כל ההגנה העצמית מותנית בזה —
+                    // אחרת המדריך עצמו נחסם והמשתמש לא יכול להעניק הרשאות.
+                    boolean setupDone = false;
+                    try {
+                        setupDone = com.magen.family.MagenApp.getInstance()
+                            .getPrefs().getBoolean("onboarding_done", false);
+                    } catch (Exception ignored) {}
+
                     // מסך הנגישות של האפליקציה שלנו — אם השירות רץ (כלומר מגיע אירוע),
-                    // כל ביקור כאן הוא ניסיון השבתה → חסום
+                    // כל ביקור כאן הוא ניסיון השבתה → חסום.
+                    // מותנה ב-setupDone: מיד אחרי ההפעלה בשלב 10 של המדריך השירות
+                    // מתחבר בזמן שהמסך עוד פתוח, ובלי התנאי המשתמש היה נזרק הביתה
+                    // (ואף ננעל) בדיוק ברגע שהעניק את ההרשאה.
                     boolean ourAccessibility =
                         (findText(root, "שומר הברית") || findText(root, "Magen")) &&
                         (findText(root, "השתמש בשירות") || findText(root, "Use service") ||
                          findText(root, "סינון תוכן"));
-                    if (ourAccessibility) {
+                    if (setupDone && ourAccessibility) {
                         if (behaviorAnalyzer != null) behaviorAnalyzer.recordUninstallAttempt();
                         block();
                         return true;
@@ -388,11 +399,6 @@ public class MagenAccessibilityService extends AccessibilityService {
                     //     מתן ההרשאות הלגיטימי בהתקנה הראשונה.
                     //   • רק כשגם שם האפליקציה שלנו מופיע במסך — כדי לא לחסום מסכי
                     //     הרשאות/מידע של אפליקציות אחרות.
-                    boolean setupDone = false;
-                    try {
-                        setupDone = com.magen.family.MagenApp.getInstance()
-                            .getPrefs().getBoolean("onboarding_done", false);
-                    } catch (Exception ignored) {}
                     if (setupDone && ourApp) {
                         boolean permissionScreen =
                             findText(root, "הרשאות") ||
@@ -446,8 +452,11 @@ public class MagenAccessibilityService extends AccessibilityService {
                         block();
                         return true;
                     }
-                    if (findText(root, "ניהול מכשיר") || findText(root, "Device admin") ||
-                        findText(root, "אפליקציות ניהול") || findText(root, "מנהלי מכשיר")) {
+                    // מותנה ב-setupDone: בלי זה, מי שהפעיל את הנגישות לפני מנהל
+                    // המכשיר היה נזרק ממסך ההענקה ולא יכול היה להשלים את ההגדרה.
+                    if (setupDone &&
+                        (findText(root, "ניהול מכשיר") || findText(root, "Device admin") ||
+                         findText(root, "אפליקציות ניהול") || findText(root, "מנהלי מכשיר"))) {
                         if (findText(root, "שומר הברית") || findText(root, "Magen")) {
                             if (behaviorAnalyzer != null) behaviorAnalyzer.recordUninstallAttempt();
                             block();

@@ -183,7 +183,16 @@ public class OnboardingActivity extends BaseActivity {
         btnGrant.setLayoutParams(glp);
         btnGrant.setOnClickListener(v -> {
             Step s = steps.get(index);
-            if (s.launch != null) s.launch.go();
+            if (s.launch == null) return;
+            // חייב להיות עטוף: מסכי הרשאה של המערכת לא קיימים בכל ROM
+            // (ActivityNotFoundException ודומיו), וקריסה כאן הפילה את כל
+            // ההתקנה בשלב מנהל המכשיר.
+            try {
+                s.launch.go();
+            } catch (Exception e) {
+                android.widget.Toast.makeText(this,
+                    getString(R.string.onb_open_failed), android.widget.Toast.LENGTH_LONG).show();
+            }
         });
         root.addView(btnGrant);
 

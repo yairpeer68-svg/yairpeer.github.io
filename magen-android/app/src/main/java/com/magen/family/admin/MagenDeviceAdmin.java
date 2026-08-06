@@ -137,13 +137,40 @@ public class MagenDeviceAdmin extends DeviceAdminReceiver {
         return dpm != null && dpm.isAdminActive(getComponentName(context));
     }
 
+    /**
+     * פותח את מסך הפעלת מנהל המכשיר.
+     *
+     * למה כל ההגנות: במסך הזה נצפתה קריסה בהתקנה. לא בכל ROM קיים
+     * ACTION_ADD_DEVICE_ADMIN כ-activity שניתן לפתיחה (יצרנים מסתירים או
+     * מחליפים אותו), ואז startActivity זורק ActivityNotFoundException.
+     * לכן בודקים שהיעד נפתר, ואם לא — נופלים למסך האבטחה של המערכת שממנו
+     * אפשר להגיע ל"אפליקציות ניהול מכשיר" ידנית.
+     */
     public static void requestAdmin(Context context) {
         Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
         intent.putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, getComponentName(context));
         intent.putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-            "נדרש כדי למנוע מחיקת אפליקציית שומר הברית ללא אישור הורים");
+            "נדרש כדי להקשות על הסרת שומר הברית ברגע של חולשה. " +
+            "אפשר להסיר תמיד עם קוד הברית.");
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        context.startActivity(intent);
+
+        try {
+            if (context.getPackageManager().resolveActivity(intent, 0) != null) {
+                context.startActivity(intent);
+                return;
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "add-admin screen failed: " + e.getMessage());
+        }
+
+        // גיבוי — מסך האבטחה של המערכת
+        try {
+            Intent security = new Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS);
+            security.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(security);
+        } catch (Exception e) {
+            Log.e(TAG, "security settings fallback failed: " + e.getMessage());
+        }
     }
 
     /** הסרה — נקראת רק אחרי אימות PIN מצד ההורה (מסך ההגדרות). */
