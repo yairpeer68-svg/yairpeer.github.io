@@ -25,6 +25,8 @@ public class MagenAccessibilityService extends AccessibilityService {
     private static final String TAG = "MagenAccessibility";
 
     private static final long DOM_SCAN_INTERVAL_MS = 300;
+    /** אפליקציות שאינן דפדפן/חברתית — סריקה נדירה יותר, כדי לשמור על סוללה. */
+    private static final long GENERIC_SCAN_INTERVAL_MS = 1500;
     private static final long SOCIAL_SCAN_INTERVAL_MS = 150;
     private long lastDomScanAt = 0;
 
@@ -231,7 +233,17 @@ public class MagenAccessibilityService extends AccessibilityService {
         boolean isSocial   = SOCIAL_SCAN_PACKAGES.contains(pkg);
         boolean isWebView  = className.contains("WebView") || className.contains("CustomTab");
         boolean isUserBlk  = MagenConfig.isAppBlockedByUser(this, pkg);
-        if (!isBrowser && !isSocial && !isWebView && !isUserBlk) return;
+        boolean isKnown    = isBrowser || isSocial || isWebView || isUserBlk;
+
+        // סריקת טקסט אוניברסלית: קודם נסרקו רק דפדפנים ורשימה קבועה של ~14
+        // אפליקציות, וכל אפליקציה אחרת לא נסרקה כלל — כלומר *כן* היה משנה
+        // איפה הטקסט נכתב. עכשיו נסרקת כל אפליקציה, כדי שמילה אסורה תיתפס
+        // בכל מקום. אפליקציות לא-מוכרות מקבלות מרווח סריקה ארוך יותר כדי
+        // לא לשלם על כך בסוללה ובביצועים.
+        //
+        // אין צורך בצילומי מסך: שירות הנגישות קורא את הטקסט עצמו — זול,
+        // מדויק, ובלי הרשאת הקלטת מסך.
+        if (pkg.equals(getPackageName())) return;   // האפליקציה שלנו
 
         long now = System.currentTimeMillis();
         // ה-throttle חל על *כל* האפליקציות, כולל החברתיות.
@@ -239,7 +251,8 @@ public class MagenAccessibilityService extends AccessibilityService {
         // הרקורסיבית רצה על כל אירוע תוכן בלי שום השהיה — מקור ודאי ל-ANR
         // בדיוק באפליקציות שמייצרות הכי הרבה אירועים.
         // לאפליקציות חברתיות ניתן מרווח קצר יותר, אבל לא אפס.
-        long interval = isSocial ? SOCIAL_SCAN_INTERVAL_MS : DOM_SCAN_INTERVAL_MS;
+        long interval = isSocial ? SOCIAL_SCAN_INTERVAL_MS
+                      : (isKnown ? DOM_SCAN_INTERVAL_MS : GENERIC_SCAN_INTERVAL_MS);
         // מצב חיסכון סוללה — מרחיבים את מרווח הסריקה כדי לחסוך אנרגיה.
         // הסינון עדיין פועל, פשוט סורק בתדירות נמוכה יותר.
         if (isPowerSave(now)) interval *= 3;
