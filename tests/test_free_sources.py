@@ -1014,3 +1014,29 @@ def test_wave37_phisharmy_ipsum_ghkeys_ghorgs():
     assert gk["key_count"] == 2 and "ssh-ed25519" in gk["key_types"]
     go = REGISTRY["githuborgs"].run("alice", _ctx(router)).data
     assert go["count"] == 2 and go["orgs"][0]["login"] == "acme-corp"
+
+
+def test_wave38_httpsrr_srvscan_cinsarmy_stackuser():
+    def router(url):
+        if "type=HTTPS" in url or "type=65" in url:
+            return _Resp(j={"Answer": [{"data": '1 . alpn="h2,h3" ech=AED+ ipv4hint=1.2.3.4'}]})
+        if "_sip._tcp" in url and "type=SRV" in url:
+            return _Resp(j={"Answer": [{"type": 33, "data": "10 5 5060 sip.acme.com."}]})
+        if "type=SRV" in url:
+            return _Resp(j={})
+        if "cinsscore.com" in url:
+            return _Resp(t="1.2.3.4\n9.9.9.9\n")
+        if "api.stackexchange.com" in url:
+            return _Resp(j={"items": [{"display_name": "Alice", "user_id": 42,
+                            "reputation": 12000, "location": "NYC",
+                            "link": "https://stackoverflow.com/users/42"}]})
+        return _Resp(j={})
+    hr = REGISTRY["httpsrr"].run("acme.com", _ctx(router)).data
+    assert hr["ech_enabled"] is True and "h3" in hr["alpn"]
+    sr = REGISTRY["srvscan"].run("acme.com", _ctx(router)).data
+    assert sr["count"] == 1 and sr["services"][0]["service"] == "SIP/VoIP"
+    assert "sip.acme.com:5060" in sr["services"][0]["targets"]
+    ca = REGISTRY["cinsarmy"].run("1.2.3.4", _ctx(router)).data
+    assert ca["listed"] is True and ca["severity"] == "high"
+    su = REGISTRY["stackuser"].run("Alice", _ctx(router)).data
+    assert su["count"] == 1 and su["matches"][0]["reputation"] == 12000

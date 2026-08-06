@@ -4112,3 +4112,138 @@ class GithubOrgs(Module):
                               "note": "public org memberships link a person to "
                                       "employer/community affiliations.",
                               "source": "github-orgs"})
+
+
+# =========================================================================== #
+#  Wave 38 — modern DNS RR + service discovery + threat feed + people:
+#    HTTPS/SVCB (ECH) · SRV service discovery (domain)
+#    CINS Army IP feed (IP) · Stack Overflow user (username)
+# =========================================================================== #
+@register
+class HttpsRr(Module):
+    id = "httpsrr"
+    name = "HTTPS/SVCB DNS records — ALPN / ECH / hints via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        records = []
+        ech = False
+        alpn: Set[str] = set()
+        for rtype in ("HTTPS", "SVCB", "65"):
+            d = _json(_get(ctx, f"https://dns.google/resolve?name={host}&type={rtype}")) or {}
+            for ans in d.get("Answer") or []:
+                v = ans.get("data")
+                if isinstance(v, str) and v:
+                    records.append(v[:200])
+                    if "ech=" in v.lower():
+                        ech = True
+                    ma = re.search(r'alpn="?([a-z0-9,\-]+)', v.lower())
+                    if ma:
+                        alpn.update(ma.group(1).split(","))
+            if records:
+                break
+        return self.ok(host, {"records": records[:5], "present": bool(records),
+                              "ech_enabled": ech, "alpn": sorted(a for a in alpn if a),
+                              "note": ("Encrypted Client Hello (ECH) advertised."
+                                       if ech else
+                                       "modern HTTPS/SVCB record fingerprint."),
+                              "source": "https-rr"})
+
+
+_SRV_SERVICES = [
+    ("_sip._tcp", "SIP/VoIP"), ("_sips._tcp", "SIP/TLS"),
+    ("_sipfederationtls._tcp", "Skype4B/Teams federation"),
+    ("_xmpp-server._tcp", "XMPP server"), ("_xmpp-client._tcp", "XMPP client"),
+    ("_ldap._tcp", "LDAP/Active Directory"), ("_kerberos._tcp", "Kerberos"),
+    ("_kerberos._udp", "Kerberos"), ("_gc._tcp", "AD Global Catalog"),
+    ("_autodiscover._tcp", "Exchange Autodiscover"),
+    ("_caldav._tcp", "CalDAV"), ("_carddav._tcp", "CardDAV"),
+    ("_imaps._tcp", "IMAPS"), ("_submission._tcp", "Mail submission"),
+    ("_minecraft._tcp", "Minecraft"), ("_vlmcs._tcp", "KMS activation"),
+]
+
+
+@register
+class SrvScan(Module):
+    id = "srvscan"
+    name = "SRV service discovery via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        found = []
+        for label, svc in _SRV_SERVICES:
+            d = _json(_get(ctx, f"https://dns.google/resolve?name={label}.{host}&type=SRV")) or {}
+            targets = []
+            for ans in d.get("Answer") or []:
+                if isinstance(ans, dict) and ans.get("type") == 33 and ans.get("data"):
+                    parts = ans["data"].split()
+                    tgt = parts[-1].rstrip(".") if parts else ans["data"]
+                    port = parts[-2] if len(parts) >= 2 else ""
+                    targets.append(f"{tgt}:{port}" if port else tgt)
+            if targets:
+                found.append({"service": svc, "record": label, "targets": targets[:5]})
+        return self.ok(host, {"services": found, "count": len(found),
+                              "note": "published SRV services reveal enterprise "
+                                      "infrastructure (AD, VoIP, mail, federation).",
+                              "source": "srv-scan"})
+
+
+@register
+class CinsArmy(Module):
+    id = "cinsarmy"
+    name = "CINS Army malicious-IP feed membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "cinsarmy expects an IP"})
+        text = _text(_get(ctx, "https://cinsscore.com/list/ci-badguys.txt"))
+        listed = False
+        for line in text.splitlines():
+            if line.strip() == ip:
+                listed = True
+                break
+        data = {"listed": listed, "feed": "cins-army", "source": "cins-army"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "IP on the CINS Army malicious-IP feed."
+        return self.ok(ip, data)
+
+
+@register
+class StackUser(Module):
+    id = "stackuser"
+    name = "Stack Overflow user profile by name (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user:
+            return self.ok(user, {"note": "stackuser expects a display name"})
+        d = _json(_get(ctx, "https://api.stackexchange.com/2.3/users"
+                       f"?inname={user}&site=stackoverflow&pagesize=5"
+                       "&order=desc&sort=reputation")) or {}
+        users = []
+        for u in d.get("items", []) or []:
+            if isinstance(u, dict) and u.get("display_name"):
+                users.append({"display_name": u.get("display_name"),
+                              "user_id": u.get("user_id"),
+                              "reputation": u.get("reputation"),
+                              "location": u.get("location"),
+                              "profile": u.get("link"),
+                              "website": u.get("website_url")})
+        return self.ok(user, {"matches": users[:5], "count": len(users),
+                              "source": "stackoverflow-user"})
