@@ -5315,3 +5315,139 @@ class BitbucketWs(Module):
                               "created": d.get("created_on"),
                               "profile": (((d.get("links") or {}).get("html")) or {}).get("href"),
                               "source": "bitbucket-ws"})
+
+
+# =========================================================================== #
+#  Wave 47 — CMS user enum + feed authors + attacker netset + social graph:
+#    WordPress REST users · RSS/Atom author extraction (domain)
+#    DShield attacker netset (IP) · GitHub followers (username)
+# =========================================================================== #
+@register
+class WpUsers(Module):
+    id = "wpusers"
+    name = "WordPress REST API user enumeration (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        arr = _json(_get(ctx, f"https://{host}/wp-json/wp/v2/users?per_page=100",
+                         headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        users = []
+        for u in arr if isinstance(arr, list) else []:
+            if isinstance(u, dict) and (u.get("slug") or u.get("name")):
+                users.append({"id": u.get("id"), "name": u.get("name"),
+                              "slug": u.get("slug"), "url": u.get("link")})
+        data = {"wordpress": bool(users) or isinstance(arr, list),
+                "users": users[:50], "count": len(users),
+                "usernames": sorted({u["slug"] for u in users if u.get("slug")})[:50],
+                "source": "wp-users"}
+        if users:
+            data["severity"] = "low"
+            data["note"] = ("WordPress exposes author usernames via the REST API — "
+                            "useful for login/phishing targeting.")
+        return self.ok(host, data)
+
+
+@register
+class Feeds(Module):
+    id = "feeds"
+    name = "RSS/Atom feed discovery + author extraction (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        authors: Set[str] = set()
+        emails: Set[str] = set()
+        found = []
+        base = ".".join(host.split(".")[-2:])
+        for path in ("/feed", "/feed/", "/rss", "/rss.xml", "/atom.xml",
+                     "/index.xml", "/feed.xml", "/blog/feed"):
+            text = _text(_get(ctx, f"https://{host}{path}",
+                              headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            if not text or ("<rss" not in text.lower() and "<feed" not in text.lower()):
+                continue
+            found.append(path)
+            for m in re.findall(r"<(?:name|dc:creator|author)>\s*(?:<!\[CDATA\[)?"
+                                r"([^<\]]{1,80})", text):
+                a = m.strip()
+                if a and "@" not in a:
+                    authors.add(a)
+            for em in re.findall(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+", text):
+                if em.lower().endswith(base):
+                    emails.add(em.lower())
+            break
+        return self.ok(host, {"feeds": found, "authors": sorted(authors)[:20],
+                              "emails": sorted(emails)[:15],
+                              "note": "feed author/editor fields reveal staff names "
+                                      "and sometimes e-mail addresses.",
+                              "source": "feeds"})
+
+
+@register
+class DShieldNet(Module):
+    id = "dshieldnet"
+    name = "DShield top-attacker netset membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip) or ":" in ip:
+            return self.ok(ip, {"note": "dshieldnet expects an IPv4 address"})
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/firehol/"
+                          "blocklist-ipsets/master/dshield.netset"))
+        import ipaddress
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return self.ok(ip, {"note": "invalid IP", "source": "dshieldnet"})
+        listed, matched = False, ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                if addr in ipaddress.ip_network(line, strict=False):
+                    listed, matched = True, line
+                    break
+            except ValueError:
+                continue
+        data = {"listed": listed, "matched_range": matched,
+                "feed": "dshield-top-attackers", "source": "dshieldnet"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "IP within a DShield top-attacker /24 netblock."
+        return self.ok(ip, data)
+
+
+@register
+class GithubFollowers(Module):
+    id = "githubfollowers"
+    name = "GitHub follower/following social graph (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubfollowers expects a bare handle"})
+        hdr = {"Accept": "application/vnd.github+json", "User-Agent": "GhostEye-OSINT/1.0"}
+        foll = _json(_get(ctx, f"https://api.github.com/users/{user}/followers?per_page=50",
+                          headers=hdr)) or []
+        following = _json(_get(ctx, f"https://api.github.com/users/{user}/following?per_page=50",
+                               headers=hdr)) or []
+        f1 = [x.get("login") for x in foll if isinstance(x, dict) and x.get("login")]
+        f2 = [x.get("login") for x in following if isinstance(x, dict) and x.get("login")]
+        return self.ok(user, {"followers_sample": f1[:50], "followers_shown": len(f1),
+                              "following_sample": f2[:50], "following_shown": len(f2),
+                              "note": "the follow graph maps a developer's team / "
+                                      "community connections.",
+                              "source": "github-followers"})

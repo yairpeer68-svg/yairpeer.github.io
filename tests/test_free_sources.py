@@ -1270,3 +1270,28 @@ def test_wave46_trackers_preconnects_firehol3_bitbucketws():
     assert fh["listed"] is True and fh["matched_range"] == "1.2.0.0/16"
     bw = REGISTRY["bitbucketws"].run("acme", _ctx(router)).data
     assert bw["slug"] == "acme" and bw["is_private"] is False
+
+
+def test_wave47_wpusers_feeds_dshieldnet_ghfollowers():
+    def router(url):
+        if "/wp-json/wp/v2/users" in url:
+            return _Resp(j=[{"id": 1, "name": "Admin User", "slug": "admin",
+                             "link": "https://acme.com/author/admin"}])
+        if "/feed" in url and "wp-json" not in url:
+            return _Resp(t='<rss><channel><item><dc:creator>Jane Doe</dc:creator>'
+                         '<author>jane@acme.com</author></item></channel></rss>')
+        if "dshield.netset" in url:
+            return _Resp(t="# dshield\n1.2.0.0/24\n")
+        if "api.github.com/users/alice/followers" in url:
+            return _Resp(j=[{"login": "bob"}, {"login": "carol"}])
+        if "api.github.com/users/alice/following" in url:
+            return _Resp(j=[{"login": "dave"}])
+        return _Resp(j={})
+    wp = REGISTRY["wpusers"].run("acme.com", _ctx(router)).data
+    assert "admin" in wp["usernames"] and wp["count"] == 1 and wp["wordpress"] is True
+    fd = REGISTRY["feeds"].run("acme.com", _ctx(router)).data
+    assert "Jane Doe" in fd["authors"] and "jane@acme.com" in fd["emails"]
+    ds = REGISTRY["dshieldnet"].run("1.2.0.5", _ctx(router)).data
+    assert ds["listed"] is True and ds["matched_range"] == "1.2.0.0/24" and ds["severity"] == "high"
+    gf = REGISTRY["githubfollowers"].run("alice", _ctx(router)).data
+    assert "bob" in gf["followers_sample"] and "dave" in gf["following_sample"]
