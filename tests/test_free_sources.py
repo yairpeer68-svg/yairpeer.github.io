@@ -1408,3 +1408,28 @@ def test_wave51_nodeinfo_phishdb_asnupstreams_launchpad():
     assert au["upstreams"][0]["asn"] == 3356
     lp = REGISTRY["launchpad"].run("alice", _ctx(router)).data
     assert lp["display_name"] == "Alice A" and lp["karma"] == 250
+
+
+def test_wave52_opensearch_hostmeta_greensnow_ghwatched():
+    def router(url):
+        if "/opensearch.xml" in url:
+            return _Resp(t='<OpenSearchDescription><ShortName>Acme Search</ShortName>'
+                         '<Url template="https://search.acme.com/?q={searchTerms}"/>'
+                         '</OpenSearchDescription>')
+        if "/.well-known/host-meta.json" in url:
+            return _Resp(j={"links": [{"rel": "lrdd",
+                            "template": "https://acme.com/.well-known/webfinger?resource={uri}"}]})
+        if "greensnow.co" in url:
+            return _Resp(t="1.2.3.4\n9.9.9.9\n")
+        if "api.github.com/users/alice/subscriptions" in url:
+            return _Resp(j=[{"full_name": "acme/secret-project", "language": "Go"}])
+        return _Resp(j={})
+    os_ = REGISTRY["opensearch"].run("acme.com", _ctx(router)).data
+    assert os_["found"] is True and os_["short_name"] == "Acme Search"
+    assert "https://search.acme.com" in os_["search_endpoints"]
+    hm = REGISTRY["hostmeta"].run("acme.com", _ctx(router)).data
+    assert hm["found"] is True and hm["links"][0]["rel"] == "lrdd"
+    gs = REGISTRY["greensnow"].run("1.2.3.4", _ctx(router)).data
+    assert gs["listed"] is True and gs["severity"] == "high"
+    gw = REGISTRY["githubwatched"].run("alice", _ctx(router)).data
+    assert "acme/secret-project" in gw["watched_sample"] and "Go" in gw["top_languages"]

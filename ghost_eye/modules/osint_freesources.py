@@ -5954,3 +5954,131 @@ class Launchpad(Module):
                               "is_valid": d.get("is_valid"),
                               "profile": d.get("web_link"),
                               "source": "launchpad"})
+
+
+# =========================================================================== #
+#  Wave 52 — search/service descriptors + attacker feeds + watched repos:
+#    OpenSearch · host-meta services (domain)
+#    GreenSnow attacker feed (IP) · GitHub watched repos (username)
+# =========================================================================== #
+@register
+class OpenSearch(Module):
+    id = "opensearch"
+    name = "OpenSearch descriptor discovery (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, f"https://{host}/opensearch.xml",
+                          headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        if "OpenSearchDescription" not in text:
+            html = _text(_get(ctx, f"https://{host}/",
+                              headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            m = re.search(r'<link[^>]+type=["\']application/opensearchdescription\+xml'
+                          r'["\'][^>]+href=["\']([^"\']+)', html, re.I)
+            if m:
+                url = m.group(1)
+                if url.startswith("/"):
+                    url = f"https://{host}{url}"
+                text = _text(_get(ctx, url, headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        if "OpenSearchDescription" not in text:
+            return self.ok(host, {"found": False, "source": "opensearch"})
+        name = re.search(r"<ShortName>([^<]{1,80})", text)
+        templates = re.findall(r'template=["\']([^"\']+)', text)
+        endpoints = sorted({re.sub(r"^(https?://[^/]+).*", r"\1", t)
+                            for t in templates if t.startswith("http")})
+        return self.ok(host, {"found": True,
+                              "short_name": name.group(1).strip() if name else "",
+                              "search_endpoints": endpoints[:10],
+                              "note": "OpenSearch template can reveal internal search "
+                                      "backends / third-party search providers.",
+                              "source": "opensearch"})
+
+
+@register
+class HostMeta(Module):
+    id = "hostmeta"
+    name = ".well-known/host-meta service links (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        links = []
+        j = _json(_get(ctx, f"https://{host}/.well-known/host-meta.json",
+                       headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        if isinstance(j, dict):
+            for lk in j.get("links") or []:
+                if isinstance(lk, dict) and lk.get("rel"):
+                    links.append({"rel": lk.get("rel"),
+                                  "template": lk.get("template") or lk.get("href")})
+        if not links:
+            text = _text(_get(ctx, f"https://{host}/.well-known/host-meta",
+                              headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            for m in re.finditer(r'<Link[^>]+rel=["\']([^"\']+)["\'][^>]*'
+                                 r'(?:template|href)=["\']([^"\']+)', text, re.I):
+                links.append({"rel": m.group(1), "template": m.group(2)})
+        return self.ok(host, {"found": bool(links), "links": links[:20],
+                              "count": len(links),
+                              "note": "host-meta exposes federation / WebFinger / "
+                                      "OAuth discovery endpoints.",
+                              "source": "host-meta"})
+
+
+@register
+class GreenSnow(Module):
+    id = "greensnow"
+    name = "GreenSnow attacker-IP feed membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "greensnow expects an IP"})
+        text = _text(_get(ctx, "https://blocklist.greensnow.co/greensnow.txt"))
+        listed = False
+        for line in text.splitlines():
+            if line.strip() == ip:
+                listed = True
+                break
+        data = {"listed": listed, "feed": "greensnow", "source": "greensnow"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "IP on the GreenSnow attacker feed (scanners/brute-forcers)."
+        return self.ok(ip, data)
+
+
+@register
+class GithubWatched(Module):
+    id = "githubwatched"
+    name = "GitHub watched repositories (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubwatched expects a bare handle"})
+        arr = _json(_get(ctx, f"https://api.github.com/users/{user}/subscriptions?per_page=50",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": "GhostEye-OSINT/1.0"})) or []
+        repos, langs = [], {}
+        for r in arr if isinstance(arr, list) else []:
+            if isinstance(r, dict) and r.get("full_name"):
+                repos.append(r.get("full_name"))
+                lg = r.get("language")
+                if lg:
+                    langs[lg] = langs.get(lg, 0) + 1
+        return self.ok(user, {"watched_sample": repos[:40], "watched_shown": len(repos),
+                              "top_languages": sorted(langs, key=langs.get, reverse=True)[:8],
+                              "note": "watched repos show the projects a developer "
+                                      "actively follows (employer/interest signal).",
+                              "source": "github-watched"})

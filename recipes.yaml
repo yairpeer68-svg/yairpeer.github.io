@@ -44,7 +44,7 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         mobileapps, adstxt, sitemapscan, humanstxt,
         cspdomains, crossdomain, idpfinger, jsassets,
         trackers, preconnects, wpusers, feeds, openapi, wpstack,
-        manifest, cnamemap, matrixsrv, nodeinfo, phishdb]
+        manifest, cnamemap, matrixsrv, nodeinfo, phishdb, opensearch, hostmeta]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 
