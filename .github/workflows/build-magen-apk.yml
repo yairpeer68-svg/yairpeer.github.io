@@ -33,6 +33,12 @@ jobs:
             ~/.gradle/wrapper
           key: gradle-magen-${{ hashFiles('magen-android/**/*.gradle*') }}
 
+      # בדיקה מהירה (שניות) שתופסת שגיאות לפני שמתחילים בנייה ארוכה:
+      # הפניות למשאבים שלא קיימים, רכיבי מניפסט בלי מחלקה, סוגריים לא
+      # מאוזנים, מחרוזות כפולות, ומסכי מערכת שנפתחים בלי הגנה מפני קריסה.
+      - name: Verify code (verify.py)
+        run: cd magen-android && python3 verify.py
+
       - name: Run unit tests
         run: cd magen-android && gradle testDebugUnitTest --no-daemon --stacktrace
 
