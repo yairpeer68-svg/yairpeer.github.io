@@ -1243,3 +1243,30 @@ def test_wave45_idp_jsassets_vpnapi_ghgpg():
     assert vp["vpn"] is True and vp["anonymized"] is True and vp["severity"] == "medium"
     gg = REGISTRY["githubgpg"].run("alice", _ctx(router)).data
     assert "alice@acme.com" in gg["emails"] and "ABCD1234" in gg["key_ids"]
+
+
+def test_wave46_trackers_preconnects_firehol3_bitbucketws():
+    def router(url):
+        if url.rstrip("/") == "https://acme.com":
+            return _Resp(t='<html><head>'
+                         '<script src="https://www.googletagmanager.com/gtm.js?id=GTM-ABCD"></script>'
+                         '<script>gtag("config","G-XY12345Z")</script>'
+                         '<link rel="preconnect" href="https://fonts.gstatic.com">'
+                         '<link rel="dns-prefetch" href="//cdn.acme.com">'
+                         '</head></html>')
+        if "firehol_level3" in url:
+            return _Resp(t="# fh3\n1.2.0.0/16\n")
+        if "api.bitbucket.org/2.0/workspaces/acme" in url:
+            return _Resp(j={"slug": "acme", "name": "Acme Team", "is_private": False,
+                            "created_on": "2018-01-01",
+                            "links": {"html": {"href": "https://bitbucket.org/acme/"}}})
+        return _Resp(j={})
+    tr = REGISTRY["trackers"].run("acme.com", _ctx(router)).data
+    assert "Google Tag Manager" in tr["trackers"] and "GTM-ABCD" in tr["analytics_ids"]
+    assert "G-XY12345Z" in tr["analytics_ids"]
+    pc = REGISTRY["preconnects"].run("acme.com", _ctx(router)).data
+    assert "fonts.gstatic.com" in pc["preconnect_domains"]
+    fh = REGISTRY["firehol3"].run("1.2.3.4", _ctx(router)).data
+    assert fh["listed"] is True and fh["matched_range"] == "1.2.0.0/16"
+    bw = REGISTRY["bitbucketws"].run("acme", _ctx(router)).data
+    assert bw["slug"] == "acme" and bw["is_private"] is False

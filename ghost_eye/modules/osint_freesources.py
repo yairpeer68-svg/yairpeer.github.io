@@ -5178,3 +5178,140 @@ class GithubGpg(Module):
                               "note": "GPG keys frequently embed the owner's real "
                                       "e-mail address (identity deanonymisation).",
                               "source": "github-gpg"})
+
+
+# =========================================================================== #
+#  Wave 46 — tracker fingerprint + preconnect map + L3 feed + Bitbucket:
+#    analytics/tracker detection · preconnect domains (domain)
+#    FireHOL Level 3 (IP) · Bitbucket workspace (username)
+# =========================================================================== #
+_TRACKERS = [
+    ("google-analytics.com", "Google Analytics"), ("googletagmanager.com", "Google Tag Manager"),
+    ("gtag(", "Google gtag"), ("doubleclick.net", "Google Ads/DoubleClick"),
+    ("connect.facebook.net", "Meta Pixel"), ("fbq(", "Meta Pixel"),
+    ("static.hotjar.com", "Hotjar"), ("hotjar.com", "Hotjar"),
+    ("cdn.segment.com", "Segment"), ("analytics.js", "Segment"),
+    ("matomo.js", "Matomo"), ("piwik.js", "Matomo"),
+    ("cdn.mxpnl.com", "Mixpanel"), ("mixpanel", "Mixpanel"),
+    ("clarity.ms", "Microsoft Clarity"), ("js.hs-scripts.com", "HubSpot"),
+    ("widget.intercom.io", "Intercom"), ("fullstory.com", "FullStory"),
+    ("cdn.amplitude.com", "Amplitude"), ("script.crazyegg.com", "Crazy Egg"),
+    ("bat.bing.com", "Microsoft Ads (UET)"), ("snap.licdn.com", "LinkedIn Insight"),
+    ("static.ads-twitter.com", "Twitter/X Ads"), ("cdn.heapanalytics.com", "Heap"),
+    ("plausible.io", "Plausible"), ("cloudflareinsights.com", "Cloudflare Analytics"),
+]
+
+
+@register
+class Trackers(Module):
+    id = "trackers"
+    name = "Analytics / tracker fingerprint from homepage (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        html = _text(_get(ctx, f"https://{host}/", headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        low = html.lower()
+        detected = set()
+        for needle, label in _TRACKERS:
+            if needle.lower() in low:
+                detected.add(label)
+        ga_ids = sorted(set(re.findall(r"\b(?:UA-\d{4,}-\d+|G-[A-Z0-9]{6,}|GTM-[A-Z0-9]{4,})",
+                                       html)))
+        return self.ok(host, {"trackers": sorted(detected),
+                              "tracker_count": len(detected),
+                              "analytics_ids": ga_ids[:15],
+                              "note": "shared analytics IDs (UA-/G-/GTM-) can link "
+                                      "sibling properties owned by the same entity.",
+                              "source": "trackers"})
+
+
+@register
+class Preconnects(Module):
+    id = "preconnects"
+    name = "preconnect / dns-prefetch third-party domains (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        html = _text(_get(ctx, f"https://{host}/", headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        base = ".".join(host.split(".")[-2:])
+        domains = set()
+        for m in re.findall(r'<link[^>]+rel=["\'](?:preconnect|dns-prefetch|prefetch|'
+                            r'preload)["\'][^>]*href=["\']([^"\']+)', html, re.I):
+            dm = re.match(r"(?://|https?://)?([^/]+)", m.strip())
+            if dm:
+                netloc = dm.group(1).lower().split(":")[0]
+                if "." in netloc and not netloc.endswith(base):
+                    domains.add(netloc)
+        return self.ok(host, {"preconnect_domains": sorted(domains)[:40],
+                              "count": len(domains),
+                              "note": "preconnect/dns-prefetch hints expose the CDNs "
+                                      "and third-party services the page relies on.",
+                              "source": "preconnects"})
+
+
+@register
+class FireHol3(Module):
+    id = "firehol3"
+    name = "FireHOL Level 3 aggregated blocklist membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip) or ":" in ip:
+            return self.ok(ip, {"note": "firehol3 expects an IPv4 address"})
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/firehol/"
+                          "blocklist-ipsets/master/firehol_level3.netset"))
+        import ipaddress
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return self.ok(ip, {"note": "invalid IP", "source": "firehol3"})
+        listed, matched = False, ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                if addr in ipaddress.ip_network(line, strict=False):
+                    listed, matched = True, line
+                    break
+            except ValueError:
+                continue
+        data = {"listed": listed, "matched_range": matched,
+                "feed": "firehol-level3", "source": "firehol3"}
+        if listed:
+            data["severity"] = "medium"
+            data["note"] = "IP in FireHOL Level 3 (extended attack/abuse history)."
+        return self.ok(ip, data)
+
+
+@register
+class BitbucketWs(Module):
+    id = "bitbucketws"
+    name = "Bitbucket workspace profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "bitbucketws expects a bare handle"})
+        d = _json(_get(ctx, f"https://api.bitbucket.org/2.0/workspaces/{user}")) or {}
+        if not d.get("slug") and not d.get("uuid"):
+            return self.ok(user, {"note": "no Bitbucket workspace", "source": "bitbucket-ws"})
+        return self.ok(user, {"slug": d.get("slug"), "name": d.get("name"),
+                              "is_private": d.get("is_private"),
+                              "created": d.get("created_on"),
+                              "profile": (((d.get("links") or {}).get("html")) or {}).get("href"),
+                              "source": "bitbucket-ws"})
