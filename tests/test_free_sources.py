@@ -1040,3 +1040,33 @@ def test_wave38_httpsrr_srvscan_cinsarmy_stackuser():
     assert ca["listed"] is True and ca["severity"] == "high"
     su = REGISTRY["stackuser"].run("Alice", _ctx(router)).data
     assert su["count"] == 1 and su["matches"][0]["reputation"] == 12000
+
+
+def test_wave39_domainptr_mozobs_firehol_ghrepos():
+    def router(url):
+        if "type=A" in url and "in-addr.arpa" not in url:
+            return _Resp(j={"Answer": [{"type": 1, "data": "1.2.3.4"}]})
+        if "type=AAAA" in url:
+            return _Resp(j={})
+        if "in-addr.arpa" in url and "type=PTR" in url:
+            return _Resp(j={"Answer": [{"type": 12, "data": "server-1.cloudprovider.net."}]})
+        if "http-observatory" in url:
+            return _Resp(j={"state": "FINISHED", "grade": "D+", "score": 35,
+                            "tests_failed": 5, "tests_passed": 7})
+        if "firehol" in url:
+            return _Resp(t="# firehol\n1.2.0.0/16\n8.8.8.0/24\n")
+        if "api.github.com/users/alice/repos" in url:
+            return _Resp(j=[{"name": "tool", "language": "Python",
+                             "stargazers_count": 3, "pushed_at": "2024-05-01"},
+                            {"name": "web", "language": "Python",
+                             "stargazers_count": 1, "pushed_at": "2024-04-01"}])
+        return _Resp(j={})
+    dp = REGISTRY["domainptr"].run("acme.com", _ctx(router)).data
+    assert "1.2.3.4" in dp["ips"] and dp["ptr"]["1.2.3.4"][0] == "server-1.cloudprovider.net"
+    assert dp["shared_hosting_hint"] is True
+    mo = REGISTRY["mozillaobs"].run("acme.com", _ctx(router)).data
+    assert mo["grade"] == "D+" and mo["severity"] == "medium"
+    fh = REGISTRY["firehol"].run("1.2.3.4", _ctx(router)).data
+    assert fh["listed"] is True and fh["matched_range"] == "1.2.0.0/16" and fh["severity"] == "high"
+    gr = REGISTRY["githubrepos"].run("alice", _ctx(router)).data
+    assert gr["repo_count"] == 2 and "Python" in gr["languages"]

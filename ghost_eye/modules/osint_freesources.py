@@ -4247,3 +4247,150 @@ class StackUser(Module):
                               "website": u.get("website_url")})
         return self.ok(user, {"matches": users[:5], "count": len(users),
                               "source": "stackoverflow-user"})
+
+
+# =========================================================================== #
+#  Wave 39 — hosting intel + web-security grade + aggregated feed + dev profile:
+#    Reverse-PTR hosting · Mozilla Observatory grade (domain)
+#    FireHOL Level 1 blocklist (IP) · GitHub repos/languages (username)
+# =========================================================================== #
+@register
+class DomainPtr(Module):
+    id = "domainptr"
+    name = "Resolve A/AAAA + reverse-PTR hosting intelligence via DoH (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        ips = []
+        for rtype in ("A", "AAAA"):
+            d = _json(_get(ctx, f"https://dns.google/resolve?name={host}&type={rtype}")) or {}
+            for ans in d.get("Answer") or []:
+                if isinstance(ans, dict) and ans.get("type") in (1, 28) and ans.get("data"):
+                    ips.append(ans["data"])
+        ptrs = {}
+        for ip in ips[:6]:
+            if ":" in ip:
+                continue
+            rev = ".".join(reversed(ip.split("."))) + ".in-addr.arpa"
+            pd = _json(_get(ctx, f"https://dns.google/resolve?name={rev}&type=PTR")) or {}
+            names = [a.get("data", "").rstrip(".") for a in (pd.get("Answer") or [])
+                     if isinstance(a, dict) and a.get("type") == 12 and a.get("data")]
+            if names:
+                ptrs[ip] = names[:3]
+        shared = any(not any(host.split(".")[-2] in n for n in names)
+                     for names in ptrs.values())
+        return self.ok(host, {"ips": ips[:10], "ptr": ptrs,
+                              "shared_hosting_hint": shared,
+                              "note": "PTR names differing from the domain suggest "
+                                      "shared hosting / CDN / third-party infra.",
+                              "source": "domain-ptr"})
+
+
+@register
+class MozillaObs(Module):
+    id = "mozillaobs"
+    name = "Mozilla HTTP Observatory security-header grade (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        d = _json(_get(ctx, "https://http-observatory.security.mozilla.org/api/v1/"
+                       f"analyze?host={host}")) or {}
+        state = d.get("state")
+        if state != "FINISHED":
+            return self.ok(host, {"note": f"no finished Observatory scan (state={state})",
+                                  "state": state, "source": "mozilla-observatory"})
+        data = {"grade": d.get("grade"), "score": d.get("score"),
+                "tests_failed": d.get("tests_failed"),
+                "tests_passed": d.get("tests_passed"),
+                "source": "mozilla-observatory"}
+        try:
+            if d.get("grade") and str(d.get("grade"))[0] in ("D", "F"):
+                data["severity"] = "medium"
+                data["note"] = "weak web-security-header posture (Observatory grade)."
+        except (TypeError, IndexError):
+            pass
+        return self.ok(host, data)
+
+
+@register
+class FireHol(Module):
+    id = "firehol"
+    name = "FireHOL Level 1 aggregated blocklist membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip) or ":" in ip:
+            return self.ok(ip, {"note": "firehol expects an IPv4 address"})
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/firehol/"
+                          "blocklist-ipsets/master/firehol_level1.netset"))
+        import ipaddress
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return self.ok(ip, {"note": "invalid IP", "source": "firehol"})
+        listed = False
+        matched = ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                net = ipaddress.ip_network(line, strict=False)
+            except ValueError:
+                continue
+            if addr in net:
+                listed = True
+                matched = line
+                break
+        data = {"listed": listed, "matched_range": matched,
+                "feed": "firehol-level1", "source": "firehol"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "IP in FireHOL Level 1 (aggregated attack/abuse ranges)."
+        return self.ok(ip, data)
+
+
+@register
+class GithubRepos(Module):
+    id = "githubrepos"
+    name = "GitHub user repositories + language profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubrepos expects a bare handle"})
+        arr = _json(_get(ctx, f"https://api.github.com/users/{user}/repos"
+                         "?per_page=100&sort=pushed",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": "GhostEye-OSINT/1.0"})) or []
+        repos = []
+        langs: Dict[str, int] = {}
+        for r in arr if isinstance(arr, list) else []:
+            if not isinstance(r, dict) or not r.get("name"):
+                continue
+            repos.append({"name": r.get("name"), "language": r.get("language"),
+                          "stars": r.get("stargazers_count"),
+                          "pushed": r.get("pushed_at")})
+            lg = r.get("language")
+            if lg:
+                langs[lg] = langs.get(lg, 0) + 1
+        top_langs = sorted(langs, key=langs.get, reverse=True)[:8]
+        return self.ok(user, {"repos": repos[:30], "repo_count": len(repos),
+                              "languages": top_langs,
+                              "latest_push": repos[0]["pushed"] if repos else None,
+                              "note": "repo languages profile the developer's tech stack.",
+                              "source": "github-repos"})
