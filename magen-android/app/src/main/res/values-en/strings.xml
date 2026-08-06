@@ -130,9 +130,9 @@
     <string name="onb_perm_autostart_title">Auto-start</string>
     <string name="onb_perm_autostart_body">On your device (Xiaomi/Oppo/Vivo/Huawei, etc.) the system kills background apps even with a battery exemption — unless \"Auto-start\" is enabled. Tap the button, find \"Covenant Guard\" in the list, and turn it on. This is critical so protection isn\'t stopped.</string>
     <string name="onb_perm_admin_title">Device admin</string>
-    <string name="onb_perm_admin_body">Makes it harder to remove the app in a weak moment. You can always remove it with your covenant code.</string>
+    <string name="onb_perm_admin_body">Makes it harder to remove the app in a weak moment. You can always remove it with your covenant code.\n\n⚠️ If the screen doesn\'t open or the setting is greyed out, this is Android\'s "Restricted setting" for apps installed from a file. Open: Settings ← Apps ← Covenant Guard ← menu (⋮ top corner) ← "Allow restricted settings", then come back here.</string>
     <string name="onb_perm_accessibility_title">Accessibility service</string>
-    <string name="onb_perm_accessibility_body">The core of the filter — it reads what\'s shown on screen to block content. Last, because protection starts once it\'s on.</string>
+    <string name="onb_perm_accessibility_body">The core of the filter — it reads what\'s shown on screen to block content. Last, because protection starts once it\'s on.\n\n⚠️ If the toggle is greyed out or you see "Restricted setting" — open: Settings ← Apps ← Covenant Guard ← menu (⋮ top corner) ← "Allow restricted settings", then return and enable it.</string>
     <string name="onb_grant">Grant permission</string>
     <string name="onb_granted">✓ Granted</string>
     <string name="onb_skip">Skip for now</string>

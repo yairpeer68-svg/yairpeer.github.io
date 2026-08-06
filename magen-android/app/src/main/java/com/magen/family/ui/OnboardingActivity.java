@@ -91,8 +91,10 @@ public class OnboardingActivity extends BaseActivity {
         // 4. הצגה מעל אפליקציות — חובה (מסך החסימה)
         steps.add(new Step(R.string.onb_perm_overlay_title, R.string.onb_perm_overlay_body,
             () -> Settings.canDrawOverlays(this),
-            () -> startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:" + getPackageName()))), true));
+            () -> com.magen.family.util.SafeLaunch.open(this,
+                new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:" + getPackageName())),
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION), true));
 
         // 5. VPN מקומי — חובה (סינון רשת)
         steps.add(new Step(R.string.onb_perm_vpn_title, R.string.onb_perm_vpn_body,
@@ -105,14 +107,16 @@ public class OnboardingActivity extends BaseActivity {
         // 6. נתוני שימוש — מומלץ
         steps.add(new Step(R.string.onb_perm_usage_title, R.string.onb_perm_usage_body,
             this::hasUsageAccess,
-            () -> startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)), false));
+            () -> com.magen.family.util.SafeLaunch.openAction(this,
+                Settings.ACTION_USAGE_ACCESS_SETTINGS), false));
 
         // 7. פטור סוללה — חובה (שהשירות לא ייהרג ברקע)
         steps.add(new Step(R.string.onb_perm_battery_title, R.string.onb_perm_battery_body,
             this::isBatteryExempt,
-            () -> startActivity(new Intent(
-                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                Uri.parse("package:" + getPackageName()))), true));
+            () -> com.magen.family.util.SafeLaunch.open(this,
+                new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.parse("package:" + getPackageName())),
+                Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS), true));
 
         // 7.5 הפעלה אוטומטית (Autostart) — רק ביצרנים שהורגים שירותים.
         //     אין API לבדוק אם ניתנה, לכן מסמנים "ביקרת במסך" (מומלץ, לא חובה).
@@ -135,7 +139,8 @@ public class OnboardingActivity extends BaseActivity {
         steps.add(new Step(R.string.onb_perm_accessibility_title,
             R.string.onb_perm_accessibility_body,
             this::isAccessibilityOn,
-            () -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)), true));
+            () -> com.magen.family.util.SafeLaunch.openAction(this,
+                Settings.ACTION_ACCESSIBILITY_SETTINGS), true));
 
         // 10. סיום — ההגנה פעילה (אינפורמטיבי)
         steps.add(new Step(R.string.onb_done_title, R.string.onb_done_body,
@@ -190,8 +195,11 @@ public class OnboardingActivity extends BaseActivity {
             try {
                 s.launch.go();
             } catch (Exception e) {
+                // מציגים גם את סוג התקלה — כדי שאפשר יהיה לאבחן מכשיר שבו
+                // מסך הרשאה מסוים לא נפתח, בלי לחבר את הטלפון למחשב.
                 android.widget.Toast.makeText(this,
-                    getString(R.string.onb_open_failed), android.widget.Toast.LENGTH_LONG).show();
+                    getString(R.string.onb_open_failed) + "\n(" + e.getClass().getSimpleName() + ")",
+                    android.widget.Toast.LENGTH_LONG).show();
             }
         });
         root.addView(btnGrant);

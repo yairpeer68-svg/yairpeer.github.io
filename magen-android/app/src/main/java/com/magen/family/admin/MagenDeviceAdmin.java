@@ -140,11 +140,12 @@ public class MagenDeviceAdmin extends DeviceAdminReceiver {
     /**
      * פותח את מסך הפעלת מנהל המכשיר.
      *
-     * למה כל ההגנות: במסך הזה נצפתה קריסה בהתקנה. לא בכל ROM קיים
-     * ACTION_ADD_DEVICE_ADMIN כ-activity שניתן לפתיחה (יצרנים מסתירים או
-     * מחליפים אותו), ואז startActivity זורק ActivityNotFoundException.
-     * לכן בודקים שהיעד נפתר, ואם לא — נופלים למסך האבטחה של המערכת שממנו
-     * אפשר להגיע ל"אפליקציות ניהול מכשיר" ידנית.
+     * חשוב — למה *לא* בודקים resolveActivity לפני:
+     *   האפליקציה מכוונת ל-targetSdk 34, ומאנדרואיד 11 חל סינון נראות
+     *   חבילות (package visibility). resolveActivity() מחזיר null עבור
+     *   רכיבים שהאפליקציה "לא רואה" — גם כאשר startActivity אליהם מצליח
+     *   בפועל. בדיקה מקדימה כזו גרמה לכך שהמסך לא נפתח כלל ונפלנו לגיבוי.
+     *   לכן: מנסים לפתוח ישירות, ורק אם נזרקה חריגה עוברים לגיבוי.
      */
     public static void requestAdmin(Context context) {
         Intent intent = new Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
@@ -154,16 +155,25 @@ public class MagenDeviceAdmin extends DeviceAdminReceiver {
             "אפשר להסיר תמיד עם קוד הברית.");
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 
+        // 1. הדרך הרגילה — פתיחה ישירה של מסך הוספת מנהל המכשיר
         try {
-            if (context.getPackageManager().resolveActivity(intent, 0) != null) {
-                context.startActivity(intent);
-                return;
-            }
+            context.startActivity(intent);
+            return;
         } catch (Exception e) {
             Log.w(TAG, "add-admin screen failed: " + e.getMessage());
         }
 
-        // גיבוי — מסך האבטחה של המערכת
+        // 2. גיבוי — מסך "אפליקציות ניהול מכשיר" הייעודי בהגדרות
+        try {
+            Intent list = new Intent("android.settings.DEVICE_ADMIN_SETTINGS");
+            list.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(list);
+            return;
+        } catch (Exception e) {
+            Log.w(TAG, "device-admin list failed: " + e.getMessage());
+        }
+
+        // 3. גיבוי אחרון — מסך האבטחה של המערכת
         try {
             Intent security = new Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS);
             security.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

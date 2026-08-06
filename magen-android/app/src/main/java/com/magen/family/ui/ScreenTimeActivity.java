@@ -55,7 +55,8 @@ public class ScreenTimeActivity extends BaseActivity {
             Toast.makeText(this,
                 "יש לאשר הרשאת סטטיסטיקות שימוש",
                 Toast.LENGTH_LONG).show();
-            startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS));
+            com.magen.family.util.SafeLaunch.openAction(this,
+                Settings.ACTION_USAGE_ACCESS_SETTINGS);
         }
 
         swEnabled.setOnCheckedChangeListener((v, checked) -> {

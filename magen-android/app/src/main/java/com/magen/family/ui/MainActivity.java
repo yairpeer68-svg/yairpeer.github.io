@@ -118,7 +118,8 @@ public class MainActivity extends BaseActivity {
         // כפתורים
         findViewById(R.id.btn_admin).setOnClickListener(v -> askPin(REQ_PIN_ADMIN));
         findViewById(R.id.btn_accessibility).setOnClickListener(v ->
-            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
+            com.magen.family.util.SafeLaunch.openAction(this,
+                Settings.ACTION_ACCESSIBILITY_SETTINGS));
         findViewById(R.id.btn_change_pin).setOnClickListener(v -> askPin(REQ_PIN_CHANGE1));
 findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN_TIME));
         findViewById(R.id.btn_night).setOnClickListener(v -> askPin(REQ_PIN_NIGHT));

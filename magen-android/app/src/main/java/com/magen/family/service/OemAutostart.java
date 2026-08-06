@@ -3,7 +3,6 @@ package com.magen.family.service;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.ResolveInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
@@ -24,9 +23,16 @@ public final class OemAutostart {
 
     /** רשימת מסכי ה-Autostart הידועים, לפי יצרן. */
     private static final ComponentName[] CANDIDATES = new ComponentName[] {
-        // Xiaomi / Redmi / POCO (MIUI)
+        // Xiaomi / Redmi / POCO (MIUI / HyperOS)
         new ComponentName("com.miui.securitycenter",
             "com.miui.permcenter.autostart.AutoStartManagementActivity"),
+        // MIUI — "הרשאות אחרות": כולל "הצג חלונות קופצים ברקע", שבלעדיה
+        // מסך החסימה שלנו לא יכול לעלות כשהאפליקציה ברקע.
+        new ComponentName("com.miui.securitycenter",
+            "com.miui.permcenter.permissions.PermissionsEditorActivity"),
+        // OnePlus (OxygenOS) — ניהול הפעלה אוטומטית
+        new ComponentName("com.oneplus.security",
+            "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity"),
         // Oppo / Realme (ColorOS)
         new ComponentName("com.coloros.safecenter",
             "com.coloros.safecenter.permission.startup.StartupAppListActivity"),
@@ -72,13 +78,21 @@ public final class OemAutostart {
     /**
      * פותח את מסך ה-Autostart של היצרן אם קיים; אחרת מסך פרטי-האפליקציה.
      * מחזיר true אם נפתח מסך כלשהו.
+     *
+     * מנסים לפתוח ישירות ולא בודקים resolveActivity מראש: מאנדרואיד 11 חל
+     * סינון נראות חבילות, ולכן resolveActivity על חבילות של יצרנים
+     * (com.miui.securitycenter וכו') מחזיר null גם כשהמסך קיים — בדיקה
+     * מקדימה הייתה מונעת את פתיחתו לחלוטין.
      */
     public static boolean open(Context ctx) {
         for (ComponentName cn : CANDIDATES) {
-            Intent i = new Intent().setComponent(cn);
-            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            if (resolves(ctx, i)) {
-                try { ctx.startActivity(i); return true; } catch (Exception ignored) {}
+            try {
+                Intent i = new Intent().setComponent(cn);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                ctx.startActivity(i);
+                return true;
+            } catch (Exception ignored) {
+                // המסך הזה לא קיים ביצרן הזה — ננסה את הבא
             }
         }
         // גיבוי — מסך פרטי האפליקציה
@@ -88,15 +102,6 @@ public final class OemAutostart {
             details.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             ctx.startActivity(details);
             return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private static boolean resolves(Context ctx, Intent i) {
-        try {
-            ResolveInfo ri = ctx.getPackageManager().resolveActivity(i, 0);
-            return ri != null;
         } catch (Exception e) {
             return false;
         }
