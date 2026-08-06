@@ -535,6 +535,14 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         btnDisguise.setOnClickListener(v ->
             startActivity(new Intent(this, DisguiseActivity.class)));
 
+        // מסך אבחון — מצב ההגנה ויומן האירועים, עם שיתוף בלחיצה
+        Button btnDebug = new Button(this);
+        btnDebug.setAllCaps(false);
+        btnDebug.setText(R.string.main_debug);
+        root.addView(btnDebug);
+        btnDebug.setOnClickListener(v ->
+            startActivity(new Intent(this, DebugActivity.class)));
+
         Button btnLang = new Button(this);
         btnLang.setAllCaps(false);
         btnLang.setText(R.string.main_language);

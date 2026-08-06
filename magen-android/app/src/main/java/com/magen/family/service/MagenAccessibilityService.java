@@ -343,9 +343,18 @@ public class MagenAccessibilityService extends AccessibilityService {
     private boolean handleSelfDefense(String pkg) {
         // חלון תחזוקה: הבעלים אימת את קוד הברית → משהים הגנה עצמית לזמן קצר
         // כדי שיוכל לשנות הגדרות / להעניק מחדש הרשאות בלי להיחסם.
-        if (MagenGuard.inMaintenance(this)) return false;
+        if (MagenGuard.inMaintenance(this)) {
+            if (isSettingsPackage(pkg)) {
+                com.magen.family.debug.DebugLog.log(this, "הגנה",
+                    "מסך הגדרות (" + pkg + ") — ההגנה מושהית (חלון תחזוקה)");
+            }
+            return false;
+        }
 
         if (isSettingsPackage(pkg)) {
+            com.magen.family.debug.DebugLog.log(this, "הגנה",
+                "נכנס למסך הגדרות: " + pkg + " | חמושה="
+                    + (MagenGuard.isArmed(this) ? "כן" : "לא"));
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
                 try {
@@ -565,6 +574,7 @@ public class MagenAccessibilityService extends AccessibilityService {
     }
 
     private void block() {
+        com.magen.family.debug.DebugLog.log(this, "חסימה", "מסך נחסם והמשתמש הוחזר");
         if (behaviorAnalyzer != null) {
             behaviorAnalyzer.checkNightUsage();
             behaviorAnalyzer.checkBlockingSpike();
