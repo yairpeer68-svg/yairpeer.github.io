@@ -1213,3 +1213,33 @@ def test_wave44_csp_crossdomain_tor_lobsters():
     assert tn["is_tor_relay"] is True and tn["is_exit"] is True and tn["country"] == "de"
     lb = REGISTRY["lobsters"].run("alice", _ctx(router)).data
     assert lb["karma"] == 500 and lb["github"] == "alice-gh"
+
+
+def test_wave45_idp_jsassets_vpnapi_ghgpg():
+    def router(url):
+        if "openid-configuration" in url and url.startswith("https://acme.com"):
+            return _Resp(j={"issuer": "https://acme.okta.com",
+                            "authorization_endpoint": "https://acme.okta.com/oauth2/v1/authorize",
+                            "token_endpoint": "https://acme.okta.com/oauth2/v1/token",
+                            "scopes_supported": ["openid", "email"],
+                            "grant_types_supported": ["authorization_code"]})
+        if url.rstrip("/") == "https://acme.com":
+            return _Resp(t='<html><script src="https://cdn.jsdelivr.net/x.js"></script>'
+                         '<script src="/local.js"></script></html>')
+        if "vpnapi.io" in url:
+            return _Resp(j={"security": {"vpn": True, "proxy": False, "tor": False, "relay": False},
+                            "location": {"country": "US"},
+                            "network": {"autonomous_system_number": "AS64500",
+                                        "autonomous_system_organization": "VPNCo"}})
+        if "api.github.com/users/alice/gpg_keys" in url:
+            return _Resp(j=[{"key_id": "ABCD1234",
+                             "emails": [{"email": "alice@acme.com", "verified": True}]}])
+        return _Resp(j={})
+    idp = REGISTRY["idpfinger"].run("acme.com", _ctx(router)).data
+    assert idp["idp_found"] is True and idp["vendor"] == "Okta"
+    js = REGISTRY["jsassets"].run("acme.com", _ctx(router)).data
+    assert "cdn.jsdelivr.net" in js["external_js_domains"] and js["script_count"] == 2
+    vp = REGISTRY["vpnapi"].run("1.2.3.4", _ctx(router)).data
+    assert vp["vpn"] is True and vp["anonymized"] is True and vp["severity"] == "medium"
+    gg = REGISTRY["githubgpg"].run("alice", _ctx(router)).data
+    assert "alice@acme.com" in gg["emails"] and "ABCD1234" in gg["key_ids"]

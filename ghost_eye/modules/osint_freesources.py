@@ -5033,3 +5033,148 @@ class Lobsters(Module):
                               "twitter": d.get("twitter_username"),
                               "is_admin": d.get("is_admin"),
                               "source": "lobsters"})
+
+
+# =========================================================================== #
+#  Wave 45 — IdP fingerprint + JS supply-chain + VPN detection + GPG emails:
+#    OpenID-Connect IdP discovery · external JS assets (domain)
+#    vpnapi.io VPN/proxy/Tor (IP) · GitHub GPG keys -> emails (username)
+# =========================================================================== #
+_IDP_VENDORS = [
+    ("okta.com", "Okta"), ("auth0.com", "Auth0"),
+    ("microsoftonline.com", "Microsoft Entra ID"), ("windows.net", "Microsoft Entra ID"),
+    ("accounts.google.com", "Google"), ("onelogin.com", "OneLogin"),
+    ("pingone.com", "Ping Identity"), ("pingidentity.com", "Ping Identity"),
+    ("keycloak", "Keycloak"), ("/auth/realms/", "Keycloak"),
+    ("cloudflareaccess.com", "Cloudflare Access"), ("duosecurity.com", "Duo"),
+    ("jumpcloud.com", "JumpCloud"), ("miniorange.com", "miniOrange"),
+    ("fusionauth.io", "FusionAuth"), ("gitlab.com", "GitLab"),
+]
+
+
+@register
+class IdpFinger(Module):
+    id = "idpfinger"
+    name = "OpenID-Connect IdP discovery / vendor fingerprint (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        for base in (f"https://{host}/.well-known/openid-configuration",
+                     f"https://login.{host}/.well-known/openid-configuration",
+                     f"https://auth.{host}/.well-known/openid-configuration"):
+            d = _json(_get(ctx, base, headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            if isinstance(d, dict) and d.get("issuer"):
+                issuer = d.get("issuer")
+                auth_ep = d.get("authorization_endpoint") or ""
+                token_ep = d.get("token_endpoint") or ""
+                blob = f"{issuer} {auth_ep} {token_ep}".lower()
+                vendor = ""
+                for needle, label in _IDP_VENDORS:
+                    if needle in blob:
+                        vendor = label
+                        break
+                return self.ok(host, {"idp_found": True, "issuer": issuer,
+                                      "vendor": vendor or "unknown/self-hosted",
+                                      "authorization_endpoint": auth_ep,
+                                      "token_endpoint": token_ep,
+                                      "scopes": (d.get("scopes_supported") or [])[:15],
+                                      "grant_types": (d.get("grant_types_supported") or [])[:10],
+                                      "note": "identity-provider metadata reveals the SSO "
+                                              "vendor and supported auth flows.",
+                                      "source": "idp-finger"})
+        return self.ok(host, {"idp_found": False, "source": "idp-finger"})
+
+
+@register
+class JsAssets(Module):
+    id = "jsassets"
+    name = "External JavaScript asset domains from homepage (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        html = _text(_get(ctx, f"https://{host}/", headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        base = ".".join(host.split(".")[-2:])
+        scripts, ext_domains = [], set()
+        for m in re.findall(r'<script[^>]+src=["\']([^"\']+)["\']', html, re.I):
+            src = m.strip()
+            scripts.append(src[:200])
+            dm = re.match(r"https?://([^/]+)", src)
+            if dm:
+                netloc = dm.group(1).lower().split(":")[0]
+                if not netloc.endswith(base):
+                    ext_domains.add(netloc)
+        return self.ok(host, {"script_count": len(scripts),
+                              "external_js_domains": sorted(ext_domains)[:50],
+                              "external_count": len(ext_domains),
+                              "sample_scripts": scripts[:30],
+                              "note": "externally-hosted JS is a supply-chain risk "
+                                      "surface (each domain can inject code).",
+                              "source": "js-assets"})
+
+
+@register
+class VpnApi(Module):
+    id = "vpnapi"
+    name = "vpnapi.io VPN / proxy / Tor detection (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "vpnapi expects an IP"})
+        d = _json(_get(ctx, f"https://vpnapi.io/api/{ip}")) or {}
+        sec = d.get("security") or {}
+        loc = d.get("location") or {}
+        net = d.get("network") or {}
+        anon = any(bool(sec.get(k)) for k in ("vpn", "proxy", "tor", "relay"))
+        data = {"vpn": sec.get("vpn"), "proxy": sec.get("proxy"),
+                "tor": sec.get("tor"), "relay": sec.get("relay"),
+                "country": loc.get("country"),
+                "asn": net.get("autonomous_system_number"),
+                "as_org": net.get("autonomous_system_organization"),
+                "anonymized": anon, "source": "vpnapi"}
+        if anon:
+            data["severity"] = "medium"
+            data["note"] = "IP flagged as anonymised (VPN/proxy/Tor)."
+        return self.ok(ip, data)
+
+
+@register
+class GithubGpg(Module):
+    id = "githubgpg"
+    name = "GitHub user GPG keys -> embedded emails (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubgpg expects a bare handle"})
+        arr = _json(_get(ctx, f"https://api.github.com/users/{user}/gpg_keys",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": "GhostEye-OSINT/1.0"})) or []
+        key_ids, emails = [], set()
+        for k in arr if isinstance(arr, list) else []:
+            if not isinstance(k, dict):
+                continue
+            if k.get("key_id"):
+                key_ids.append(k.get("key_id"))
+            for em in k.get("emails") or []:
+                if isinstance(em, dict) and em.get("email"):
+                    emails.add(em["email"].lower())
+        return self.ok(user, {"key_ids": key_ids[:20], "key_count": len(key_ids),
+                              "emails": sorted(emails)[:20], "email_count": len(emails),
+                              "note": "GPG keys frequently embed the owner's real "
+                                      "e-mail address (identity deanonymisation).",
+                              "source": "github-gpg"})

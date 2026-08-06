@@ -42,7 +42,7 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         danetlsa, pagelinks, phisharmy, httpsrr, srvscan,
         domainptr, mozillaobs, stevenblack, certemails, entrustct,
         mobileapps, adstxt, sitemapscan, humanstxt,
-        cspdomains, crossdomain]
+        cspdomains, crossdomain, idpfinger, jsassets]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 
