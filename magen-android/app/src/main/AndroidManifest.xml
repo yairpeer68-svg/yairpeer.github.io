@@ -207,6 +207,13 @@
         <activity android:name=".ui.BlockedActivity" android:exported="false"
             android:screenOrientation="portrait" android:excludeFromRecents="true"/>
 
+        <!-- מסך דוח תקלה. חייב לרוץ בתהליך נפרד: ברגע קריסה התהליך הראשי
+             גוסס, ואקטיביטי באותו תהליך הייתה מתה איתו בלי להציג דבר. -->
+        <activity android:name=".ui.CrashActivity" android:exported="false"
+            android:process=":crash" android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:launchMode="singleTask"/>
+
         <!-- ===== שירותים ===== -->
 
         <service android:name=".service.FilterService" android:exported="false"

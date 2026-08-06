@@ -73,6 +73,15 @@ public class MagenApp extends Application {
         super.onCreate();
         instance = this;
         CrashLogger.install(this);
+
+        // מסך דוח התקלה רץ בתהליך ":crash". שם אסור להריץ את אתחול
+        // האפליקציה (VPN, שירותים, סינון) — זה מיותר ועלול לקרוס שוב
+        // בדיוק כשמנסים להציג את הקריסה.
+        if (isCrashProcess()) {
+            Log.d(TAG, "crash process — skipping app init");
+            return;
+        }
+
         Log.d(TAG, "MagenApp starting...");
 
         initDefaults();
@@ -220,6 +229,25 @@ public class MagenApp extends Application {
 
     public static MagenApp getInstance() { return instance; }
     public ContentFilter getContentFilter() { return contentFilter; }
+    /** האם אנחנו רצים בתהליך של מסך דוח התקלה (":crash")? */
+    private boolean isCrashProcess() {
+        try {
+            int pid = android.os.Process.myPid();
+            android.app.ActivityManager am =
+                (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            if (am == null) return false;
+            java.util.List<android.app.ActivityManager.RunningAppProcessInfo> procs =
+                am.getRunningAppProcesses();
+            if (procs == null) return false;
+            for (android.app.ActivityManager.RunningAppProcessInfo p : procs) {
+                if (p.pid == pid) {
+                    return p.processName != null && p.processName.endsWith(":crash");
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     public SharedPreferences getPrefs() { return getSharedPreferences(PREFS_NAME, MODE_PRIVATE); }
 
     public boolean isFilterEnabled() { return getPrefs().getBoolean(KEY_FILTER_ENABLED, true); }

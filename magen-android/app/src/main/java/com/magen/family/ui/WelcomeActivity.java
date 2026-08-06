@@ -25,6 +25,14 @@ public class WelcomeActivity extends BaseActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // דוח קריסה מהפעם הקודמת שלא הספיק להיות מוצג — מציגים עכשיו.
+        String pending = com.magen.family.CrashLogger.consumePending(this);
+        if (pending != null) {
+            Intent c = new Intent(this, CrashActivity.class);
+            c.putExtra(CrashActivity.EXTRA_REPORT, pending);
+            try { startActivity(c); } catch (Exception ignored) {}
+        }
+
         // חסימת צילומי מסך
         getWindow().setFlags(
             WindowManager.LayoutParams.FLAG_SECURE,

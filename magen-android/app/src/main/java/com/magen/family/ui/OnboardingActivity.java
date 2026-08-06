@@ -195,11 +195,26 @@ public class OnboardingActivity extends BaseActivity {
             try {
                 s.launch.go();
             } catch (Exception e) {
-                // מציגים גם את סוג התקלה — כדי שאפשר יהיה לאבחן מכשיר שבו
-                // מסך הרשאה מסוים לא נפתח, בלי לחבר את הטלפון למחשב.
-                android.widget.Toast.makeText(this,
-                    getString(R.string.onb_open_failed) + "\n(" + e.getClass().getSimpleName() + ")",
-                    android.widget.Toast.LENGTH_LONG).show();
+                // מסך הרשאה שלא נפתח הוא בדיוק סוג התקלה שקשה לאבחן מרחוק,
+                // ולכן מציגים עליו דוח מלא (עם פרטי המכשיר) שניתן להעתיק.
+                com.magen.family.CrashLogger.logHandled(this,
+                    "onboarding step " + (index + 1) + ": " + getString(s.title), e);
+                String report =
+                    "שומר הברית — מסך הרשאה לא נפתח\n"
+                  + "=================================\n"
+                  + "שלב:       " + (index + 1) + " — " + getString(s.title) + "\n"
+                  + "מכשיר:     " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL + "\n"
+                  + "אנדרואיד:  " + android.os.Build.VERSION.RELEASE
+                  + " (API " + android.os.Build.VERSION.SDK_INT + ")\n"
+                  + "סוג התקלה: " + e.getClass().getName() + "\n"
+                  + "הודעה:     " + e.getMessage() + "\n\n"
+                  + getString(R.string.onb_open_failed);
+                Intent c = new Intent(this, CrashActivity.class);
+                c.putExtra(CrashActivity.EXTRA_REPORT, report);
+                try { startActivity(c); } catch (Exception ignored) {
+                    android.widget.Toast.makeText(this, R.string.onb_open_failed,
+                        android.widget.Toast.LENGTH_LONG).show();
+                }
             }
         });
         root.addView(btnGrant);
