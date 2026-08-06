@@ -25,7 +25,10 @@ public final class MagenGuard {
     private static final String KEY_UNTIL = "maintenance_until";
     private static final String KEY_SETUP_GRACE = "setup_grace_until";
     private static final long WINDOW_MS = 5 * 60 * 1000L;   // 5 דקות
-    private static final long SETUP_GRACE_MS = 90 * 1000L;  // 90 שנ' למסך הרשאה
+    // 5 דקות, ומתחדש בכל חזרה למדריך. 90 שנ' היה קצר מדי: בשלב הנגישות
+    // המשתמש שוהה במסך ההגדרות זמן רב, וברגע שהפעיל את השירות ההגנה
+    // הייתה חמושה וזורקת אותו הביתה — בדיוק כשהעניק את ההרשאה.
+    private static final long SETUP_GRACE_MS = 5 * 60 * 1000L;
 
     private MagenGuard() {}
 
@@ -41,6 +44,11 @@ public final class MagenGuard {
         prefs(ctx).edit()
             .putLong(KEY_SETUP_GRACE, System.currentTimeMillis() + SETUP_GRACE_MS)
             .apply();
+    }
+
+    /** סוגר מיד את חלון החסד — נקרא בסיום המדריך. */
+    public static void endSetupGrace(Context ctx) {
+        prefs(ctx).edit().remove(KEY_SETUP_GRACE).apply();
     }
 
     /** נקרא אחרי אימות מוצלח של קוד הברית. */

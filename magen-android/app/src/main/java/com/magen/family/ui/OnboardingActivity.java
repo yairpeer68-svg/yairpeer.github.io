@@ -371,6 +371,8 @@ public class OnboardingActivity extends BaseActivity {
         }
         MagenApp.getInstance().getPrefs().edit()
             .putBoolean("onboarding_done", true).apply();
+        // סוגרים מיד את חלון החסד — מכאן ההגנה פעילה במלואה, בלי המתנה.
+        com.magen.family.service.MagenGuard.endSetupGrace(this);
         startActivity(new Intent(this, MainActivity.class));
         finish();
     }
@@ -379,6 +381,19 @@ public class OnboardingActivity extends BaseActivity {
     protected void onResume() {
         super.onResume();
         render();   // מרענן סטטוס אחרי חזרה ממסך הרשאה
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // עוזבים את המדריך — לרוב אל מסך הרשאה של המערכת. מחדשים את חלון
+        // החסד כדי שההגנה העצמית לא תחסום את מתן ההרשאה, גם אם המשתמש
+        // שוהה שם דקות. אחרי סיום המדריך אין צורך והחלון לא מתחדש.
+        try {
+            if (!MagenApp.getInstance().getPrefs().getBoolean("onboarding_done", false)) {
+                com.magen.family.service.MagenGuard.grantSetupGrace(this);
+            }
+        } catch (Exception ignored) {}
     }
 
     @Override

@@ -28,6 +28,10 @@ public class MagenAccessibilityService extends AccessibilityService {
     private static final long SOCIAL_SCAN_INTERVAL_MS = 150;
     private long lastDomScanAt = 0;
 
+    /** מיתון בדיקת ההגנה העצמית על אירועי תוכן (findText יקר). */
+    private static final long SELF_DEFENSE_INTERVAL_MS = 700;
+    private long lastSelfDefenseAt = 0;
+
     /** עומק מקסימלי לסריקת עץ הצמתים — מגן מפני עצים עמוקים מאוד. */
     private static final int MAX_SCAN_DEPTH = 12;
 
@@ -139,10 +143,34 @@ public class MagenAccessibilityService extends AccessibilityService {
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
         if (event == null) return;
-        if (!((MagenApp) getApplication()).isFilterEnabled()) return;
 
         String pkg = event.getPackageName() != null ? event.getPackageName().toString() : "";
         String className = event.getClassName() != null ? event.getClassName().toString() : "";
+
+        // ההגנה מפני שיבוש רצה *לפני* ובלי תלות במתג סינון התוכן.
+        // קודם היה כאן "אם הסינון כבוי — צא", ולכן כיבוי המתג הרג גם את
+        // ההגנה העצמית, ואפשר היה לשנות כל הרשאה בחופשיות.
+        //
+        // בנוסף: הבדיקה רצה גם על WINDOW_CONTENT_CHANGED (ממותנן), לא רק על
+        // מעבר בין מסכים. בלי זה, מסך הגדרות שכבר פתוח אפשר היה לשנות בו
+        // מתגים בלי ששום בדיקה תרוץ — פרצה אמיתית.
+        if (isSettingsPackage(pkg) || pkg.contains("vpndialog")) {
+            long nowSd = System.currentTimeMillis();
+            boolean stateChanged =
+                event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
+            if (stateChanged || nowSd - lastSelfDefenseAt >= SELF_DEFENSE_INTERVAL_MS) {
+                lastSelfDefenseAt = nowSd;
+                if (stateChanged) {   // רק במעבר מסך, כדי לא להציף את היומן
+                    com.magen.family.debug.DebugLog.log(this, "הגנה",
+                        "מסך הגדרות: " + pkg
+                            + " | חמושה=" + (MagenGuard.isArmed(this) ? "כן" : "לא")
+                            + " | תחזוקה=" + (MagenGuard.inMaintenance(this) ? "כן" : "לא"));
+                }
+                if (handleSelfDefense(pkg)) return;
+            }
+        }
+
+        if (!((MagenApp) getApplication()).isFilterEnabled()) return;
 
         // אל תסרוק UI מערכת/שולחן עבודה/Termux
         if (pkg.equals("com.termux") ||
@@ -178,8 +206,6 @@ public class MagenAccessibilityService extends AccessibilityService {
             if (behaviorAnalyzer != null) {
                 behaviorAnalyzer.recordAppSwitch("", pkg);
             }
-
-            if (handleSelfDefense(pkg)) return;
 
             if (BehaviorAnalyzer.isStrictMode()
                 && !pkg.equals(getPackageName())
@@ -352,9 +378,6 @@ public class MagenAccessibilityService extends AccessibilityService {
         }
 
         if (isSettingsPackage(pkg)) {
-            com.magen.family.debug.DebugLog.log(this, "הגנה",
-                "נכנס למסך הגדרות: " + pkg + " | חמושה="
-                    + (MagenGuard.isArmed(this) ? "כן" : "לא"));
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
                 try {
@@ -617,12 +640,19 @@ public class MagenAccessibilityService extends AccessibilityService {
     }
 
     private boolean isSettingsPackage(String pkg) {
+        if (pkg == null || pkg.isEmpty()) return false;
         return pkg.equals("com.android.settings") ||
                pkg.equals("com.coloros.settings") ||
                pkg.equals("com.oplus.settings") ||
                pkg.equals("com.miui.securitycenter") ||
                pkg.equals("com.samsung.android.lool") ||
                pkg.startsWith("com.android.settings") ||
+               // מנהל ההרשאות של שיאומי/MIUI/HyperOS יושב בחבילה נפרדת לגמרי.
+               // בלעדיה מסך ההרשאות בשיאומי כלל לא נבדק — פרצה במכשיר שלך.
+               pkg.equals("com.lbe.security.miui") ||
+               pkg.equals("com.miui.settings") ||
+               pkg.contains("securitypermission") ||   // Oppo/Realme/OnePlus
+               pkg.equals("com.oneplus.security") ||
                // מסך ההרשאות באנדרואיד 10+ רץ בחבילה נפרדת — בלי זה ההגנה
                // העצמית לא רצה כלל על מסך ההרשאות, ואפשר היה לשנות הרשאות
                // בלי להיזרק. זו הייתה פרצה אמיתית.
