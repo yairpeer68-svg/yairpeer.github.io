@@ -4394,3 +4394,134 @@ class GithubRepos(Module):
                               "latest_push": repos[0]["pushed"] if repos else None,
                               "note": "repo languages profile the developer's tech stack.",
                               "source": "github-repos"})
+
+
+# =========================================================================== #
+#  Wave 40 — hosts blocklist + cert-derived emails + L2 feed + container assets:
+#    StevenBlack hosts · certificate-SAN email harvest (domain)
+#    FireHOL Level 2 (IP) · Docker Hub user images (username)
+# =========================================================================== #
+@register
+class StevenBlack(Module):
+    id = "stevenblack"
+    name = "StevenBlack unified hosts blocklist membership (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/StevenBlack/"
+                          "hosts/master/hosts"))
+        listed = False
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].lower() in (host, f"www.{host}"):
+                listed = True
+                break
+        data = {"listed": listed, "feed": "stevenblack-hosts", "source": "stevenblack"}
+        if listed:
+            data["severity"] = "medium"
+            data["note"] = "domain on the StevenBlack unified hosts blocklist "
+            data["note"] += "(ads/malware/tracking)."
+        return self.ok(host, data)
+
+
+@register
+class CertEmails(Module):
+    id = "certemails"
+    name = "Email addresses harvested from certificate SANs via crt.sh (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        arr = _json(_get(ctx, f"https://crt.sh/?q={host}&output=json")) or []
+        emails: Set[str] = set()
+        base = ".".join(host.split(".")[-2:])
+        for row in arr if isinstance(arr, list) else []:
+            if not isinstance(row, dict):
+                continue
+            for field in ("common_name", "name_value"):
+                val = row.get(field)
+                if isinstance(val, str):
+                    for tok in re.findall(r'[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+', val):
+                        if tok.lower().endswith(base):
+                            emails.add(tok.lower())
+        return self.ok(host, {"emails": sorted(emails)[:50], "count": len(emails),
+                              "note": "e-mail addresses embedded as rfc822Name SANs in "
+                                      "the domain's certificates.",
+                              "source": "crt.sh-emails"})
+
+
+@register
+class FireHol2(Module):
+    id = "firehol2"
+    name = "FireHOL Level 2 aggregated blocklist membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip) or ":" in ip:
+            return self.ok(ip, {"note": "firehol2 expects an IPv4 address"})
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/firehol/"
+                          "blocklist-ipsets/master/firehol_level2.netset"))
+        import ipaddress
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return self.ok(ip, {"note": "invalid IP", "source": "firehol2"})
+        listed, matched = False, ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                if addr in ipaddress.ip_network(line, strict=False):
+                    listed, matched = True, line
+                    break
+            except ValueError:
+                continue
+        data = {"listed": listed, "matched_range": matched,
+                "feed": "firehol-level2", "source": "firehol2"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "IP in FireHOL Level 2 (recent attack/abuse sources)."
+        return self.ok(ip, data)
+
+
+@register
+class DockerRepos(Module):
+    id = "dockerrepos"
+    name = "Docker Hub user published images (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "dockerrepos expects a bare handle"})
+        d = _json(_get(ctx, f"https://hub.docker.com/v2/repositories/{user}/"
+                       "?page_size=50")) or {}
+        repos = []
+        for r in d.get("results", []) or []:
+            if isinstance(r, dict) and r.get("name"):
+                repos.append({"name": f"{user}/{r.get('name')}",
+                              "pulls": r.get("pull_count"),
+                              "stars": r.get("star_count"),
+                              "updated": r.get("last_updated")})
+        return self.ok(user, {"images": repos[:50],
+                              "count": d.get("count") if isinstance(d.get("count"), int)
+                              else len(repos),
+                              "note": "published container images can leak internal "
+                                      "project names / tech stack.",
+                              "source": "dockerhub-repos"})

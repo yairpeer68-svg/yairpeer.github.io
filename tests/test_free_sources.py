@@ -1070,3 +1070,28 @@ def test_wave39_domainptr_mozobs_firehol_ghrepos():
     assert fh["listed"] is True and fh["matched_range"] == "1.2.0.0/16" and fh["severity"] == "high"
     gr = REGISTRY["githubrepos"].run("alice", _ctx(router)).data
     assert gr["repo_count"] == 2 and "Python" in gr["languages"]
+
+
+def test_wave40_stevenblack_certemails_firehol2_dockerrepos():
+    def router(url):
+        if "StevenBlack" in url:
+            return _Resp(t="# hosts\n0.0.0.0 evil.com\n0.0.0.0 acme.com\n")
+        if "crt.sh" in url:
+            return _Resp(j=[{"common_name": "acme.com",
+                             "name_value": "admin@acme.com\nwww.acme.com"},
+                            {"name_value": "security@acme.com"}])
+        if "firehol_level2" in url:
+            return _Resp(t="# fh2\n1.2.0.0/16\n")
+        if "hub.docker.com/v2/repositories/alice" in url:
+            return _Resp(j={"count": 1, "results": [{"name": "internal-api",
+                            "pull_count": 500, "star_count": 3,
+                            "last_updated": "2024-01-01"}]})
+        return _Resp(j={})
+    sb = REGISTRY["stevenblack"].run("acme.com", _ctx(router)).data
+    assert sb["listed"] is True and sb["severity"] == "medium"
+    ce = REGISTRY["certemails"].run("acme.com", _ctx(router)).data
+    assert "admin@acme.com" in ce["emails"] and "security@acme.com" in ce["emails"] and ce["count"] == 2
+    fh = REGISTRY["firehol2"].run("1.2.3.4", _ctx(router)).data
+    assert fh["listed"] is True and fh["matched_range"] == "1.2.0.0/16"
+    dr = REGISTRY["dockerrepos"].run("alice", _ctx(router)).data
+    assert dr["count"] == 1 and dr["images"][0]["name"] == "alice/internal-api"
