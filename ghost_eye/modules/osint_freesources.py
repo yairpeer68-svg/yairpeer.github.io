@@ -4894,3 +4894,142 @@ class HumansTxt(Module):
                               "excerpt": text.strip()[:400],
                               "note": "humans.txt often lists staff names / handles.",
                               "source": "humans-txt"})
+
+
+# =========================================================================== #
+#  Wave 44 — third-party dependency mapping + trust + Tor + community identity:
+#    CSP source domains · crossdomain.xml trust (domain)
+#    Tor relay membership via onionoo (IP) · Lobsters user (username)
+# =========================================================================== #
+@register
+class CspDomains(Module):
+    id = "cspdomains"
+    name = "Content-Security-Policy third-party source domains (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        resp = _get(ctx, f"https://{host}/", headers={"User-Agent": "GhostEye-OSINT/1.0"})
+        csp = ""
+        headers = getattr(resp, "headers", {}) or {}
+        try:
+            csp = headers.get("Content-Security-Policy") or headers.get(
+                "content-security-policy") or ""
+        except Exception:  # noqa: BLE001
+            csp = ""
+        if not csp:
+            text = _text(resp)
+            m = re.search(r'http-equiv=["\']Content-Security-Policy["\'][^>]*content='
+                          r'["\']([^"\']+)', text, re.I)
+            if m:
+                csp = m.group(1)
+        domains: Set[str] = set()
+        for tok in re.findall(r'[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+', csp):
+            low = tok.lower()
+            if "." in low and not low.endswith((".self", ".none")):
+                domains.add(low)
+        base = ".".join(host.split(".")[-2:])
+        external = sorted(d for d in domains if not d.endswith(base))
+        return self.ok(host, {"csp_present": bool(csp),
+                              "external_domains": external[:60],
+                              "external_count": len(external),
+                              "all_domains": sorted(domains)[:60],
+                              "note": "domains allowed by the site's CSP map its "
+                                      "third-party dependencies / trust surface.",
+                              "source": "csp-domains"})
+
+
+@register
+class CrossDomain(Module):
+    id = "crossdomain"
+    name = "crossdomain.xml / clientaccesspolicy trust (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        allowed: Set[str] = set()
+        files = []
+        for path in ("/crossdomain.xml", "/clientaccesspolicy.xml"):
+            text = _text(_get(ctx, f"https://{host}{path}",
+                              headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            if not text or "<" not in text:
+                continue
+            hit = False
+            for m in re.findall(r'domain=["\']([^"\']+)["\']', text):
+                allowed.add(m.strip().lower())
+                hit = True
+            if hit:
+                files.append(path.lstrip("/"))
+        wildcard = "*" in allowed
+        data = {"files": files, "allowed_domains": sorted(allowed)[:40],
+                "count": len(allowed), "wildcard_trust": wildcard,
+                "source": "crossdomain"}
+        if wildcard:
+            data["severity"] = "medium"
+            data["note"] = "wildcard (*) cross-domain trust — overly permissive policy."
+        return self.ok(host, data)
+
+
+@register
+class TorNodes(Module):
+    id = "tornodes"
+    name = "Tor relay membership via onionoo (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "tornodes expects an IP"})
+        d = _json(_get(ctx, "https://onionoo.torproject.org/details"
+                       f"?search={ip}&fields=nickname,flags,country,or_addresses")) or {}
+        relays = d.get("relays") or []
+        match = None
+        for r in relays:
+            addrs = " ".join(r.get("or_addresses") or [])
+            if ip in addrs:
+                match = r
+                break
+        if not match and relays:
+            match = relays[0]
+        data = {"is_tor_relay": match is not None, "source": "tor-onionoo"}
+        if match:
+            flags = match.get("flags") or []
+            data.update({"nickname": match.get("nickname"),
+                         "flags": flags, "country": match.get("country"),
+                         "is_exit": "Exit" in flags, "is_guard": "Guard" in flags,
+                         "severity": "medium",
+                         "note": "IP is a Tor relay — anonymised traffic source."})
+        return self.ok(ip, data)
+
+
+@register
+class Lobsters(Module):
+    id = "lobsters"
+    name = "Lobste.rs user profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "lobsters expects a bare handle"})
+        d = _json(_get(ctx, f"https://lobste.rs/u/{user}.json")) or {}
+        if not d.get("username"):
+            return self.ok(user, {"note": "no Lobsters user", "source": "lobsters"})
+        return self.ok(user, {"username": d.get("username"),
+                              "created": d.get("created_at"),
+                              "karma": d.get("karma"),
+                              "about": (d.get("about") or "")[:300],
+                              "github": d.get("github_username"),
+                              "twitter": d.get("twitter_username"),
+                              "is_admin": d.get("is_admin"),
+                              "source": "lobsters"})

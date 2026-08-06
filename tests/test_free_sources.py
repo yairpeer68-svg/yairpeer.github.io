@@ -1178,3 +1178,38 @@ def test_wave43_keybase_ghemail_sitemap_humans():
     assert sm["urls_found"] == 2 and "/admin" in sm["sample_paths"]
     hu = REGISTRY["humanstxt"].run("acme.com", _ctx(router)).data
     assert hu["present"] is True and "Jane Doe" in hu["names"] and "@jane_d" in hu["handles"]
+
+
+class _RespH(_Resp):
+    def __init__(self, j=None, t="", code=200, headers=None):
+        super().__init__(j, t, code)
+        self.headers = headers or {}
+
+
+def test_wave44_csp_crossdomain_tor_lobsters():
+    def router(url):
+        if url.rstrip("/") == "https://acme.com":
+            return _RespH(t="<html>ok</html>",
+                          headers={"Content-Security-Policy":
+                                   "default-src 'self'; script-src cdn.jsdelivr.net *.acme.com"})
+        if "crossdomain.xml" in url:
+            return _Resp(t='<cross-domain-policy><allow-access-from domain="*.partner.com"/>'
+                         '<allow-access-from domain="*"/></cross-domain-policy>')
+        if "clientaccesspolicy" in url:
+            return _Resp(t="")
+        if "onionoo.torproject.org" in url:
+            return _Resp(j={"relays": [{"nickname": "acmeRelay",
+                            "flags": ["Running", "Exit", "Guard"],
+                            "country": "de", "or_addresses": ["1.2.3.4:9001"]}]})
+        if "lobste.rs" in url:
+            return _Resp(j={"username": "alice", "karma": 500,
+                            "github_username": "alice-gh", "created_at": "2015"})
+        return _Resp(j={})
+    cd = REGISTRY["cspdomains"].run("acme.com", _ctx(router)).data
+    assert cd["csp_present"] is True and "cdn.jsdelivr.net" in cd["external_domains"]
+    cx = REGISTRY["crossdomain"].run("acme.com", _ctx(router)).data
+    assert cx["wildcard_trust"] is True and "*.partner.com" in cx["allowed_domains"]
+    tn = REGISTRY["tornodes"].run("1.2.3.4", _ctx(router)).data
+    assert tn["is_tor_relay"] is True and tn["is_exit"] is True and tn["country"] == "de"
+    lb = REGISTRY["lobsters"].run("alice", _ctx(router)).data
+    assert lb["karma"] == 500 and lb["github"] == "alice-gh"
