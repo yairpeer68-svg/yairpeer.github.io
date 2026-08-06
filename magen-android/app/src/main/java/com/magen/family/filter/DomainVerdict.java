@@ -92,8 +92,11 @@ public final class DomainVerdict {
         ContentFilter cf = contentFilter;
         if (cf != null && cf.isHostBlocked(h)) return true;
 
-        // 3. קטגוריות נוספות שהמשתמש הדליק (הימורים/היכרויות/חברתי/קניות)
-        if (CategoryLists.isBlockedByCategory(ctx, rootDomain(h))) return true;
+        // 3. קטגוריות נוספות שהמשתמש הדליק (הימורים/היכרויות/חברתי/קניות/אלימות)
+        //    מעבירים את המארח המלא: CategoryLists יודע לחלץ את הליבה הרשומה
+        //    נכון גם בסיומות דו-חלקיות (bet365.co.uk), מה ש-rootDomain כאן
+        //    לא ידע — הוא היה מחזיר "co.uk".
+        if (CategoryLists.isBlockedByCategory(ctx, h)) return true;
 
         // 4. Bloom filter מרוחק — כולל התאמת סאב-דומיינים
         try {

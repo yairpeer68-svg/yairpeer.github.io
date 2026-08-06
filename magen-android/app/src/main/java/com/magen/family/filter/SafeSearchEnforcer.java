@@ -51,6 +51,22 @@ public final class SafeSearchEnforcer {
         SEARCH_MAP.put("bing.com", BING_STRICT);
         SEARCH_MAP.put("www.bing.com", BING_STRICT);
 
+        // מנועים שאין להם safe-search כפוי דרך DNS. עד עכשיו הם היו פרצה
+        // פתוחה: מספיק היה לחפש ב-DuckDuckGo כדי לעקוף את הכפייה על גוגל.
+        // מכיוון שאי אפשר לכפות עליהם מצב בטוח, מפנים אותם לגרסת ה-safe
+        // search של גוגל — החיפוש ממשיך לעבוד, אבל מסונן.
+        for (String e : new String[]{
+            "duckduckgo.com", "html.duckduckgo.com", "lite.duckduckgo.com",
+            "yandex.com", "yandex.ru", "yandex.com.tr",
+            "search.yahoo.com", "yahoo.com",
+            "ecosia.org", "startpage.com", "search.brave.com",
+            "qwant.com", "mojeek.com", "searx.be", "yep.com",
+            "baidu.com", "ask.com", "aol.com", "dogpile.com",
+            "search.marcaria.com", "gibiru.com", "swisscows.com" }) {
+            SEARCH_MAP.put(e, GOOGLE_SAFE);
+            SEARCH_MAP.put("www." + e, GOOGLE_SAFE);
+        }
+
         // YouTube
         for (String y : new String[]{
             "youtube.com", "www.youtube.com", "m.youtube.com",
