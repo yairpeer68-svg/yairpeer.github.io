@@ -5451,3 +5451,128 @@ class GithubFollowers(Module):
                               "note": "the follow graph maps a developer's team / "
                                       "community connections.",
                               "source": "github-followers"})
+
+
+# =========================================================================== #
+#  Wave 48 (>=500 modules) — API surface + CMS stack + threat feed + interests:
+#    OpenAPI/Swagger discovery · WordPress plugin/theme stack (domain)
+#    Cisco Talos IP blacklist (IP) · GitHub starred repos (username)
+# =========================================================================== #
+@register
+class OpenApi(Module):
+    id = "openapi"
+    name = "OpenAPI / Swagger spec discovery (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        for path in ("/swagger.json", "/openapi.json", "/v2/api-docs",
+                     "/v3/api-docs", "/api-docs", "/api/swagger.json",
+                     "/.well-known/openapi.json", "/api/openapi.json"):
+            d = _json(_get(ctx, f"https://{host}{path}",
+                          headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            if not isinstance(d, dict):
+                continue
+            if d.get("swagger") or d.get("openapi") or ("paths" in d and "info" in d):
+                info = d.get("info") or {}
+                paths = list((d.get("paths") or {}).keys())
+                return self.ok(host, {"spec_found": True, "spec_path": path,
+                                      "title": info.get("title"),
+                                      "version": info.get("version"),
+                                      "spec_version": d.get("openapi") or d.get("swagger"),
+                                      "endpoint_count": len(paths),
+                                      "sample_endpoints": sorted(paths)[:40],
+                                      "note": "exposed API spec enumerates the full "
+                                              "endpoint / attack surface.",
+                                      "severity": "medium", "source": "openapi"})
+        return self.ok(host, {"spec_found": False, "source": "openapi"})
+
+
+@register
+class WpStack(Module):
+    id = "wpstack"
+    name = "WordPress plugin/theme stack from homepage HTML (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        html = _text(_get(ctx, f"https://{host}/", headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        plugins = {}
+        themes = {}
+        for m in re.finditer(r"/wp-content/plugins/([A-Za-z0-9._\-]+)[^'\"]*?"
+                             r"(?:\?ver=([0-9.]+))?", html):
+            plugins.setdefault(m.group(1), m.group(2) or "")
+        for m in re.finditer(r"/wp-content/themes/([A-Za-z0-9._\-]+)[^'\"]*?"
+                             r"(?:\?ver=([0-9.]+))?", html):
+            themes.setdefault(m.group(1), m.group(2) or "")
+        is_wp = "/wp-content/" in html or "/wp-includes/" in html
+        return self.ok(host, {"wordpress": is_wp,
+                              "plugins": [{"slug": k, "version": v} for k, v in
+                                          list(plugins.items())[:40]],
+                              "themes": [{"slug": k, "version": v} for k, v in
+                                         list(themes.items())[:10]],
+                              "plugin_count": len(plugins),
+                              "note": "identified plugins/themes + versions map directly "
+                                      "to known-CVE exposure.",
+                              "source": "wp-stack"})
+
+
+@register
+class Talos(Module):
+    id = "talos"
+    name = "Cisco Talos IP blacklist membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "talos expects an IP"})
+        text = _text(_get(ctx, "https://www.talosintelligence.com/documents/ip-blacklist",
+                          headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        listed = False
+        for line in text.splitlines():
+            if line.strip() == ip:
+                listed = True
+                break
+        data = {"listed": listed, "feed": "cisco-talos", "source": "talos"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "IP on the Cisco Talos IP blacklist."
+        return self.ok(ip, data)
+
+
+@register
+class GithubStars(Module):
+    id = "githubstars"
+    name = "GitHub starred repositories -> interests (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubstars expects a bare handle"})
+        arr = _json(_get(ctx, f"https://api.github.com/users/{user}/starred?per_page=50",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": "GhostEye-OSINT/1.0"})) or []
+        repos, langs = [], {}
+        for r in arr if isinstance(arr, list) else []:
+            if isinstance(r, dict) and r.get("full_name"):
+                repos.append(r.get("full_name"))
+                lg = r.get("language")
+                if lg:
+                    langs[lg] = langs.get(lg, 0) + 1
+        return self.ok(user, {"starred_sample": repos[:40], "starred_shown": len(repos),
+                              "top_interests": sorted(langs, key=langs.get, reverse=True)[:8],
+                              "note": "starred repos profile a developer's interests / "
+                                      "tools in use.",
+                              "source": "github-stars"})

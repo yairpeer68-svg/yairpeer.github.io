@@ -43,7 +43,7 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         domainptr, mozillaobs, stevenblack, certemails, entrustct,
         mobileapps, adstxt, sitemapscan, humanstxt,
         cspdomains, crossdomain, idpfinger, jsassets,
-        trackers, preconnects, wpusers, feeds]
+        trackers, preconnects, wpusers, feeds, openapi, wpstack]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 

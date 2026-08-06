@@ -1295,3 +1295,30 @@ def test_wave47_wpusers_feeds_dshieldnet_ghfollowers():
     assert ds["listed"] is True and ds["matched_range"] == "1.2.0.0/24" and ds["severity"] == "high"
     gf = REGISTRY["githubfollowers"].run("alice", _ctx(router)).data
     assert "bob" in gf["followers_sample"] and "dave" in gf["following_sample"]
+
+
+def test_wave48_openapi_wpstack_talos_ghstars():
+    def router(url):
+        if "/openapi.json" in url:
+            return _Resp(j={"openapi": "3.0.0", "info": {"title": "Acme API", "version": "1.2"},
+                            "paths": {"/users": {}, "/orders": {}}})
+        if url.rstrip("/") == "https://acme.com":
+            return _Resp(t='<html><link href="/wp-content/plugins/woocommerce/style.css?ver=8.1">'
+                         '<script src="/wp-content/themes/storefront/app.js"></script>'
+                         '/wp-includes/js/x.js</html>')
+        if "talosintelligence.com" in url:
+            return _Resp(t="1.2.3.4\n9.9.9.9\n")
+        if "api.github.com/users/alice/starred" in url:
+            return _Resp(j=[{"full_name": "torvalds/linux", "language": "C"},
+                            {"full_name": "acme/tool", "language": "C"}])
+        return _Resp(j={})
+    oa = REGISTRY["openapi"].run("acme.com", _ctx(router)).data
+    assert oa["spec_found"] is True and oa["endpoint_count"] == 2 and oa["title"] == "Acme API"
+    ws = REGISTRY["wpstack"].run("acme.com", _ctx(router)).data
+    assert ws["wordpress"] is True
+    slugs = [p["slug"] for p in ws["plugins"]]
+    assert "woocommerce" in slugs
+    tl = REGISTRY["talos"].run("1.2.3.4", _ctx(router)).data
+    assert tl["listed"] is True and tl["severity"] == "high"
+    gs = REGISTRY["githubstars"].run("alice", _ctx(router)).data
+    assert "torvalds/linux" in gs["starred_sample"] and "C" in gs["top_interests"]
