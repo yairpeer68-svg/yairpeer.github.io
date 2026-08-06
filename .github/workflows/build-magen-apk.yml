@@ -43,7 +43,10 @@ jobs:
         run: cd magen-android && gradle testDebugUnitTest --no-daemon --stacktrace
 
       - name: Build debug APK
-        run: cd magen-android && gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          cd magen-android
+          gradle assembleDebug --no-daemon --stacktrace \
+            -PbuildId=${GITHUB_SHA::7}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -55,8 +58,12 @@ jobs:
 
       # קישור התקנה ישיר: מפרסם את ה-APK כ-Release עם תג יציב, כך שיש
       # כתובת קבועה וניתנת-להתקנה מהטלפון (בלי התחברות ובלי zip).
+      # שני עותקים: שם קבוע לנוחות, ושם ייחודי עם ה-commit כדי שמטמון של
+      # דפדפן/CDN לא יוכל להגיש בטעות קובץ ישן.
       - name: Prepare APK for release
-        run: cp magen-android/app/build/outputs/apk/debug/*.apk shomer-habrit.apk
+        run: |
+          cp magen-android/app/build/outputs/apk/debug/*.apk shomer-habrit.apk
+          cp shomer-habrit.apk "shomer-habrit-${GITHUB_SHA::7}.apk"
 
       - name: Publish Release
         if: github.ref == 'refs/heads/claude/general-review-ymfmyo'
@@ -65,11 +72,18 @@ jobs:
           tag_name: dev-latest
           name: "שומר הברית — גרסת בדיקה"
           prerelease: true
-          files: shomer-habrit.apk
+          files: |
+            shomer-habrit.apk
+            shomer-habrit-*.apk
           body: |
             APK להתקנה ידנית (Debug build).
 
-            התקנה: הורד את `shomer-habrit.apk`, אשר "התקנה ממקורות לא ידועים",
-            ופתח את הקובץ. לאחר ההתקנה, המדריך באפליקציה ינחה אותך שלב-אחר-שלב.
+            **מזהה הבנייה: `${{ github.sha }}`**
 
-            נבנה אוטומטית מ-commit ${{ github.sha }}.
+            כדי לוודא שהותקנה הגרסה הנכונה: המסך הראשון במדריך מציג
+            למטה `build XXXXXXX` — שבע התווים הראשונים של המזהה למעלה.
+
+            אם הדפדפן מגיש קובץ ישן מהמטמון, הורד את הקובץ עם השם הייחודי
+            (`shomer-habrit-<commit>.apk`) במקום.
+
+            התקנה: הורד, אשר "התקנה ממקורות לא ידועים", ופתח את הקובץ.

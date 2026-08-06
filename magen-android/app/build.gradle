@@ -12,6 +12,11 @@ android {
         targetSdk 34
         versionCode 3
         versionName "2.0"
+
+        // מזהה בנייה שנראה בתוך האפליקציה. ה-CI מעביר את ה-commit הקצר
+        // (-PbuildId=abc1234), וכך אפשר לוודא במבט אחד איזו גרסה מותקנת
+        // בפועל — במקום לנחש אם הורדת קובץ ישן מהמטמון.
+        resValue "string", "build_id", (project.findProperty("buildId") ?: "local")
     }
 
     buildTypes {

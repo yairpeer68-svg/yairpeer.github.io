@@ -169,6 +169,11 @@ def collect_res(tag):
     found = set()
     for f in glob.glob(os.path.join(RES, "values*/*.xml")):
         found |= set(re.findall(rf'<{tag}[^>]*name="([^"]+)"', read(f)))
+    # משאבים שנוצרים בזמן בנייה (resValue ב-build.gradle) לא קיימים ב-XML,
+    # ובלי זה היינו מדווחים עליהם כחסרים ומכשילים את הבנייה בטעות.
+    gradle = os.path.join(ROOT, "app/build.gradle")
+    if os.path.exists(gradle):
+        found |= set(re.findall(rf'resValue\s+"{tag}"\s*,\s*"([^"]+)"', read(gradle)))
     return found
 
 

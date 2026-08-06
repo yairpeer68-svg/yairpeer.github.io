@@ -257,6 +257,15 @@ public class OnboardingActivity extends BaseActivity {
         btnSkip.setOnClickListener(v -> advance());
         root.addView(btnSkip);
 
+        // מזהה בנייה — כדי שאפשר יהיה לוודא במבט אחד שהותקנה הגרסה הנכונה
+        TextView build = new TextView(this);
+        build.setText("build " + getString(R.string.build_id));
+        build.setTextSize(11);
+        build.setGravity(Gravity.CENTER);
+        build.setTextColor(ContextCompat.getColor(this, R.color.text_muted));
+        build.setPadding(0, dp(20), 0, 0);
+        root.addView(build);
+
         TextView transparency = new TextView(this);
         transparency.setText(R.string.onb_transparency);
         transparency.setTextSize(12);
