@@ -5832,3 +5832,125 @@ class TechnikNews(Module):
                             "isp": d.get("isp"), "org": d.get("org"),
                             "asn": d.get("as"), "proxy": d.get("proxy"),
                             "source": "techniknews"})
+
+
+# =========================================================================== #
+#  Wave 51 — fediverse infra + phishing feed + transit intel + Launchpad:
+#    NodeInfo instance discovery · Phishing.Database (domain)
+#    AS transit upstreams (IP) · Launchpad user (username)
+# =========================================================================== #
+@register
+class NodeInfo(Module):
+    id = "nodeinfo"
+    name = "Fediverse NodeInfo instance discovery (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        disc = _json(_get(ctx, f"https://{host}/.well-known/nodeinfo",
+                          headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}
+        href = ""
+        for link in disc.get("links") or []:
+            if isinstance(link, dict) and link.get("href"):
+                href = link["href"]
+        if not href:
+            return self.ok(host, {"fediverse": False, "source": "nodeinfo"})
+        d = _json(_get(ctx, href, headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}
+        soft = d.get("software") or {}
+        usage = d.get("usage") or {}
+        users = (usage.get("users") or {}).get("total")
+        return self.ok(host, {"fediverse": bool(soft),
+                              "software": soft.get("name"),
+                              "version": soft.get("version"),
+                              "total_users": users,
+                              "open_registrations": d.get("openRegistrations"),
+                              "note": "self-hosted fediverse server + version "
+                                      "(Mastodon/Pleroma/etc).",
+                              "source": "nodeinfo"})
+
+
+@register
+class PhishDb(Module):
+    id = "phishdb"
+    name = "Phishing.Database active-phishing-domain membership (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/mitchellkrogza/"
+                          "Phishing.Database/master/phishing-domains-ACTIVE.txt"))
+        listed = False
+        for line in text.splitlines():
+            s = line.strip().lower()
+            if s == host or s == f"www.{host}":
+                listed = True
+                break
+        data = {"listed": listed, "feed": "phishing-database", "source": "phishdb"}
+        if listed:
+            data["severity"] = "critical"
+            data["note"] = "domain on the Phishing.Database ACTIVE list."
+        return self.ok(host, data)
+
+
+@register
+class AsnUpstreams(Module):
+    id = "asnupstreams"
+    name = "AS transit upstream providers for a pivoted IP (keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "asnupstreams expects an IP"})
+        ipd = (_json(_get(ctx, f"https://api.bgpview.io/ip/{ip}")) or {}).get("data", {}) or {}
+        asn = None
+        for p in ipd.get("prefixes", []) or []:
+            asn = (p.get("asn") or {}).get("asn")
+            if asn:
+                break
+        if not asn:
+            return self.ok(ip, {"note": "no ASN for IP", "source": "asn-upstreams"})
+        d = (_json(_get(ctx, f"https://api.bgpview.io/asn/{asn}/upstreams"))
+             or {}).get("data", {}) or {}
+        ups = []
+        for u in (d.get("ipv4_upstreams") or [])[:20]:
+            if isinstance(u, dict) and u.get("asn"):
+                ups.append({"asn": u.get("asn"), "name": u.get("name") or u.get("description")})
+        return self.ok(ip, {"asn": asn, "upstreams": ups[:20],
+                            "upstream_count": len(ups),
+                            "note": "transit providers the hosting AS depends on "
+                                    "(network supply chain).",
+                            "source": "asn-upstreams"})
+
+
+@register
+class Launchpad(Module):
+    id = "launchpad"
+    name = "Launchpad user profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "launchpad expects a bare handle"})
+        d = _json(_get(ctx, f"https://api.launchpad.net/1.0/~{user}",
+                       headers={"User-Agent": "GhostEye-OSINT/1.0"})) or {}
+        if not d.get("name"):
+            return self.ok(user, {"note": "no Launchpad user", "source": "launchpad"})
+        return self.ok(user, {"name": d.get("name"),
+                              "display_name": d.get("display_name"),
+                              "karma": d.get("karma"),
+                              "created": d.get("date_created"),
+                              "is_valid": d.get("is_valid"),
+                              "profile": d.get("web_link"),
+                              "source": "launchpad"})

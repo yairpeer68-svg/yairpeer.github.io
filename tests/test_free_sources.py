@@ -1377,3 +1377,34 @@ def test_wave50_matrix_wikipedia_hnauthor_techniknews():
     assert ha["total"] == 2 and ha["activity"][0]["title"] == "Show HN: Acme"
     tn = REGISTRY["techniknews"].run("1.2.3.4", _ctx(router)).data
     assert tn["asn"] == "AS64500" and tn["city"] == "NYC"
+
+
+def test_wave51_nodeinfo_phishdb_asnupstreams_launchpad():
+    def router(url):
+        if "/.well-known/nodeinfo" in url:
+            return _Resp(j={"links": [{"href": "https://acme.com/nodeinfo/2.0"}]})
+        if "/nodeinfo/2.0" in url:
+            return _Resp(j={"software": {"name": "mastodon", "version": "4.2.1"},
+                            "usage": {"users": {"total": 1500}},
+                            "openRegistrations": True})
+        if "Phishing.Database" in url:
+            return _Resp(t="# phishing\nevil.test\nacme.com\n")
+        if "api.bgpview.io/ip/" in url:
+            return _Resp(j={"data": {"prefixes": [{"asn": {"asn": 64500}}]}})
+        if "api.bgpview.io/asn/64500/upstreams" in url:
+            return _Resp(j={"data": {"ipv4_upstreams": [
+                {"asn": 3356, "name": "Level3"}, {"asn": 174, "name": "Cogent"}]}})
+        if "api.launchpad.net" in url:
+            return _Resp(j={"name": "alice", "display_name": "Alice A",
+                            "karma": 250, "is_valid": True,
+                            "web_link": "https://launchpad.net/~alice"})
+        return _Resp(j={})
+    ni = REGISTRY["nodeinfo"].run("acme.com", _ctx(router)).data
+    assert ni["software"] == "mastodon" and ni["total_users"] == 1500
+    pd = REGISTRY["phishdb"].run("acme.com", _ctx(router)).data
+    assert pd["listed"] is True and pd["severity"] == "critical"
+    au = REGISTRY["asnupstreams"].run("1.2.3.4", _ctx(router)).data
+    assert au["asn"] == 64500 and au["upstream_count"] == 2
+    assert au["upstreams"][0]["asn"] == 3356
+    lp = REGISTRY["launchpad"].run("alice", _ctx(router)).data
+    assert lp["display_name"] == "Alice A" and lp["karma"] == 250
