@@ -4525,3 +4525,113 @@ class DockerRepos(Module):
                               "note": "published container images can leak internal "
                                       "project names / tech stack.",
                               "source": "dockerhub-repos"})
+
+
+# =========================================================================== #
+#  Wave 41 — independent CT log + IP geo + more identity platforms:
+#    Entrust CT subdomains · geolocation-db (domain/IP)
+#    Codeberg user · GitLab user projects (username)
+# =========================================================================== #
+@register
+class EntrustCt(Module):
+    id = "entrustct"
+    name = "Entrust certificate-transparency search -> subdomains (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        arr = _json(_get(ctx, "https://ui.ctsearch.entrust.com/api/v1/certificates"
+                         f"?fields=subjectAltName&domain={host}"
+                         "&includeExpired=true&limit=200",
+                         headers={"Accept": "application/json"})) or []
+        hosts: Set[str] = set()
+        for row in arr if isinstance(arr, list) else []:
+            if not isinstance(row, dict):
+                continue
+            san = row.get("subjectAltName") or row.get("subjectDN") or ""
+            if isinstance(san, list):
+                san = " ".join(str(x) for x in san)
+            for m in re.findall(r'[A-Za-z0-9_.\-*]+\.[A-Za-z]{2,}', str(san)):
+                hosts.add(m.replace("*.", "").lower())
+        subs = _subs_of(list(hosts), host)
+        return self.ok(host, {"subdomains": subs[:300], "count": len(subs),
+                              "source": "entrust-ct"})
+
+
+@register
+class GeolocationDb(Module):
+    id = "geolocationdb"
+    name = "geolocation-db.com geo (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "geolocationdb expects an IP"})
+        d = _json(_get(ctx, f"https://geolocation-db.com/json/{ip}&position=true")) or {}
+        return self.ok(ip, {"country": d.get("country_name"),
+                            "country_code": d.get("country_code"),
+                            "state": d.get("state"), "city": d.get("city"),
+                            "postal": d.get("postal"),
+                            "source": "geolocation-db"})
+
+
+@register
+class CodebergUser(Module):
+    id = "codeberguser"
+    name = "Codeberg / Gitea user profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "codeberguser expects a bare handle"})
+        d = _json(_get(ctx, f"https://codeberg.org/api/v1/users/{user}")) or {}
+        if not d.get("login") and not d.get("username"):
+            return self.ok(user, {"note": "no Codeberg user", "source": "codeberg-user"})
+        return self.ok(user, {"login": d.get("login") or d.get("username"),
+                              "full_name": d.get("full_name"),
+                              "location": d.get("location"),
+                              "website": d.get("website"),
+                              "followers": d.get("followers_count"),
+                              "created": d.get("created"),
+                              "profile": d.get("html_url"),
+                              "source": "codeberg-user"})
+
+
+@register
+class GitlabProjects(Module):
+    id = "gitlabprojects"
+    name = "GitLab user public projects (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "gitlabprojects expects a bare handle"})
+        arr = _json(_get(ctx, f"https://gitlab.com/api/v4/users?username={user}")) or []
+        uid = None
+        for u in arr if isinstance(arr, list) else []:
+            if isinstance(u, dict) and u.get("id"):
+                uid = u.get("id")
+                break
+        if not uid:
+            return self.ok(user, {"note": "no GitLab user", "source": "gitlab-projects"})
+        parr = _json(_get(ctx, f"https://gitlab.com/api/v4/users/{uid}/projects"
+                          "?per_page=50")) or []
+        projects = []
+        for p in parr if isinstance(parr, list) else []:
+            if isinstance(p, dict) and p.get("path_with_namespace"):
+                projects.append({"path": p.get("path_with_namespace"),
+                                 "description": (p.get("description") or "")[:100],
+                                 "stars": p.get("star_count"),
+                                 "url": p.get("web_url")})
+        return self.ok(user, {"user_id": uid, "projects": projects[:50],
+                              "count": len(projects), "source": "gitlab-projects"})

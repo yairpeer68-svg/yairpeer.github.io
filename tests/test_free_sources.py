@@ -1095,3 +1095,33 @@ def test_wave40_stevenblack_certemails_firehol2_dockerrepos():
     assert fh["listed"] is True and fh["matched_range"] == "1.2.0.0/16"
     dr = REGISTRY["dockerrepos"].run("alice", _ctx(router)).data
     assert dr["count"] == 1 and dr["images"][0]["name"] == "alice/internal-api"
+
+
+def test_wave41_entrustct_geodb_codeberg_gitlabprojects():
+    def router(url):
+        if "ctsearch.entrust.com" in url:
+            return _Resp(j=[{"subjectAltName": "www.acme.com vpn.acme.com evil.com"},
+                            {"subjectAltName": ["mail.acme.com"]}])
+        if "geolocation-db.com" in url:
+            return _Resp(j={"country_name": "United States", "country_code": "US",
+                            "state": "NY", "city": "New York", "postal": "10001"})
+        if "codeberg.org/api/v1/users/alice" in url:
+            return _Resp(j={"login": "alice", "full_name": "Alice A",
+                            "location": "NYC", "followers_count": 12,
+                            "html_url": "https://codeberg.org/alice"})
+        if "gitlab.com/api/v4/users?username=alice" in url:
+            return _Resp(j=[{"id": 77}])
+        if "gitlab.com/api/v4/users/77/projects" in url:
+            return _Resp(j=[{"path_with_namespace": "alice/tool",
+                             "description": "cli", "star_count": 4,
+                             "web_url": "https://gitlab.com/alice/tool"}])
+        return _Resp(j={})
+    ec = REGISTRY["entrustct"].run("acme.com", _ctx(router)).data
+    assert "www.acme.com" in ec["subdomains"] and "mail.acme.com" in ec["subdomains"]
+    assert "evil.com" not in ec["subdomains"]
+    gd = REGISTRY["geolocationdb"].run("1.2.3.4", _ctx(router)).data
+    assert gd["city"] == "New York" and gd["country_code"] == "US"
+    cb = REGISTRY["codeberguser"].run("alice", _ctx(router)).data
+    assert cb["login"] == "alice" and cb["followers"] == 12
+    gp = REGISTRY["gitlabprojects"].run("alice", _ctx(router)).data
+    assert gp["user_id"] == 77 and gp["count"] == 1 and gp["projects"][0]["path"] == "alice/tool"
