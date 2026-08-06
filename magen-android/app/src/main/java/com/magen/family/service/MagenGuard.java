@@ -23,9 +23,25 @@ import com.magen.family.MagenApp;
 public final class MagenGuard {
 
     private static final String KEY_UNTIL = "maintenance_until";
+    private static final String KEY_SETUP_GRACE = "setup_grace_until";
     private static final long WINDOW_MS = 5 * 60 * 1000L;   // 5 דקות
+    private static final long SETUP_GRACE_MS = 90 * 1000L;  // 90 שנ' למסך הרשאה
 
     private MagenGuard() {}
+
+    /**
+     * חלון חסד קצר בזמן המדריך — נפתח כשהמדריך שולח את המשתמש למסך הרשאה
+     * של המערכת, כדי שההגנה העצמית לא תחסום את מתן ההרשאה עצמה.
+     *
+     * למה קצר ולא "עד סוף המדריך": קודם כל ההגנה הייתה מותנית בדגל
+     * onboarding_done, ולכן מי שלא סיים את המדריך נשאר *בלי שום הגנה* —
+     * אפשר היה לשנות כל הרשאה בלי אישור. עכשיו החלון נסגר מעצמו.
+     */
+    public static void grantSetupGrace(Context ctx) {
+        prefs(ctx).edit()
+            .putLong(KEY_SETUP_GRACE, System.currentTimeMillis() + SETUP_GRACE_MS)
+            .apply();
+    }
 
     /** נקרא אחרי אימות מוצלח של קוד הברית. */
     public static void grantMaintenance(Context ctx) {
@@ -45,11 +61,30 @@ public final class MagenGuard {
             SharedPreferences p = prefs(ctx);
             long now = System.currentTimeMillis();
             if (now < p.getLong(KEY_UNTIL, 0)) return true;
+            if (now < p.getLong(KEY_SETUP_GRACE, 0)) return true;
             // קוד חירום פעיל נחשב גם הוא כחלון תחזוקה
             if (p.getBoolean("emergency_mode", false)
                     && now < p.getLong("emergency_mode_until", 0)) return true;
         } catch (Exception ignored) {}
         return false;
+    }
+
+    /**
+     * האם ההגנה אמורה לפעול בכלל?
+     *
+     * הקריטריון הוא קיום קוד הברית — הרגע שבו המשתמש התחייב. *לא* סיום
+     * המדריך: הגרסה הקודמת התנתה את ההגנה ב-onboarding_done, ולכן מי
+     * שנתקע באמצע המדריך (למשל כשאנדרואיד חסם את מסך מנהל המכשיר) קיבל
+     * אפליקציה עם כל ההרשאות דלוקות ובלי שום הגנה בפועל.
+     */
+    public static boolean isArmed(Context ctx) {
+        try {
+            String pin = ctx.getSharedPreferences(MagenApp.PREFS_NAME, Context.MODE_PRIVATE)
+                            .getString(MagenApp.KEY_PIN, "");
+            return pin != null && !pin.isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static SharedPreferences prefs(Context ctx) {

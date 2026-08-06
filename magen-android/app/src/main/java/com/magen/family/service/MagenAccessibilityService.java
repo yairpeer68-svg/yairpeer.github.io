@@ -349,13 +349,11 @@ public class MagenAccessibilityService extends AccessibilityService {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root != null) {
                 try {
-                    // האם ההגדרה הראשונית הושלמה? כל ההגנה העצמית מותנית בזה —
-                    // אחרת המדריך עצמו נחסם והמשתמש לא יכול להעניק הרשאות.
-                    boolean setupDone = false;
-                    try {
-                        setupDone = com.magen.family.MagenApp.getInstance()
-                            .getPrefs().getBoolean("onboarding_done", false);
-                    } catch (Exception ignored) {}
+                    // האם ההגנה חמושה? הקריטריון הוא קיום קוד הברית — לא סיום
+                    // המדריך. קודם זה היה onboarding_done, ולכן מי שנתקע באמצע
+                    // המדריך נשאר בלי שום הגנה בפועל (באג חמור). מסכי המדריך
+                    // עצמם מוגנים ע"י חלון החסד ב-MagenGuard.grantSetupGrace.
+                    boolean setupDone = MagenGuard.isArmed(this);
 
                     // מסך הנגישות של האפליקציה שלנו — אם השירות רץ (כלומר מגיע אירוע),
                     // כל ביקור כאן הוא ניסיון השבתה → חסום.

@@ -194,6 +194,9 @@ public class OnboardingActivity extends BaseActivity {
             if (s.launch == null) return;
             // מסמנים שניסינו — כדי לפתוח מוצא-מילוט אם המערכת חוסמת בשקט
             attempted.add(index);
+            // חלון חסד קצר: המדריך שולח למסך הרשאה של המערכת, וההגנה העצמית
+            // לא אמורה לחסום דווקא את מתן ההרשאה. החלון נסגר מעצמו.
+            com.magen.family.service.MagenGuard.grantSetupGrace(this);
             // חייב להיות עטוף: מסכי הרשאה של המערכת לא קיימים בכל ROM
             // (ActivityNotFoundException ודומיו), וקריסה כאן הפילה את כל
             // ההתקנה בשלב מנהל המכשיר.
@@ -234,10 +237,12 @@ public class OnboardingActivity extends BaseActivity {
             LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         rlp.topMargin = dp(10);
         btnRestricted.setLayoutParams(rlp);
-        btnRestricted.setOnClickListener(v ->
+        btnRestricted.setOnClickListener(v -> {
+            com.magen.family.service.MagenGuard.grantSetupGrace(this);
             com.magen.family.util.SafeLaunch.open(this,
                 new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.parse("package:" + getPackageName()))));
+                    Uri.parse("package:" + getPackageName())));
+        });
         root.addView(btnRestricted);
 
         btnNext = new Button(this);

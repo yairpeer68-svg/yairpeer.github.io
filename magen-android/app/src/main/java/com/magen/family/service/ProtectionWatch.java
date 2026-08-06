@@ -45,8 +45,10 @@ public final class ProtectionWatch {
 
     public static void check(Context ctx) {
         try {
-            // רק אחרי שההגדרה הראשונית הושלמה, ולא בזמן חלון תחזוקה של הבעלים.
-            if (!MagenApp.getInstance().getPrefs().getBoolean("onboarding_done", false)) return;
+            // רק כשההגנה חמושה (קיים קוד ברית), ולא בזמן חלון תחזוקה/הגדרה.
+            // קודם התנאי היה onboarding_done — ולכן מי שלא סיים את המדריך גם
+            // לא קיבל שום התראה על כך שההגנה כבויה.
+            if (!MagenGuard.isArmed(ctx)) return;
             if (MagenGuard.inMaintenance(ctx)) return;
 
             if (isSafeMode(ctx)) {
