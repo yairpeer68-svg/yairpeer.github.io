@@ -4635,3 +4635,136 @@ class GitlabProjects(Module):
                                  "url": p.get("web_url")})
         return self.ok(user, {"user_id": uid, "projects": projects[:50],
                               "count": len(projects), "source": "gitlab-projects"})
+
+
+# =========================================================================== #
+#  Wave 42 — mobile-app discovery + ad-partner disclosure + geo + identity links:
+#    assetlinks/AASA mobile apps · ads.txt partners (domain)
+#    reallyfreegeoip (IP) · GitHub linked social accounts (username)
+# =========================================================================== #
+@register
+class MobileApps(Module):
+    id = "mobileapps"
+    name = "Mobile-app discovery via assetlinks / AASA (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        android: Set[str] = set()
+        ios: Set[str] = set()
+        # Android Digital Asset Links
+        al = _json(_get(ctx, f"https://{host}/.well-known/assetlinks.json",
+                        headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        for entry in al if isinstance(al, list) else []:
+            if isinstance(entry, dict):
+                pkg = (entry.get("target") or {}).get("package_name")
+                if pkg:
+                    android.add(pkg)
+        # Apple App Site Association
+        aasa = _json(_get(ctx, f"https://{host}/.well-known/apple-app-site-association",
+                          headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+        if isinstance(aasa, dict):
+            details = (((aasa.get("applinks") or {}).get("details")) or [])
+            for det in details if isinstance(details, list) else []:
+                if isinstance(det, dict):
+                    appid = det.get("appID") or det.get("appIDs")
+                    if isinstance(appid, str):
+                        ios.add(appid)
+                    elif isinstance(appid, list):
+                        ios.update(str(x) for x in appid)
+        data = {"android_packages": sorted(android)[:20],
+                "ios_app_ids": sorted(ios)[:20],
+                "count": len(android) + len(ios), "source": "mobile-apps"}
+        if android or ios:
+            data["note"] = ("mobile apps linked to this domain (expand the mobile "
+                            "attack surface: Play Store / App Store listings).")
+        return self.ok(host, data)
+
+
+@register
+class AdsTxt(Module):
+    id = "adstxt"
+    name = "ads.txt / app-ads.txt ad-partner disclosure (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        partners: Set[str] = set()
+        files_found = []
+        for fname in ("ads.txt", "app-ads.txt"):
+            text = _text(_get(ctx, f"https://{host}/{fname}",
+                              headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            if not text or "<html" in text.lower():
+                continue
+            hit = False
+            for line in text.splitlines():
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                first = line.split(",")[0].strip().lower()
+                if "." in first and " " not in first:
+                    partners.add(first)
+                    hit = True
+            if hit:
+                files_found.append(fname)
+        return self.ok(host, {"files": files_found,
+                              "ad_partners": sorted(partners)[:60],
+                              "count": len(partners),
+                              "note": "ad-tech partners disclosed in ads.txt "
+                                      "(monetization / third-party surface).",
+                              "source": "ads-txt"})
+
+
+@register
+class ReallyFreeGeoIp(Module):
+    id = "reallyfreegeoip"
+    name = "reallyfreegeoip.org geo (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "reallyfreegeoip expects an IP"})
+        d = _json(_get(ctx, f"https://reallyfreegeoip.org/json/{ip}")) or {}
+        return self.ok(ip, {"country": d.get("country_name"),
+                            "country_code": d.get("country_code"),
+                            "region": d.get("region_name"), "city": d.get("city"),
+                            "latitude": d.get("latitude"),
+                            "longitude": d.get("longitude"),
+                            "source": "reallyfreegeoip"})
+
+
+@register
+class GithubSocials(Module):
+    id = "githubsocials"
+    name = "GitHub profile linked social accounts (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "githubsocials expects a bare handle"})
+        arr = _json(_get(ctx, f"https://api.github.com/users/{user}/social_accounts",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": "GhostEye-OSINT/1.0"})) or []
+        accounts = []
+        for a in arr if isinstance(arr, list) else []:
+            if isinstance(a, dict) and a.get("url"):
+                accounts.append({"provider": a.get("provider"), "url": a.get("url")})
+        return self.ok(user, {"social_accounts": accounts[:20],
+                              "count": len(accounts),
+                              "providers": sorted({a["provider"] for a in accounts
+                                                   if a.get("provider")}),
+                              "note": "social links declared on the GitHub profile "
+                                      "directly cross-link identities.",
+                              "source": "github-socials"})

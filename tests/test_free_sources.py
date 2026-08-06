@@ -1125,3 +1125,28 @@ def test_wave41_entrustct_geodb_codeberg_gitlabprojects():
     assert cb["login"] == "alice" and cb["followers"] == 12
     gp = REGISTRY["gitlabprojects"].run("alice", _ctx(router)).data
     assert gp["user_id"] == 77 and gp["count"] == 1 and gp["projects"][0]["path"] == "alice/tool"
+
+
+def test_wave42_mobileapps_adstxt_geoip_ghsocials():
+    def router(url):
+        if "assetlinks.json" in url:
+            return _Resp(j=[{"target": {"package_name": "com.acme.app"}}])
+        if "apple-app-site-association" in url:
+            return _Resp(j={"applinks": {"details": [{"appID": "TEAMID.com.acme.ios"}]}})
+        if "/ads.txt" in url:
+            return _Resp(t="google.com, pub-123, DIRECT\n# comment\nrubicon.com, 456, RESELLER")
+        if "reallyfreegeoip.org" in url:
+            return _Resp(j={"country_name": "United States", "country_code": "US",
+                            "city": "NYC", "latitude": 40.7, "longitude": -74.0})
+        if "api.github.com/users/alice/social_accounts" in url:
+            return _Resp(j=[{"provider": "twitter", "url": "https://twitter.com/alice"},
+                            {"provider": "mastodon", "url": "https://m.social/@alice"}])
+        return _Resp(j={})
+    ma = REGISTRY["mobileapps"].run("acme.com", _ctx(router)).data
+    assert "com.acme.app" in ma["android_packages"] and "TEAMID.com.acme.ios" in ma["ios_app_ids"]
+    at = REGISTRY["adstxt"].run("acme.com", _ctx(router)).data
+    assert "google.com" in at["ad_partners"] and "rubicon.com" in at["ad_partners"]
+    rg = REGISTRY["reallyfreegeoip"].run("1.2.3.4", _ctx(router)).data
+    assert rg["city"] == "NYC" and rg["country_code"] == "US"
+    gs = REGISTRY["githubsocials"].run("alice", _ctx(router)).data
+    assert gs["count"] == 2 and "twitter" in gs["providers"] and "mastodon" in gs["providers"]

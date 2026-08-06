@@ -40,7 +40,8 @@ osint: [emails, emailauth, username, dorks, github, whoispivot, analytics, relat
         spfdmarc, certissuers, mxintel, nsintel, txtsaas,
         spfvendors, wildcarddns, htdns, dkimscan, soaintel,
         danetlsa, pagelinks, phisharmy, httpsrr, srvscan,
-        domainptr, mozillaobs, stevenblack, certemails, entrustct]
+        domainptr, mozillaobs, stevenblack, certemails, entrustct,
+        mobileapps, adstxt]
 
 passive: [internetdb, geoip, proxytype, torexit, threatfeed, reputation, urlscan]
 
