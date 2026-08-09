@@ -1513,3 +1513,27 @@ def test_wave55_dbip_bfb_salsa_blocklistproject():
     assert ds["id"] == 5 and ds["username"] == "alice"
     bp = REGISTRY["blocklistproject"].run("acme.com", _ctx(router)).data
     assert bp["listed"] is True and bp["severity"] == "critical"
+
+
+def test_wave56_spam404_feodoaggr_geoiplookup_gnome():
+    def router(url):
+        if "Spam404" in url:
+            return _Resp(t="# spam404\nevil.test\nacme.com\n")
+        if "ipblocklist_aggressive.json" in url:
+            return _Resp(j=[{"ip_address": "6.6.6.6", "malware": "Dridex", "port": 443,
+                             "first_seen": "2024-01-01"}])
+        if "json.geoiplookup.io" in url:
+            return _Resp(j={"country_name": "United States", "country_code": "US",
+                            "city": "NYC", "isp": "AcmeISP", "asn": "AS64500"})
+        if "gitlab.gnome.org" in url:
+            return _Resp(j=[{"id": 9, "username": "alice", "name": "Alice",
+                             "state": "active", "web_url": "https://gitlab.gnome.org/alice"}])
+        return _Resp(j={})
+    sp = REGISTRY["spam404"].run("acme.com", _ctx(router)).data
+    assert sp["listed"] is True and sp["severity"] == "high"
+    fa = REGISTRY["feodoaggr"].run("6.6.6.6", _ctx(router)).data
+    assert fa["listed"] is True and fa["malware"] == "Dridex" and fa["severity"] == "critical"
+    gl = REGISTRY["geoiplookup"].run("1.2.3.4", _ctx(router)).data
+    assert gl["city"] == "NYC" and gl["asn"] == "AS64500"
+    gn = REGISTRY["gnomeuser"].run("alice", _ctx(router)).data
+    assert gn["id"] == 9 and gn["username"] == "alice"

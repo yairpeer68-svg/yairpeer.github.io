@@ -6521,3 +6521,108 @@ class BlockListProject(Module):
             data["severity"] = "critical"
             data["note"] = "domain on The Block List Project malware list."
         return self.ok(host, data)
+
+
+# =========================================================================== #
+#  Wave 56 — more feeds + geo + FOSS identity:
+#    Spam404 domains (domain) · Feodo aggressive + geoiplookup (IP)
+#    GNOME GitLab user (username)
+# =========================================================================== #
+@register
+class Spam404(Module):
+    id = "spam404"
+    name = "Spam404 domain blacklist membership (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/Spam404/"
+                          "lists/master/main-blacklist.txt"))
+        listed = False
+        for line in text.splitlines():
+            s = line.strip().lower()
+            if not s or s.startswith("#"):
+                continue
+            if s == host or s == f"www.{host}":
+                listed = True
+                break
+        data = {"listed": listed, "feed": "spam404", "source": "spam404"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "domain on the Spam404 blacklist."
+        return self.ok(host, data)
+
+
+@register
+class FeodoAggr(Module):
+    id = "feodoaggr"
+    name = "Feodo Tracker aggressive IP blocklist (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "feodoaggr expects an IP"})
+        arr = _json(_get(ctx, "https://feodotracker.abuse.ch/downloads/"
+                         "ipblocklist_aggressive.json")) or []
+        hit = None
+        for row in arr if isinstance(arr, list) else []:
+            if isinstance(row, dict) and row.get("ip_address") == ip:
+                hit = row
+                break
+        data = {"listed": hit is not None, "feed": "feodo-aggressive",
+                "source": "feodo-aggressive"}
+        if hit:
+            data.update({"malware": hit.get("malware"), "port": hit.get("port"),
+                         "first_seen": hit.get("first_seen"),
+                         "severity": "critical",
+                         "note": "IP on the Feodo aggressive C2 blocklist."})
+        return self.ok(ip, data)
+
+
+@register
+class GeoIpLookup(Module):
+    id = "geoiplookup"
+    name = "geoiplookup.io geo / ASN (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "geoiplookup expects an IP"})
+        d = _json(_get(ctx, f"https://json.geoiplookup.io/{ip}")) or {}
+        if d.get("success") is False:
+            return self.ok(ip, {"note": "no data", "source": "geoiplookup"})
+        return self.ok(ip, {"country": d.get("country_name"),
+                            "country_code": d.get("country_code"),
+                            "city": d.get("city"), "isp": d.get("isp"),
+                            "asn": d.get("asn"), "org": d.get("org"),
+                            "source": "geoiplookup"})
+
+
+@register
+class GnomeUser(Module):
+    id = "gnomeuser"
+    name = "GNOME GitLab user lookup (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "gnomeuser expects a bare handle"})
+        arr = _json(_get(ctx, f"https://gitlab.gnome.org/api/v4/users?username={user}")) or []
+        for u in arr if isinstance(arr, list) else []:
+            if isinstance(u, dict) and u.get("username"):
+                return self.ok(user, {"id": u.get("id"), "username": u.get("username"),
+                                      "name": u.get("name"), "state": u.get("state"),
+                                      "profile": u.get("web_url"),
+                                      "note": "GNOME project contributor identity.",
+                                      "source": "gnome-gitlab"})
+        return self.ok(user, {"note": "no GNOME GitLab user", "source": "gnome-gitlab"})
