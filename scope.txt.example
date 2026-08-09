@@ -1,0 +1,9 @@
+# Ghost Eye scope file — one entry per line. Blank lines and #comments ignored.
+# Pass with:  python3 ghost_eye.py -t <target> --all --scope scope.txt
+#        or:  python3 ghost_eye_web.py --scope scope.txt
+# Any target outside this list is refused.
+
+example.com            # the domain AND any subdomain (*.example.com)
+api.example.com        # an exact host (already covered by the line above)
+192.0.2.0/24           # a whole CIDR range
+198.51.100.7           # a single IP
