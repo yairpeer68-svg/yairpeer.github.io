@@ -6303,3 +6303,115 @@ class WaybackTokens(Module):
             data["note"] = ("secrets found in archived JS/JSON — may still be valid; "
                             "verify and rotate. Values redacted.")
         return self.ok(host, data)
+
+
+# =========================================================================== #
+#  Wave 54 — more identity platforms + threat feeds:
+#    Gitea.com user · Mastodon multi-instance (username)
+#    Emerging Threats compromised IPs (IP) · Hagezi TIF domains (domain)
+# =========================================================================== #
+@register
+class GiteaUser(Module):
+    id = "giteauser"
+    name = "Gitea.com public user profile (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "giteauser expects a bare handle"})
+        d = _json(_get(ctx, f"https://gitea.com/api/v1/users/{user}")) or {}
+        if not d.get("login"):
+            return self.ok(user, {"note": "no Gitea.com user", "source": "gitea-user"})
+        return self.ok(user, {"login": d.get("login"), "full_name": d.get("full_name"),
+                              "location": d.get("location"), "website": d.get("website"),
+                              "created": d.get("created"),
+                              "followers": d.get("followers_count"),
+                              "profile": d.get("html_url"),
+                              "source": "gitea-user"})
+
+
+@register
+class MastodonLookup(Module):
+    id = "mastodonlookup"
+    name = "Mastodon multi-instance account lookup (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    _INSTANCES = ["mastodon.social", "fosstodon.org", "hachyderm.io",
+                  "infosec.exchange", "mstdn.social", "techhub.social"]
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "mastodonlookup expects a bare handle"})
+        found = []
+        for inst in self._INSTANCES:
+            d = _json(_get(ctx, f"https://{inst}/.well-known/webfinger"
+                           f"?resource=acct:{user}@{inst}",
+                           headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            if isinstance(d, dict) and d.get("subject"):
+                links = [ln.get("href") for ln in (d.get("links") or [])
+                         if isinstance(ln, dict) and ln.get("href")]
+                found.append({"instance": inst, "acct": d.get("subject"),
+                              "profile": next((x for x in links if "@" in x
+                                               or "/users/" in x or "/@" in x), "")})
+        return self.ok(user, {"accounts": found, "count": len(found),
+                              "instances_checked": len(self._INSTANCES),
+                              "note": "fediverse presence across popular instances.",
+                              "source": "mastodon-lookup"})
+
+
+@register
+class EmergingThreats(Module):
+    id = "emergingthreats"
+    name = "Emerging Threats compromised-IP feed membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "emergingthreats expects an IP"})
+        text = _text(_get(ctx, "https://rules.emergingthreats.net/blockrules/"
+                          "compromised-ips.txt"))
+        listed = False
+        for line in text.splitlines():
+            if line.strip() == ip:
+                listed = True
+                break
+        data = {"listed": listed, "feed": "emerging-threats", "source": "emerging-threats"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "IP on the Emerging Threats compromised-hosts feed."
+        return self.ok(ip, data)
+
+
+@register
+class Hagezi(Module):
+    id = "hagezi"
+    name = "Hagezi Threat-Intelligence-Feed domain membership (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/hagezi/"
+                          "dns-blocklists/main/domains/tif.txt"))
+        listed = False
+        for line in text.splitlines():
+            s = line.strip().lower()
+            if not s or s.startswith("#"):
+                continue
+            if s == host or (host.endswith("." + s)) or s == f"www.{host}":
+                listed = True
+                break
+        data = {"listed": listed, "feed": "hagezi-tif", "source": "hagezi"}
+        if listed:
+            data["severity"] = "critical"
+            data["note"] = "domain on the Hagezi Threat Intelligence Feed (malware/phishing)."
+        return self.ok(host, data)

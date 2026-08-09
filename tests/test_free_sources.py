@@ -1464,3 +1464,29 @@ def test_wave53_token_hunting():
     assert "user:pass" not in str(gx)            # creds redacted
     wt = REGISTRY["waybacktokens"].run("acme.com", _ctx(router)).data
     assert wt["count"] >= 1 and "Google API Key" in wt["types"]
+
+
+def test_wave54_gitea_mastodon_et_hagezi():
+    def router(url):
+        if "gitea.com/api/v1/users/alice" in url:
+            return _Resp(j={"login": "alice", "full_name": "Alice A",
+                            "location": "NYC", "followers_count": 5,
+                            "html_url": "https://gitea.com/alice"})
+        if "mastodon.social/.well-known/webfinger" in url:
+            return _Resp(j={"subject": "acct:alice@mastodon.social",
+                            "links": [{"href": "https://mastodon.social/@alice"}]})
+        if ".well-known/webfinger" in url:
+            return _Resp(j={})
+        if "emergingthreats.net" in url:
+            return _Resp(t="1.2.3.4\n9.9.9.9\n")
+        if "hagezi" in url:
+            return _Resp(t="# tif\nevil.test\nacme.com\n")
+        return _Resp(j={})
+    gu = REGISTRY["giteauser"].run("alice", _ctx(router)).data
+    assert gu["login"] == "alice" and gu["followers"] == 5
+    ml = REGISTRY["mastodonlookup"].run("alice", _ctx(router)).data
+    assert ml["count"] == 1 and ml["accounts"][0]["instance"] == "mastodon.social"
+    et = REGISTRY["emergingthreats"].run("1.2.3.4", _ctx(router)).data
+    assert et["listed"] is True and et["severity"] == "high"
+    hg = REGISTRY["hagezi"].run("acme.com", _ctx(router)).data
+    assert hg["listed"] is True and hg["severity"] == "critical"
