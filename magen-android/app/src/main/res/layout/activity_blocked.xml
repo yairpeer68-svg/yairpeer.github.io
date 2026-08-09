@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@color/bg_light"
+    android:layoutDirection="rtl"
+    android:padding="32dp">
+
+    <View
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:background="@drawable/bg_blocked_icon"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🛑"
+        android:textSize="56sp"
+        android:layout_marginTop="-88dp"
+        android:layout_marginBottom="32dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="התוכן חסום"
+        android:textColor="@color/text_primary"
+        android:textSize="26sp"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:id="@+id/tv_blocked_msg"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="הדף הזה נחסם כדי לשמור עליך"
+        android:textColor="@color/text_secondary"
+        android:textSize="15sp"
+        android:gravity="center"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/tv_blocked_url"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:background="@drawable/bg_url_chip"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:text=""
+        android:textColor="@color/danger"
+        android:textSize="13sp"
+        android:maxWidth="300dp"
+        android:ellipsize="middle"
+        android:singleLine="true"
+        android:layout_marginBottom="40dp"/>
+
+    <Button
+        android:id="@+id/btn_go_home"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:background="@drawable/bg_btn_primary"
+        android:text="חזרה לבית"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:stateListAnimator="@null"/>
+
+    <Button
+        android:id="@+id/btn_parent_override"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:background="@drawable/bg_btn_secondary"
+        android:text="פתיחה זמנית (קוד שותף)"
+        android:textColor="@color/text_secondary"
+        android:textSize="14sp"
+        android:layout_marginTop="12dp"
+        android:stateListAnimator="@null"/>
+</LinearLayout>

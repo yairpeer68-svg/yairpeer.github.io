@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@color/bg_light"
+    android:layoutDirection="rtl"
+    android:padding="32dp">
+
+    <View
+        android:layout_width="100dp"
+        android:layout_height="100dp"
+        android:background="@drawable/bg_logo_large"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🛡️"
+        android:textSize="48sp"
+        android:layout_marginTop="-76dp"
+        android:layout_marginBottom="28dp"/>
+
+    <TextView
+        android:id="@+id/tv_welcome_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="ברוך הבא לשומר הברית"
+        android:textColor="@color/text_primary"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="חומה לשמירת העיניים והלב"
+        android:textColor="@color/text_secondary"
+        android:textSize="15sp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="40dp"/>
+
+    <EditText
+        android:id="@+id/et_name"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:background="@drawable/bg_btn_secondary"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:hint="איך קוראים לך?"
+        android:textColor="@color/text_primary"
+        android:textColorHint="@color/text_muted"
+        android:textSize="16sp"
+        android:inputType="textPersonName"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/btn_next"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:background="@drawable/bg_btn_primary"
+        android:text="המשך"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:stateListAnimator="@null"/>
+</LinearLayout>
