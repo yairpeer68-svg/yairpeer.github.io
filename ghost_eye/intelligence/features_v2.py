@@ -271,3 +271,141 @@ def investigation_narrative(results: List[Result], target: str = "") -> Dict[str
     return {"target": target, "narrative": " ".join(lines),
             "bullet_points": lines,
             "note": "auto-generated summary from the aggregated module output."}
+
+
+# =========================================================================== #
+#  Features batch 2 (no server, no API key)
+# =========================================================================== #
+_THREAT_FEEDS = ("hagezi", "phishdb", "blocklistproject", "spam404", "openphish",
+                 "phisharmy", "digitalside", "urlhaus", "threatfox", "sucuri",
+                 "otxmalware", "sslbl", "cinsarmy", "ipsum", "greensnow", "talos",
+                 "spamhausdrop", "firehol", "firehol2", "firehol3", "dshieldnet",
+                 "binarydefense", "emergingthreats", "bruteforceblocker", "feodoaggr",
+                 "feodo", "stevenblack")
+
+
+def entity_risk_scores(results: List[Result], target: str = "") -> Dict[str, Any]:
+    """#10 — score the seed by threat-feed hits, exposed secrets and posture."""
+    m = _by_module(results)
+    score = 0
+    reasons: List[str] = []
+
+    feeds_hit = [f for f in _THREAT_FEEDS if (m.get(f) or {}).get("listed")]
+    if feeds_hit:
+        score += 40 + 5 * len(feeds_hit)
+        reasons.append(f"listed on {len(feeds_hit)} threat feed(s): {', '.join(feeds_hit[:6])}")
+
+    sec = secrets_report(results)
+    if sec["critical"]:
+        score += 35
+        reasons.append(f"{sec['critical']} critical secret exposure(s)")
+    elif sec["count"]:
+        score += 15
+        reasons.append("secret-exposure indicators present")
+
+    mail = email_security_audit(results)
+    if mail.get("spoofable"):
+        score += 15
+        reasons.append(f"e-mail spoofable (grade {mail['grade']})")
+
+    ipsum = (m.get("ipsum") or {})
+    if ipsum.get("blocklist_hits"):
+        score += min(20, int(ipsum.get("blocklist_hits", 0)) * 3)
+        reasons.append(f"IP flagged by {ipsum['blocklist_hits']} blocklists (IPsum)")
+
+    for anon in ("vpnapi", "proxycheck", "tornodes"):
+        d = m.get(anon) or {}
+        if d.get("anonymized") or d.get("is_tor_relay") or str(d.get("proxy")).lower() == "yes":
+            score += 5
+            reasons.append("associated with anonymised infrastructure")
+            break
+
+    score = min(100, score)
+    band = ("critical" if score >= 75 else "high" if score >= 50 else
+            "medium" if score >= 25 else "low")
+    return {"target": target, "risk_score": score, "risk_band": band,
+            "reasons": reasons,
+            "note": "aggregate risk from threat-feed corroboration, secret exposure, "
+                    "e-mail posture and anonymisation signals."}
+
+
+def brand_abuse_report(results: List[Result], target: str = "") -> Dict[str, Any]:
+    """#79 — consolidate typosquat / look-alike / phishing-impersonation signals."""
+    m = _by_module(results)
+    lookalikes = (m.get("lookalike") or {}).get("registered_lookalikes", []) or []
+    phishing_urls = (m.get("openphish") or {}).get("phishing_urls", []) or []
+    feeds = [f for f in ("openphish", "phisharmy", "phishdb", "digitalside", "hagezi")
+             if (m.get(f) or {}).get("listed")]
+    total = len(lookalikes) + len(phishing_urls) + len(feeds)
+    verdict = ("active brand abuse detected" if total else "no brand-abuse signals")
+    return {"target": target,
+            "registered_lookalikes": lookalikes[:40],
+            "lookalike_count": len(lookalikes),
+            "phishing_urls": phishing_urls[:30],
+            "impersonation_feeds": feeds,
+            "signals": total, "verdict": verdict,
+            "note": "brand-protection view: look-alike domains + live phishing "
+                    "impersonating this brand. Monitor and take down."}
+
+
+def export_maltego_csv(results: List[Result], target: str = "") -> Dict[str, Any]:
+    """#19 — entities + links as a Maltego-importable CSV (source,type,value)."""
+    rows = ["source_entity,link_label,target_entity,target_type"]
+    seen = set()
+
+    def add(label, value, typ):
+        v = str(value).strip()
+        if not v or v.lower() == target.lower():
+            return
+        key = (label, v, typ)
+        if key in seen:
+            return
+        seen.add(key)
+        rows.append(f'{target},{label},"{v}",{typ}')
+
+    m = _by_module(results)
+    for mid in ("crtsh", "certspotter", "subs", "hackertarget", "entrustct",
+                "columbus", "otxurls", "bufferover"):
+        for s in (m.get(mid) or {}).get("subdomains", []) or []:
+            add("has_subdomain", s, "maltego.DNSName")
+    for mid in ("emails", "certemails", "emailpattern"):
+        for e in (m.get(mid) or {}).get("emails", []) or []:
+            add("has_email", e if isinstance(e, str) else e.get("email"),
+                "maltego.EmailAddress")
+    for cat, items in supply_chain_map(results)["by_category"].items():
+        for v in items:
+            add(f"uses_{cat}", v, "maltego.Domain")
+    return {"format": "maltego-csv", "rows": len(rows) - 1,
+            "csv": "\n".join(rows[:2000]),
+            "note": "import into Maltego as a CSV of links from the seed entity."}
+
+
+def cross_target_correlation(results_a: List[Result], results_b: List[Result],
+                             target_a: str = "A", target_b: str = "B") -> Dict[str, Any]:
+    """#8 — find infrastructure/vendors shared between two targets."""
+    def facets(results):
+        m = _by_module(results)
+        vendors = set(supply_chain_map(results)["vendors"])
+        ns = set((m.get("nsintel") or {}).get("dns_providers", []) or [])
+        mailp = set((m.get("mxintel") or {}).get("mail_providers", []) or [])
+        asns = set()
+        for mid in ("asninfo", "asnprefixes", "bgpview"):
+            a = (m.get(mid) or {}).get("asn")
+            if a:
+                asns.add(str(a))
+        analytics = set((m.get("trackers") or {}).get("analytics_ids", []) or [])
+        return {"vendors": vendors, "dns": ns, "mail": mailp, "asns": asns,
+                "analytics_ids": analytics}
+
+    fa, fb = facets(results_a), facets(results_b)
+    shared = {k: sorted(fa[k] & fb[k]) for k in fa}
+    total = sum(len(v) for v in shared.values())
+    linked = total > 0 or bool(shared.get("analytics_ids"))
+    return {"target_a": target_a, "target_b": target_b,
+            "shared": {k: v for k, v in shared.items() if v},
+            "shared_count": total,
+            "likely_same_owner": bool(shared.get("analytics_ids")) or total >= 3,
+            "verdict": ("likely operated by the same entity" if linked else
+                        "no shared infrastructure found"),
+            "note": "shared analytics IDs / ASNs / vendors strongly suggest common "
+                    "ownership between the two targets."}

@@ -54,3 +54,7 @@ from .features_v2 import (  # noqa: F401
     email_security_audit, supply_chain_map, attack_surface_techniques,
     secrets_report, investigation_narrative,
 )
+from .features_v2 import (  # noqa: F401
+    entity_risk_scores, brand_abuse_report, export_maltego_csv,
+    cross_target_correlation,
+)

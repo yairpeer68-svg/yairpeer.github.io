@@ -89,3 +89,46 @@ def test_investigation_narrative_reads_naturally():
     assert "subdomain" in n["narrative"].lower()
     assert "spoofable" in n["narrative"].lower()
     assert any("threat feed" in b.lower() for b in n["bullet_points"])
+
+
+def test_entity_risk_scores_flags_critical():
+    from ghost_eye.intelligence import entity_risk_scores
+    results = [
+        _r("hagezi", {"listed": True}),
+        _r("tokenhunt", {"secrets": [{"type": "AWS Access Key", "value": "AKIA…XX"}]}),
+        _r("spfdmarc", {"spf": "v=spf1 +all", "spf_all": "+all", "dmarc": "", "dmarc_policy": ""}),
+    ]
+    rs = entity_risk_scores(results, "acme.com")
+    assert rs["risk_band"] in ("high", "critical") and rs["risk_score"] >= 50
+    assert any("threat feed" in r for r in rs["reasons"])
+
+
+def test_brand_abuse_report():
+    from ghost_eye.intelligence import brand_abuse_report
+    results = [
+        _r("lookalike", {"registered_lookalikes": [{"domain": "acrne.com", "ips": ["1.2.3.4"]}]}),
+        _r("phishdb", {"listed": True}),
+    ]
+    ba = brand_abuse_report(results, "acme.com")
+    assert ba["lookalike_count"] == 1 and "phishdb" in ba["impersonation_feeds"]
+    assert ba["signals"] >= 2 and "brand abuse" in ba["verdict"]
+
+
+def test_export_maltego_csv():
+    from ghost_eye.intelligence import export_maltego_csv
+    results = [
+        _r("crtsh", {"subdomains": ["www.acme.com", "vpn.acme.com"]}),
+        _r("certemails", {"emails": ["admin@acme.com"]}),
+    ]
+    mt = export_maltego_csv(results, "acme.com")
+    assert mt["rows"] >= 3 and "maltego.DNSName" in mt["csv"]
+    assert "admin@acme.com" in mt["csv"]
+
+
+def test_cross_target_correlation_same_owner():
+    from ghost_eye.intelligence import cross_target_correlation
+    a = [_r("trackers", {"analytics_ids": ["UA-12345-1"], "trackers": ["Google Analytics"]})]
+    b = [_r("trackers", {"analytics_ids": ["UA-12345-1"], "trackers": ["Google Analytics"]})]
+    cc = cross_target_correlation(a, b, "acme.com", "acme.net")
+    assert cc["likely_same_owner"] is True
+    assert "UA-12345-1" in cc["shared"].get("analytics_ids", [])
