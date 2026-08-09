@@ -6082,3 +6082,224 @@ class GithubWatched(Module):
                               "note": "watched repos show the projects a developer "
                                       "actively follows (employer/interest signal).",
                               "source": "github-watched"})
+
+
+# =========================================================================== #
+#  Wave 53 — exposed API-token / secret hunting (recon/detection only):
+#    live JS token scan · exposed env/config files · exposed .git ·
+#    historical (wayback) JS token scan — all domain, keyless.
+#  NOTE: matched secrets are REDACTED in output (prefix + length only) so a scan
+#  never dumps a live credential into logs/reports.
+# =========================================================================== #
+_TOKEN_SIGS = [
+    ("AWS Access Key", re.compile(r"\b(AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("AWS Secret Key", re.compile(r"(?i)aws_secret_access_key\s*[:=]\s*['\"]?([A-Za-z0-9/+=]{40})")),
+    ("Google API Key", re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b")),
+    ("Google OAuth", re.compile(r"\b[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com\b")),
+    ("Firebase", re.compile(r"\bAAAA[A-Za-z0-9_-]{7}:[A-Za-z0-9_-]{140}\b")),
+    ("GitHub Token", re.compile(r"\b(ghp|gho|ghu|ghs|ghr)_[0-9A-Za-z]{36}\b")),
+    ("GitHub Fine-grained", re.compile(r"\bgithub_pat_[0-9A-Za-z_]{82}\b")),
+    ("GitLab Token", re.compile(r"\bglpat-[0-9A-Za-z\-_]{20}\b")),
+    ("Slack Token", re.compile(r"\bxox[baprs]-[0-9A-Za-z-]{10,48}\b")),
+    ("Slack Webhook", re.compile(r"https://hooks\.slack\.com/services/[A-Za-z0-9/]{40,}")),
+    ("Stripe Live Key", re.compile(r"\b(sk|rk)_live_[0-9A-Za-z]{24,}\b")),
+    ("Stripe Publishable", re.compile(r"\bpk_live_[0-9A-Za-z]{24,}\b")),
+    ("Twilio SID", re.compile(r"\bAC[0-9a-fA-F]{32}\b")),
+    ("SendGrid", re.compile(r"\bSG\.[0-9A-Za-z_\-]{22}\.[0-9A-Za-z_\-]{43}\b")),
+    ("Mailgun", re.compile(r"\bkey-[0-9a-zA-Z]{32}\b")),
+    ("npm Token", re.compile(r"\bnpm_[0-9A-Za-z]{36}\b")),
+    ("PyPI Token", re.compile(r"\bpypi-AgEIcHlwaS[0-9A-Za-z_\-]{50,}")),
+    ("OpenAI Key", re.compile(r"\bsk-[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}\b")),
+    ("Heroku API Key", re.compile(r"(?i)heroku[a-z0-9_ .\-]{0,25}['\"]([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")),
+    ("JWT", re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")),
+    ("Private Key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----")),
+    ("Generic Secret", re.compile(r"(?i)(?:api[_-]?key|secret|passwd|password|token|access[_-]?token)\s*[:=]\s*['\"]([0-9A-Za-z_\-]{16,64})['\"]")),
+]
+
+
+def _redact(val: str) -> str:
+    val = str(val)
+    if len(val) <= 8:
+        return val[:2] + "***"
+    return f"{val[:4]}…{val[-2:]} (len={len(val)})"
+
+
+def _scan_secrets(text: str):
+    hits = []
+    seen = set()
+    for label, rx in _TOKEN_SIGS:
+        for m in rx.finditer(text or ""):
+            raw = m.group(1) if m.groups() else m.group(0)
+            key = (label, raw)
+            if key in seen:
+                continue
+            seen.add(key)
+            hits.append({"type": label, "value": _redact(raw)})
+            if len(hits) >= 60:
+                return hits
+    return hits
+
+
+def _ext_js(html, host, limit=8):
+    base = ".".join(host.split(".")[-2:])
+    urls = []
+    for m in re.findall(r'<script[^>]+src=["\']([^"\']+\.js[^"\']*)', html, re.I):
+        src = m.strip()
+        if src.startswith("//"):
+            src = "https:" + src
+        elif src.startswith("/"):
+            src = f"https://{host}{src}"
+        elif not src.startswith("http"):
+            src = f"https://{host}/{src}"
+        if base in src or src.startswith(f"https://{host}"):
+            urls.append(src)
+    seen = set()
+    return [u for u in urls if not (u in seen or seen.add(u))][:limit]
+
+
+@register
+class TokenHunt(Module):
+    id = "tokenhunt"
+    name = "Live API-token / secret scan of homepage + JS (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        ua = {"User-Agent": "GhostEye-OSINT/1.0"}
+        html = _text(_get(ctx, f"https://{host}/", headers=ua))
+        hits = _scan_secrets(html)
+        scanned = ["/"]
+        for js in _ext_js(html, host):
+            body = _text(_get(ctx, js, headers=ua))
+            if body:
+                scanned.append(js)
+                hits += _scan_secrets(body)
+        # de-dup
+        uniq, seen = [], set()
+        for h in hits:
+            k = (h["type"], h["value"])
+            if k not in seen:
+                seen.add(k)
+                uniq.append(h)
+        data = {"secrets": uniq[:60], "count": len(uniq),
+                "types": sorted({h["type"] for h in uniq}),
+                "scanned": scanned[:12], "source": "token-hunt"}
+        if uniq:
+            data["severity"] = "critical"
+            data["note"] = ("exposed API tokens/secrets in live page or JS — rotate "
+                            "immediately. Values are redacted here.")
+        return self.ok(host, data)
+
+
+@register
+class EnvExposed(Module):
+    id = "envexposed"
+    name = "Exposed env / config file secret scan (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    _PATHS = ["/.env", "/.env.local", "/.env.production", "/.env.dev",
+              "/config.json", "/appsettings.json", "/settings.py", "/config.php.bak",
+              "/wp-config.php.bak", "/.aws/credentials", "/config.yml",
+              "/config/database.yml", "/docker-compose.yml", "/.npmrc",
+              "/credentials.json", "/secrets.json"]
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        exposed = []
+        for path in self._PATHS:
+            resp = _get(ctx, f"https://{host}{path}",
+                        headers={"User-Agent": "GhostEye-OSINT/1.0"})
+            if resp is None or getattr(resp, "status_code", 0) != 200:
+                continue
+            body = _text(resp)
+            if not body or "<html" in body.lower()[:200]:
+                continue
+            secrets = _scan_secrets(body)
+            kv = bool(re.search(r"(?im)^[A-Z0-9_]{3,}\s*=", body)) or bool(secrets)
+            if kv:
+                exposed.append({"path": path, "secrets": secrets[:20],
+                                "secret_count": len(secrets)})
+        total = sum(e["secret_count"] for e in exposed)
+        data = {"exposed_files": exposed[:15], "file_count": len(exposed),
+                "secret_count": total, "source": "env-exposed"}
+        if exposed:
+            data["severity"] = "critical" if total else "high"
+            data["note"] = "publicly reachable config/env file(s) — may leak credentials."
+        return self.ok(host, data)
+
+
+@register
+class GitExposed(Module):
+    id = "gitexposed"
+    name = "Exposed .git repository detection (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        ua = {"User-Agent": "GhostEye-OSINT/1.0"}
+        head = _text(_get(ctx, f"https://{host}/.git/HEAD", headers=ua))
+        exposed = bool(re.match(r"ref:\s+refs/", head.strip())) if head else False
+        cfg = _text(_get(ctx, f"https://{host}/.git/config", headers=ua)) if exposed else ""
+        remotes = []
+        for m in re.findall(r"url\s*=\s*(\S+)", cfg):
+            # redact any embedded credentials in the remote URL
+            remotes.append(re.sub(r"//[^@/]+@", "//***@", m))
+        data = {"git_exposed": exposed, "remotes": remotes[:5],
+                "config_readable": bool(cfg), "source": "git-exposed"}
+        if exposed:
+            data["severity"] = "critical"
+            data["note"] = ("public /.git/ exposes full source history — often leaks "
+                            "credentials/keys committed in the past.")
+        return self.ok(host, data)
+
+
+@register
+class WaybackTokens(Module):
+    id = "waybacktokens"
+    name = "Historical (Wayback) JS/JSON token scan (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        cdx = _text(_get(ctx, "https://web.archive.org/cdx/search/cdx"
+                         f"?url={host}/*&output=text&fl=original&collapse=urlkey"
+                         "&filter=mimetype:(application/javascript|application/json|text/javascript)"
+                         "&filter=statuscode:200&limit=40"))
+        urls = [u.strip() for u in cdx.splitlines() if u.strip()][:12]
+        hits, scanned = [], []
+        for u in urls:
+            snap = f"https://web.archive.org/web/2id_/{u}"
+            body = _text(_get(ctx, snap, headers={"User-Agent": "GhostEye-OSINT/1.0"}))
+            if body:
+                scanned.append(u)
+                hits += _scan_secrets(body)
+        uniq, seen = [], set()
+        for h in hits:
+            k = (h["type"], h["value"])
+            if k not in seen:
+                seen.add(k)
+                uniq.append(h)
+        data = {"secrets": uniq[:60], "count": len(uniq),
+                "types": sorted({h["type"] for h in uniq}),
+                "urls_scanned": len(scanned), "source": "wayback-tokens"}
+        if uniq:
+            data["severity"] = "high"
+            data["note"] = ("secrets found in archived JS/JSON — may still be valid; "
+                            "verify and rotate. Values redacted.")
+        return self.ok(host, data)

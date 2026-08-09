@@ -1433,3 +1433,34 @@ def test_wave52_opensearch_hostmeta_greensnow_ghwatched():
     assert gs["listed"] is True and gs["severity"] == "high"
     gw = REGISTRY["githubwatched"].run("alice", _ctx(router)).data
     assert "acme/secret-project" in gw["watched_sample"] and "Go" in gw["top_languages"]
+
+
+def test_wave53_token_hunting():
+    ghp = "ghp_" + "A" * 36
+    def router(url):
+        if url.rstrip("/") == "https://acme.com":
+            return _Resp(t='<html><script src="/app.js"></script>'
+                         'const key="AKIAIOSFODNN7EXAMPLE";</html>')
+        if url.endswith("/app.js"):
+            return _Resp(t='var t="' + ghp + '"; var s="xoxb-1111-2222-abcdefghij";')
+        if "/.env" == url[-5:] or url.endswith("/.env"):
+            return _Resp(t="DB_PASSWORD=supersecretvalue123\nSTRIPE=sk_live_" + "b"*24)
+        if url.endswith("/.git/HEAD"):
+            return _Resp(t="ref: refs/heads/main")
+        if url.endswith("/.git/config"):
+            return _Resp(t='[remote "origin"]\n url = https://user:pass@github.com/acme/site.git')
+        if "web.archive.org/cdx" in url:
+            return _Resp(t="https://acme.com/old.js")
+        if "web.archive.org/web" in url:
+            return _Resp(t='apikey="AIza' + "C"*35 + '"')
+        return _Resp(j={})
+    th = REGISTRY["tokenhunt"].run("acme.com", _ctx(router)).data
+    assert th["count"] >= 3 and "AWS Access Key" in th["types"] and "GitHub Token" in th["types"]
+    assert "AKIAIOSFODNN7EXAMPLE" not in str(th)   # redacted, never raw
+    ev = REGISTRY["envexposed"].run("acme.com", _ctx(router)).data
+    assert ev["file_count"] >= 1 and ev["exposed_files"][0]["path"] == "/.env"
+    gx = REGISTRY["gitexposed"].run("acme.com", _ctx(router)).data
+    assert gx["git_exposed"] is True and gx["remotes"] and "***@github.com" in gx["remotes"][0]
+    assert "user:pass" not in str(gx)            # creds redacted
+    wt = REGISTRY["waybacktokens"].run("acme.com", _ctx(router)).data
+    assert wt["count"] >= 1 and "Google API Key" in wt["types"]
