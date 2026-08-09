@@ -236,4 +236,17 @@
     <string name="onb_skip_required">המשך בכל זאת (הגנה חלקית)</string>
     <string name="onb_open_app_settings">⚙️ פתח הגדרות אפליקציה (להסרת חסימה)</string>
     <string name="main_debug">🔍 אבחון ושיתוף מידע</string>
+    <string name="appcat_all">הכל</string>
+    <string name="appcat_social">רשתות חברתיות</string>
+    <string name="appcat_video">וידאו</string>
+    <string name="appcat_games">משחקים</string>
+    <string name="appcat_browser">דפדפנים</string>
+    <string name="appcat_shopping">קניות</string>
+    <string name="appcat_dating">היכרויות</string>
+    <string name="appcat_messaging">הודעות</string>
+    <string name="appcat_other">אחר</string>
+    <string name="appcat_block_all">🚫 חסום את כל הקטגוריה</string>
+    <string name="appcat_pick_first">בחר קטגוריה קודם (לא \"הכל\").</string>
+    <string name="appcat_nothing">אין אפליקציות לחסימה בקטגוריה הזו.</string>
+    <string name="appcat_confirm">לחסום %d אפליקציות בקטגוריה הזו?</string>
 </resources>

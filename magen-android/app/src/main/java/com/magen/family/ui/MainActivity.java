@@ -57,6 +57,10 @@ public class MainActivity extends BaseActivity {
     private ListView lvApps;
     private EditText etSearch;
 
+    /** הקטגוריה שנבחרה בשורת הצ'יפים מעל רשימת האפליקציות. */
+    private int currentCategory = com.magen.family.filter.AppCategories.ALL;
+    private LinearLayout categoryRow;
+
     private List<AppItem> allApps = new ArrayList<>();
     private List<AppItem> filteredApps = new ArrayList<>();
     private AppListAdapter adapter;
@@ -129,6 +133,9 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         // מרכז הברית פתוח בלי PIN — הוא של המשתמש עצמו, לא הגדרת אכיפה
         findViewById(R.id.btn_covenant).setOnClickListener(v ->
             startActivity(new Intent(this, CovenantCenterActivity.class)));
+
+        // שורת קטגוריות מעל רשימת האפליקציות
+        buildCategoryChips();
 
         // חיפוש אפליקציות
         etSearch.addTextChangedListener(new TextWatcher() {
@@ -205,11 +212,112 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         filteredApps.clear();
         String q = query.toLowerCase().trim();
         for (AppItem item : allApps) {
-            if (q.isEmpty() || item.name.toLowerCase().contains(q)) {
-                filteredApps.add(item);
-            }
+            boolean matchesText = q.isEmpty() || item.name.toLowerCase().contains(q);
+            boolean matchesCat = currentCategory == com.magen.family.filter.AppCategories.ALL
+                              || item.category == currentCategory;
+            if (matchesText && matchesCat) filteredApps.add(item);
         }
         if (adapter != null) adapter.notifyDataSetChanged();
+    }
+
+    /**
+     * שורת קטגוריות מעל רשימת האפליקציות.
+     *
+     * קודם הרשימה הייתה אחת ארוכה בסדר אלפביתי — קשה לאתר בה משהו, ואי
+     * אפשר היה לחסום "את כל הרשתות החברתיות" בלי לסמן אחת-אחת.
+     */
+    private void buildCategoryChips() {
+        if (lvApps == null || !(lvApps.getParent() instanceof android.view.ViewGroup)) return;
+        android.view.ViewGroup parent = (android.view.ViewGroup) lvApps.getParent();
+        int listIndex = parent.indexOfChild(lvApps);
+        if (listIndex < 0) return;
+
+        android.widget.HorizontalScrollView scroller =
+            new android.widget.HorizontalScrollView(this);
+        scroller.setHorizontalScrollBarEnabled(false);
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+
+        for (int cat : com.magen.family.filter.AppCategories.DISPLAY_ORDER) {
+            Button chip = new Button(this);
+            chip.setAllCaps(false);
+            chip.setTextSize(13);
+            chip.setText(categoryLabel(cat));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.rightMargin = (int) (6 * getResources().getDisplayMetrics().density);
+            chip.setLayoutParams(lp);
+            chip.setOnClickListener(v -> {
+                currentCategory = cat;
+                filterApps(etSearch != null ? etSearch.getText().toString() : "");
+                highlightChips(row);
+            });
+            row.addView(chip);
+        }
+
+        scroller.addView(row);
+        parent.addView(scroller, listIndex);
+        categoryRow = row;
+        highlightChips(row);
+
+        // חסימה/שחרור של קטגוריה שלמה בפעולה אחת
+        Button bulk = new Button(this);
+        bulk.setAllCaps(false);
+        bulk.setText(R.string.appcat_block_all);
+        bulk.setOnClickListener(v -> confirmBulkBlock());
+        parent.addView(bulk, listIndex + 1);
+    }
+
+    private String categoryLabel(int cat) {
+        String key = com.magen.family.filter.AppCategories.labelKey(cat);
+        int id = getResources().getIdentifier(key, "string", getPackageName());
+        return id != 0 ? getString(id) : key;
+    }
+
+    private void highlightChips(LinearLayout row) {
+        for (int i = 0; i < row.getChildCount(); i++) {
+            View child = row.getChildAt(i);
+            if (!(child instanceof Button)) continue;
+            boolean selected =
+                com.magen.family.filter.AppCategories.DISPLAY_ORDER[i] == currentCategory;
+            ((Button) child).setTypeface(null,
+                selected ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+            child.setAlpha(selected ? 1f : 0.6f);
+        }
+    }
+
+    /** חסימת כל האפליקציות בקטגוריה הנוכחית, אחרי אישור. */
+    private void confirmBulkBlock() {
+        if (currentCategory == com.magen.family.filter.AppCategories.ALL) {
+            Toast.makeText(this, R.string.appcat_pick_first, Toast.LENGTH_LONG).show();
+            return;
+        }
+        final String label = categoryLabel(currentCategory);
+        int count = 0;
+        for (AppItem it : allApps) if (it.category == currentCategory && !it.blocked) count++;
+        if (count == 0) {
+            Toast.makeText(this, R.string.appcat_nothing, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        final int toBlock = count;
+        new android.app.AlertDialog.Builder(this)
+            .setTitle(label)
+            .setMessage(getString(R.string.appcat_confirm, toBlock))
+            .setPositiveButton(R.string.appcat_block_all, (d, w) -> {
+                for (AppItem it : allApps) {
+                    if (it.category == currentCategory && !it.blocked) {
+                        it.blocked = true;
+                        MagenConfig.setAppBlocked(this, it.packageName, true);
+                    }
+                }
+                filterApps(etSearch != null ? etSearch.getText().toString() : "");
+                updateBlockedAppsCount();
+                Toast.makeText(this, "✓", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton(R.string.cancel, null)
+            .show();
     }
 
     private void updateBlockedAppsCount() {
@@ -266,6 +374,7 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
                 item.name = pm.getApplicationLabel(app).toString();
                 item.icon = app.loadIcon(pm);
                 item.blocked = MagenConfig.isAppBlockedByUser(this, app.packageName);
+                item.category = com.magen.family.filter.AppCategories.categoryOf(app.packageName);
                 allApps.add(item);
             }
             // מיין: חסומות קודם, אחר כך A-Z
@@ -1008,6 +1117,7 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         String packageName, name;
         Drawable icon;
         boolean blocked;
+        int category = com.magen.family.filter.AppCategories.OTHER;
     }
 
     // ===== Adapter מקצועי =====
