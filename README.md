@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **753 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
+- **759 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
   Python 3.9 / 3.11 / 3.12
 
 > ## ⚠️ Authorised use only

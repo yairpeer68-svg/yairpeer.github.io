@@ -50,3 +50,7 @@ __all__ = [
     "osint_dossier",
     "build_timeline", "analyze",
 ]
+from .features_v2 import (  # noqa: F401
+    email_security_audit, supply_chain_map, attack_surface_techniques,
+    secrets_report, investigation_narrative,
+)

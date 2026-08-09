@@ -542,6 +542,9 @@ def intelligence_report(results, target: str = "",
     identity = identity_graph(results, intel["target"])
     srcmatrix = source_matrix(results, intel["target"])
     tline = build_timeline(results, intel["target"])
+    from .intelligence import (email_security_audit, supply_chain_map,
+                               attack_surface_techniques, secrets_report,
+                               investigation_narrative)
     a = attack_score(results)
     out = {
         "target": intel["target"],
@@ -562,6 +565,11 @@ def intelligence_report(results, target: str = "",
         "identity_graph": identity,
         "source_matrix": srcmatrix,
         "timeline": tline,
+        "email_security_audit": email_security_audit(results),
+        "supply_chain_map": supply_chain_map(results),
+        "attack_techniques": attack_surface_techniques(results),
+        "secrets_report": secrets_report(results),
+        "narrative": investigation_narrative(results, intel["target"]),
     }
     # the rule-based AI analyst reasons over the fully assembled picture
     out["analysis"] = analyze(out)
