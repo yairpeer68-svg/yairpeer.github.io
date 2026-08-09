@@ -1490,3 +1490,26 @@ def test_wave54_gitea_mastodon_et_hagezi():
     assert et["listed"] is True and et["severity"] == "high"
     hg = REGISTRY["hagezi"].run("acme.com", _ctx(router)).data
     assert hg["listed"] is True and hg["severity"] == "critical"
+
+
+def test_wave55_dbip_bfb_salsa_blocklistproject():
+    def router(url):
+        if "api.db-ip.com" in url:
+            return _Resp(j={"countryName": "United States", "countryCode": "US",
+                            "city": "New York", "continentName": "North America"})
+        if "bruteforceblocker" in url:
+            return _Resp(t="# bfb\n1.2.3.4\n9.9.9.9\n")
+        if "salsa.debian.org" in url:
+            return _Resp(j=[{"id": 5, "username": "alice", "name": "Alice",
+                             "state": "active", "web_url": "https://salsa.debian.org/alice"}])
+        if "blocklistproject" in url:
+            return _Resp(t="# malware\n0.0.0.0 evil.test\n0.0.0.0 acme.com\n")
+        return _Resp(j={})
+    db = REGISTRY["dbip"].run("1.2.3.4", _ctx(router)).data
+    assert db["city"] == "New York" and db["country_code"] == "US"
+    bf = REGISTRY["bruteforceblocker"].run("1.2.3.4", _ctx(router)).data
+    assert bf["listed"] is True and bf["severity"] == "high"
+    ds = REGISTRY["debiansalsa"].run("alice", _ctx(router)).data
+    assert ds["id"] == 5 and ds["username"] == "alice"
+    bp = REGISTRY["blocklistproject"].run("acme.com", _ctx(router)).data
+    assert bp["listed"] is True and bp["severity"] == "critical"

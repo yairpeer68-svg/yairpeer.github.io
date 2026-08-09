@@ -6415,3 +6415,109 @@ class Hagezi(Module):
             data["severity"] = "critical"
             data["note"] = "domain on the Hagezi Threat Intelligence Feed (malware/phishing)."
         return self.ok(host, data)
+
+
+# =========================================================================== #
+#  Wave 55 — more geo/threat/identity corroboration sources:
+#    DB-IP geo · BruteForceBlocker (IP) · Debian Salsa user (username)
+#    Block List Project malware domains (domain)
+# =========================================================================== #
+@register
+class DbIp(Module):
+    id = "dbip"
+    name = "DB-IP free geo (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "dbip expects an IP"})
+        d = _json(_get(ctx, f"https://api.db-ip.com/v2/free/{ip}")) or {}
+        if d.get("error"):
+            return self.ok(ip, {"note": "no data", "source": "db-ip"})
+        return self.ok(ip, {"country": d.get("countryName"),
+                            "country_code": d.get("countryCode"),
+                            "state": d.get("stateProv"), "city": d.get("city"),
+                            "continent": d.get("continentName"),
+                            "source": "db-ip"})
+
+
+@register
+class BruteForceBlocker(Module):
+    id = "bruteforceblocker"
+    name = "BruteForceBlocker SSH-attacker feed membership (IP, keyless)"
+    category = "OSINT"
+    target_kind = "ip"
+
+    def run(self, target, ctx):
+        ip = str(target).strip()
+        if not is_ip(ip):
+            return self.ok(ip, {"note": "bruteforceblocker expects an IP"})
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/firehol/"
+                          "blocklist-ipsets/master/bruteforceblocker.ipset"))
+        listed = False
+        for line in text.splitlines():
+            s = line.strip()
+            if s and not s.startswith("#") and s == ip:
+                listed = True
+                break
+        data = {"listed": listed, "feed": "bruteforceblocker", "source": "bruteforceblocker"}
+        if listed:
+            data["severity"] = "high"
+            data["note"] = "IP on the BruteForceBlocker SSH-attacker feed."
+        return self.ok(ip, data)
+
+
+@register
+class DebianSalsa(Module):
+    id = "debiansalsa"
+    name = "Debian Salsa (GitLab) user lookup (username, keyless)"
+    category = "OSINT"
+    target_kind = "username"
+
+    def run(self, target, ctx):
+        user = str(target).strip().lstrip("@")
+        if not user or "/" in user or " " in user:
+            return self.ok(user, {"note": "debiansalsa expects a bare handle"})
+        arr = _json(_get(ctx, f"https://salsa.debian.org/api/v4/users?username={user}")) or []
+        for u in arr if isinstance(arr, list) else []:
+            if isinstance(u, dict) and u.get("username"):
+                return self.ok(user, {"id": u.get("id"), "username": u.get("username"),
+                                      "name": u.get("name"), "state": u.get("state"),
+                                      "profile": u.get("web_url"),
+                                      "note": "Debian project contributor identity.",
+                                      "source": "debian-salsa"})
+        return self.ok(user, {"note": "no Salsa user", "source": "debian-salsa"})
+
+
+@register
+class BlockListProject(Module):
+    id = "blocklistproject"
+    name = "Block List Project malware-domain membership (domain, keyless)"
+    category = "OSINT"
+    target_kind = "domain"
+
+    def run(self, target, ctx):
+        try:
+            host = clean_host(target)
+        except ValueError as e:
+            return self.fail(target, str(e))
+        text = _text(_get(ctx, "https://raw.githubusercontent.com/blocklistproject/"
+                          "Lists/master/malware.txt"))
+        listed = False
+        for line in text.splitlines():
+            s = line.strip().lower()
+            if not s or s.startswith("#"):
+                continue
+            parts = s.split()
+            dom = parts[-1] if parts else s
+            if dom == host or dom == f"www.{host}":
+                listed = True
+                break
+        data = {"listed": listed, "feed": "blocklistproject-malware",
+                "source": "blocklistproject"}
+        if listed:
+            data["severity"] = "critical"
+            data["note"] = "domain on The Block List Project malware list."
+        return self.ok(host, data)
