@@ -34,6 +34,18 @@ _ENV_MAP = {
     "virustotal": ("VT_API_KEY", "api_keys", "virustotal"),
     "abuseipdb": ("ABUSEIPDB_API_KEY", "api_keys", "abuseipdb"),
     "deepseek": ("DEEPSEEK_API_KEY", "api_keys", "deepseek"),
+    # --- AI/LLM provider account recon (audit your own keys) ---
+    "openai": ("OPENAI_API_KEY", "api_keys", "openai"),
+    "anthropic": ("ANTHROPIC_API_KEY", "api_keys", "anthropic"),
+    "gemini": ("GEMINI_API_KEY", "api_keys", "gemini"),
+    "groq": ("GROQ_API_KEY", "api_keys", "groq"),
+    "mistral": ("MISTRAL_API_KEY", "api_keys", "mistral"),
+    "openrouter": ("OPENROUTER_API_KEY", "api_keys", "openrouter"),
+    "cohere": ("COHERE_API_KEY", "api_keys", "cohere"),
+    "together": ("TOGETHER_API_KEY", "api_keys", "together"),
+    "perplexity": ("PERPLEXITY_API_KEY", "api_keys", "perplexity"),
+    "xai": ("XAI_API_KEY", "api_keys", "xai"),
+    "replicate": ("REPLICATE_API_TOKEN", "api_keys", "replicate"),
 }
 
 _KEYRING_SERVICE = "ghosteye"
@@ -60,6 +72,17 @@ _KEY_LABELS = {
     "virustotal": "VirusTotal",
     "abuseipdb": "AbuseIPDB",
     "deepseek": "DeepSeek",
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "gemini": "Google Gemini",
+    "groq": "Groq",
+    "mistral": "Mistral AI",
+    "openrouter": "OpenRouter",
+    "cohere": "Cohere",
+    "together": "Together AI",
+    "perplexity": "Perplexity",
+    "xai": "xAI (Grok)",
+    "replicate": "Replicate",
 }
 
 # module id -> api-key name it consumes (so a scan only asks for what it needs).
@@ -67,6 +90,17 @@ MODULE_KEYS = {
     "virustotal": "virustotal",
     "abuseipdb": "abuseipdb",
     "dsapi": "deepseek",
+    "openaiacct": "openai",
+    "anthropicacct": "anthropic",
+    "geminiacct": "gemini",
+    "groqacct": "groq",
+    "mistralacct": "mistral",
+    "openrouteracct": "openrouter",
+    "cohereacct": "cohere",
+    "togetheracct": "together",
+    "pplxacct": "perplexity",
+    "xaiacct": "xai",
+    "replicateacct": "replicate",
 }
 
 _DEFAULTS = {

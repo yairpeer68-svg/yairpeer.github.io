@@ -11,12 +11,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **535 modules** across 19 categories
+- **550 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **806 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 535 of those are the
+- **831 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 550 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 271 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -451,9 +451,11 @@ python3 ghost_eye.py -t example.com -p perimeter --deep --deep-max 30 --rollup
 
 ## API keys
 
-Almost every module works with **no key**. A few optional ones
-(VirusTotal, AbuseIPDB, DeepSeek) can use one. Ghost Eye asks for the key it
-needs and remembers it:
+Almost every module works with **no key**. Some optional ones can use one:
+**VirusTotal** and **AbuseIPDB** (threat intel), and an **LLM-provider account
+recon** set that audits a key you own — DeepSeek, OpenAI, Anthropic, Google
+Gemini, Groq, Mistral, OpenRouter, Cohere, Together, Perplexity, xAI and
+Replicate. Ghost Eye asks for the key a module needs and remembers it:
 
 ```bash
 python3 ghost_eye.py --set-keys          # enter & save all keys up front
@@ -468,9 +470,35 @@ saves your answer. Resolution order is **env var → OS keyring → config file*
   Force the file backend with `GHOSTEYE_NO_KEYRING=1`.
 - **Config file** — otherwise `~/.ghosteye/config.ini` under `[api_keys]`,
   written `0600` (owner-only).
-- **Env vars** — `VT_API_KEY`, `ABUSEIPDB_API_KEY`, `DEEPSEEK_API_KEY` always win.
+- **Env vars** — `VT_API_KEY`, `ABUSEIPDB_API_KEY`, `DEEPSEEK_API_KEY`,
+  `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`,
+  `MISTRAL_API_KEY`, `OPENROUTER_API_KEY`, `COHERE_API_KEY`, `TOGETHER_API_KEY`,
+  `PERPLEXITY_API_KEY`, `XAI_API_KEY`, `REPLICATE_API_TOKEN` always win.
 
 Keys stay local and are never committed. Use `--no-keys` for unattended runs.
+
+### LLM-provider account recon
+
+The `*acct` modules (`openaiacct`, `anthropicacct`, `geminiacct`, `groqacct`,
+`mistralacct`, `openrouteracct`, `cohereacct`, `togetheracct`, `pplxacct`,
+`xaiacct`, `replicateacct`) answer the questions a responder asks about a key —
+one they found in a leak, or one they own:
+
+- is it still **live**, or was it revoked? (`200` vs `401`)
+- which **models** and how much **quota / credit** does it unlock?
+- what **rate-limit / org** context does the provider report back?
+
+They are **read-only** — they list models and read account metadata; no
+generation is billed. Run them only against keys you own or are authorised to
+assess.
+
+```bash
+# audit a single provider key
+OPENAI_API_KEY=sk-… python3 ghost_eye.py -t example.com -m openaiacct
+
+# every provider you have a key for
+python3 ghost_eye.py -t example.com --category AI/LLM
+```
 
 ---
 
@@ -541,7 +569,7 @@ Two dashboards, one server — the **graph-first OSINT investigator is the home 
   sites like github/pastebin and URL-encode artifacts are filtered out).
 
 **🔑 API keys in the browser** — a **Keys** panel (in both dashboards) lets you paste
-optional API keys (VirusTotal / AbuseIPDB / DeepSeek) and **save them** straight
+optional API keys (VirusTotal / AbuseIPDB / DeepSeek + the LLM providers) and **save them** straight
 from the dashboard; they persist to the OS keyring or the `0600` config file
 (`GET/POST /api/keys`). Keys are never shown back or returned by the API.
 
@@ -650,31 +678,36 @@ python3 ghost_eye.py --errors            # view it
 
 ## Module catalogue
 
-307 modules across 19 categories:
+550 modules across 19 categories:
 
 | Category | # | Examples |
 |----------|---|----------|
-| Web | 56 | headers, cors, csp, graphql, smuggle, protopollute, cspbypass, lfisurface |
-| Network | 40 | nmap, portscan, sshaudit, quicdetect, wgdetect, osfp, ipmi |
-| OSINT | 32 | subs, github, wayback, social, related, threatagg, favsimilar |
+| OSINT | 243 | subs, github, wayback, crtsh, social, threatagg, favsimilar |
+| Web | 56 | headers, cors, graphql, smuggle, protopollute, cspbypass, lfisurface |
+| Network | 41 | nmap, portscan, sshaudit, quicdetect, wgdetect, osfp, ipmi |
 | SSL/TLS | 27 | cert, tlsgrade, ciphers, ctmonitor, mtls, zerortt |
-| DNS | 25 | dns, dnssecchain, subtakeover, nsecwalk, nsmxtakeover |
-| Cloud | 24 | s3enum, k8s, docker, metassrf, tfstate, gcpenum |
-| Email | 17 | spf/dkim/dmarc, mtasts, mxfingerprint, dkimstrength |
-| AI/LLM | 13 | aiapi, aikeyleak, vectordb, modelserve, promptinject |
-| API Security | 10 | gqlaudit, jwt surfaces, idorsurface, wsaudit |
-| Assets | 8 | subs, asn, favicon, jsendpoints, wayback |
-| Auth & Session | 8 | oauthaudit, jwtaudit, samldetect, sessionaudit |
-| Threat Intel | 7 | cve, exploitdb, rbl, ripestat, virustotal |
-| Passive Intel | 7 | internetdb, geoip, urlscan, torexit |
-| Privacy | 7 | gdpraudit, trackerinv, piiscan, ccpacheck |
-| Supply Chain | 7 | npmscan, pipscan, sbomextract, depconfuse |
+| DNS | 26 | dns, dnssecchain, subtakeover, nsecwalk, nsmxtakeover |
+| Cloud | 25 | s3enum, k8s, docker, metassrf, tfstate, gcpenum |
+| AI/LLM | 24 | aiapi, aikeyleak, modelserve, promptinject, openaiacct, anthropicacct |
+| Threat Intel | 18 | cve, exploitdb, rbl, ripestat, virustotal, threatfox |
+| Email | 17 | spf/dkim/dmarc, mtasts, mxfingerprint, dkimstrength, bimi |
+| API Security | 10 | gqlaudit, idorsurface, wsaudit, restfuzz, webhookfind |
+| Assets | 9 | subs, asn, favicon, jsendpoints, revip, screenshot |
+| Auth & Session | 8 | oauthaudit, jwtaudit, samldetect, sessionaudit, mfacheck |
+| Exposure | 8 | vcs, backups, buckets, admin, dirlisting, jssecrets |
 | IoT | 7 | upnpscan, rtspscan, coapscan, icsscan, snmpv3 |
-| Exposure | 6 | vcs, backups, buckets, admin, dirlisting |
-| Crypto | 5 | web3rpc, smartcontract, ipfsgw, ensscan |
-| Mobile | 1 | mobileapp (APK/IPA static analysis) |
+| Passive Intel | 7 | internetdb, geoip, urlscan, torexit, reputation |
+| Privacy | 7 | gdpraudit, trackerinv, piiscan, ccpacheck, privacypol |
+| Supply Chain | 7 | npmscan, pipscan, sbomextract, depconfuse, actionleak |
+| Crypto | 5 | web3rpc, smartcontract, ipfsgw, ensscan, cryptoaddr |
+| Mobile | 5 | mobileapp, applinks, assetlinks, appadstxt, deeplinks |
 
 Run `python3 ghost_eye.py --list` for the full list with ids.
+
+The newest additions: **11 LLM-provider account-recon modules** (`*acct` —
+validate a key you own, list the models and quota it unlocks) and **4 mobile
+association modules** (`applinks`, `assetlinks`, `appadstxt`, `deeplinks` — the
+public app-association files that map an org's mobile portfolio).
 
 ---
 
@@ -720,7 +753,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 535 modules
+- **All-module smoke test** — runs `run()` for every one of the 550 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions. Note what it does
@@ -745,7 +778,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**806 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**831 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

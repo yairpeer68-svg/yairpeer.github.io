@@ -213,6 +213,155 @@ class TestAdaptiveRate:
 
 
 # --------------------------------------------------------------------------- #
+#  new modules: AI provider account recon + mobile association files
+# --------------------------------------------------------------------------- #
+class _Resp:
+    def __init__(self, code, payload=None, text="", ctype="application/json"):
+        import json as _json
+        self.status_code = code
+        self._payload = payload
+        self.text = text or (_json.dumps(payload) if payload is not None else "")
+        self.headers = {"Content-Type": ctype}
+
+    def json(self):
+        if self._payload is None:
+            raise ValueError("no json")
+        return self._payload
+
+
+class _Sess:
+    def __init__(self, mapper):
+        self.mapper = mapper
+        self.headers = {}
+
+    def get(self, url, **kw):
+        return self.mapper(url, kw)
+
+
+def _ctx_with(mapper, config=None):
+    from ghost_eye.core import Context
+    return Context(config=config, session=_Sess(mapper), timeout=5)
+
+
+class _KeyCfg:
+    def __init__(self, key="sk-test-key"):
+        self._key = key
+
+    def api_key(self, _name):
+        return self._key
+
+
+def _registry():
+    import ghost_eye.modules  # noqa: F401
+    from ghost_eye.core import REGISTRY
+    return REGISTRY
+
+
+class TestAIProviders:
+    def test_missing_key_fails_gracefully(self):
+        mod = _registry()["openaiacct"]
+        res = mod.run("example.com", _ctx_with(lambda *a: None, config=_KeyCfg(None)))
+        assert res.status == "error"
+        assert "OPENAI_API_KEY" in res.error
+
+    def test_valid_key_lists_models(self):
+        def mapper(url, kw):
+            if url.endswith("/v1/models"):
+                return _Resp(200, {"data": [{"id": "gpt-4o"}, {"id": "o1"}]})
+            return _Resp(404, text="nope")
+        res = _registry()["openaiacct"].run(
+            "example.com", _ctx_with(mapper, config=_KeyCfg()))
+        assert res.status == "ok"
+        assert res.data["key_status"] == "key is VALID"
+        assert res.data["models"] == ["gpt-4o", "o1"]
+
+    def test_invalid_key_is_reported_not_crashed(self):
+        res = _registry()["anthropicacct"].run(
+            "example.com",
+            _ctx_with(lambda u, k: _Resp(401, text='{"error":"bad key"}'),
+                      config=_KeyCfg()))
+        assert res.status == "ok"
+        assert res.data["key_status"] == "key is INVALID or revoked"
+
+    def test_gemini_uses_query_auth_not_a_header(self):
+        seen = {}
+
+        def mapper(url, kw):
+            seen["url"] = url
+            seen["headers"] = kw.get("headers", {})
+            return _Resp(200, {"models": [{"name": "models/gemini-1.5-pro"}]})
+        res = _registry()["geminiacct"].run(
+            "example.com", _ctx_with(mapper, config=_KeyCfg("g-key")))
+        assert "key=g-key" in seen["url"]
+        assert "Authorization" not in seen["headers"]
+        assert res.data["models"] == ["models/gemini-1.5-pro"]
+
+    def test_every_provider_module_has_a_config_key(self):
+        from ghost_eye.config import _ENV_MAP, MODULE_KEYS
+        for mod in _registry().values():
+            if mod.id.endswith("acct") and mod.category == "AI/LLM":
+                assert mod.id in MODULE_KEYS, f"{mod.id} not wired to a key"
+                assert MODULE_KEYS[mod.id] in _ENV_MAP
+
+
+class TestMobileModules:
+    def test_apple_app_site_association(self):
+        aasa = {"applinks": {"details": [
+            {"appIDs": ["TEAMID1234.com.acme.app"],
+             "components": [{"/": "/u/*"}]}]},
+            "webcredentials": {"apps": ["TEAMID1234.com.acme.app"]}}
+
+        def mapper(url, kw):
+            return _Resp(200, aasa) if "apple-app-site-association" in url else _Resp(404)
+        res = _registry()["applinks"].run("acme.com", _ctx_with(mapper))
+        assert res.data["apple_team_ids"] == ["TEAMID1234"]
+        assert res.data["shared_webcredentials"] is True
+
+    def test_android_assetlinks(self):
+        doc = [{"relation": ["delegate_permission/common.handle_all_urls"],
+                "target": {"package_name": "com.acme.app",
+                           "sha256_cert_fingerprints": ["AA:BB"]}}]
+
+        def mapper(url, kw):
+            return _Resp(200, doc) if "assetlinks.json" in url else _Resp(404)
+        res = _registry()["assetlinks"].run("acme.com", _ctx_with(mapper))
+        assert res.data["package_names"] == ["com.acme.app"]
+        assert res.data["signing_fingerprints"] == {"com.acme.app": ["AA:BB"]}
+
+    def test_app_ads_txt_counts_relationships(self):
+        body = ("google.com, pub-1, DIRECT\n"
+                "appnexus.com, 2, RESELLER\nsubdomain=ads.acme.com\n")
+
+        def mapper(url, kw):
+            return (_Resp(200, text=body, ctype="text/plain")
+                    if url.endswith("/app-ads.txt") else _Resp(404))
+        res = _registry()["appadstxt"].run("acme.com", _ctx_with(mapper))
+        assert res.data["direct_relationships"] == 1
+        assert res.data["reseller_relationships"] == 1
+        assert res.data["declared_subdomains"] == ["ads.acme.com"]
+
+    def test_app_ads_txt_html_soft404_is_not_parsed(self):
+        def mapper(url, kw):
+            return _Resp(200, text="<html>not found</html>", ctype="text/html")
+        res = _registry()["appadstxt"].run("acme.com", _ctx_with(mapper))
+        assert res.data["app_ads_txt"] == "not published"
+
+    def test_deep_link_surface_extracts_schemes_and_package(self):
+        html = ('<meta name="apple-itunes-app" content="app-id=987654321">'
+                '<a href="myapp://open">x</a>'
+                '<a href="intent://s/#Intent;package=com.acme.scan;end">y</a>'
+                '<a href="https://web.example">z</a>')
+
+        def mapper(url, kw):
+            return _Resp(200, text=html, ctype="text/html")
+        res = _registry()["deeplinks"].run("https://acme.com", _ctx_with(mapper))
+        assert "myapp" in res.data["custom_schemes"]
+        assert "intent" not in res.data["custom_schemes"]   # reported separately
+        assert res.data["intent_packages"] == ["com.acme.scan"]
+        assert res.data["ios_app_store_id"] == "987654321"
+
+
+# --------------------------------------------------------------------------- #
 #  store
 # --------------------------------------------------------------------------- #
 class TestStore:
