@@ -27,11 +27,19 @@ _SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 
 def score_findings(results: List[Result]) -> Dict[str, Any]:
-    """Feature #66 - assign severity to each flagged finding + overall score."""
+    """Feature #66 - assign severity to each flagged finding + overall score.
+
+    Every finding is also tagged with a **confidence** and **provenance**
+    (see ``ghost_eye.confidence``) so a directly-observed fact is distinguished
+    from a third-party claim or a heuristic guess — inferred per finding, with
+    no change to the modules themselves.
+    """
+    from . import confidence as _conf
     findings: List[Dict[str, str]] = []
     for r in results:
         flat: Dict[str, str] = {}
         _flatten("", r.data, flat)
+        data = getattr(r, "data", {}) or {}
         for key, val in flat.items():
             text = f"{key} {val}"
             sev = None
@@ -40,17 +48,21 @@ def score_findings(results: List[Result]) -> Dict[str, Any]:
                     sev = s
                     break
             if sev and sev != "low":
-                findings.append({"module": r.module, "target": r.target,
-                                 "field": key, "detail": str(val)[:200], "severity": sev})
+                finding = {"module": r.module, "target": r.target,
+                           "field": key, "detail": str(val)[:200], "severity": sev}
+                _conf.annotate_finding(finding, data)
+                findings.append(finding)
     counts = {s: 0 for s in _SEV_ORDER}
     for f in findings:
         counts[f["severity"]] += 1
     risk = counts["critical"] * 40 + counts["high"] * 15 + counts["medium"] * 5
     level = ("CRITICAL" if counts["critical"] else "HIGH" if counts["high"]
              else "MEDIUM" if counts["medium"] else "LOW")
-    findings.sort(key=lambda f: _SEV_ORDER[f["severity"]])
+    # sort by severity, then by confidence (confirmed findings first within a tier)
+    findings.sort(key=lambda f: (_SEV_ORDER[f["severity"]],
+                                 _conf.rank(f.get("confidence", "low"))))
     return {"risk_score": risk, "risk_level": level, "counts": counts,
-            "findings": findings}
+            "findings": findings, "confidence": _conf.summarize(findings)}
 
 
 def dedup_findings(results: List[Result]) -> List[Dict[str, str]]:

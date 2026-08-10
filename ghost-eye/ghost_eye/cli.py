@@ -84,17 +84,24 @@ def make_context(cfg: Config, args) -> Context:
     threads = args.threads or cfg.get_int("threads", 10)
     session = build_session(user_agent=ua, proxy=proxy,
                             verify_tls=verify, timeout=timeout)
+    recorder = None
+    if getattr(args, "opsec", False) or getattr(args, "opsec_strict", False):
+        from . import opsec
+        recorder = opsec.LeakRecorder(target=args.target or "",
+                                      strict=getattr(args, "opsec_strict", False))
     wrap_kw = {
         "rate": getattr(args, "rate", 0) or 0,
         "cache_dir": ".ghosteye_cache" if getattr(args, "cache", False) else None,
         "cache_ttl": getattr(args, "cache_ttl", 300),
         "rate_per_host": getattr(args, "rate_per_host", 0) or 0,
+        "recorder": recorder,
     }
     session = workflow.wrap_session(session, **wrap_kw)
     ctx = Context(config=cfg, session=session, threads=threads,
                   timeout=timeout, verbose=args.verbose)
     # remembered so a rotated session can be re-wrapped identically
     ctx.session_wrap = wrap_kw            # type: ignore[attr-defined]
+    ctx.opsec = recorder                  # type: ignore[attr-defined]
     return ctx
 
 
@@ -412,6 +419,12 @@ def build_parser() -> argparse.ArgumentParser:
     net.add_argument("--user-agent", help="fixed custom User-Agent")
     net.add_argument("--insecure", action="store_true",
                      help="do not verify TLS certificates")
+    net.add_argument("--opsec", action="store_true",
+                     help="OPSEC audit: report which third parties the scan "
+                          "disclosed the target to")
+    net.add_argument("--opsec-strict", action="store_true",
+                     help="OPSEC enforce: contact ONLY the target — refuse "
+                          "every third-party request (implies --opsec)")
 
     out = p.add_argument_group("output / reporting")
     out.add_argument("-o", "--output", help="write report to this file")
@@ -592,7 +605,23 @@ def _run_once(mods, target, cfg, args):
         _print_exploit_intel(results)
     if getattr(args, "intel", False):
         _print_intel(results, target)
+    if getattr(ctx, "opsec", None) is not None:
+        _print_opsec(ctx.opsec.report())
     return results
+
+
+def _print_opsec(rep: dict) -> None:
+    Console.rule(f"OPSEC — {rep['exposure']}")
+    third = rep.get("third_parties_contacted", [])
+    Console.kv("third parties that saw the target", rep["third_party_count"])
+    for entry in third[:25]:
+        Console.kv(entry["host"], f"{entry['requests']} request(s)", indent=4)
+    if rep.get("strict_mode"):
+        blocked = rep.get("blocked_in_strict_mode", [])
+        Console.kv("blocked (strict mode)", len(blocked))
+        for h in blocked[:25]:
+            Console.kv(h, "refused", indent=4)
+    Console.info(rep["note"])
 
 
 def _print_intel(results, target):

@@ -227,8 +227,10 @@ def _response_from_cache(raw: bytes):
 
 def wrap_session(session, rate: float = 0.0,
                  cache_dir: Optional[str] = None, cache_ttl: int = 300,
-                 rate_per_host: float = 0.0):
-    if not rate and not cache_dir and not rate_per_host:
+                 rate_per_host: float = 0.0, recorder=None):
+    # `recorder` (an opsec.LeakRecorder) makes wrapping worthwhile on its own:
+    # it logs which third parties a scan disclosed the target to.
+    if not rate and not cache_dir and not rate_per_host and recorder is None:
         return session
     if cache_dir:
         Path(cache_dir).mkdir(parents=True, exist_ok=True)
@@ -238,6 +240,13 @@ def wrap_session(session, rate: float = 0.0,
     host_last: Dict[str, float] = {}
 
     def request(method, url, **kw):
+        if recorder is not None:
+            # OPSEC strict mode: refuse to contact anything but the target,
+            # so a sensitive investigation never leaks to third parties.
+            if recorder.should_block(url):
+                recorder.note_blocked(url)
+                raise RuntimeError(f"opsec-strict: refused to contact {url}")
+            recorder.record(url)
         cache_file = None
         if cache_dir and method.upper() == "GET":
             key = hashlib.sha256(

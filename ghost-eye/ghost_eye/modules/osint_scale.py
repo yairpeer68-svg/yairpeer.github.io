@@ -280,6 +280,69 @@ class EmailFootprint(Module):
                     "linked accounts are self-declared by the owner."})
 
 
+@register
+class SourceHealth(Module):
+    """Registry self-audit: a data-driven engine is only as trustworthy as its
+    sources, and public sites break silently. This sends a random (definitely
+    absent) canary to each site and classifies it:
+
+      * healthy      — correctly reports the canary as *not found*
+      * unreliable   — reports the canary as *found* (answers 200 for anyone,
+                       so its "present" verdicts are false positives)
+      * dead/blocked — no usable response
+
+    Run it to know which of the registry's sources you can trust before you act
+    on a username sweep.
+    """
+    id, name, category = "sourcehealth", "OSINT source-registry health check", "OSINT"
+    target_kind = "host"
+
+    def run(self, target: str, ctx: Context) -> Result:
+        sites = load_sites("username")
+        if not sites:
+            return self.fail(target or "registry", "username registry is empty")
+        cap = 500
+        try:
+            cap = int(ctx.config.get("username_max") or 500)  # type: ignore[union-attr]
+        except Exception:  # noqa: BLE001
+            pass
+        sample = sites[:cap]
+        canary = "ge" + secrets.token_hex(6)
+        workers = max(4, min(getattr(ctx, "threads", 10) * 2, 40))
+        healthy, unreliable, dead = [], [], []
+
+        def check(site: Site):
+            url = site.build(canary)
+            try:
+                resp = ctx.session.get(url, timeout=ctx.timeout,
+                                       allow_redirects=True)
+            except Exception:  # noqa: BLE001
+                return site.name, "dead"
+            verdict, _ = _classify(site, resp)
+            if verdict == "present":
+                return site.name, "unreliable"   # found a random name => bogus
+            if verdict == "absent":
+                return site.name, "healthy"
+            return site.name, "dead"
+
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            for name, status in ex.map(check, sample):
+                {"healthy": healthy, "unreliable": unreliable,
+                 "dead": dead}[status].append(name)
+        total = len(sample)
+        return self.ok(target or "registry", {
+            "sites_audited": total,
+            "healthy": len(healthy),
+            "unreliable": sorted(unreliable),
+            "dead_or_blocked": len(dead),
+            "health_pct": round(100 * len(healthy) / total, 1) if total else 0,
+            "unreliable_count": len(unreliable),
+            "note": "healthy = correctly reports a random username as absent; "
+                    "unreliable sites answer 200 for anyone and are auto-dropped "
+                    "by usernamescan's canary guard. Run periodically to catch "
+                    "silently-broken sources."})
+
+
 # make the registry stats importable for the dashboard/CLI banner
 def username_registry_stats() -> dict:
     return registry_stats("username")

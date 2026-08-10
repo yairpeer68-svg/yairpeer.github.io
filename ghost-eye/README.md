@@ -11,12 +11,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **553 modules** across 19 categories
+- **554 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **852 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **870 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 554 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 271 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -37,6 +37,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [Command-line reference](#command-line-reference)
 - [Scan profiles](#scan-profiles-recipes)
 - [Exploit / zero-day intelligence](#exploit--zero-day-intelligence)
+- [Trust layer — confidence, provenance & OPSEC](#trust-layer--confidence-provenance--opsec)
 - [Reporting](#reporting)
 - [CI/CD security gate](#cicd-security-gate)
 - [Notifications](#notifications)
@@ -141,6 +142,8 @@ python3 ghost_eye_web.py --open
 | `--scope <file>` | refuse targets outside an allow-list |
 | `--osint-deep [depth]` | advanced OSINT: automated multi-hop pivot from `-t` (default depth 1) |
 | `--passive-only` | run only passive modules (no traffic to the target) |
+| `--opsec` | OPSEC audit: report which third parties the scan disclosed the target to |
+| `--opsec-strict` | OPSEC enforce: contact **only** the target, refuse every third-party request |
 | `--adaptive-rate` | self-tuning throttle: back off when the target errors / rate-limits |
 | `--queue <db>` `--enqueue` `--worker` | distributed scanning: share a job queue across many worker hosts |
 | `--lang {en,he}` | interface / report language (Hebrew = RTL) |
@@ -373,6 +376,56 @@ python3 ghost_eye.py -t example.com -m exploitdb        # standalone module
 ```
 
 Detection/correlation only — nothing is ever exploited.
+
+---
+
+## Trust layer — confidence, provenance & OPSEC
+
+A recon tool's value is trust in its output, so Ghost Eye is explicit about
+**how sure** a finding is and **what it cost you** to obtain it.
+
+**Confidence + provenance on every finding.** Each scored finding is tagged —
+with no change to the modules themselves — by how it was obtained:
+
+| provenance | meaning | default confidence |
+|------------|---------|--------------------|
+| `direct` | we contacted the asset (headers, cert, DNS, ports) | high |
+| `third_party` | a service reported it (reputation feed, Wayback, GitHub) | medium |
+| `heuristic` | a keyword/pattern matched, unverified (`*surface`, `*indicators`) | low |
+
+Findings sort by severity **then** confidence, so a confirmed critical outranks
+a heuristic one. A module can override (`data["_confidence"]`,
+`data["_provenance"]`), and the data-driven OSINT modules carry per-hit
+confidence from their canary check. Reports include a confidence roll-up
+(`verified_fraction`, counts by level); the dashboard's findings view exposes it
+at `GET /api/job/<id>/findings`.
+
+**OPSEC leak-awareness.** An OSINT scan hands the target's name to many third
+parties (Gravatar, ip-api, DoH resolvers, threat feeds) — each then knows what
+you're investigating. `--opsec` reports exactly who saw the target:
+
+```bash
+python3 ghost_eye.py -t example.com -m dns,geoip --opsec
+#   OPSEC — low
+#     third parties that saw the target: 2
+#       cloudflare-dns.com: 9 request(s)
+#       dns.google: 9 request(s)
+
+# refuse to touch anything but the target — nothing leaks to third parties:
+python3 ghost_eye.py -t example.com --all --opsec-strict
+```
+
+In the dashboard: `GET /api/job/<id>/opsec`. Pair `--opsec-strict` with `--tor`
+to hide your source IP as well.
+
+**Source-registry health.** The data-driven engine can audit its own sources:
+`sourcehealth` sends a random canary to every site in the username registry and
+flags the ones that answer `200` for *anyone* (silently broken / false-positive
+prone) so you know which sources to trust before acting on a sweep.
+
+```bash
+python3 ghost_eye.py -m sourcehealth -t x
+```
 
 ---
 
@@ -682,7 +735,7 @@ python3 ghost_eye.py --errors            # view it
 
 | Category | # | Examples |
 |----------|---|----------|
-| OSINT | 246 | subs, github, wayback, usernamescan, emailfootprint, threatagg |
+| OSINT | 247 | subs, github, wayback, usernamescan, emailfootprint, sourcehealth |
 | Web | 56 | headers, cors, graphql, smuggle, protopollute, cspbypass, lfisurface |
 | Network | 41 | nmap, portscan, sshaudit, quicdetect, wgdetect, osfp, ipmi |
 | SSL/TLS | 27 | cert, tlsgrade, ciphers, ctmonitor, mtls, zerortt |
@@ -789,7 +842,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 553 modules
+- **All-module smoke test** — runs `run()` for every one of the 554 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions. Note what it does
@@ -814,7 +867,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**852 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**870 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

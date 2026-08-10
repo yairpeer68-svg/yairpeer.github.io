@@ -741,6 +741,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_search(jid, parsed)
         if sub == "findings":
             return self._job_findings(jid)
+        if sub == "opsec":
+            return self._job_opsec(jid)
         if sub == "ask":
             return self._job_ask(jid, parsed)
         if sub == "summary":
@@ -885,7 +887,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": f"findings failed: {exc}"}, 500)
         return self._json({"findings": scored.get("findings", []),
                            "counts": scored.get("counts", {}),
-                           "risk_level": scored.get("risk_level", "")})
+                           "risk_level": scored.get("risk_level", ""),
+                           "confidence": scored.get("confidence", {})})
+
+    def _job_opsec(self, jid: str):
+        """OPSEC exposure for a job: which third parties the scan disclosed the
+        target to, reconstructed from reported URLs (feature: leak-awareness)."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        from . import opsec
+        try:
+            return self._json(opsec.report_from_results(results, target))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"opsec report failed: {exc}"}, 500)
 
     def _job_ask(self, jid: str, parsed):
         """Deterministic Q&A over a scan's intelligence (feature 66).
