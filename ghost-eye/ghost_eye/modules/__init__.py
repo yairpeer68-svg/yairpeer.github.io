@@ -71,6 +71,8 @@ from . import (  # noqa: F401
     osint_scale,
     # --- v3.91: CDN/WAF edge filtering ---
     netfilter,
+    # --- v4.2: emerging / freshly-disclosed vulnerability early warning ---
+    emerging,
 )
 
 __all__ = [
@@ -87,5 +89,5 @@ __all__ = [
     "exploit_intel", "screenshot",
     "web_v4", "dns_v4", "email_v3", "tls_v3", "network_v4", "ai_v2", "mobile",
     "osint_sources", "newscan_wave", "osint_power", "osint_freesources",
-    "ai_providers", "mobile_v2", "osint_scale", "netfilter",
+    "ai_providers", "mobile_v2", "osint_scale", "netfilter", "emerging",
 ]

@@ -11,14 +11,14 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **551 modules** across 19 categories
+- **552 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1000 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 551 of those are the
+- **1010 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 449 are behavioural — see
+  raises"); the other 458 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -394,6 +394,28 @@ CVEs known to be weaponised and on CISA KEV (Log4Shell, EternalBlue, Heartbleed,
 ProxyLogon, Struts) and **fails if any comes back clean** — telling you the
 zero-day intelligence is degraded instead of letting you trust a false "nothing
 found". (It tolerates a single source hiccup; a total miss is broken.)
+
+### Emerging / freshly-disclosed vulnerabilities (`freshvulns`)
+
+`exploitdb` above queries databases of *known* vulnerabilities. A true zero-day
+— unknown to everyone — is by definition in **no** database, and finding one is
+vulnerability research (fuzzing, code/binary analysis), which a passive recon
+tool doesn't and shouldn't do. `freshvulns` is the achievable, defensive
+counterpart: **early warning for vulnerabilities disclosed so recently the
+settled databases (NVD) haven't caught up** — the window where you're exposed
+but the CVE hasn't propagated.
+
+```bash
+python3 ghost_eye.py -t example.com -m freshvulns   # fresh disclosures, last ~21d
+```
+
+It reads sources that lead NVD by days-to-weeks — **GitHub Security Advisories**
+(often published first), **CISA KEV recent additions** (a CVE added this
+fortnight is being exploited *right now*, whatever its age), and the newest
+detection templates — and **cross-references them against the products the
+target advertises**, so the headline is "a vuln just dropped for the nginx you
+run", not a firehose. Window is `--config` `fresh_days` (default 21). This is
+fresh *known* intelligence, explicitly **not** literal zero-day discovery.
 
 ---
 
@@ -895,7 +917,7 @@ python3 ghost_eye.py --errors            # view it
 | DNS | 26 | dns, dnssecchain, subtakeover, nsecwalk, nsmxtakeover |
 | Cloud | 25 | s3enum, k8s, docker, metassrf, tfstate, gcpenum |
 | AI/LLM | 24 | aiapi, aikeyleak, modelserve, promptinject, openaiacct, anthropicacct |
-| Threat Intel | 18 | cve, exploitdb, rbl, ripestat, virustotal, threatfox |
+| Threat Intel | 19 | cve, exploitdb, rbl, ripestat, virustotal, threatfox |
 | Email | 17 | spf/dkim/dmarc, mtasts, mxfingerprint, dkimstrength, bimi |
 | API Security | 10 | gqlaudit, idorsurface, wsaudit, restfuzz, webhookfind |
 | Assets | 9 | subs, asn, favicon, jsendpoints, revip, screenshot |
@@ -1094,7 +1116,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1000 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**1010 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
