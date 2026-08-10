@@ -265,21 +265,8 @@ class IamExpose(Module):
 # Published CDN IPv4 ranges (stable). An A record OUTSIDE all of these, reached
 # via an origin-revealing channel (SPF/MX/origin subdomains), is a likely true
 # origin. Detection/correlation only — no traffic tricks, no exploitation.
-_CDN_RANGES = {
-    "Cloudflare": [
-        "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22",
-        "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18",
-        "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22",
-        "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13",
-        "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
-    ],
-    "Fastly": ["151.101.0.0/16", "199.232.0.0/16", "23.235.32.0/20"],
-    "CloudFront": ["13.32.0.0/15", "13.224.0.0/14", "52.84.0.0/15",
-                   "54.192.0.0/16", "99.84.0.0/16", "205.251.192.0/19"],
-    "Akamai": ["23.32.0.0/11", "23.192.0.0/11", "104.64.0.0/10", "184.24.0.0/13"],
-}
-_CDN_NETS = {name: [ipaddress.ip_network(c) for c in cidrs]
-             for name, cidrs in _CDN_RANGES.items()}
+# CDN/WAF ranges now live in ghost_eye/netclass.py (14 providers, v4+v6,
+# refreshable from the providers' published lists) — see _cdn_of below.
 # subdomain prefixes that usually point straight at the origin (not fronted)
 _ORIGIN_PREFIXES = ("origin", "direct", "direct-connect", "dev", "staging",
                     "stage", "test", "cpanel", "webmail", "mail", "smtp",
@@ -296,14 +283,15 @@ def _resolve(name: str) -> List[str]:
 
 
 def _cdn_of(ip: str) -> str:
-    try:
-        addr = ipaddress.ip_address(ip)
-    except ValueError:
-        return ""
-    for name, nets in _CDN_NETS.items():
-        if any(addr in n for n in nets):
-            return name
-    return ""
+    """Which CDN/WAF an address belongs to, via the central classifier.
+
+    This used to consult a private 4-provider table living in this file, which
+    meant an Imperva, Sucuri, Azure Front Door or StackPath edge address was
+    reported as a *true origin* — a confident false positive. ghost_eye.netclass
+    knows 14 providers and is the single place ranges are maintained."""
+    from ..netclass import classify_ip
+    info = classify_ip(ip)
+    return info["provider"] or "" if info["kind"] == "cdn" else ""
 
 
 def _spf_ips(host: str, ctx: Context) -> List[str]:
@@ -389,9 +377,34 @@ class OriginHunt(Module):
         if likely:
             data["likely_origins"] = likely[:15]
             data["severity"] = "medium" if cdn_name else "info"
-            data["note"] = ("these IPs were reached via origin-revealing channels "
-                            "and are NOT in a known CDN range — verify one hosts "
-                            "the same site to confirm the true origin.")
+            # Don't stop at "here is a list to check by hand": ask each
+            # candidate for the site directly and compare what it serves.
+            try:
+                from ..origin import verify_origins
+                verified = verify_origins(
+                    ctx.session, str(host), [c["ip"] for c in likely],
+                    timeout=max(5, min(ctx.timeout, 10)))
+            except Exception as exc:  # noqa: BLE001 - verification is a bonus
+                verified = {"error": str(exc)[:120]}
+            confirmed = verified.get("confirmed_origins") or []
+            possible = verified.get("possible_origins") or []
+            data["verification"] = {
+                k: v for k, v in verified.items() if k != "baseline"}
+            data["confirmed_origins"] = confirmed or "none confirmed"
+            if confirmed:
+                data["severity"] = "high"
+                data["note"] = (
+                    f"ORIGIN CONFIRMED: {', '.join(confirmed)} served this site "
+                    f"when asked directly with a Host header — the CDN/WAF at "
+                    f"{cdn_name or 'the edge'} can be bypassed by contacting it "
+                    f"directly. Restrict the origin to accept only CDN traffic.")
+            elif possible:
+                data["note"] = ("candidates partially matched the site — likely "
+                                "the origin but not proven; verify manually.")
+            else:
+                data["note"] = ("candidates found via origin-revealing channels, "
+                                "but none served the target's page when asked "
+                                "directly, so none is confirmed as the origin.")
         else:
             data["note"] = ("no non-CDN origin candidate found via passive "
                             "channels; the origin may be well isolated.")

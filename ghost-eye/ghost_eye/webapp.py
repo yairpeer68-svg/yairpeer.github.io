@@ -660,6 +660,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._osint_deep()
         if path == "/api/investigate":
             return self._investigate()
+        if path == "/api/verify-origin":
+            return self._verify_origin()
         if path == "/api/alert-rules":
             return self._alert_rules_set()
         if path == "/api/schedule":
@@ -1081,6 +1083,26 @@ class Handler(BaseHTTPRequestHandler):
                                           depth=depth, max_per_hop=8)
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"osint deep-dive failed: {exc}"}, 500)
+        return self._json(out)
+
+    def _verify_origin(self):
+        """Verify candidate origin IPs for a fronted host (active probe).
+        POST {host, candidates:[ip,...]}."""
+        body = self._body()
+        host = (body.get("host") or body.get("target") or "").strip()
+        cands = body.get("candidates") or []
+        if not host or not isinstance(cands, list) or not cands:
+            return self._json({"error": "host and a non-empty candidates list "
+                                        "are required"}, 400)
+        scope = getattr(self.server, "scope", None)
+        if scope is not None and not scope.empty:
+            allowed, reason = scope.allows(host)
+            if not allowed:
+                return self._json({"error": f"out of scope: {reason}"}, 403)
+        try:
+            out = workflow.verify_origin(host, cands, self.server.jobs.cfg)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"origin verification failed: {exc}"}, 500)
         return self._json(out)
 
     def _investigate(self):

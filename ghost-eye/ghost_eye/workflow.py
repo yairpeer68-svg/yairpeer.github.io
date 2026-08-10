@@ -731,6 +731,16 @@ def entity_investigation(seed: str, cfg=None, run_fn=None,
 _URLS_RE = _re.compile(r"https?://[^\s\"'<>]+")
 
 
+def verify_origin(host: str, candidates, cfg=None) -> dict:
+    """Verify candidate origin IPs for a fronted host: ask each directly (with a
+    Host header) for the target's site and confirm the ones that serve it."""
+    from .origin import verify_origins
+    from .core import build_session
+    session = build_session(timeout=12)
+    ips = [c.strip() for c in (candidates or []) if c and c.strip()]
+    return verify_origins(session, str(host), ips)
+
+
 def ip_filter_report(results, target: str = "") -> dict:
     """Classify every IP a scan produced: CDN/WAF edge vs cloud vs private vs
     candidate origin. The headline is `origin_candidates` — the addresses that

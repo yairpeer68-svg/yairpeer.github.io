@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **961 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 551 of those are the
+- **972 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 551 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 271 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -482,7 +482,37 @@ Ranges are bundled (so classification works fully offline) and can be updated
 from the providers' own published lists with `netclass.refresh_ranges()`. A
 failed or suspiciously short refresh is rejected rather than silently replacing
 the bundled ranges. An address outside every known range is a **candidate**
-origin, not proof.
+origin, not proof — until it is *verified*.
+
+### Origin verification — candidate → proven
+
+Finding a candidate is the easy half. The `originhunt` module now does the half
+that matters: it **asks each candidate directly for the target's site** — an
+HTTP request to the IP carrying `Host: target` — and compares the response with
+what the CDN serves.
+
+```bash
+python3 ghost_eye.py -t example.com -m originhunt
+# dashboard: POST /api/verify-origin {host, candidates:[ip,...]}
+```
+
+- If the candidate returns the **same page**, it is hosting that site — that is
+  the origin, **confirmed**, and the CDN/WAF can be bypassed by talking to it
+  directly (a real finding: restrict the origin to accept only CDN traffic).
+- If it returns a default page, someone else's site, or an error, it is
+  **rejected**.
+
+Comparison is deliberately fuzzy — pages carry CSRF tokens, timestamps and
+rotating content, so those are stripped before scoring body similarity, title
+and `Server` header together. A single leftover token can't reject a real
+origin, and a shared "It works!" page can't confirm a fake one. Candidate IPs
+come from `originhunt`'s passive channels (origin-revealing subdomains, SPF, MX)
+and are now classified against all 14 CDN providers — fixing a bug where an
+Imperva or Sucuri edge address was reported as a true origin.
+
+This step **does contact the candidate address** (unlike the rest of Ghost
+Eye's passive OSINT), so it runs only when you select `originhunt`. Authorised
+use only.
 
 ---
 
@@ -1017,7 +1047,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**961 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**972 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
