@@ -236,8 +236,15 @@ def export_dashboard(results: List[Result], path: str, target: str = "") -> str:
 
 
 def push_siem(results: List[Result], url: str, mode: str = "webhook",
-              token: str = "") -> bool:
-    """Feature #68 - push results to Elasticsearch / Splunk HEC / generic webhook."""
+              token: str = "", verify: bool = True) -> bool:
+    """Feature #68 - push results to Elasticsearch / Splunk HEC / generic webhook.
+
+    `verify` controls TLS certificate verification. It defaults to True: the
+    Splunk path sends the HEC token in an Authorization header alongside the
+    full findings, and used to do so over an unverified connection, which hands
+    both to anyone in the middle. Pass verify=False only for a lab collector
+    with a self-signed certificate.
+    """
     import requests
     try:
         if mode == "elasticsearch":
@@ -247,15 +254,15 @@ def push_siem(results: List[Result], url: str, mode: str = "webhook",
                 bulk += json.dumps(r.as_dict()) + "\n"
             resp = requests.post(url.rstrip("/") + "/_bulk", data=bulk,
                                  headers={"Content-Type": "application/x-ndjson"},
-                                 timeout=20)
+                                 timeout=20, verify=verify)
         elif mode == "splunk":
             events = "".join(json.dumps({"event": r.as_dict()}) for r in results)
             resp = requests.post(url, data=events,
                                  headers={"Authorization": f"Splunk {token}"},
-                                 timeout=20, verify=False)
+                                 timeout=20, verify=verify)
         else:  # generic webhook
             resp = requests.post(url, json={"results": [r.as_dict() for r in results]},
-                                 timeout=20)
+                                 timeout=20, verify=verify)
         return resp.status_code < 300
     except Exception as exc:  # noqa: BLE001
         log.warning("SIEM push failed: %s", exc)

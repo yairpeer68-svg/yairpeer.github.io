@@ -232,6 +232,13 @@ class Store:
         self.conn.commit()
         return n
 
+    def count_scans(self) -> int:
+        """How many scans are stored. Counting in SQLite beats loading every
+        row's JSON into memory just to take len()."""
+        cur = self.conn.execute("SELECT COUNT(*) FROM scans")
+        row = cur.fetchone()
+        return int(row[0]) if row else 0
+
     def recent_scans(self, limit: int = 30):
         cur = self.conn.execute(
             "SELECT id,target,ts,risk,score,modules FROM scans "

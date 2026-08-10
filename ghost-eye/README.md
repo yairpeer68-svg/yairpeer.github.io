@@ -16,8 +16,10 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **763 automated tests** (unit + smoke + behavioural + engine + intelligence + integration), CI on
-  Python 3.9 / 3.11 / 3.12
+- **806 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 535 of those are the
+  per-module smoke test (one assertion each: "returns a `Result`, never
+  raises"); the other 271 are behavioural — see
+  [Testing & quality](#testing--quality)
 
 > ## ⚠️ Authorised use only
 > Ghost Eye performs active reconnaissance (port scans, directory probing,
@@ -103,7 +105,7 @@ python3 ghost_eye_web.py --open
 
 | Flag | Meaning |
 |------|---------|
-| `-t, --target <t>` | single target (domain / IP / URL) |
+| `-t, --target <t>` | single target — `example.com`, `1.2.3.4`, `example.com:8080`, `http://example.com:8080/path`. A scheme and a port are honoured (an https attempt on a port that isn't running TLS falls back to http; a *certificate* error never does) |
 | `-T, --targets <file>` | batch: one target per line |
 | `-m, --modules <ids>` | comma-separated module ids |
 | `-p, --profile <name>` | a scan profile (see below) |
@@ -125,7 +127,7 @@ python3 ghost_eye_web.py --open
 | `--inventory`, `--rollup` | asset inventory / per-host rollup |
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
 | `--ci`, `--fail-on <sev>` | CI mode: non-zero exit if findings breach the severity gate |
-| `--siem <url>` | push results to Elasticsearch / Splunk / webhook |
+| `--siem <url>` | push results to Elasticsearch / Splunk / webhook (TLS verified; `--siem-insecure` to opt out for a lab collector) |
 | `--notify <webhook>` | Slack / Discord / Telegram summary |
 | `--save-db`, `--db <path>`, `--diff` | SQLite history + diff vs previous run |
 
@@ -490,9 +492,35 @@ python3 ghost_eye.py -t example.com --trend                   # show the timelin
 
 ```bash
 python3 ghost_eye_web.py                 # localhost only (default)
-python3 ghost_eye_web.py --open          # open a browser
+python3 ghost_eye_web.py --open          # open a browser (URL carries the token)
 python3 ghost_eye_web.py --host 0.0.0.0 --port 9000 --scope scope.txt
 ```
+
+### Dashboard security model
+
+The dashboard drives scans and stores API keys, so the API is guarded even on
+localhost. "Local" is not a trust boundary in a browser: any page you happen to
+be visiting can POST to `127.0.0.1`, and a hostname an attacker controls can be
+pointed at `127.0.0.1` to read the replies (DNS rebinding).
+
+- **A token is always required for `/api/*`.** The startup banner prints the
+  URL with `?token=…` in it — open that and the dashboard works as normal.
+  Set your own with `--auth-token` or `GHOSTEYE_TOKEN`. Comparisons are
+  constant-time; the token is never written to the access log.
+- **Cross-origin writes are refused.** Any `POST`/`DELETE` carrying an `Origin`
+  that isn't the dashboard's own gets a `403`. Requests with no `Origin` at all
+  (curl, scripts, CI) are unaffected.
+- **The `Host` header is checked** against the address the server bound to.
+  Behind a reverse proxy, add your hostname with
+  `GHOSTEYE_ALLOWED_HOSTS=recon.internal` (comma-separated; `*` disables the
+  check).
+- **Response headers**: a strict `Content-Security-Policy`
+  (`frame-ancestors 'none'`, `connect-src 'self'`), `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`.
+
+Findings from a scanned host are attacker-influenced text, so everything the
+dashboard renders is HTML-escaped (quotes included) and inline images must be
+`data:image/…` URIs we produced ourselves.
 
 Two dashboards, one server — the **graph-first OSINT investigator is the home page**:
 
@@ -695,7 +723,15 @@ pip install pytest && python3 -m pytest -q
 - **All-module smoke test** — runs `run()` for every one of the 535 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
-  "module raises instead of failing gracefully" regressions.
+  "module raises instead of failing gracefully" regressions. Note what it does
+  *not* do: it makes one assertion per module and a module that returned
+  `fail()` for everything would still pass it. Depth comes from the
+  behavioural tests below, not from this count.
+- **Hardening tests** (`tests/test_hardening.py`) — pin the security and
+  correctness fixes: dashboard CSRF/DNS-rebinding/auth gates (against a real
+  server on a real socket), target port+scheme parsing, the http-fallback
+  downgrade guards, the JSON response cache, scope IPv6 handling, and unique
+  module names.
 - **Behavioural tests** — assert *correct* output: DER key-sizing against real
   RSA keys, exploit-intel verdict logic, deep-scan asset scoping, CI gate,
   attack score, notifications, executive-report structure, config round-trip.
@@ -709,16 +745,18 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**570 tests** pass in ~11s. A single **verification gate** runs the whole thing:
+**806 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
 ```
 
-The live smoke actually starts the dashboard (checks the `401`→`200` auth gate)
-and runs a real CLI report. CI (`.github/workflows/ci.yml`) runs the import
-check, `compileall`, the full suite, the verification gate and advisory
-ruff/mypy on Python 3.9/3.11/3.12.
+The live smoke starts the real dashboard and checks the `401`→`200` auth gate,
+that a cross-origin `POST` is refused, and that a forged `Host` header is
+refused; then it runs a real CLI scan against a local site and asserts the
+report contains an actual `200` finding — not merely that a file was written.
+CI (`.github/workflows/ci.yml`) runs the import check, `compileall`, the full
+suite, the verification gate and advisory ruff/mypy on Python 3.9/3.11/3.12.
 
 ---
 

@@ -145,30 +145,79 @@ def is_host(value: str) -> bool:
     return is_ip(value) or is_domain(value)
 
 
-def clean_host(value: str) -> str:
+class Host(str):
+    """A validated bare host that *remembers* the scheme and port of the target
+    it was parsed from.
+
+    It is a plain ``str`` holding only the host, so the hundreds of call sites
+    that hand it to DNS resolvers, sockets and subprocesses keep working
+    unchanged. ``ensure_scheme`` reads the remembered parts back, which is what
+    stops ``-t example.com:8080`` from silently becoming a scan of port 443.
+    """
+
+    # NB: no __slots__ — CPython forbids nonempty __slots__ on a str subclass.
+
+    def __new__(cls, host: str, port: Optional[int] = None,
+                scheme: Optional[str] = None) -> "Host":
+        obj = super().__new__(cls, host)
+        obj.port = port
+        obj.scheme = scheme
+        return obj
+
+
+def _parse_port(raw: str) -> int:
+    if not raw.isdigit() or not 1 <= int(raw) <= 65535:
+        raise ValueError(f"refusing unsafe / invalid port: {raw!r}")
+    return int(raw)
+
+
+def clean_host(value: str) -> Host:
     """
     Normalise user input to a bare host and REJECT anything that is not a
     plain domain/IP. Strips scheme, path, port, whitespace. Raises ValueError
     on anything suspicious so a malicious string never reaches a subprocess.
+
+    The returned :class:`Host` still compares and behaves as the bare host, but
+    carries the original scheme/port so URL builders can restore them.
     """
     if not value:
         raise ValueError("empty target")
     v = value.strip().lower()
-    v = re.sub(r"^[a-z]+://", "", v)        # drop scheme
+    scheme_match = re.match(r"^([a-z][a-z0-9+.-]*)://", v)
+    scheme = scheme_match.group(1) if scheme_match else None
+    if scheme_match:
+        v = v[scheme_match.end():]          # drop scheme
     v = v.split("/")[0]                      # drop path
     v = v.split("?")[0]
     v = v.split("#")[0]
-    if v.count(":") == 1 and not is_ip(v):   # host:port (but keep IPv6)
-        v = v.split(":")[0]
+    port: Optional[int] = None
+    if v.startswith("["):                    # [IPv6]:port
+        host_part, _, rest = v.partition("]")
+        v = host_part.lstrip("[")
+        if rest.startswith(":") and rest[1:]:
+            port = _parse_port(rest[1:])
+    elif v.count(":") == 1 and not is_ip(v):  # host:port (bare IPv6 has >1)
+        v, _, raw_port = v.partition(":")
+        if raw_port:
+            port = _parse_port(raw_port)
     if not is_host(v):
         raise ValueError(f"refusing unsafe / invalid target: {value!r}")
-    return v
+    return Host(v, port=port, scheme=scheme)
 
 
 def ensure_scheme(target: str, default: str = "https") -> str:
-    if re.match(r"^[a-z]+://", target):
+    """Build a base URL for `target`.
+
+    When `target` is a :class:`Host` produced by :func:`clean_host`, the scheme
+    and port of the original input are restored — so a module that was handed
+    ``http://example.com:8080`` probes that, not ``https://example.com``.
+    """
+    if re.match(r"^[a-z][a-z0-9+.-]*://", target):
         return target
-    return f"{default}://{target}"
+    scheme = getattr(target, "scheme", None) or default
+    port = getattr(target, "port", None)
+    host = f"[{target}]" if is_ip(target) and ":" in target else str(target)
+    return f"{scheme}://{host}:{port}" if port else f"{scheme}://{host}"
 
 
 # --------------------------------------------------------------------------- #
@@ -227,14 +276,54 @@ DEFAULT_UA = (
 )
 
 
+# SSL errors that mean "this port simply isn't speaking TLS" — as opposed to a
+# certificate problem, which is exactly what a man-in-the-middle looks like and
+# must NEVER trigger a downgrade to plaintext.
+_NOT_TLS_ERRORS = (
+    "wrong_version_number", "unknown protocol", "record layer failure",
+    "packet length too long", "http_request",
+)
+# Any of these on a request means it carries a secret. Never retry those in
+# the clear, whatever the error.
+_CREDENTIAL_HEADERS = ("authorization", "x-api-key", "apikey", "x-auth-token",
+                       "cookie", "proxy-authorization")
+
+
+def _plaintext_retry_ok(url: str, kw: dict, session, exc: Exception) -> bool:
+    """Whether a failed https request may be retried over http."""
+    if not url.lower().startswith("https://"):
+        return False
+    import requests
+    if isinstance(exc, requests.exceptions.SSLError):
+        # only when the far end is plainly not a TLS listener
+        if not any(w in str(exc).lower() for w in _NOT_TLS_ERRORS):
+            return False
+    elif not isinstance(exc, requests.exceptions.ConnectionError):
+        return False
+    merged = {str(k).lower() for k in (session.headers or {})}
+    merged |= {str(k).lower() for k in (kw.get("headers") or {})}
+    if merged & set(_CREDENTIAL_HEADERS):
+        return False
+    return not (kw.get("auth") or kw.get("cert"))
+
+
 def build_session(
     user_agent: Optional[str] = None,
     proxy: Optional[str] = None,
     verify_tls: bool = True,
     timeout: int = 15,
+    http_fallback: bool = True,
 ):
     """Return a configured requests.Session. Imported lazily so the package
-    still loads if requests is missing."""
+    still loads if requests is missing.
+
+    With `http_fallback`, an https request that fails *because the port isn't
+    running TLS at all* is retried once over http. That is what makes
+    `-t example.com` reach an http-only site, and `-t host:8080` reach a
+    plaintext service, instead of reporting a bare SSL error. Certificate
+    failures never downgrade, and neither does any request carrying a
+    credential — otherwise the fallback would be an attacker-triggerable way to
+    resend secrets in the clear."""
     import requests
     from requests.adapters import HTTPAdapter
 
@@ -261,6 +350,19 @@ def build_session(
             urllib3.disable_warnings()
         except Exception:
             pass
+    if http_fallback:
+        inner = s.request
+
+        def _with_fallback(method, url, **kw):
+            try:
+                return inner(method, url, **kw)
+            except Exception as exc:  # noqa: BLE001 - re-raised unless retryable
+                if not _plaintext_retry_ok(str(url), kw, s, exc):
+                    raise
+                log.debug("https failed on %s (%s); retrying over http", url, exc)
+                return inner(method, "http://" + str(url)[len("https://"):], **kw)
+
+        s.request = _with_fallback  # type: ignore[method-assign]
     return s
 
 
@@ -363,6 +465,14 @@ def register(cls):
         raise ValueError(f"module {cls.__name__} has no id")
     if inst.id in REGISTRY:
         raise ValueError(f"duplicate module id: {inst.id}")
+    # Results are labelled with .name, and every diff/compare/history view keys
+    # them by that label — two modules sharing a name silently erase each other.
+    clash = next((m for m in REGISTRY.values() if m.name == inst.name), None)
+    if clash is not None:
+        raise ValueError(
+            f"duplicate module name {inst.name!r}: used by both "
+            f"{clash.id!r} and {inst.id!r} — names must be unique because "
+            f"results are keyed by them")
     REGISTRY[inst.id] = inst
     return cls
 

@@ -51,12 +51,18 @@ class AdaptiveRateLimiter:
         if d > 0:
             time.sleep(min(d, self.ceiling))
 
+    # error text that means "the far end is pushing back", as opposed to a
+    # module that simply found nothing — these widen the delay hardest
+    _BACKOFF_WORDS = ("timeout", "timed out", "rate", "429", "throttl",
+                      "too many requests")
+
     def observe(self, res: Result) -> None:
-        bad = getattr(res, "status", "") == "error"
         err = (getattr(res, "error", "") or "").lower()
-        if not bad and any(w in err for w in ("timeout", "timed out",
-                                              "rate", "429", "throttl")):
-            bad = True
+        # `error` is normally only populated when status == "error", so testing
+        # the text *only* in the non-error branch (as this used to) meant the
+        # rate-limit keywords were never actually consulted.
+        bad = (getattr(res, "status", "") == "error"
+               or any(w in err for w in self._BACKOFF_WORDS))
         with self._lock:
             if bad:
                 self.delay = min(self.ceiling,

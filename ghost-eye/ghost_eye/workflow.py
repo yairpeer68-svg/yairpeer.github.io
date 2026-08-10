@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import importlib.util
 import json
 import os
-import pickle
 import threading
 import time
 from pathlib import Path
@@ -194,6 +194,37 @@ def _mini_yaml(text: str) -> Dict[str, List[str]]:
 # --------------------------------------------------------------------------- #
 #  #75 rate limiting + #77 response caching - wrap a requests.Session in place
 # --------------------------------------------------------------------------- #
+def _response_to_cache(resp) -> bytes:
+    """Serialise just the parts of a response a module can observe."""
+    return json.dumps({
+        "status_code": resp.status_code,
+        "url": str(getattr(resp, "url", "") or ""),
+        "encoding": getattr(resp, "encoding", None),
+        "reason": getattr(resp, "reason", "") or "",
+        "headers": {str(k): str(v) for k, v in (resp.headers or {}).items()},
+        "content": base64.b64encode(resp.content or b"").decode("ascii"),
+    }).encode("utf-8")
+
+
+def _response_from_cache(raw: bytes):
+    """Rebuild a real requests.Response from the cached JSON.
+
+    Deliberately NOT pickle: the cache lives in a directory under the working
+    directory, and unpickling it would hand code execution to anyone who can
+    write a file there."""
+    import requests
+
+    blob = json.loads(raw.decode("utf-8"))
+    resp = requests.Response()
+    resp.status_code = int(blob["status_code"])
+    resp._content = base64.b64decode(blob["content"])
+    resp.url = blob.get("url", "")
+    resp.encoding = blob.get("encoding")
+    resp.reason = blob.get("reason", "")
+    resp.headers.update(blob.get("headers") or {})
+    return resp
+
+
 def wrap_session(session, rate: float = 0.0,
                  cache_dir: Optional[str] = None, cache_ttl: int = 300,
                  rate_per_host: float = 0.0):
@@ -212,10 +243,10 @@ def wrap_session(session, rate: float = 0.0,
             key = hashlib.sha256(
                 (url + json.dumps(kw.get("params") or {}, sort_keys=True)).encode()
             ).hexdigest()
-            cache_file = Path(cache_dir) / f"{key}.pkl"
+            cache_file = Path(cache_dir) / f"{key}.json"
             if cache_file.exists() and (time.time() - cache_file.stat().st_mtime) < cache_ttl:
                 try:
-                    return pickle.loads(cache_file.read_bytes())
+                    return _response_from_cache(cache_file.read_bytes())
                 except Exception:
                     pass
         if rate and rate > 0:
@@ -235,8 +266,8 @@ def wrap_session(session, rate: float = 0.0,
         resp = original(method, url, **kw)
         if cache_file is not None:
             try:
-                resp.content  # force body load before pickling
-                cache_file.write_bytes(pickle.dumps(resp))
+                resp.content  # force body load before serialising
+                cache_file.write_bytes(_response_to_cache(resp))
             except Exception:
                 pass
         return resp

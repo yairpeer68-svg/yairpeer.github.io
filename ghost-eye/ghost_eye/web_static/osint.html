@@ -460,7 +460,9 @@ async function api(path,opts={}){
   return r.json();
 }
 if(TOKEN) $("consolelink").href="/console?token="+encodeURIComponent(TOKEN);
-function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+// Only ever emit inline images we generated ourselves.
+function safeImg(src){ const s=String(src||""); return s.startsWith("data:image/") ? esc(s) : ""; }
 
 /* iris */
 function drawEye(svg){
@@ -824,7 +826,7 @@ function renderProfile(d){
     ${insights.length?sec("🕓","Intelligence timeline",tl.events?tl.events.length:insights.length,
         `<div class="tl">${insights.map(i=>`<div class="r">${esc(i.replace(/^[⏰🩸🗓✏️\s]+/,""))}</div>`).join("")}</div>`):""}
     ${shots.length?sec("📸","Visual recon",shots.length,
-        `<div class="gal">${shots.slice(0,6).map(s=>`<figure><img loading="lazy" src="${s.image}" alt=""><figcaption>${esc(s.host||"")}</figcaption></figure>`).join("")}</div>`):""}
+        `<div class="gal">${shots.slice(0,6).map(s=>`<figure><img loading="lazy" src="${safeImg(s.image)}" alt=""><figcaption>${esc(s.host||"")}</figcaption></figure>`).join("")}</div>`):""}
   `;
   $("side").innerHTML=html;
   $("side").querySelectorAll("[data-sel]").forEach(el=>el.addEventListener("click",()=>{
@@ -1070,7 +1072,7 @@ async function runTool(tool){
       const d=await api(`/api/job/${CURJOB}/screenshots?max=20`,{method:"POST"});
       await loadProfile(CURJOB,CURTARGET);        // refresh so the gallery shows them
       tout(`<div class="tout-head">📸 visual recon</div><div class="trow"><b>${d.count}</b> screenshot(s) captured and added to the profile's Visual recon gallery.</div>`
-        + (d.count?`<div class="gal" style="margin-top:8px">${(d.screenshots||[]).slice(0,8).map(s=>`<figure><img loading="lazy" src="${s.image}" alt=""><figcaption>${esc(s.host||"")}</figcaption></figure>`).join("")}</div>`
+        + (d.count?`<div class="gal" style="margin-top:8px">${(d.screenshots||[]).slice(0,8).map(s=>`<figure><img loading="lazy" src="${safeImg(s.image)}" alt=""><figcaption>${esc(s.host||"")}</figcaption></figure>`).join("")}</div>`
            :`<div class="trow">No screenshots — a headless Chromium is required (Termux: <code>pkg install chromium</code>).</div>`));
     } else if(tool==="exploits"){
       const d=await api(`/api/job/${CURJOB}/exploits?max=25`);

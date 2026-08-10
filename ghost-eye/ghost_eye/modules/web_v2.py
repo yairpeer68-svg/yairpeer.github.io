@@ -207,7 +207,7 @@ class HttpMethodEnum(Module):
 
 @register
 class ApiDiscovery(Module):
-    id, name, category = "apidisco", "API endpoint discovery", "Web"
+    id, name, category = "apidisco", "API endpoint discovery (HTTP probe)", "Web"
     target_kind = "url"
 
     _PATHS = ["/api", "/api/v1", "/api/v2", "/api/v3", "/v1", "/v2",

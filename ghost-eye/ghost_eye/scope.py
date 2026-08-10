@@ -21,7 +21,14 @@ def _host_of(target: str) -> str:
     t = target.strip()
     if "://" in t:
         t = urlparse(t).hostname or t
-    return t.split("/")[0].split(":")[0].strip().lower().rstrip(".")
+    t = t.split("/")[0].strip()
+    if t.startswith("["):                     # [2001:db8::1]:443
+        return t[1:].partition("]")[0].lower()
+    # a bare IPv6 literal is all colons — only strip a :port from host:port,
+    # otherwise "2001:db8::1" would be truncated to "2001" and never match
+    if t.count(":") == 1:
+        t = t.partition(":")[0]
+    return t.lower().rstrip(".")
 
 
 class Scope:
@@ -53,7 +60,10 @@ class Scope:
                 continue
             except ValueError:
                 pass
-            domains.add(entry.lstrip("*.").rstrip("."))
+            # strip a single leading wildcard label, not every leading '*'/'.'
+            if entry.startswith("*."):
+                entry = entry[2:]
+            domains.add(entry.strip(".").lower())
         return cls(domains, networks, ips)
 
     @classmethod

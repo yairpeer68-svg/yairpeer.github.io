@@ -84,23 +84,32 @@ def make_context(cfg: Config, args) -> Context:
     threads = args.threads or cfg.get_int("threads", 10)
     session = build_session(user_agent=ua, proxy=proxy,
                             verify_tls=verify, timeout=timeout)
-    rate = getattr(args, "rate", 0) or 0
-    cache_dir = ".ghosteye_cache" if getattr(args, "cache", False) else None
-    cache_ttl = getattr(args, "cache_ttl", 300)
-    session = workflow.wrap_session(session, rate=rate,
-                                    cache_dir=cache_dir, cache_ttl=cache_ttl,
-                                    rate_per_host=getattr(args, "rate_per_host", 0) or 0)
-    return Context(config=cfg, session=session, threads=threads,
-                   timeout=timeout, verbose=args.verbose)
+    wrap_kw = {
+        "rate": getattr(args, "rate", 0) or 0,
+        "cache_dir": ".ghosteye_cache" if getattr(args, "cache", False) else None,
+        "cache_ttl": getattr(args, "cache_ttl", 300),
+        "rate_per_host": getattr(args, "rate_per_host", 0) or 0,
+    }
+    session = workflow.wrap_session(session, **wrap_kw)
+    ctx = Context(config=cfg, session=session, threads=threads,
+                  timeout=timeout, verbose=args.verbose)
+    # remembered so a rotated session can be re-wrapped identically
+    ctx.session_wrap = wrap_kw            # type: ignore[attr-defined]
+    return ctx
 
 
 def _maybe_rotate(ctx: Context, args) -> None:
     """If UA rotation is on, give each module a fresh session/UA."""
-    if args.rotate_ua:
-        proxy = ctx.session.proxies.get("https") if ctx.session else None
-        ctx.session = build_session(user_agent=random.choice(_UA_POOL),
-                                    proxy=proxy, verify_tls=ctx.session.verify,
-                                    timeout=ctx.timeout)
+    if not args.rotate_ua:
+        return
+    proxy = ctx.session.proxies.get("https") if ctx.session else None
+    session = build_session(user_agent=random.choice(_UA_POOL),
+                            proxy=proxy, verify_tls=ctx.session.verify,
+                            timeout=ctx.timeout)
+    # re-apply throttling/caching: a plain build_session() drops the wrapper,
+    # so --rotate-ua used to silently switch off --rate and --cache
+    ctx.session = workflow.wrap_session(
+        session, **getattr(ctx, "session_wrap", {}) or {})
 
 
 # --------------------------------------------------------------------------- #
@@ -180,7 +189,8 @@ def handle_reports(results: List[Result], target: str, args) -> None:
 
     if getattr(args, "siem", None):
         ok = reporting_ext.push_siem(results, args.siem, args.siem_mode,
-                                     args.siem_token or "")
+                                     args.siem_token or "",
+                                     verify=not getattr(args, "siem_insecure", False))
         Console.good("SIEM push ok") if ok else Console.warn("SIEM push failed")
 
     if getattr(args, "exec_report", None):
@@ -442,6 +452,10 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument("--siem-mode", choices=["webhook", "elasticsearch", "splunk"],
                      default="webhook")
     out.add_argument("--siem-token", help="Splunk HEC token")
+    out.add_argument("--siem-insecure", action="store_true",
+                     help="skip TLS verification when pushing to the SIEM "
+                          "(lab collectors with a self-signed cert only — the "
+                          "HEC token travels in the request)")
 
     flow = p.add_argument_group("workflow")
     flow.add_argument("--watch", type=int, metavar="SECONDS",

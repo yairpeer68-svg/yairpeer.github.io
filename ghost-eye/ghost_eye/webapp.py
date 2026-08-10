@@ -11,8 +11,10 @@ Binds to 127.0.0.1 (localhost only) by default. Authorised use only.
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
+import shutil
 import sys
 import threading
 import time
@@ -20,6 +22,7 @@ import traceback
 import uuid
 from concurrent.futures import (FIRST_COMPLETED, ThreadPoolExecutor,
                                 wait)
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -31,6 +34,25 @@ from .core import (Colors, Console, Context, REGISTRY, Result, build_session,
 from . import engine, reporting, reporting_ext, workflow
 
 STATIC_DIR = Path(__file__).parent / "web_static"
+
+# Finished jobs are kept in memory so the dashboard can still open them after a
+# scan ends. Cap the backlog so a long-lived dashboard doesn't grow without
+# bound — everything worth keeping is already persisted to the history DB.
+MAX_FINISHED_JOBS = 50
+
+# The dashboard is a local tool, but the browser will happily let *any* site the
+# user is visiting send it requests. Content-Security-Policy keeps an injected
+# script from phoning home, and frame-ancestors blocks clickjacking. The pages
+# are single-file (inline <style>/<script>), hence 'unsafe-inline'.
+_CSP = ("default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'none'; "
+        "form-action 'none'; "
+        "frame-ancestors 'none'")
 
 _CONTENT_TYPES = {
     "json": "application/json", "sarif": "application/json",
@@ -49,15 +71,36 @@ _EXT_FORMATS = {"md", "markdown", "sarif", "prometheus", "prom", "dashboard",
 #  Job manager - one background scan per job id
 # --------------------------------------------------------------------------- #
 class JobManager:
-    def __init__(self, cfg: Config) -> None:
+    def __init__(self, cfg: Config, db: str = "") -> None:
         self.cfg = cfg
+        # An explicit --db wins over the configured/default path. Every store
+        # in the app goes through self.db_path so the flag actually takes
+        # effect instead of being silently ignored.
+        self.db_path = db or cfg.get("db", "ghosteye.db") or "ghosteye.db"
         self.jobs: Dict[str, dict] = {}
         self.lock = threading.Lock()
         self.scope = None        # set by serve(); used to bound deep scans
 
+    def store(self):
+        """Open a history store on the configured DB. Callers must close it."""
+        return reporting.Store(self.db_path)
+
+    def _prune(self) -> None:
+        """Drop the oldest finished jobs once the backlog is over the cap.
+
+        Caller holds self.lock. Results live on in the history DB; this only
+        bounds the in-memory copy so a dashboard left running for weeks doesn't
+        keep every scan it ever ran."""
+        finished = sorted(
+            (j for j in self.jobs.values() if j["status"] != "running"),
+            key=lambda j: j.get("finished") or j.get("started") or 0)
+        for job in finished[:max(0, len(finished) - MAX_FINISHED_JOBS)]:
+            self.jobs.pop(job["id"], None)
+
     def create(self, target: str, modules: List, options: dict) -> str:
         jid = uuid.uuid4().hex[:12]
         with self.lock:
+            self._prune()
             self.jobs[jid] = {
                 "id": jid, "target": target, "status": "running",
                 "total": len(modules), "done": 0, "current": "",
@@ -124,8 +167,12 @@ class JobManager:
                         res = fut.result()
                     except Exception as exc:  # noqa: BLE001
                         record_error(f"module {getattr(m, 'id', '?')}", target, exc)
-                        res = Result(module=getattr(m, "id", "?"), target=target,
-                                     status="error", data={}, error=str(exc))
+                        # label with .name, exactly like engine.execute_module —
+                        # every downstream view keys results by module label, so
+                        # mixing ids and names here would split one module in two
+                        res = Result(module=getattr(m, "name", getattr(m, "id", "?")),
+                                     target=target, status="error", data={},
+                                     error=str(exc))
                     with self.lock:
                         job["_results_obj"].append(res)
                         job["results"].append(res.as_dict())
@@ -161,19 +208,21 @@ class JobManager:
                                 except Exception as exc:  # noqa: BLE001
                                     record_error(f"module {getattr(m, 'id', '?')}",
                                                  asset, exc)
-                                    res = Result(module=getattr(m, "id", "?"),
-                                                 target=asset, status="error",
-                                                 data={}, error=str(exc))
+                                    res = Result(
+                                        module=getattr(m, "name",
+                                                       getattr(m, "id", "?")),
+                                        target=asset, status="error",
+                                        data={}, error=str(exc))
                                 with self.lock:
                                     job["_results_obj"].append(res)
                                     job["results"].append(res.as_dict())
                                     job["done"] += 1
                                     try:
                                         job["risk"] = reporting_ext.score_findings(job["_results_obj"])
-                                    except Exception:
-                                        pass
-                except Exception:
-                    pass
+                                    except Exception as exc:  # noqa: BLE001
+                                        record_error("risk scoring", asset, exc)
+                except Exception as exc:  # noqa: BLE001
+                    record_error("deep scan", target, exc)
             job["status"] = "cancelled" if job["cancel"] else "done"
         except Exception as exc:  # noqa: BLE001
             job["status"] = "error"
@@ -201,7 +250,7 @@ class JobManager:
 
     def _persist(self, job: dict) -> None:
         try:
-            store = reporting.Store(self.cfg.get("db", "ghosteye.db"))
+            store = self.store()
             # active monitoring: if an alert webhook is configured, diff the new
             # surface against the previous saved scan BEFORE persisting this one,
             # and fire an alert when new exposure appeared (new subdomain / IP /
@@ -214,8 +263,10 @@ class JobManager:
             for r in job["_results_obj"]:
                 store.save(r)        # per-module rows power the CLI --diff
             store.close()
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001
+            # a scan that fails to save used to vanish without a trace; the
+            # dashboard still works, but the reason now lands in the error log
+            record_error("persist scan", job.get("target", ""), exc)
 
     def _maybe_alert(self, job: dict, store) -> None:
         url = (job.get("options") or {}).get("alert_webhook", "").strip()
@@ -400,11 +451,19 @@ class Handler(BaseHTTPRequestHandler):
             return None
 
     # ---- helpers ---------------------------------------------------------- #
+    def _security_headers(self) -> None:
+        self.send_header("Content-Security-Policy", _CSP)
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header("Cache-Control", "no-store")
+
     def _json(self, obj, code=200):
         body = json.dumps(obj).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self._security_headers()
         self.end_headers()
         self.wfile.write(body)
         self._access_log(code)
@@ -416,6 +475,7 @@ class Handler(BaseHTTPRequestHandler):
         if filename:
             self.send_header("Content-Disposition",
                              f'attachment; filename="{filename}"')
+        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
         self._access_log(code)
@@ -433,18 +493,80 @@ class Handler(BaseHTTPRequestHandler):
     def _authed(self, parsed) -> bool:
         """True unless a token is required and not supplied. The token may come
         from an X-Ghost-Token header, an Authorization: Bearer header, a
-        ?token= query param, or a ge_token cookie."""
+        ?token= query param, or a ge_token cookie.
+
+        Every comparison is constant-time so the token can't be recovered a
+        byte at a time by timing the 401s."""
         tok = getattr(self.server, "auth_token", "")
         if not tok:
             return True
-        if self.headers.get("X-Ghost-Token", "") == tok:
+
+        def same(candidate: str) -> bool:
+            return bool(candidate) and hmac.compare_digest(candidate, tok)
+
+        if same(self.headers.get("X-Ghost-Token", "")):
             return True
         auth = self.headers.get("Authorization", "")
-        if auth.startswith("Bearer ") and auth[7:] == tok:
+        if auth.startswith("Bearer ") and same(auth[7:]):
             return True
-        if parse_qs(parsed.query).get("token", [""])[0] == tok:
+        if same(parse_qs(parsed.query).get("token", [""])[0]):
             return True
-        return f"ge_token={tok}" in self.headers.get("Cookie", "")
+        try:
+            cookie = SimpleCookie(self.headers.get("Cookie", ""))
+        except Exception:  # noqa: BLE001 - a malformed Cookie header is a miss
+            return False
+        morsel = cookie.get("ge_token")
+        return same(morsel.value) if morsel else False
+
+    def _allowed_hosts(self) -> set:
+        return getattr(self.server, "allowed_hosts", set())
+
+    def _host_ok(self) -> bool:
+        """Reject requests whose Host header we don't recognise.
+
+        Without this, a page on the public internet can point a hostname it
+        controls at 127.0.0.1 (DNS rebinding) and then read every API response
+        — same-origin as far as the browser is concerned. Comparing the Host
+        header against the addresses we actually bound to closes that."""
+        allowed = self._allowed_hosts()
+        if not allowed:                      # explicitly disabled
+            return True
+        raw = self.headers.get("Host", "")
+        host = raw.rsplit(":", 1)[0] if raw.count(":") == 1 else raw
+        return host.strip("[]").lower() in allowed
+
+    def _origin_ok(self) -> bool:
+        """Reject cross-origin state-changing requests.
+
+        A browser sends `Origin` on every POST/DELETE, including the
+        "simple requests" (text/plain bodies) that dodge a CORS preflight. Any
+        page the user happens to be visiting could otherwise drive the API —
+        start scans, overwrite stored API keys, restore the history DB."""
+        origin = self.headers.get("Origin", "")
+        if not origin or origin == "null":
+            # No Origin at all means a non-browser client (curl, a script).
+            # Those can't be a confused deputy for someone else's page.
+            return True
+        allowed = self._allowed_hosts()
+        if not allowed:
+            return True
+        try:
+            host = (urlparse(origin).hostname or "").lower()
+        except ValueError:
+            return False
+        return host in allowed
+
+    def _guard(self, parsed, *, state_changing: bool):
+        """Shared pre-flight for every route. Returns True when the request may
+        proceed; otherwise it has already written the error response."""
+        if not self._host_ok():
+            self._json({"error": "host not allowed — reach the dashboard on "
+                                 "the address it is bound to"}, 403)
+            return False
+        if state_changing and not self._origin_ok():
+            self._json({"error": "cross-origin request refused"}, 403)
+            return False
+        return True
 
     # each verb is wrapped so a handler crash is logged + returned as 500,
     # instead of silently killing the connection with no trace anywhere.
@@ -469,6 +591,8 @@ class Handler(BaseHTTPRequestHandler):
     def _do_get(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        if not self._guard(parsed, state_changing=False):
+            return None
         # the graph-first OSINT dashboard is the default home; the recon console
         # lives at /console.
         if path in ("/", "/osint", "/osint.html"):
@@ -522,6 +646,8 @@ class Handler(BaseHTTPRequestHandler):
     def _do_post(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        if not self._guard(parsed, state_changing=True):
+            return None
         if not self._authed(parsed):
             return self._json({"error": "unauthorized"}, 401)
         if path == "/api/scan":
@@ -561,6 +687,8 @@ class Handler(BaseHTTPRequestHandler):
     def _do_delete(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        if not self._guard(parsed, state_changing=True):
+            return None
         if not self._authed(parsed):
             return self._json({"error": "unauthorized"}, 401)
         if path.startswith("/api/schedule/"):
@@ -644,7 +772,7 @@ class Handler(BaseHTTPRequestHandler):
         if not cur:
             return self._json({"error": "no results yet"}, 404)
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            store = self.server.jobs.store()
             saved = store.load_scan(against)
             store.close()
         except Exception as exc:  # noqa: BLE001
@@ -808,7 +936,7 @@ class Handler(BaseHTTPRequestHandler):
                                    unified_graph)
         graphs = []
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            store = self.server.jobs.store()
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"history unavailable: {exc}"}, 500)
         try:
@@ -847,11 +975,11 @@ class Handler(BaseHTTPRequestHandler):
         errored = sum(1 for j in all_jobs if j.get("status") == "error")
         scans = 0
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
-            scans = len(store.recent_scans(limit=100000))
+            store = self.server.jobs.store()
+            scans = store.count_scans()   # COUNT(*), not "load everything, len()"
             store.close()
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            record_error("metrics: scan count", "", exc)
         err_log = 0
         try:
             from .core import errorlog_path
@@ -938,7 +1066,7 @@ class Handler(BaseHTTPRequestHandler):
         """Download every saved scan as a portable JSON backup (feature 77).
         Scan findings only — never API keys or secrets."""
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            store = self.server.jobs.store()
             blob = store.export_all()
             store.close()
         except Exception as exc:  # noqa: BLE001
@@ -956,7 +1084,7 @@ class Handler(BaseHTTPRequestHandler):
         """Restore saved scans from an uploaded backup JSON (feature 77)."""
         blob = self._body()
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            store = self.server.jobs.store()
             n = store.import_all(blob)
             store.close()
         except ValueError as exc:
@@ -1028,34 +1156,41 @@ class Handler(BaseHTTPRequestHandler):
         target = snap["target"] if snap else ""
         fmt = (parse_qs(parsed.query).get("format", ["html"])[0]).lower()
         import tempfile
-        tmp = Path(tempfile.mkdtemp()) / f"report.{fmt}"
+        # every download used to leave its scratch directory behind; build the
+        # report, read it, then remove the whole directory
+        tmpdir = Path(tempfile.mkdtemp(prefix="ghosteye-report-"))
         try:
-            if fmt in _EXT_FORMATS:
-                reporting_ext.export_ext(results, str(tmp), fmt, target)
-            else:
-                reporting.export(results, str(tmp), fmt, target)
-        except RuntimeError:
-            pass  # pdf->html fallback already wrote a file at tmp's sibling
-        except Exception as exc:  # noqa: BLE001
-            return self._json({"error": f"export failed: {exc}"}, 500)
-        if not tmp.exists():
-            # reporting may have changed the suffix on fallback; find sibling
-            sib = next(iter(tmp.parent.glob("report.*")), None)
-            if sib:
-                tmp = sib
-            else:
-                return self._json({"error": "export produced no file"}, 500)
-        data = tmp.read_bytes()
+            tmp = tmpdir / f"report.{fmt}"
+            try:
+                if fmt in _EXT_FORMATS:
+                    reporting_ext.export_ext(results, str(tmp), fmt, target)
+                else:
+                    reporting.export(results, str(tmp), fmt, target)
+            except RuntimeError:
+                pass  # pdf->html fallback already wrote a file at tmp's sibling
+            except Exception as exc:  # noqa: BLE001
+                return self._json({"error": f"export failed: {exc}"}, 500)
+            if not tmp.exists():
+                # reporting may have changed the suffix on fallback; find sibling
+                sib = next(iter(tmpdir.glob("report.*")), None)
+                if sib:
+                    tmp = sib
+                else:
+                    return self._json({"error": "export produced no file"}, 500)
+            data = tmp.read_bytes()
+            suffix = tmp.suffix.lstrip(".")
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
         ctype = _CONTENT_TYPES.get(fmt, "application/octet-stream")
         dl = fmt not in ("html", "dashboard", "exec", "execreport", "executive",
                          "intel", "intelligence")
         safe = "".join(c for c in target if c.isalnum() or c in ".-_") or "report"
-        fname = f"ghosteye_{safe}.{tmp.suffix.lstrip('.')}" if dl else None
+        fname = f"ghosteye_{safe}.{suffix}" if dl else None
         return self._bytes(data, ctype, filename=fname)
 
     def _saved_scan(self, scan_id: str):
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            store = self.server.jobs.store()
             saved = store.load_scan(scan_id)
             store.close()
         except Exception as exc:  # noqa: BLE001
@@ -1068,7 +1203,7 @@ class Handler(BaseHTTPRequestHandler):
     def _history(self):
         rows = []
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            store = self.server.jobs.store()
             rows = store.recent_scans(40)
             store.close()
         except Exception:
@@ -1115,7 +1250,7 @@ class Handler(BaseHTTPRequestHandler):
     def _portfolio(self):
         """Multi-target ASM overview from the saved-scan history."""
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            store = self.server.jobs.store()
             report = workflow.portfolio(store)
             store.close()
         except Exception as exc:  # noqa: BLE001
@@ -1130,7 +1265,7 @@ class Handler(BaseHTTPRequestHandler):
         if not target:
             return self._json({"error": "target required"}, 400)
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            store = self.server.jobs.store()
             report = workflow.intelligence_trend(store, target)
             store.close()
         except Exception as exc:  # noqa: BLE001
@@ -1145,7 +1280,7 @@ class Handler(BaseHTTPRequestHandler):
         if not scan_a or not scan_b:
             return self._json({"error": "provide ?a=<scan_id>&b=<scan_id>"}, 400)
         try:
-            store = reporting.Store(self.server.jobs.cfg.get("db", "ghosteye.db"))
+            store = self.server.jobs.store()
             a = store.load_scan(scan_a)
             b = store.load_scan(scan_b)
             store.close()
@@ -1284,6 +1419,30 @@ class Scheduler:
 # --------------------------------------------------------------------------- #
 #  Server
 # --------------------------------------------------------------------------- #
+def _local_addresses() -> set:
+    """This machine's own IP literals, for the Host allow-list when bound to
+    every interface. Best-effort — a failure just means a stricter list."""
+    import socket
+    found = {"127.0.0.1", "::1"}
+    try:
+        hostname = socket.gethostname()
+        found.add(hostname.lower())
+        for family, _t, _p, _c, sockaddr in socket.getaddrinfo(hostname, None):
+            if family in (socket.AF_INET, socket.AF_INET6):
+                found.add(str(sockaddr[0]).split("%")[0].lower())
+    except Exception:  # noqa: BLE001
+        pass
+    try:                                     # the address used for egress
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        probe.settimeout(0.2)
+        probe.connect(("192.0.2.1", 9))      # TEST-NET-1: no packet is sent
+        found.add(probe.getsockname()[0])
+        probe.close()
+    except Exception:  # noqa: BLE001
+        pass
+    return found
+
+
 def serve(host: str = "127.0.0.1", port: int = 8777,
           db: str = "ghosteye.db", scope_file: str = "",
           auth_token: str = "", quiet: bool = False) -> None:
@@ -1293,29 +1452,47 @@ def serve(host: str = "127.0.0.1", port: int = 8777,
     from .scope import Scope
     cfg = Config()
     httpd = ThreadingHTTPServer((host, port), Handler)
-    httpd.jobs = JobManager(cfg)        # type: ignore[attr-defined]
+    httpd.jobs = JobManager(cfg, db=db)  # type: ignore[attr-defined]
     httpd.scheduler = Scheduler(httpd.jobs)  # type: ignore[attr-defined]
     httpd.scope = Scope.from_file(scope_file)   # type: ignore[attr-defined]
     httpd.jobs.scope = httpd.scope      # deep scans honour the same scope
     httpd.quiet = quiet                 # type: ignore[attr-defined]
     httpd.started_at = time.time()      # type: ignore[attr-defined]
-    # require a token whenever the dashboard is reachable off-localhost, so a
-    # network peer can't drive scans through the API. localhost stays frictionless.
-    local = host in ("127.0.0.1", "localhost", "::1", "")
-    token = auth_token or os.environ.get("GHOSTEYE_TOKEN", "")
-    if not token and not local:
-        token = secrets.token_urlsafe(16)
+    # A token is ALWAYS required. localhost used to be exempt, but "local" is
+    # not a trust boundary in a browser: any page the user visits can post to
+    # 127.0.0.1, and a rebound DNS name can read the replies. The URL printed
+    # below carries the token, so the normal flow is unchanged.
+    token = (auth_token or os.environ.get("GHOSTEYE_TOKEN", "")
+             or secrets.token_urlsafe(16))
     httpd.auth_token = token             # type: ignore[attr-defined]
-    disp_host = host if host != "0.0.0.0" else "127.0.0.1"
-    url = f"http://{disp_host}:{port}" + (f"/?token={token}" if token else "")
+    # Host header allow-list (anti DNS-rebinding). GHOSTEYE_ALLOWED_HOSTS adds
+    # names for reverse-proxy setups; setting it to "*" disables the check.
+    allowed = {"127.0.0.1", "localhost", "::1"}
+    if host not in ("0.0.0.0", "::", ""):
+        allowed.add(host.strip("[]").lower())
+    else:
+        # Bound to every interface: allow this machine's own IP literals so
+        # reaching it over the LAN works. Rebinding needs a *hostname* to point
+        # at us, and an attacker's hostname still won't be on this list.
+        allowed |= _local_addresses()
+    extra = os.environ.get("GHOSTEYE_ALLOWED_HOSTS", "")
+    if extra.strip() == "*":
+        allowed = set()                  # opt out entirely
+    elif extra:
+        allowed |= {h.strip().lower() for h in extra.split(",") if h.strip()}
+    httpd.allowed_hosts = allowed        # type: ignore[attr-defined]
+    disp_host = host if host not in ("0.0.0.0", "::", "") else "127.0.0.1"
+    url = f"http://{disp_host}:{port}/?token={token}"
     print(f"{Colors.CYAN}{Colors.BOLD}Ghost Eye — OSINT dashboard{Colors.RESET} "
           f"-> {Colors.GREEN}{url}{Colors.RESET}")
     Console.info("recon console (advanced scans/schedules) at /console")
-    if host == "0.0.0.0":
+    if host in ("0.0.0.0", "::"):
         Console.warn("bound to 0.0.0.0 - reachable by anything on your network")
-    if token:
-        Console.info("auth token required for /api — open the URL above "
-                     "(it carries ?token=…)")
+        if allowed:
+            Console.info("reach it on 127.0.0.1, or set GHOSTEYE_ALLOWED_HOSTS "
+                         "to the hostname you will use")
+    Console.info("auth token required for /api — open the URL above "
+                 "(it carries ?token=…)")
     if not httpd.scope.empty:                   # type: ignore[attr-defined]
         Console.info(f"scope guard active ({scope_file})")
     if quiet:
@@ -1333,10 +1510,8 @@ def serve(host: str = "127.0.0.1", port: int = 8777,
 
 def main(argv=None) -> int:
     import argparse
-    import os
-    import shutil
+    import secrets
     import subprocess
-    import threading
     p = argparse.ArgumentParser(description="Ghost Eye web dashboard")
     p.add_argument("--host", default="127.0.0.1",
                    help="bind address (default 127.0.0.1; use 0.0.0.0 to expose)")
@@ -1350,9 +1525,14 @@ def main(argv=None) -> int:
                    help="don't print the per-request access log to the terminal")
     args = p.parse_args(argv)
 
+    # resolve the token here so --open can put it in the URL it launches;
+    # serve() would otherwise mint one we have no way to hand the browser
+    token = (args.auth_token or os.environ.get("GHOSTEYE_TOKEN", "")
+             or secrets.token_urlsafe(16))
+
     if args.open:
-        host = "127.0.0.1" if args.host == "0.0.0.0" else args.host
-        url = f"http://{host}:{args.port}"
+        host = "127.0.0.1" if args.host in ("0.0.0.0", "::", "") else args.host
+        url = f"http://{host}:{args.port}/?token={token}"
 
         def _open():
             if ("com.termux" in os.environ.get("PREFIX", "")
@@ -1373,5 +1553,5 @@ def main(argv=None) -> int:
                 print(f"open this in your browser: {url}")
         threading.Timer(1.0, _open).start()
     serve(host=args.host, port=args.port, db=args.db, scope_file=args.scope,
-          auth_token=args.auth_token, quiet=args.quiet)
+          auth_token=token, quiet=args.quiet)
     return 0

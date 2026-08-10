@@ -1004,7 +1004,7 @@ async function loadIntel(){
   let gallery="";
   if(shots.length){
     gallery=`<div class="intel-sec"><h4>Visual recon <em>${shots.length}</em></h4><div class="gallery">`
-      + shots.slice(0,12).map(s=>`<figure class="shot"><img loading="lazy" src="${s.image}" alt="${esc(s.host||"")}"><figcaption>${esc(s.host||s.url||"")}</figcaption></figure>`).join("")
+      + shots.slice(0,12).map(s=>`<figure class="shot"><img loading="lazy" src="${safeImg(s.image)}" alt="${esc(s.host||"")}"><figcaption>${esc(s.host||s.url||"")}</figcaption></figure>`).join("")
       + `</div></div>`;
   }
   const risks=(org.main_risks||[]).map(r=>`<li>${esc(r)}</li>`).join("")||"<li class='muted'>none</li>";
@@ -1090,7 +1090,7 @@ async function loadScreenshots(){
   if(d.error){ renderIntel("Screenshots: "+esc(d.error)); return; }
   const shots=d.screenshots||[];
   if(!shots.length){ renderIntel(`<div class="intel-head">Visual recon</div><div class="chip muted">No screenshots captured — a headless Chromium is required (desktop: Playwright; Termux: <code>pkg install chromium</code>).</div>`); return; }
-  const g=shots.map(s=>`<figure class="shot"><img loading="lazy" src="${s.image}" alt="${esc(s.host||"")}"><figcaption>${esc(s.host||s.url||"")}</figcaption></figure>`).join("");
+  const g=shots.map(s=>`<figure class="shot"><img loading="lazy" src="${safeImg(s.image)}" alt="${esc(s.host||"")}"><figcaption>${esc(s.host||s.url||"")}</figcaption></figure>`).join("");
   renderIntel(`<div class="intel-head">Visual recon <em>${shots.length} captured</em></div>
     <div class="chip muted" style="margin-bottom:8px">merged into the Intelligence gallery — open Intelligence to see them in context.</div>
     <div class="gallery">${g}</div>`);
@@ -1314,7 +1314,12 @@ $("ptoggle").addEventListener("click",()=>setDrawer($("panel").classList.contain
 $("scrim") && $("scrim").addEventListener("click",()=>setDrawer(false));
 $("langtoggle") && $("langtoggle").addEventListener("click",()=>window.__setLang(document.documentElement.lang==="he"?"en":"he"));
 $("target").addEventListener("keydown",e=>{ if(e.key==="Enter" && !scanning) startScan(); });
-function esc(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+// Escapes quotes as well as angle brackets: much of this file interpolates into
+// quoted attributes (data-kgnode="…", alt="…"), and findings carry text the
+// scanned host controls — a bare " would otherwise let it add its own handler.
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+// Only ever emit inline images we generated ourselves.
+function safeImg(src){ const s=String(src||""); return s.startsWith("data:image/") ? esc(s) : ""; }
 function showBanner(msg){ $("banner").innerHTML=`<div class="banner">${esc(msg)}</div>`; }
 function clearBanner(){ $("banner").innerHTML=""; }
 

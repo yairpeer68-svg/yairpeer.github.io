@@ -148,7 +148,7 @@ class DomainAge(Module):
 
 @register
 class SubdomainTakeover(Module):
-    id, name, category = "subtakeover", "Subdomain takeover detection", "DNS"
+    id, name, category = "subtakeover", "Subdomain takeover (CNAME records)", "DNS"
     target_kind = "domain"
 
     _FINGERPRINTS = {

@@ -1,0 +1,24 @@
+# keep the build context (and the image) free of local state and history
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+.mypy_cache
+*.egg-info
+build
+dist
+
+# local scan output / caches — never bake someone's findings into an image
+# (targets.txt and scope.txt.example ship on purpose; scope.txt is user state)
+*.db
+.ghosteye_cache
+.ghosteye_checkpoint.json
+scope.txt
+report.*
+ghosteye_*.json
+ghosteye_*.html
