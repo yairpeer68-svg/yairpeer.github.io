@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ..core import REGISTRY, Result
+from ..core import REGISTRY, Result, get_module
 
 # which modules to run when we pivot onto an entity of a given kind.
 # Only ids that actually exist in the registry are used.
@@ -71,7 +71,7 @@ def _default_run_fn(target: str, module_ids: List[str], cfg: Any) -> List[Result
         from ..core import build_session as _bs
         session = _bs(timeout=12)
     ctx = Context(config=cfg, session=session, timeout=12)
-    mods = [REGISTRY[m] for m in module_ids if m in REGISTRY]
+    mods = [get_module(m) for m in module_ids if get_module(m)]
     return engine.run_scan(mods, target, ctx, parallel=4)
 
 
@@ -130,7 +130,7 @@ def deep_dive(seed: str, run_fn: Optional[RunFn] = None, cfg: Any = None,
             visited.add(entity)
             visited.add(key)
             processed += 1
-            module_ids = [m for m in PIVOT_MODULES.get(kind, []) if m in REGISTRY]
+            module_ids = [m for m in PIVOT_MODULES.get(kind, []) if get_module(m)]
             if not module_ids:
                 continue
             try:

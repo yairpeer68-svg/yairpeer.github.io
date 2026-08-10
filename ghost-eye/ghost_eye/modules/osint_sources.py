@@ -12,7 +12,6 @@ graph stays clean. FOR AUTHORISED SECURITY TESTING ONLY.
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from typing import List
@@ -121,20 +120,8 @@ class PassiveDNSHackerTarget(Module):
                               "subdomains": subs, "ips": sorted(ips)[:60]})
 
 
-@register
-class PassiveDNSAnubis(Module):
-    id, name, category = "pdnsanubis", "Passive subdomains (AnubisDB)", "OSINT"
-    target_kind = "domain"
-
-    def run(self, target: str, ctx: Context) -> Result:
-        try:
-            host = clean_host(target)
-        except ValueError as exc:
-            return self.fail(target, str(exc))
-        j = _json(_get(ctx, f"https://jldc.me/anubis/subdomains/{host}"))
-        subs = _subs_of(j if isinstance(j, list) else [], host)
-        return self.ok(host, {"source": "anubisdb", "count": len(subs),
-                              "subdomains": subs})
+# NOTE: `pdnsanubis` was removed here — merged into `anubisjldc` — byte-identical AnubisDB query.
+# `-m pdnsanubis` still resolves via core.ALIASES.
 
 
 @register
@@ -203,59 +190,10 @@ class WaybackCDX(Module):
                               "subdomains": _subs_of(subs, host)})
 
 
-@register
-class CommonCrawlIndex(Module):
-    id, name, category = "commoncrawl", "Indexed URLs (Common Crawl)", "OSINT"
-    target_kind = "domain"
-
-    def run(self, target: str, ctx: Context) -> Result:
-        try:
-            host = clean_host(target)
-        except ValueError as exc:
-            return self.fail(target, str(exc))
-        txt = _text(_get(
-            ctx, f"https://index.commoncrawl.org/CC-MAIN-2024-10-index"
-                 f"?url=*.{host}&output=json&limit=500"))
-        urls = set()
-        for line in txt.splitlines():
-            try:
-                obj = json.loads(line)
-                if isinstance(obj, dict) and obj.get("url"):
-                    urls.add(obj["url"])
-            except Exception:  # noqa: BLE001
-                continue
-        return self.ok(host, {"source": "commoncrawl", "url_count": len(urls),
-                              "urls": sorted(urls)[:200]})
+# NOTE: `commoncrawl` was removed here — merged into `commoncrawlmine`, which resolves the *latest* CommonCrawl index instead of a hard-coded stale one.
+# `-m commoncrawl` still resolves via core.ALIASES.
 
 
-@register
-class URLScanSearch(Module):
-    id, name, category = "urlscanio", "URLScan.io history", "OSINT"
-    target_kind = "domain"
-
-    def run(self, target: str, ctx: Context) -> Result:
-        try:
-            host = clean_host(target)
-        except ValueError as exc:
-            return self.fail(target, str(exc))
-        j = _json(_get(ctx, f"https://urlscan.io/api/v1/search/"
-                            f"?q=domain:{host}&size=100")) or {}
-        results = j.get("results", []) if isinstance(j, dict) else []
-        urls, subs = set(), set()
-        for it in results:
-            page = (it or {}).get("page", {}) if isinstance(it, dict) else {}
-            if page.get("url"):
-                urls.add(str(page["url"]))
-            if page.get("domain"):
-                subs.add(str(page["domain"]))
-        return self.ok(host, {"source": "urlscan", "scans": len(results),
-                              "urls": sorted(urls)[:120],
-                              "subdomains": _subs_of(subs, host)})
-
-
-# --------------------------------------------------------------------------- #
-#  Cloud / infra exposure & pivots
-# --------------------------------------------------------------------------- #
 @register
 class CloudBuckets(Module):
     id, name, category = "bucketscan", "Cloud bucket exposure (S3/GCS/Azure)", "OSINT"

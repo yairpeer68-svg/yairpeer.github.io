@@ -167,13 +167,13 @@ def run_worker(queue_path: str, cfg, worker: str = "",
 
 def _default_scan(target: str, profile: str, cfg) -> Dict[str, Any]:
     """Run a real scan for one target and return a compact summary."""
-    from .core import REGISTRY, Context
+    from .core import get_module, REGISTRY, Context
     from . import engine, workflow
     from .reporting_ext import score_findings
     from .webapp import build_session  # reuse the hardened session builder
     recipes = workflow.load_recipes(None)
     ids = recipes.get(profile, recipes.get("quick", []))
-    mods = [REGISTRY[i] for i in ids if i in REGISTRY]
+    mods = [get_module(i) for i in ids if get_module(i)]
     session = build_session(timeout=15)
     ctx = Context(config=cfg, session=session, timeout=15)
     results = engine.run_scan(mods, target, ctx, parallel=4)

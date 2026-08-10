@@ -10,6 +10,9 @@ from typing import Dict, List, Set
 from ..core import (Console, Context, Module, Result, clean_host, ensure_scheme,
                     register)
 
+# a conservative hostname shape, used to filter reverse-IP output
+_HOSTRE = re.compile(r"[a-z0-9](?:[a-z0-9\-_.]{0,251}[a-z0-9])?\.[a-z]{2,63}")
+
 # Fingerprints for dangling-CNAME subdomain takeover (subset of the
 # well-known can-i-take-over-xyz list).
 _TAKEOVER_SIGS = {
@@ -258,8 +261,17 @@ class SubdomainTakeover(Module):
 
 @register
 class ReverseIp(Module):
+    """Reverse-IP lookup: which other domains share this address.
+
+    Merged module — absorbs the former ``reverseip``, which queried the same
+    HackerTarget endpoint for the same purpose. This version takes the union of
+    both: it accepts a hostname *or* a bare IP (the old ``reverseip`` demanded
+    an IP), keeps the stricter hostname validation and rate-limit detection, and
+    emits both result keys so older saved scans and reports still line up.
+    """
     id, name, category = "revip", "Reverse IP (shared hosts)", "Assets"
     target_kind = "host"
+    absorbed = ["reverseip"]
 
     def run(self, target: str, ctx: Context) -> Result:
         try:
@@ -270,10 +282,17 @@ class ReverseIp(Module):
         try:
             resp = sess.get(f"https://api.hackertarget.com/reverseiplookup/?q={host}",
                             timeout=ctx.timeout)
-            if resp.status_code != 200 or "error" in resp.text.lower():
+            text = resp.text or ""
+            # HackerTarget signals quota exhaustion with a 200 + "API count"
+            if (resp.status_code != 200 or "error" in text.lower()
+                    or "API count" in text):
                 return self.fail(host, "reverse-IP lookup unavailable (rate limit?)")
-            hosts = [h.strip() for h in resp.text.splitlines() if h.strip()]
-            return self.ok(host, {"count": len(hosts), "hosts": hosts})
+            hosts = sorted({h.strip().lower() for h in text.splitlines()
+                            if h.strip() and _HOSTRE.fullmatch(h.strip().lower())})
+            return self.ok(host, {"count": len(hosts), "hosts": hosts,
+                                  # legacy key from the absorbed `reverseip`
+                                  "related_domains": hosts[:80],
+                                  "source": "hackertarget"})
         except Exception as exc:  # noqa: BLE001
             return self.fail(host, f"reverse-IP failed: {exc}")
 

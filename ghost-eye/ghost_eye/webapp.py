@@ -30,7 +30,7 @@ from urllib.parse import parse_qs, urlparse
 
 from .config import Config
 from .core import (Colors, Console, Context, REGISTRY, Result, build_session,
-                   modules_by_category, record_error)
+                   get_module, modules_by_category, record_error)
 from . import engine, reporting, reporting_ext, workflow
 
 STATIC_DIR = Path(__file__).parent / "web_static"
@@ -393,12 +393,12 @@ def _select(payload: dict) -> List:
         mods = list(REGISTRY.values())
     elif mode == "modules":
         ids = val if isinstance(val, list) else [val]
-        mods = [REGISTRY[i] for i in ids if i in REGISTRY]
+        mods = [get_module(i) for i in ids if get_module(i)]
     elif mode == "category":
         mods = modules_by_category().get(val, [])
     elif mode == "profile":
         ids = workflow.load_recipes("recipes.yaml").get(val, [])
-        mods = [REGISTRY[i] for i in ids if i in REGISTRY]
+        mods = [get_module(i) for i in ids if get_module(i)]
     else:
         mods = []
     # passive-only mode (feature 71): drop anything that touches the target

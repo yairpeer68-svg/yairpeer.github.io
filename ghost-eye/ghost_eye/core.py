@@ -442,6 +442,7 @@ class Module:
     category: str = "Misc"
     target_kind: str = "host"    # host | domain | url | ip  (for the prompt)
     needs: List[str] = []        # required binaries / api-keys (informational)
+    absorbed: List[str] = []     # ids this module replaced (kept as aliases)
 
     def run(self, target: str, ctx: Context) -> Result:  # pragma: no cover
         raise NotImplementedError
@@ -457,6 +458,27 @@ class Module:
 
 REGISTRY: Dict[str, Module] = {}
 
+# retired module id -> the canonical module that absorbed it. When two modules
+# turned out to query the same source for the same purpose they were merged;
+# the old id keeps working (recipes, saved scans and muscle memory don't break)
+# and simply resolves to the survivor.
+ALIASES: Dict[str, str] = {}
+
+
+def resolve_id(module_id: str) -> str:
+    """Map a possibly-retired module id onto the id that serves it today."""
+    seen = set()
+    mid = (module_id or "").strip()
+    while mid in ALIASES and mid not in seen:
+        seen.add(mid)
+        mid = ALIASES[mid]
+    return mid
+
+
+def get_module(module_id: str) -> Optional[Module]:
+    """Look a module up by id, transparently following merge aliases."""
+    return REGISTRY.get(resolve_id(module_id))
+
 
 def register(cls):
     """Class decorator: instantiate the module and add it to the registry."""
@@ -465,6 +487,13 @@ def register(cls):
         raise ValueError(f"module {cls.__name__} has no id")
     if inst.id in REGISTRY:
         raise ValueError(f"duplicate module id: {inst.id}")
+    if inst.id in ALIASES:
+        raise ValueError(f"module id {inst.id!r} is registered as an alias")
+    for old in getattr(inst, "absorbed", []) or []:
+        if old in REGISTRY:
+            raise ValueError(
+                f"{inst.id!r} claims to absorb {old!r}, which still exists")
+        ALIASES[old] = inst.id
     # Results are labelled with .name, and every diff/compare/history view keys
     # them by that label — two modules sharing a name silently erase each other.
     clash = next((m for m in REGISTRY.values() if m.name == inst.name), None)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ghost_eye.core import REGISTRY, Context
+from ghost_eye.core import get_module, REGISTRY, Context
 
 
 class _Resp:
@@ -125,7 +125,10 @@ def _router2(url):
 
 def test_wave2_ip_sources():
     ctx = _ctx(_router2)
-    rev = REGISTRY["reverseip"].run("1.2.3.4", ctx).data
+    # `reverseip` was merged into `revip`; the old id still resolves via the
+    # alias, which is exactly what `-m reverseip` does for a user.
+    rev = get_module("reverseip").run("1.2.3.4", ctx).data
+    assert get_module("reverseip").id == "revip"
     assert "acme.com" in rev["related_domains"]
     assert REGISTRY["iptoasn"].run("1.2.3.4", ctx).data["asn"] == 64500
     feo = REGISTRY["feodo"].run("1.2.3.4", ctx).data

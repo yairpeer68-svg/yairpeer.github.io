@@ -456,26 +456,10 @@ class SearchCode(Module):
 # =========================================================================== #
 #  Wave 2 — more free / keyless sources (co-hosting, ASN, C2, dumps, identity)
 # =========================================================================== #
-@register
-class ReverseIp(Module):
-    id = "reverseip"
-    name = "Reverse IP — co-hosted domains (HackerTarget)"
-    category = "OSINT"
-    target_kind = "ip"
-
-    def run(self, target, ctx):
-        ip = str(target).strip()
-        if not is_ip(ip):
-            return self.ok(ip, {"note": "reverse-IP expects an IP"})
-        txt = _text(_get(ctx, f"https://api.hackertarget.com/reverseiplookup/?q={ip}"))
-        domains: Set[str] = set()
-        if txt and "error" not in txt.lower() and "API count" not in txt:
-            for line in txt.splitlines():
-                d = line.strip().lower()
-                if d and _HOSTRE.fullmatch(d):
-                    domains.add(d)
-        return self.ok(ip, {"related_domains": sorted(domains)[:80],
-                            "count": len(domains), "source": "reverseip"})
+# NOTE: the former `reverseip` module lived here. It queried the same
+# HackerTarget reverse-IP endpoint as `revip` for the same purpose, so the two
+# were merged into `revip` (Assets), which now accepts a host *or* an IP.
+# `-m reverseip` still works via the alias in core.ALIASES.
 
 
 @register
@@ -739,10 +723,15 @@ class FaviconMmh3(Module):
 # =========================================================================== #
 @register
 class AnubisJldc(Module):
+    """AnubisDB passive subdomains.
+
+    Merged module — absorbs the former ``pdnsanubis``, which issued the exact
+    same request to the same endpoint and parsed it identically."""
     id = "anubisjldc"
     name = "Anubis subdomain DB (jldc.me, keyless)"
     category = "OSINT"
     target_kind = "domain"
+    absorbed = ["pdnsanubis"]
 
     def run(self, target, ctx):
         try:
@@ -967,10 +956,17 @@ def _mine_urls(urls, host):
 
 @register
 class CommonCrawlMine(Module):
+    """CommonCrawl URL mining.
+
+    Merged module — absorbs the former ``commoncrawl``, which queried a
+    **hard-coded** crawl index (``CC-MAIN-2024-10``) and so silently went stale
+    as new crawls shipped. This one resolves the newest index from
+    ``collinfo.json`` at run time, so the merge is also a bug fix."""
     id = "commoncrawlmine"
     name = "CommonCrawl deep mining (endpoints + params)"
     category = "OSINT"
     target_kind = "domain"
+    absorbed = ["commoncrawl"]
 
     def run(self, target, ctx):
         try:

@@ -25,7 +25,7 @@ from typing import List, Optional
 
 from .config import Config, MODULE_KEYS
 from .core import (Colors, Console, Context, Module, REGISTRY, Result,
-                   build_session, modules_by_category,
+                   build_session, get_module, modules_by_category,
                    errorlog_path, setup_logging)
 from . import engine
 from . import reporting
@@ -246,8 +246,8 @@ def select_modules(args) -> Optional[List[Module]]:
             Console.kv("available", ", ".join(sorted(recipes)))
             return None
         ids = recipes[args.profile]
-        chosen = [REGISTRY[i] for i in ids if i in REGISTRY]
-        miss = [i for i in ids if i not in REGISTRY]
+        chosen = [get_module(i) for i in ids if get_module(i)]
+        miss = [i for i in ids if not get_module(i)]
         if miss:
             Console.warn(f"profile references unknown ids (skipped): {', '.join(miss)}")
         return chosen
@@ -264,7 +264,8 @@ def select_modules(args) -> Optional[List[Module]]:
         ids = [m.strip() for m in args.modules.split(",") if m.strip()]
         chosen, missing = [], []
         for i in ids:
-            (chosen.append(REGISTRY[i]) if i in REGISTRY else missing.append(i))
+            mod = get_module(i)          # follows merge aliases
+            (chosen.append(mod) if mod else missing.append(i))
         if missing:
             Console.err(f"unknown module id(s): {', '.join(missing)}")
             Console.kv("hint", "run --list to see all ids")

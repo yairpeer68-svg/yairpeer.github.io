@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .core import Colors, Console, have_binary, REGISTRY
+from .core import Colors, Console, get_module, have_binary, REGISTRY
 
 # --------------------------------------------------------------------------- #
 #  Passive-only classification (feature 71)
@@ -447,8 +447,8 @@ def deep_plan(results, target="", scope=None, max_hosts: int = 25):
     from .inventory import collect_assets
     from .core import REGISTRY
     assets = collect_assets(results, target, scope, max_hosts)
-    host_mods = [REGISTRY[i] for i in DEEP_HOST_MODULES if i in REGISTRY]
-    ip_mods = [REGISTRY[i] for i in DEEP_IP_MODULES if i in REGISTRY]
+    host_mods = [get_module(i) for i in DEEP_HOST_MODULES if get_module(i)]
+    ip_mods = [get_module(i) for i in DEEP_IP_MODULES if get_module(i)]
     plan = [(h, host_mods) for h in assets["hosts"]] + \
            [(ip, ip_mods) for ip in assets["ips"]]
     return plan, assets
@@ -686,7 +686,7 @@ def entity_investigation(seed: str, cfg=None, run_fn=None,
                 recorder.record(m)
         return results
 
-    module_ids = [m for m in PIVOT_MODULES.get(kind, []) if m in REGISTRY]
+    module_ids = [m for m in PIVOT_MODULES.get(kind, []) if get_module(m)]
     results = _recording_run(seed, module_ids, cfg)
 
     # if a username investigation surfaced e-mails, pivot onto them once
@@ -694,7 +694,7 @@ def entity_investigation(seed: str, cfg=None, run_fn=None,
     if pivot_emails and kind == "username":
         intel0 = correlate(results, seed)
         emails = [e for e in intel0.get("emails", []) if "@" in e][:5]
-        email_mods = [m for m in PIVOT_MODULES.get("email", []) if m in REGISTRY]
+        email_mods = [m for m in PIVOT_MODULES.get("email", []) if get_module(m)]
         for em in emails:
             pivoted_emails.append(em)
             results.extend(_recording_run(em, email_mods, cfg))

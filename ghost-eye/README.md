@@ -11,12 +11,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **554 modules** across 19 categories
+- **550 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **881 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 554 of those are the
+- **902 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 550 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 271 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -736,7 +736,7 @@ python3 ghost_eye.py --errors            # view it
 
 | Category | # | Examples |
 |----------|---|----------|
-| OSINT | 247 | subs, github, wayback, usernamescan, emailfootprint, sourcehealth |
+| OSINT | 243 | subs, github, wayback, usernamescan, emailfootprint, sourcehealth |
 | Web | 56 | headers, cors, graphql, smuggle, protopollute, cspbypass, lfisurface |
 | Network | 41 | nmap, portscan, sshaudit, quicdetect, wgdetect, osfp, ipmi |
 | SSL/TLS | 27 | cert, tlsgrade, ciphers, ctmonitor, mtls, zerortt |
@@ -757,6 +757,26 @@ python3 ghost_eye.py --errors            # view it
 | Mobile | 5 | mobileapp, applinks, assetlinks, appadstxt, deeplinks |
 
 Run `python3 ghost_eye.py --list` for the full list with ids.
+
+### Merged modules (retired ids still work)
+
+A few modules turned out to query the *same source for the same purpose*. They
+were merged into one, and the surviving module emits the union of both result
+shapes so nothing was lost:
+
+| retired id | now served by | why |
+|------------|---------------|-----|
+| `reverseip` | `revip` | same HackerTarget reverse-IP endpoint; the merged one also accepts a hostname, not just an IP |
+| `urlscanio` | `urlscan` | same `urlscan.io` search; merged result keeps the scan metadata *and* the url/subdomain extraction |
+| `pdnsanubis` | `anubisjldc` | identical AnubisDB request and parsing |
+| `commoncrawl` | `commoncrawlmine` | the retired one queried a **hard-coded** `CC-MAIN-2024-10` index and silently went stale; the survivor resolves the newest crawl at run time |
+
+**Nothing breaks.** `-m reverseip`, saved recipes and scan profiles keep working
+— retired ids resolve through `core.ALIASES` to the surviving module. They no
+longer appear in `--list`, and a genuinely unknown id is still an error. A
+module declares what it replaced with `absorbed = ["old_id"]`; `register()`
+refuses to absorb an id that still exists, and `get_module()` is the
+alias-aware lookup (plain `REGISTRY[...]` does not follow aliases).
 
 The newest additions: the **data-driven OSINT engine** (see below), **11
 LLM-provider account-recon modules** (`*acct` — validate a key you own, list the
@@ -863,7 +883,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 554 modules
+- **All-module smoke test** — runs `run()` for every one of the 550 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions. Note what it does
@@ -888,7 +908,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**881 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**902 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

@@ -134,8 +134,27 @@ class GeoEnrich(Module):
 
 @register
 class UrlScan(Module):
+    """Public urlscan.io submissions for a domain.
+
+    Merged module — absorbs the former ``urlscanio``, which hit the same
+    ``/api/v1/search/`` endpoint for the same purpose but returned a different
+    slice of it. This version is the union: the wider page size the old
+    ``urlscanio`` used, plus *both* result shapes — per-scan metadata
+    (url/time/result) and the extracted url + subdomain lists.
+    """
     id, name, category = "urlscan", "URLScan.io public results", "Passive Intel"
     target_kind = "domain"
+    absorbed = ["urlscanio"]
+
+    @staticmethod
+    def _subs_of(hosts, target: str):
+        t = (target or "").lower().lstrip("*.").rstrip(".")
+        out = set()
+        for h in hosts or []:
+            h = str(h).lower().strip().rstrip(".").lstrip("*.")
+            if h and (h == t or h.endswith("." + t)):
+                out.add(h)
+        return sorted(out)[:500]
 
     def run(self, target, ctx):
         try:
@@ -144,15 +163,29 @@ class UrlScan(Module):
             return self.fail(target, str(e))
         try:
             r = ctx.session.get("https://urlscan.io/api/v1/search/",
-                                params={"q": f"domain:{host}", "size": 10},
+                                params={"q": f"domain:{host}", "size": 100},
                                 timeout=ctx.timeout)
             if r.status_code != 200:
                 return self.fail(host, f"urlscan HTTP {r.status_code}")
-            results = r.json().get("results", [])
-            out = [{"url": x.get("page", {}).get("url"),
-                    "time": x.get("task", {}).get("time"),
-                    "result": x.get("result")} for x in results]
-            return self.ok(host, {"scans": out or "no public scans"})
+            results = r.json().get("results", []) or []
+            scans, urls, seen_hosts = [], set(), set()
+            for x in results:
+                page = (x or {}).get("page", {}) if isinstance(x, dict) else {}
+                scans.append({"url": page.get("url"),
+                              "time": (x.get("task", {}) or {}).get("time"),
+                              "result": x.get("result")})
+                if page.get("url"):
+                    urls.add(str(page["url"]))
+                if page.get("domain"):
+                    seen_hosts.add(str(page["domain"]))
+            return self.ok(host, {
+                "source": "urlscan",
+                "scans": scans[:20] or "no public scans",
+                "scan_count": len(results),
+                # keys from the absorbed `urlscanio`
+                "urls": sorted(urls)[:120],
+                "subdomains": self._subs_of(seen_hosts, host),
+            })
         except Exception as exc:
             return self.fail(host, f"failed: {exc}")
 
