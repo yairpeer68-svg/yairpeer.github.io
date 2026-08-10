@@ -132,17 +132,41 @@ def classify(module: Module, result: Result, elapsed: float,
             "detail": "shape verified" if shape else "returned data"}
 
 
+def _base(module: Module) -> Dict[str, Any]:
+    return {"id": getattr(module, "id", "?"),
+            "name": getattr(module, "name", ""),
+            "category": getattr(module, "category", "")}
+
+
 def probe_module(module: Module, ctx: Context, timeout: float = 20.0) -> Dict[str, Any]:
-    """Probe one module against its canary target and classify the result."""
+    """Probe one module and classify its health.
+
+    A module with a custom ``health_probe`` (e.g. the exploit-intelligence
+    module, which self-tests against known-weaponised CVEs) is trusted to judge
+    itself; everything else is run against a canary target and classified by
+    whether usable data came back.
+    """
+    t0 = time.time()
+    # 1) custom self-test, when the module knows how to check itself
+    try:
+        custom = module.health_probe(ctx)
+    except Exception as exc:  # noqa: BLE001
+        return {**_base(module), "status": BROKEN, "elapsed": round(time.time() - t0, 2),
+                "detail": f"health_probe crashed: {str(exc)[:120]}"}
+    if custom is not None:
+        ok = bool(custom.get("ok"))
+        return {**_base(module),
+                "status": HEALTHY if ok else BROKEN,
+                "detail": custom.get("detail", "self-test " + ("passed" if ok else "FAILED")),
+                "checks": custom.get("checks"),
+                "elapsed": round(time.time() - t0, 2)}
+
+    # 2) generic canary-target probe
     target = canary_for(module)
     if target is None:
-        return {"id": getattr(module, "id", "?"),
-                "name": getattr(module, "name", ""),
-                "category": getattr(module, "category", ""),
-                "status": SKIPPED, "detail": "opted out (health_target=False)",
-                "elapsed": 0.0}
+        return {**_base(module), "status": SKIPPED,
+                "detail": "opted out (health_target=False)", "elapsed": 0.0}
     from . import engine
-    t0 = time.time()
     try:
         result = engine.execute_module(module, target, ctx)
         return classify(module, result, time.time() - t0)

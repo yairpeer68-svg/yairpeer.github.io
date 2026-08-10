@@ -457,6 +457,18 @@ class Module:
     def run(self, target: str, ctx: Context) -> Result:  # pragma: no cover
         raise NotImplementedError
 
+    def health_probe(self, ctx: "Context") -> Optional[Dict[str, Any]]:
+        """Optional custom self-test for the health harness.
+
+        Some modules can't be checked by "run against a canary target and see if
+        data comes back" — the exploit-intelligence module against example.com
+        finds no CVEs and looks empty, which says nothing about whether its
+        sources still work. Such a module overrides this to probe a *known*
+        answer (e.g. a CVE that is definitely weaponised) and returns
+        ``{"ok": bool, "detail": str, ...}``. Returning None (the default) tells
+        the harness to fall back to the generic canary-target probe."""
+        return None
+
     # convenience: build a Result bound to this module
     def ok(self, target: str, data: Dict[str, Any]) -> Result:
         status = "ok" if data else "empty"

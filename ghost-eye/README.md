@@ -16,9 +16,9 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **992 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 551 of those are the
+- **1000 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 551 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 441 are behavioural — see
+  raises"); the other 449 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -385,6 +385,15 @@ python3 ghost_eye.py -t example.com -m exploitdb        # standalone module
 ```
 
 Detection/correlation only — nothing is ever exploited.
+
+**It self-tests.** This is the highest-stakes module in the tool — if one of its
+sources breaks, it reports a weaponised CVE as "no exploit available", the most
+dangerous false negative a security tool can produce, and nothing would notice.
+So it carries a health self-test: `--check-health exploitdb` probes it against
+CVEs known to be weaponised and on CISA KEV (Log4Shell, EternalBlue, Heartbleed,
+ProxyLogon, Struts) and **fails if any comes back clean** — telling you the
+zero-day intelligence is degraded instead of letting you trust a false "nothing
+found". (It tolerates a single source hiccup; a total miss is broken.)
 
 ---
 
@@ -1085,7 +1094,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**992 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**1000 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
