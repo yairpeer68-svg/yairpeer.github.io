@@ -8,3 +8,22 @@ build/
 ghosteye.db
 .ghosteye_checkpoint.json
 .cache/
+
+# virtualenvs (a throwaway one is created to run the test suite)
+.venv/
+venv/
+env/
+
+# test / lint tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# local scan state and output — never commit someone's findings
+.ghosteye_cache/
+scope.txt
+report.*
+ghosteye_*.json
+ghosteye_*.html
