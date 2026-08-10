@@ -211,6 +211,41 @@ def _screenshots(results: List[Result]) -> List[Dict[str, str]]:
     return shots[:24]
 
 
+def _profiles(results: List[Result]) -> List[Dict[str, str]]:
+    """Collect discovered social/username profiles + linked accounts so the
+    person side of an investigation shows up in the graph, not just the domain
+    side. Fed by usernamescan / emailfootprint / username / social modules."""
+    seen = set()
+    out: List[Dict[str, str]] = []
+
+    def add(site: str, url: str, who: str = "", conf: str = ""):
+        key = (site.lower(), url)
+        if not url or key in seen:
+            return
+        seen.add(key)
+        out.append({"site": site, "url": url, "identity": who,
+                    "confidence": conf})
+
+    for r in results:
+        data = getattr(r, "data", {}) or {}
+        who = data.get("username") or data.get("email") or ""
+        # usernamescan: [{site, url, confidence}]
+        for hit in data.get("found_on", []) or []:
+            if isinstance(hit, dict):
+                add(hit.get("site", ""), hit.get("url", ""), who,
+                    hit.get("confidence", ""))
+        # emailfootprint: Gravatar linked accounts
+        for acc in data.get("linked_accounts", []) or []:
+            if isinstance(acc, dict):
+                add(acc.get("service", ""), acc.get("url", ""), who)
+        # generic {site: url} maps used by the older username/social modules
+        for k, v in data.items():
+            if isinstance(v, str) and v.startswith(("http://", "https://")) \
+                    and any(t in k.lower() for t in ("profile", "url", "account")):
+                add(k, v, who)
+    return out[:120]
+
+
 def _cert_intel(results: List[Result]) -> Dict[str, Any]:
     issuers, sans, related = set(), set(), set()
     for r in results:
@@ -253,6 +288,7 @@ def correlate(results: List[Result], target: str = "") -> Dict[str, Any]:
     certs = _cert_intel(results)
     leaks = _leak_indicators(results, blob)
     screenshots = _screenshots(results)
+    profiles = _profiles(results)
 
     assets = (len(hosts) + len(inv["ips"]) + len(inv["services"])
               + len(inv["emails"]) + len(inv["urls"]))
@@ -270,6 +306,7 @@ def correlate(results: List[Result], target: str = "") -> Dict[str, Any]:
             "urls": len(inv["urls"]),
             "leak_indicators": len(leaks),
             "screenshots": len(screenshots),
+            "profiles": len(profiles),
         },
         "subdomains": subdomains[:200],
         "related_domains": other_domains[:100],
@@ -282,6 +319,7 @@ def correlate(results: List[Result], target: str = "") -> Dict[str, Any]:
         "certificates": certs,
         "leak_indicators": leaks,
         "screenshots": screenshots,
+        "profiles": profiles,
         "note": "correlated from module output only — no additional scanning",
     }
 

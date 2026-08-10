@@ -67,6 +67,8 @@ from . import (  # noqa: F401
     # --- v3.85: AI/LLM provider account recon + mobile association files ---
     ai_providers,
     mobile_v2,
+    # --- v3.86: data-driven OSINT at scale (username/email registries) ---
+    osint_scale,
 )
 
 __all__ = [
@@ -83,5 +85,5 @@ __all__ = [
     "exploit_intel", "screenshot",
     "web_v4", "dns_v4", "email_v3", "tls_v3", "network_v4", "ai_v2", "mobile",
     "osint_sources", "newscan_wave", "osint_power", "osint_freesources",
-    "ai_providers", "mobile_v2",
+    "ai_providers", "mobile_v2", "osint_scale",
 ]

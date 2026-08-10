@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ghost-eye"
-version = "3.85.0"
+version = "3.86.0"
 description = "Modular reconnaissance / OSINT / exposure-detection toolkit with a web dashboard"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -49,7 +49,7 @@ ghost-eye-web = "ghost_eye.webapp:main"
 packages = ["ghost_eye", "ghost_eye.modules", "ghost_eye.intelligence"]
 
 [tool.setuptools.package-data]
-ghost_eye = ["web_static/*.html", "py.typed"]
+ghost_eye = ["web_static/*.html", "data/*.json", "py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

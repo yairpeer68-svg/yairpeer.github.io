@@ -11,12 +11,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **550 modules** across 19 categories
+- **553 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **831 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 550 of those are the
+- **852 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 271 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -678,11 +678,11 @@ python3 ghost_eye.py --errors            # view it
 
 ## Module catalogue
 
-550 modules across 19 categories:
+553 modules across 19 categories:
 
 | Category | # | Examples |
 |----------|---|----------|
-| OSINT | 243 | subs, github, wayback, crtsh, social, threatagg, favsimilar |
+| OSINT | 246 | subs, github, wayback, usernamescan, emailfootprint, threatagg |
 | Web | 56 | headers, cors, graphql, smuggle, protopollute, cspbypass, lfisurface |
 | Network | 41 | nmap, portscan, sshaudit, quicdetect, wgdetect, osfp, ipmi |
 | SSL/TLS | 27 | cert, tlsgrade, ciphers, ctmonitor, mtls, zerortt |
@@ -704,10 +704,46 @@ python3 ghost_eye.py --errors            # view it
 
 Run `python3 ghost_eye.py --list` for the full list with ids.
 
-The newest additions: **11 LLM-provider account-recon modules** (`*acct` —
-validate a key you own, list the models and quota it unlocks) and **4 mobile
-association modules** (`applinks`, `assetlinks`, `appadstxt`, `deeplinks` — the
-public app-association files that map an org's mobile portfolio).
+The newest additions: the **data-driven OSINT engine** (see below), **11
+LLM-provider account-recon modules** (`*acct` — validate a key you own, list the
+models and quota it unlocks) and **4 mobile association modules** (`applinks`,
+`assetlinks`, `appadstxt`, `deeplinks` — the public app-association files that
+map an org's mobile portfolio).
+
+### Data-driven OSINT at scale
+
+Most modules are one Python class per source. The **scale lever** is the
+opposite: a *source is a row in a JSON registry*, so one module checks hundreds
+— or, with an external dataset, thousands — of sites in a pass.
+
+```bash
+# username across the built-in ~140-site registry
+python3 ghost_eye.py --username somehandle
+
+# an email's public footprint (Gravatar/Libravatar, non-intrusive)
+python3 ghost_eye.py --email someone@example.com
+
+# point at a Sherlock or WhatsMyName dataset and search thousands of sites
+GHOSTEYE_USERNAME_SITES=/path/to/sherlock/data.json \
+    python3 ghost_eye.py -m usernamescan -t somehandle
+```
+
+- `usernamescan` — checks the username against the whole registry concurrently.
+  Every "found" verdict is **re-checked against a random canary username** to
+  drop sites that answer `200` for *any* name, and each hit carries a
+  confidence (`high`/`medium`). The loader reads the native format **and** the
+  community [Sherlock](https://github.com/sherlock-project/sherlock) `data.json`
+  and [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) schemas, so you
+  can drop in their thousands of sites unchanged.
+- `usernamevariants` — generates plausible handle variants (separator swaps,
+  leetspeak, common suffixes) and checks the popular sites for each.
+- `emailfootprint` — non-intrusive email OSINT by hash (Gravatar/Libravatar
+  avatar + profile, self-declared linked accounts). No message is sent.
+
+Discovered profiles/accounts flow into the **entity graph** as their own node
+kind, so an investigation shows the *person* side (usernames, linked accounts)
+next to the domain side. Ship your own registry at
+`ghost_eye/data/username_sites.json` or override with `GHOSTEYE_USERNAME_SITES`.
 
 ---
 
@@ -753,7 +789,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 550 modules
+- **All-module smoke test** — runs `run()` for every one of the 553 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions. Note what it does
@@ -778,7 +814,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**831 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**852 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

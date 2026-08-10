@@ -369,6 +369,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-t", "--target", help="domain / IP / URL to assess")
     p.add_argument("-T", "--targets", metavar="FILE",
                    help="file with one target per line (batch mode, #67)")
+    p.add_argument("-u", "--username", metavar="HANDLE",
+                   help="OSINT a username across the site registry "
+                        "(shortcut for -t HANDLE -m usernamescan,usernamevariants)")
+    p.add_argument("--email", metavar="ADDRESS",
+                   help="OSINT an email's public footprint "
+                        "(shortcut for -t ADDRESS -m emailfootprint)")
     sel = p.add_argument_group("module selection")
     sel.add_argument("-m", "--modules",
                      help="comma-separated module ids (see --list)")
@@ -736,6 +742,17 @@ def _collect_targets(args) -> List[str]:
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+
+    # entity-OSINT shortcuts: --username / --email pick the target and the
+    # right data-driven module so you don't have to remember module ids
+    if getattr(args, "username", None):
+        args.target = args.username
+        if not args.modules:
+            args.modules = "usernamescan,usernamevariants"
+    if getattr(args, "email", None):
+        args.target = args.email
+        if not args.modules:
+            args.modules = "emailfootprint"
 
     if args.no_color:
         Colors.disable()

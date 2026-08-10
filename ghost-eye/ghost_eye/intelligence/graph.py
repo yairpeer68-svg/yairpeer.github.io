@@ -12,6 +12,7 @@ _KIND_COLORS = {
     "domain": "#79c0ff", "asn": "#3fb950", "cert_issuer": "#56d364",
     "email": "#db61a2", "org": "#f0883e", "cve": "#f85149",
     "leak": "#ff7b72", "mailserver": "#a5d6ff", "nameserver": "#a5d6ff",
+    "profile": "#e3b341", "account": "#e3b341",
 }
 
 
@@ -39,6 +40,9 @@ def build_graph(intel: Dict[str, Any]) -> Dict[str, List[dict]]:
     for group in intel.get("technologies", {}).values():
         techs.extend(group)
     add(techs, "tech", 12)
+    # discovered social / username profiles — the person side of the graph
+    add([p.get("site", "") for p in intel.get("profiles", [])
+         if isinstance(p, dict) and p.get("site")], "profile", 40)
     return {"nodes": nodes, "edges": edges}
 
 
