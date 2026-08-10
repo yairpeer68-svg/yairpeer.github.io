@@ -731,6 +731,14 @@ def entity_investigation(seed: str, cfg=None, run_fn=None,
 _URLS_RE = _re.compile(r"https?://[^\s\"'<>]+")
 
 
+def ip_filter_report(results, target: str = "") -> dict:
+    """Classify every IP a scan produced: CDN/WAF edge vs cloud vs private vs
+    candidate origin. The headline is `origin_candidates` — the addresses that
+    are plausibly the target's own rather than a shared edge network."""
+    from .netclass import ip_report
+    return ip_report(results, target)
+
+
 def attribution_report(results, target: str = "",
                        threshold: float = 0.75) -> dict:
     """Infrastructure attribution: group the hosts seen in a scan into operator

@@ -747,6 +747,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_opsec(jid)
         if sub == "attribution":
             return self._job_attribution(jid)
+        if sub == "ipfilter":
+            return self._job_ipfilter(jid)
         if sub == "ask":
             return self._job_ask(jid, parsed)
         if sub == "summary":
@@ -893,6 +895,19 @@ class Handler(BaseHTTPRequestHandler):
                            "counts": scored.get("counts", {}),
                            "risk_level": scored.get("risk_level", ""),
                            "confidence": scored.get("confidence", {})})
+
+    def _job_ipfilter(self, jid: str):
+        """Classify every IP the job saw: CDN/WAF edge vs cloud vs candidate
+        origin, so edge noise can be filtered out of the asset picture."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        try:
+            return self._json(workflow.ip_filter_report(results, target))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"ip filter failed: {exc}"}, 500)
 
     def _job_attribution(self, jid: str):
         """Infrastructure attribution for a job: cluster the hosts it saw into

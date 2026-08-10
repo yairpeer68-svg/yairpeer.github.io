@@ -62,12 +62,28 @@ def build_inventory(results: List[Result], target: str = "") -> dict:
         ips_sorted = sorted(ips, key=lambda x: tuple(int(p) for p in x.split(".")))
     except Exception:
         ips_sorted = sorted(ips)
+    # Split the addresses by what they actually are. Counting CDN edge nodes as
+    # the target's assets inflates the inventory and buries the few addresses
+    # that are plausibly theirs.
+    try:
+        from .netclass import classify_ips
+        _classified = classify_ips(ips_sorted)
+    except Exception:  # noqa: BLE001 - classification must never break inventory
+        _classified = []
+    _origin = [c["ip"] for c in _classified if c["kind"] == "origin"]
+    _cdn = [c["ip"] for c in _classified if c["kind"] == "cdn"]
+    _cdn_providers = sorted({c["provider"] for c in _classified
+                             if c["kind"] == "cdn" and c["provider"]})
     return {
         "target": target or (results[0].target if results else ""),
         "counts": {"hosts": len(hosts), "ips": len(ips), "services": len(services),
-                   "emails": len(emails), "urls": len(urls)},
+                   "emails": len(emails), "urls": len(urls),
+                   "origin_ips": len(_origin), "cdn_ips": len(_cdn)},
         "hosts": sorted(hosts)[:500],
         "ips": ips_sorted[:500],
+        "origin_ips": _origin[:500],
+        "cdn_ips": _cdn[:500],
+        "cdn_providers": _cdn_providers,
         "services": sorted(services)[:200],
         "emails": sorted(emails)[:200],
         "urls": sorted(urls)[:300],

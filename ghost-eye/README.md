@@ -11,12 +11,12 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **550 modules** across 19 categories
+- **551 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **928 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 550 of those are the
+- **961 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 551 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 271 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -38,6 +38,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [Scan profiles](#scan-profiles-recipes)
 - [Exploit / zero-day intelligence](#exploit--zero-day-intelligence)
 - [Trust layer — confidence, provenance & OPSEC](#trust-layer--confidence-provenance--opsec)
+- [CDN/WAF filtering — finding the real IPs](#cdnwaf-filtering--finding-the-real-ips)
 - [Infrastructure attribution](#infrastructure-attribution)
 - [Reporting](#reporting)
 - [CI/CD security gate](#cicd-security-gate)
@@ -126,6 +127,7 @@ python3 ghost_eye_web.py --open
 | `--intel` | print an intelligence summary after the scan |
 | `--screenshots [N]` | screenshot the target + N discovered subdomains into the gallery |
 | `--risk` | print a prioritised risk summary |
+| `--filter-cdn` | classify every IP found: CDN/WAF edge vs cloud vs candidate origin |
 | `--attribute` | infrastructure attribution: cluster hosts into operator estates with weighted evidence |
 | `--inventory`, `--rollup` | asset inventory / per-host rollup |
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
@@ -429,6 +431,58 @@ prone) so you know which sources to trust before acting on a sweep.
 ```bash
 python3 ghost_eye.py -m sourcehealth -t x
 ```
+
+---
+
+## CDN/WAF filtering — finding the real IPs
+
+Most addresses a scan returns are **not the target's servers**. They are
+Cloudflare/Akamai/Fastly edge nodes that thousands of unrelated sites also
+answer from. Counting them as the target's assets inflates the inventory,
+poisons attribution, and buries the handful of addresses that actually matter.
+
+Every IP is classified into one of four kinds:
+
+| kind | meaning |
+|------|---------|
+| `cdn` | a published CDN/WAF edge range (Cloudflare, Akamai, Fastly, Imperva, Sucuri, …) |
+| `cloud` | a known hosting provider (AWS/GCP/Azure/DO/Hetzner/…) — context, **not** a reason to discard |
+| `private` | RFC1918, loopback, link-local, and the RFC5737 documentation ranges |
+| `origin` | none of the above — a candidate **real** server |
+
+```bash
+# one target: is it fronted, and what is the real IP?
+python3 ghost_eye.py -t example.com -m cdnfilter
+
+# filter every IP a whole scan produced
+python3 ghost_eye.py -t example.com --all --filter-cdn
+# dashboard: GET /api/job/<id>/ipfilter
+```
+
+```
+IP filter — 5 address(es), 2 origin candidate(s)
+[+] origin candidates (outside every known CDN/WAF range):
+    93.184.216.34: candidate origin
+    91.198.174.192: candidate origin
+    Cloudflare edge (filtered out): 2 IP(s): 104.16.1.1, 172.67.9.9
+```
+
+The classification is applied in three places, so edge noise is subtracted
+everywhere and not just in one report:
+
+- **`cdnfilter` module** — resolves a target and reports `behind_cdn`,
+  the provider, and whether the origin is exposed or `FULLY FRONTED`.
+- **Asset inventory** — gains `origin_ips`, `cdn_ips` and `cdn_providers`, so
+  the asset count reflects the target's own infrastructure.
+- **Attribution** — a shared CDN address is demoted to near-zero evidence.
+  Two unrelated sites answering from the same Cloudflare node are *not*
+  the same operator, and the engine will no longer say they are.
+
+Ranges are bundled (so classification works fully offline) and can be updated
+from the providers' own published lists with `netclass.refresh_ranges()`. A
+failed or suspiciously short refresh is rejected rather than silently replacing
+the bundled ranges. An address outside every known range is a **candidate**
+origin, not proof.
 
 ---
 
@@ -793,7 +847,7 @@ python3 ghost_eye.py --errors            # view it
 |----------|---|----------|
 | OSINT | 243 | subs, github, wayback, usernamescan, emailfootprint, sourcehealth |
 | Web | 56 | headers, cors, graphql, smuggle, protopollute, cspbypass, lfisurface |
-| Network | 41 | nmap, portscan, sshaudit, quicdetect, wgdetect, osfp, ipmi |
+| Network | 42 | nmap, portscan, sshaudit, quicdetect, wgdetect, osfp, ipmi |
 | SSL/TLS | 27 | cert, tlsgrade, ciphers, ctmonitor, mtls, zerortt |
 | DNS | 26 | dns, dnssecchain, subtakeover, nsecwalk, nsmxtakeover |
 | Cloud | 25 | s3enum, k8s, docker, metassrf, tfstate, gcpenum |
@@ -938,7 +992,7 @@ pip install pytest && python3 -m pytest -q
 ```
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 550 modules
+- **All-module smoke test** — runs `run()` for every one of the 551 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions. Note what it does
@@ -963,7 +1017,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**928 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**961 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

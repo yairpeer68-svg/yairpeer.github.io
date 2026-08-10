@@ -205,11 +205,23 @@ def _idf(df: int, n_hosts: int) -> float:
     return raw * trust + 1.0 * (1.0 - trust)
 
 
+def _is_edge_ip(kind: str, value: str) -> bool:
+    """A shared CDN/WAF edge address is not evidence of common ownership —
+    thousands of unrelated sites answer from the same Cloudflare node."""
+    if kind != "ip":
+        return False
+    try:
+        from ..netclass import classify_ip
+        return classify_ip(value)["kind"] in ("cdn", "private")
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def evidence_weight(kind: str, value: str, df: int, n_hosts: int) -> float:
     """How much a shared `value` of type `kind` argues for a common operator."""
     prior = PRIOR.get(kind, 0.2)
     weight = prior * _idf(df, n_hosts)
-    if _is_common(value):
+    if _is_common(value) or _is_edge_ip(kind, value):
         weight *= 0.1          # known shared infrastructure: near-worthless
     return round(min(weight, 0.99), 4)
 

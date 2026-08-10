@@ -434,6 +434,9 @@ def build_parser() -> argparse.ArgumentParser:
                               "sarif", "prometheus", "prom", "dashboard",
                               "graphml", "gexf"],
                      help="report format (default: infer from extension)")
+    out.add_argument("--filter-cdn", action="store_true", dest="filter_cdn",
+                     help="classify every IP found: CDN/WAF edge vs cloud vs "
+                          "candidate origin (filters out edge noise)")
     out.add_argument("--attribute", action="store_true",
                      help="infrastructure attribution: cluster the hosts seen "
                           "into operator estates with weighted evidence")
@@ -612,6 +615,8 @@ def _run_once(mods, target, cfg, args):
         _print_exploit_intel(results)
     if getattr(args, "intel", False):
         _print_intel(results, target)
+    if getattr(args, "filter_cdn", False):
+        _print_ip_filter(workflow.ip_filter_report(results, target))
     if getattr(args, "attribute", False):
         _print_attribution(workflow.attribution_report(results, target))
     if getattr(ctx, "opsec", None) is not None:
@@ -631,6 +636,23 @@ def _print_opsec(rep: dict) -> None:
         for h in blocked[:25]:
             Console.kv(h, "refused", indent=4)
     Console.info(rep["note"])
+
+
+def _print_ip_filter(rep: dict) -> None:
+    Console.rule(f"IP filter — {rep['total_ips']} address(es), "
+                 f"{rep['origin_count']} origin candidate(s)")
+    if rep.get("origin_candidates"):
+        Console.good("origin candidates (outside every known CDN/WAF range):")
+        for ip in rep["origin_candidates"][:30]:
+            Console.kv(ip, "candidate origin", indent=4)
+    for provider, ips in (rep.get("cdn_providers") or {}).items():
+        Console.kv(f"{provider} edge (filtered out)", f"{len(ips)} IP(s): "
+                   + ", ".join(ips[:8]) + (" …" if len(ips) > 8 else ""))
+    if rep.get("cloud_ips"):
+        Console.kv("cloud-hosted", ", ".join(rep["cloud_ips"][:10]))
+    if rep.get("fully_fronted"):
+        Console.warn("every address is a CDN/WAF edge — origin not exposed")
+    Console.info(rep.get("note", ""))
 
 
 def _print_attribution(rep: dict) -> None:
