@@ -26,6 +26,7 @@ from .advisor import (  # noqa: F401
     remediation,
 )
 from .graph_export import to_gexf, to_graphml, unified_graph  # noqa: F401
+from .attribution import attribute, extract_fingerprints  # noqa: F401
 from .identity import identity_graph  # noqa: F401
 from .source_matrix import source_matrix  # noqa: F401
 from .dossier import entity_dossier, osint_dossier  # noqa: F401
@@ -48,6 +49,7 @@ __all__ = [
     "management_translation", "ai_summary", "question_answer",
     "deep_dive", "annotate_confidence", "identity_graph", "source_matrix",
     "osint_dossier", "entity_dossier",
+    "attribute", "extract_fingerprints",
     "build_timeline", "analyze",
 ]
 from .features_v2 import (  # noqa: F401

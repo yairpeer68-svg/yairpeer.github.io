@@ -745,6 +745,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_findings(jid)
         if sub == "opsec":
             return self._job_opsec(jid)
+        if sub == "attribution":
+            return self._job_attribution(jid)
         if sub == "ask":
             return self._job_ask(jid, parsed)
         if sub == "summary":
@@ -891,6 +893,19 @@ class Handler(BaseHTTPRequestHandler):
                            "counts": scored.get("counts", {}),
                            "risk_level": scored.get("risk_level", ""),
                            "confidence": scored.get("confidence", {})})
+
+    def _job_attribution(self, jid: str):
+        """Infrastructure attribution for a job: cluster the hosts it saw into
+        operator estates with selectivity-weighted, explainable evidence."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        try:
+            return self._json(workflow.attribution_report(results, target))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"attribution failed: {exc}"}, 500)
 
     def _job_opsec(self, jid: str):
         """OPSEC exposure for a job: which third parties the scan disclosed the

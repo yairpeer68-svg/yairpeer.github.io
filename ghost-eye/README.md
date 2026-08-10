@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **902 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 550 of those are the
+- **928 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 550 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 271 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -38,6 +38,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [Scan profiles](#scan-profiles-recipes)
 - [Exploit / zero-day intelligence](#exploit--zero-day-intelligence)
 - [Trust layer — confidence, provenance & OPSEC](#trust-layer--confidence-provenance--opsec)
+- [Infrastructure attribution](#infrastructure-attribution)
 - [Reporting](#reporting)
 - [CI/CD security gate](#cicd-security-gate)
 - [Notifications](#notifications)
@@ -125,6 +126,7 @@ python3 ghost_eye_web.py --open
 | `--intel` | print an intelligence summary after the scan |
 | `--screenshots [N]` | screenshot the target + N discovered subdomains into the gallery |
 | `--risk` | print a prioritised risk summary |
+| `--attribute` | infrastructure attribution: cluster hosts into operator estates with weighted evidence |
 | `--inventory`, `--rollup` | asset inventory / per-host rollup |
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
 | `--ci`, `--fail-on <sev>` | CI mode: non-zero exit if findings breach the severity gate |
@@ -427,6 +429,59 @@ prone) so you know which sources to trust before acting on a sweep.
 ```bash
 python3 ghost_eye.py -m sourcehealth -t x
 ```
+
+---
+
+## Infrastructure attribution
+
+*Which of these assets are run by the same operator?*
+
+Naive tooling answers that with "they share a nameserver" — and is almost
+always wrong, because a million sites share Cloudflare's. What makes shared
+evidence meaningful is its **selectivity**: how few things in the world carry
+that exact value.
+
+```bash
+python3 ghost_eye.py -t example.com --deep --attribute
+# dashboard: GET /api/job/<id>/attribution
+```
+
+The engine works in four steps:
+
+1. **Extraction** — pulls pivotable identifiers out of whatever the 550 modules
+   produced (analytics/tag IDs, certificate serials and public-key hashes,
+   favicon hashes, JARM/JA3, MX/NS sets, ASN, S3 buckets…), reading the
+   *flattened* result data so it works regardless of which module emitted a
+   value or what it called the field.
+2. **Selectivity weighting** — every evidence *type* has a prior (a shared
+   certificate serial is near-proof; a shared ASN is nearly meaningless), and
+   every *value* is then re-weighted by its inverse frequency in the observed
+   corpus. A value present on every host is driven to zero automatically, so
+   shared-infrastructure noise is demoted **by the data**, not by a hard-coded
+   blocklist that could never be complete.
+3. **Fusion** — independent evidence is combined with noisy-OR
+   (`P = 1 - Π(1 - wᵢ)`), so several weak signals can accumulate while no
+   single weak signal can carry a link alone.
+4. **Clustering** — hosts linked above the confidence threshold are grouped
+   into *estates* by union-find.
+
+A worked example — six hosts, all behind the same CDN, ASN and CA, where only
+two share an identity:
+
+```
+estate: ['x.com', 'y.com']  confidence 0.950
+  x.com <-> y.com  0.950   cert_serial 0.769 · ga_id 0.754 ·
+                           asn 0.080 · cert_org 0.035 · ns_set 0.016
+  a.com <-> b.com  0.126   asn 0.080 · cert_org 0.035 · ns_set 0.016   (rejected)
+```
+
+The shared Cloudflare nameservers, Let's Encrypt issuer and hosting ASN
+contribute almost nothing; the shared certificate and analytics property carry
+the link. **Every link is explainable** — the report lists each shared value,
+its weight and how many hosts carry it.
+
+Correlation only, no scanning. Attribution is evidence, not proof: verify
+before attributing ownership to a real party.
 
 ---
 
@@ -908,7 +963,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**902 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**928 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

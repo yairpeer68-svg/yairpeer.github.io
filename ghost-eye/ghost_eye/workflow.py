@@ -731,6 +731,15 @@ def entity_investigation(seed: str, cfg=None, run_fn=None,
 _URLS_RE = _re.compile(r"https?://[^\s\"'<>]+")
 
 
+def attribution_report(results, target: str = "",
+                       threshold: float = 0.75) -> dict:
+    """Infrastructure attribution: group the hosts seen in a scan into operator
+    *estates*, each with explainable, selectivity-weighted evidence. Works best
+    after a --deep scan or a multi-target run, where several hosts are present."""
+    from .intelligence import attribute
+    return attribute(results, target, threshold=threshold)
+
+
 def platform_report(results, target: str = "",
                     exploit: Optional[dict] = None) -> dict:
     """Personal Cyber Intelligence Platform view — the full intelligence

@@ -434,6 +434,9 @@ def build_parser() -> argparse.ArgumentParser:
                               "sarif", "prometheus", "prom", "dashboard",
                               "graphml", "gexf"],
                      help="report format (default: infer from extension)")
+    out.add_argument("--attribute", action="store_true",
+                     help="infrastructure attribution: cluster the hosts seen "
+                          "into operator estates with weighted evidence")
     out.add_argument("--risk", action="store_true",
                      help="print a prioritised risk summary (#66)")
     out.add_argument("--inventory", action="store_true",
@@ -609,6 +612,8 @@ def _run_once(mods, target, cfg, args):
         _print_exploit_intel(results)
     if getattr(args, "intel", False):
         _print_intel(results, target)
+    if getattr(args, "attribute", False):
+        _print_attribution(workflow.attribution_report(results, target))
     if getattr(ctx, "opsec", None) is not None:
         _print_opsec(ctx.opsec.report())
     return results
@@ -626,6 +631,21 @@ def _print_opsec(rep: dict) -> None:
         for h in blocked[:25]:
             Console.kv(h, "refused", indent=4)
     Console.info(rep["note"])
+
+
+def _print_attribution(rep: dict) -> None:
+    Console.rule(f"Infrastructure attribution — {rep['hosts_analysed']} host(s), "
+                 f"{rep.get('estate_count', 0)} estate(s)")
+    if not rep.get("estates"):
+        Console.info(rep.get("note", "no estates above the confidence threshold"))
+    for est in rep.get("estates", []):
+        Console.kv("estate", f"{est['size']} hosts  (confidence {est['confidence']})")
+        Console.kv("members", ", ".join(est["members"][:12]), indent=4)
+        drivers = ", ".join(f"{k}={v}" for k, v in est["driving_evidence"].items())
+        Console.kv("evidence", drivers, indent=4)
+    demoted = rep.get("demoted_as_shared_infrastructure") or []
+    if demoted:
+        Console.kv("ignored as shared infrastructure", ", ".join(demoted[:6]))
 
 
 def _print_intel(results, target):
