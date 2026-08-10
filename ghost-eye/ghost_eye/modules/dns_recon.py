@@ -17,6 +17,7 @@ _RECORD_TYPES = ["A", "AAAA", "MX", "NS", "TXT", "SOA", "CNAME", "CAA", "SRV", "
 @register
 class DnsRecords(Module):
     id, name, category = "dns", "DNS records (all types)", "DNS"
+    expect = staticmethod(lambda d: any(k[:1].isupper() for k in d))
     target_kind = "domain"
     # dnspython preferred; transparently falls back to DNS-over-HTTPS (no extra
     # dependency, works when port 53 / resolv.conf is unavailable e.g. on Termux)

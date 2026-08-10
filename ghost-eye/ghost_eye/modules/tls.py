@@ -27,14 +27,72 @@ def _split_hostport(target: str, default_port: int = 443) -> Tuple[str, int]:
     return host, default_port
 
 
+def _der_to_certdict(der: bytes) -> dict:
+    """Parse a DER certificate into the same shape ``getpeercert()`` returns.
+
+    Needed because with ``verify_mode = CERT_NONE`` — which a recon tool wants,
+    so it can inspect self-signed / misconfigured hosts — ``getpeercert()``
+    returns an empty dict. We still want the certificate's fields, so pull them
+    from the binary form. Uses the optional ``cryptography`` dep; returns {} if
+    it isn't installed (the caller then reports what it can)."""
+    try:
+        from cryptography import x509
+        from cryptography.hazmat.primitives import hashes  # noqa: F401
+    except Exception:  # noqa: BLE001 - optional dependency
+        return {}
+    try:
+        cert = x509.load_der_x509_certificate(der)
+    except Exception:  # noqa: BLE001
+        return {}
+
+    def _rfc(name) -> tuple:
+        out = []
+        for attr in name:
+            key = attr.oid._name or attr.oid.dotted_string
+            # map cryptography's names onto ssl's short names where they differ
+            key = {"commonName": "commonName", "organizationName": "organizationName",
+                   "countryName": "countryName"}.get(key, key)
+            out.append(((key, attr.value),))
+        return tuple(out)
+
+    fmt = "%b %d %H:%M:%S %Y GMT"
+    try:
+        not_before = cert.not_valid_before_utc.strftime(fmt)
+        not_after = cert.not_valid_after_utc.strftime(fmt)
+    except AttributeError:                       # older cryptography
+        not_before = cert.not_valid_before.strftime(fmt)
+        not_after = cert.not_valid_after.strftime(fmt)
+    sans: list = []
+    try:
+        ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
+        sans = [("DNS", d) for d in ext.value.get_values_for_type(x509.DNSName)]
+    except Exception:  # noqa: BLE001
+        pass
+    return {
+        "subject": _rfc(cert.subject),
+        "issuer": _rfc(cert.issuer),
+        "notBefore": not_before,
+        "notAfter": not_after,
+        "serialNumber": format(cert.serial_number, "x"),
+        "subjectAltName": tuple(sans),
+    }
+
+
 def _get_cert(host: str, port: int, timeout: int) -> dict:
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
     with socket.create_connection((host, port), timeout=timeout) as sock:
         with ctx.wrap_socket(sock, server_hostname=host) as ss:
+            cert = ss.getpeercert()
+            # CERT_NONE makes getpeercert() return {} — recover the fields from
+            # the DER form so the module actually reports the certificate.
+            if not cert:
+                der = ss.getpeercert(binary_form=True)
+                if der:
+                    cert = _der_to_certdict(der)
             return {
-                "cert": ss.getpeercert(),
+                "cert": cert,
                 "cipher": ss.cipher(),
                 "version": ss.version(),
             }
@@ -43,6 +101,7 @@ def _get_cert(host: str, port: int, timeout: int) -> dict:
 @register
 class TlsCertificate(Module):
     id, name, category = "cert", "SSL certificate analysis", "SSL/TLS"
+    expect = ["issuer", "valid_until"]
     target_kind = "host"
 
     def run(self, target: str, ctx: Context) -> Result:

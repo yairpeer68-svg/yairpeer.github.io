@@ -16,10 +16,13 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **972 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 551 of those are the
+- **992 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 551 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 271 are behavioural — see
+  raises"); the other 441 are behavioural — see
   [Testing & quality](#testing--quality)
+- **`--check-health`** probes modules against known-good targets to report which
+  actually still work today — catching *silent failure*, the way a module keeps
+  returning stale output long after its source changed
 
 > ## ⚠️ Authorised use only
 > Ghost Eye performs active reconnaissance (port scans, directory probing,
@@ -165,6 +168,7 @@ python3 ghost_eye_web.py --open
 | `--module-report` | per-module quality/capability report |
 | `--trend` | security trend for `-t <target>` from `--db` history |
 | `--doctor` | check installed dependencies + binaries |
+| `--check-health [ids\|cat]` | probe modules against known-good targets; report which actually work today (network) |
 
 ---
 
@@ -1021,6 +1025,40 @@ targets never reach a subprocess or a crafted URL.
 pip install pytest && python3 -m pytest -q
 ```
 
+### Health checks — catching silent failure
+
+The offline test suite proves a module *returns a `Result`*; it can't prove the
+module still *works*, because the sources behind 551 modules and 190 external
+services change without warning. The worst failure isn't a crash — it's a
+module that keeps returning stale output after its source moved (`commoncrawl`
+queried a hard-coded crawl index and quietly went stale for months).
+
+`--check-health` closes that gap. It probes modules against stable, known-good
+targets over the real network and classifies each: **healthy** (ran, returned
+data, and — if the module declares an `expect` shape — the shape matched),
+**degraded** (ran but empty), **broken** (errored or *wrong-shaped output*),
+**no_key** (needs an unconfigured API key), **skipped**.
+
+```bash
+python3 ghost_eye.py --check-health                 # all modules
+python3 ghost_eye.py --check-health DNS             # one category
+python3 ghost_eye.py --check-health cert,headers,dns  # specific ids
+python3 ghost_eye.py --check-health -o health.json  # machine-readable
+```
+
+It is **network-bound and deliberately never part of CI** — the offline tests
+cover the harness's classification logic with mock modules, not the live health
+of the internet. It exits non-zero when anything is broken, so it can gate a
+release check.
+
+A module opts into real shape-checking by declaring `expect` (a list of keys a
+healthy result must carry, or a predicate). This is what catches silent
+staleness a "returns a Result" check never could — and it already paid off: on
+its first live run it caught the `cert` module returning all-`None` certificate
+fields (it disabled verification with `CERT_NONE`, which makes Python's
+`getpeercert()` return an empty dict; now it parses the DER form and reports the
+real certificate). That bug had been silent since the module was written.
+
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
 - **All-module smoke test** — runs `run()` for every one of the 551 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
@@ -1047,7 +1085,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**972 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**992 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

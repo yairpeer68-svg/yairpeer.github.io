@@ -38,6 +38,7 @@ def _get(ctx: Context, url: str, **kw):
 @register
 class SecurityHeaders(Module):
     id, name, category = "headers", "Security headers + clickjacking", "Web"
+    expect = ["status_code"]  # a live fetch always yields the status code
     target_kind = "url"
 
     def run(self, target: str, ctx: Context) -> Result:

@@ -31,6 +31,7 @@ def _resolve(name: str) -> List[str]:
 @register
 class CdnFilter(Module):
     id, name, category = "cdnfilter", "CDN/WAF edge filter (origin candidates)", "Network"
+    expect = ["resolved_ips", "verdict"]
     target_kind = "host"
 
     def run(self, target: str, ctx: Context) -> Result:

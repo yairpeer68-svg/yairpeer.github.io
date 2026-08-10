@@ -490,6 +490,11 @@ def build_parser() -> argparse.ArgumentParser:
                       help="skip targets already done (batch mode, #76)")
     flow.add_argument("--doctor", action="store_true",
                       help="check installed dependencies + binaries (#79)")
+    flow.add_argument("--check-health", nargs="?", const="__all__", default=None,
+                      metavar="IDS|CATEGORY",
+                      help="probe modules against known-good targets and report "
+                           "which actually work today (network; catches silent "
+                           "failure). Optional: a category or comma-separated ids")
     flow.add_argument("--lang", choices=["en", "he"], default="en",
                       help="interface language (#80)")
     flow.add_argument("--scope", default="",
@@ -636,6 +641,55 @@ def _print_opsec(rep: dict) -> None:
         for h in blocked[:25]:
             Console.kv(h, "refused", indent=4)
     Console.info(rep["note"])
+
+
+def _run_health(args, cfg) -> int:
+    """Probe modules against known-good targets and report what actually works
+    today. Network-bound; a diagnostic, never part of a scan."""
+    from . import health
+    sel = getattr(args, "check_health", "__all__")
+    cats = modules_by_category()
+    if sel == "__all__":
+        mods = list(REGISTRY.values())
+        scope = "all modules"
+    elif sel in cats or sel.lower() in {c.lower() for c in cats}:
+        match = next(c for c in cats if c.lower() == sel.lower())
+        mods = cats[match]
+        scope = f"category {match}"
+    else:
+        ids = [i.strip() for i in sel.split(",") if i.strip()]
+        mods = [get_module(i) for i in ids if get_module(i)]
+        scope = f"{len(mods)} module(s)"
+        if not mods:
+            Console.err(f"no modules matched: {sel}")
+            return 2
+    print_banner()
+    Console.rule(f"Health check — {scope} ({len(mods)} modules)")
+    Console.info("probing live upstream sources; this contacts the network…")
+    done = {"n": 0}
+
+    def _tick(r):
+        done["n"] += 1
+        if r["status"] in ("broken",):
+            Console.err(f"  [{done['n']}/{len(mods)}] {r['id']}: BROKEN — {r.get('detail','')[:70]}")
+    rep = health.run_health_checks(mods, cfg=cfg, on_result=_tick)
+    c = rep["counts"]
+    Console.rule(f"Health: {rep['health_pct']}% "
+                 f"(healthy {c['healthy']}, degraded {c['degraded']}, "
+                 f"broken {c['broken']}, no-key {c['no_key']}, skipped {c['skipped']})")
+    if rep["broken"]:
+        Console.err("BROKEN — errored or wrong-shaped output (fix these):")
+        for r in rep["broken"][:40]:
+            Console.kv(r["id"], r.get("detail", "")[:90], indent=4)
+    if rep["degraded"]:
+        Console.warn(f"DEGRADED (ran but empty): {', '.join(r['id'] for r in rep['degraded'][:40])}")
+    if args.output:
+        import json as _json
+        with open(args.output, "w", encoding="utf-8") as fh:
+            _json.dump(rep, fh, ensure_ascii=False, indent=2)
+        Console.good(f"wrote {args.output}")
+    # exit non-zero when something is broken, so it can gate a release check
+    return 1 if rep["broken"] else 0
 
 
 def _print_ip_filter(rep: dict) -> None:
@@ -838,6 +892,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.doctor:
         workflow.doctor()
         return 0
+
+    if getattr(args, "check_health", None) is not None:
+        return _run_health(args, cfg)
 
     # distributed scanning (feature 75): shared queue coordinator / worker
     if getattr(args, "queue", ""):

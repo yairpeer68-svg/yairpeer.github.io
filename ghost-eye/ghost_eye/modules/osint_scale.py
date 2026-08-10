@@ -91,6 +91,7 @@ def _probe(ctx: Context, site: Site, username: str) -> Optional[dict]:
 @register
 class UsernameScan(Module):
     id, name, category = "usernamescan", "Username enumeration at scale (data-driven)", "OSINT"
+    expect = ["sites_checked"]
     target_kind = "host"          # the target is a username
 
     def run(self, target: str, ctx: Context) -> Result:

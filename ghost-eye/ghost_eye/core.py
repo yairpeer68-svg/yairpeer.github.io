@@ -444,6 +444,16 @@ class Module:
     needs: List[str] = []        # required binaries / api-keys (informational)
     absorbed: List[str] = []     # ids this module replaced (kept as aliases)
 
+    # ---- health contract (all optional; see ghost_eye.health) -------------- #
+    # A stable, known-good target to probe this module against. None -> the
+    # health harness derives one from target_kind. False -> skip health checks.
+    health_target: Any = None
+    # What a *healthy* result looks like, so a source that starts returning
+    # 200-with-empty (the silent-failure case) is caught, not passed as "ok".
+    # Either a list of keys that must be present in the (flattened) result data,
+    # or a callable(data) -> bool. None -> generic "ran and returned data".
+    expect: Any = None
+
     def run(self, target: str, ctx: Context) -> Result:  # pragma: no cover
         raise NotImplementedError
 

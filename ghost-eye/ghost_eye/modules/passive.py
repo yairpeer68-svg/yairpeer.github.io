@@ -115,6 +115,7 @@ class ThreatFeed(Module):
 @register
 class GeoEnrich(Module):
     id, name, category = "geoip", "GeoIP + ASN enrichment", "Passive Intel"
+    expect = staticmethod(lambda d: bool(d.get("country") or d.get("org") or d.get("as")))
     target_kind = "host"
 
     def run(self, target, ctx):

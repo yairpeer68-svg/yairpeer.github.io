@@ -2070,6 +2070,7 @@ class Columbus(Module):
 @register
 class CrtShSubs(Module):
     id = "crtsh"
+    expect = ["count"]  # crt.sh returns a subdomain count even when 0
     name = "crt.sh certificate-transparency subdomains (keyless)"
     category = "OSINT"
     target_kind = "domain"
