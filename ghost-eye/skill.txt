@@ -1,0 +1,73 @@
+
+---
+
+name: debugging
+description: Systematically diagnose and fix software bugs using evidence instead of guesses.
+
+Debugging
+
+Never begin by guessing the fix.
+
+Workflow:
+
+1. Reproduce or identify the failure.
+
+
+2. Capture the exact error, stack trace, logs, or failing test.
+
+
+3. Locate the failure point.
+
+
+4. Trace the relevant call path.
+
+
+5. Identify the root cause.
+
+
+6. Determine whether the problem is local or systemic.
+
+
+7. Make the smallest safe fix.
+
+
+8. Add or update a regression test.
+
+
+9. Run targeted verification.
+
+
+10. Check for related regressions.
+
+
+
+Prefer evidence from:
+
+stack traces
+
+failing tests
+
+logs
+
+source code
+
+configuration
+
+runtime behavior
+
+
+Do not hide errors or weaken validation merely to make tests pass.
+
+If reproduction is impossible, clearly distinguish confirmed facts from hypotheses.
+
+After fixing, report:
+
+root cause
+
+files changed
+
+fix
+
+verification
+
+remaining uncertainty

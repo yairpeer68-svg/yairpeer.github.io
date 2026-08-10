@@ -1,0 +1,1486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Ghost Eye — OSINT investigator</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#06080d">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="icon" href="/static/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{
+  --bg:#06080d; --bg2:#0a0e16; --panel:#0f1420; --panel2:#151c2b;
+  --line:#1e2636; --line2:#2a3446; --line3:#39465e;
+  --ink:#e9eff8; --muted:#8390a6; --faint:#556074;
+  --cyan:#38e1d6; --violet:#a97bf5; --gold:#f0b545; --pink:#ff6fb2; --green:#37d39a; --red:#ff5b61; --blue:#5aa9ff;
+  --mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --fg:#e9eff8;
+  --r:12px;
+}
+/* light theme (feature 47) — toggled via data-theme on <html> */
+:root[data-theme="light"]{
+  --bg:#f4f6fb; --bg2:#ffffff; --panel:#ffffff; --panel2:#eef2f8;
+  --line:#dbe2ec; --line2:#c6d0de; --line3:#aab6c8;
+  --ink:#131a26; --muted:#4a5568; --faint:#77839a; --fg:#131a26;
+  --cyan:#0f9c93; --violet:#7a4fd0; --gold:#c98a12; --green:#1a9e6e; --red:#d63a41;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:14px;
+  -webkit-font-smoothing:antialiased}
+button{font-family:var(--sans);cursor:pointer;border:none;background:none;color:inherit}
+input,select{font-family:var(--mono);font-size:12.5px}
+a{color:var(--cyan);text-decoration:none}
+.mono{font-family:var(--mono)}
+.eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:600}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line2);border-radius:20px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ---- top bar ---- */
+.bar{display:flex;align-items:center;gap:16px;padding:11px 18px;height:56px;
+  border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(12,16,24,.9),rgba(6,8,13,.85));
+  backdrop-filter:blur(12px);position:relative;z-index:20}
+.brand{display:flex;align-items:center;gap:11px;flex-shrink:0}
+.brand b{font-family:var(--mono);font-size:14px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+.brand .tag{font-family:var(--mono);font-size:8.5px;letter-spacing:.22em;color:var(--cyan);
+  border:1px solid var(--line2);padding:2px 7px;border-radius:20px;text-transform:uppercase}
+.eye{width:30px;height:30px;flex:0 0 30px;filter:drop-shadow(0 0 8px rgba(56,225,214,.35))}
+.searchbox{display:flex;align-items:center;gap:8px;flex:1;max-width:560px;
+  background:var(--panel);border:1px solid var(--line2);border-radius:22px;padding:0 6px 0 15px;transition:border-color .15s,box-shadow .15s}
+.searchbox:focus-within{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,225,214,.14)}
+.searchbox input{flex:1;background:none;border:none;color:var(--ink);padding:11px 0;outline:none;font-size:13px}
+.go{background:linear-gradient(180deg,var(--cyan),#1fbfb4);color:#052723;font-weight:700;
+  font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  padding:9px 16px;border-radius:18px;white-space:nowrap;box-shadow:0 6px 16px -8px rgba(56,225,214,.6)}
+.go:disabled{background:var(--panel2);color:var(--faint);box-shadow:none;cursor:not-allowed}
+.topright{display:flex;align-items:center;gap:12px}
+#statuswrap{margin-left:auto}
+.navtoggle{display:none;font-size:17px;padding:7px 12px}
+.status{font-family:var(--mono);font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:8px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+.dot.run{background:var(--cyan);animation:pulse 1.3s infinite}
+.dot.done{background:var(--green)} .dot.err{background:var(--red)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(56,225,214,.5)}70%{box-shadow:0 0 0 7px rgba(56,225,214,0)}100%{box-shadow:0 0 0 0 rgba(56,225,214,0)}}
+.navlink{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);border:1px solid var(--line2);padding:7px 12px;border-radius:18px}
+.navlink:hover{color:var(--cyan);border-color:var(--cyan)}
+
+/* ---- layout ---- */
+.stage{display:grid;grid-template-columns:220px 1fr 360px;height:calc(100vh - 56px)}
+.rail{border-right:1px solid var(--line);background:var(--bg2);overflow-y:auto;padding:16px 14px}
+.canvaswrap{position:relative;overflow:hidden;background:
+  radial-gradient(1000px 700px at 50% 40%, rgba(56,225,214,.05), transparent 60%),
+  var(--bg)}
+#net{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#net.grabbing{cursor:grabbing}
+.side{border-left:1px solid var(--line);background:var(--bg2);overflow-y:auto;padding:16px}
+
+/* rail: filters */
+.rail h3{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);margin:4px 0 10px}
+.kind{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:9px;cursor:pointer;user-select:none;font-size:12.5px}
+.kind:hover{background:var(--panel)}
+.kind input{accent-color:var(--cyan);width:13px;height:13px}
+.kind .ic{width:20px;text-align:center;font-size:13px}
+.kind .lbl{flex:1;text-transform:capitalize}
+.kind .cnt{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.kind .swatch{width:8px;height:8px;border-radius:50%}
+.railstat{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;display:grid;gap:7px}
+.railstat .row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.railstat .row b{color:var(--ink);font-family:var(--mono)}
+.hint{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:14px;line-height:1.6}
+
+/* canvas overlay controls */
+.zoombar{position:absolute;right:14px;bottom:14px;display:flex;flex-direction:column;gap:6px;z-index:6}
+.minimap{position:absolute;left:14px;bottom:14px;width:160px;height:108px;background:rgba(6,8,13,.72);border:1px solid var(--line2);border-radius:8px;z-index:6;cursor:pointer}
+.minimap #mmview{opacity:.9}
+@media(max-width:520px){.minimap{width:112px;height:76px;left:10px;bottom:10px}}
+.zoombar button{width:34px;height:34px;border-radius:10px;background:var(--panel);border:1px solid var(--line2);
+  color:var(--ink);font-size:17px;display:flex;align-items:center;justify-content:center}
+.zoombar button:hover{border-color:var(--cyan);color:var(--cyan)}
+.canvasnote{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;text-align:center;color:var(--muted);padding:30px;pointer-events:none}
+.canvasnote .big{width:76px;height:76px;opacity:.8;filter:drop-shadow(0 0 22px rgba(56,225,214,.3))}
+.canvasnote h2{font-family:var(--mono);font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink);margin:0}
+.canvasnote p{max-width:320px;font-size:12.5px;margin:0;line-height:1.6}
+.spinner{width:38px;height:38px;border:3px solid var(--line2);border-top-color:var(--cyan);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.cbar{position:absolute;left:14px;top:12px;display:flex;gap:7px;z-index:6;flex-wrap:wrap;max-width:calc(100% - 28px)}
+.cbar input{background:var(--panel);border:1px solid var(--line2);color:var(--ink);border-radius:20px;padding:8px 14px;width:210px;max-width:46vw;outline:none;font-size:12px}
+.cbar input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,225,214,.14)}
+.cbtn{background:var(--panel);border:1px solid var(--line2);color:var(--muted);border-radius:20px;padding:8px 12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;text-transform:uppercase}
+.cbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.cbtn.on{border-color:var(--cyan);color:var(--cyan);background:rgba(56,225,214,.12)}
+.askans{position:absolute;left:14px;top:58px;max-width:min(440px,82vw);background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:11px 14px;z-index:7;box-shadow:0 16px 40px -16px rgba(0,0,0,.8)}
+.askans .aq{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan);margin-bottom:5px}
+.askans .aa{font-size:13px;color:var(--ink);line-height:1.5}
+.askans .ax{position:absolute;right:9px;top:7px;cursor:pointer;color:var(--muted);font-size:13px}
+.askans .achips{margin-top:8px;display:flex;flex-wrap:wrap;gap:5px}
+.node-label{font-family:var(--mono);font-size:9px;fill:#aeb9cc;pointer-events:none;paint-order:stroke;stroke:#06080d;stroke-width:3px;stroke-linejoin:round}
+.nodeg.match circle.core{stroke:#38e1d6;stroke-width:2.5}
+.edge{stroke:#3a4860;stroke-opacity:.5}
+.edge.lit{stroke:var(--cyan);stroke-opacity:.9}
+.nodeg{cursor:pointer}
+.nodeg circle.core{transition:r .1s}
+.nodeg:hover circle.core{stroke:#fff;stroke-opacity:.7;stroke-width:2}
+
+/* side panel */
+.grade{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:12px;
+  font-size:20px;font-weight:800;color:#08130e}
+.s-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.s-head .t{font-family:var(--mono);font-size:14px;font-weight:700;word-break:break-all}
+.s-head .m{font-size:11px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:11px 8px;text-align:center}
+.tile b{display:block;font-size:19px;font-family:var(--mono);color:var(--ink)}
+.tile span{font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+.sec{border-top:1px solid var(--line);padding:12px 0 4px}
+.sec h4{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan);margin:0 0 8px;display:flex;gap:6px;align-items:center}
+.sec h4 em{font-style:normal;color:var(--faint);margin-left:auto;font-size:10px}
+.chips{display:flex;flex-wrap:wrap;gap:5px}
+.chip{font-family:var(--mono);font-size:10.5px;background:var(--panel);border:1px solid var(--line2);color:#c3cfe2;padding:3px 8px;border-radius:20px;word-break:break-all}
+.chip.mut{color:var(--faint)} .chip.bad{color:var(--red);border-color:#4a1b20}
+.chip.click{cursor:pointer} .chip.click:hover{border-color:var(--cyan);color:var(--cyan)}
+.analyst{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line2);border-radius:11px;padding:12px;margin-bottom:6px}
+.analyst .hl{font-size:13px;font-weight:700;color:#eaf1fb;margin-bottom:5px}
+.analyst .sm{font-size:11.5px;color:#b9c5d8;line-height:1.55}
+.list{margin:6px 0;padding-left:16px} .list li{font-size:11.5px;color:#c7d2e4;margin:4px 0;line-height:1.45}
+.tl{border-left:2px solid var(--line2);margin:4px 0;padding-left:12px}
+.tl .r{position:relative;padding:5px 0;font-size:11.5px;color:#c7d2e4}
+.tl .r::before{content:"";position:absolute;left:-17px;top:9px;width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 0 3px var(--bg2)}
+.tl .d{font-family:var(--mono);color:var(--faint);font-size:10px;margin-right:6px}
+.gal{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.gal figure{margin:0;border:1px solid var(--line2);border-radius:9px;overflow:hidden;background:var(--panel)}
+.gal img{width:100%;display:block;aspect-ratio:16/10;object-fit:cover;object-position:top}
+.gal figcaption{font-size:9px;color:var(--faint);padding:3px 6px;font-family:var(--mono);word-break:break-all}
+/* entity detail */
+.ent-hero{display:flex;align-items:center;gap:11px;margin-bottom:8px}
+.ent-hero .ic{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:19px}
+.ent-hero .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ent-hero .l{font-size:14px;font-weight:700;word-break:break-all}
+.back{font-family:var(--mono);font-size:10.5px;color:var(--cyan);margin-bottom:8px;cursor:pointer;display:inline-block}
+.conn{display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:12px;cursor:pointer}
+.conn:hover{color:var(--cyan)}
+.conn .rel{font-family:var(--mono);font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+.hidden{display:none!important}
+.banner{background:rgba(255,91,97,.1);border:1px solid rgba(255,91,97,.4);color:#ffb3b5;padding:10px 13px;border-radius:10px;font-family:var(--mono);font-size:12px;margin:10px 14px}
+/* keys modal */
+.modal{position:fixed;inset:0;background:rgba(4,7,12,.7);backdrop-filter:blur(3px);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-card{background:var(--panel);border:1px solid var(--line2);border-radius:16px;box-shadow:0 30px 70px -20px rgba(0,0,0,.8);width:min(440px,94vw);max-height:86vh;overflow-y:auto;padding:18px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.modal-head b{font-size:15px}
+.modal-head .x{width:30px;height:30px;border-radius:9px;border:1px solid var(--line2);color:var(--muted);font-size:14px}
+.modal-head .x:hover{color:var(--red);border-color:var(--red)}
+.modal-note{font-size:11px;color:var(--faint);line-height:1.55;margin:8px 0}
+.keyrow{border-top:1px solid var(--line);padding:12px 0}
+.keyrow .kh{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.keyrow .kh b{font-size:13px}
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:20px}
+.badge.on{background:rgba(55,211,154,.14);color:var(--green)} .badge.off{background:var(--panel2);color:var(--faint)}
+.keyrow .kin{display:flex;gap:7px}
+.keyrow input{flex:1;background:var(--bg2);border:1px solid var(--line2);color:var(--ink);border-radius:10px;padding:10px 12px;outline:none;font-family:var(--mono);font-size:12px}
+.keyrow input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,225,214,.14)}
+.keyrow .save{background:linear-gradient(180deg,var(--cyan),#1fbfb4);color:#052723;font-weight:700;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;padding:0 15px;border-radius:10px}
+.keyrow .save:disabled{opacity:.5;cursor:default}
+.keyrow .ok{color:var(--green);font-size:11px;font-family:var(--mono);margin-top:6px}
+/* portfolio */
+.port-tot{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.port-tot .pt{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 13px;text-align:center;flex:1;min-width:78px}
+.port-tot .pt b{display:block;font-size:18px;font-family:var(--mono)}
+.port-tot .pt span{font-size:9px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+.prow{display:flex;align-items:center;gap:11px;padding:11px 10px;border-top:1px solid var(--line);cursor:pointer;border-radius:8px}
+.prow:hover{background:var(--panel2)}
+.prow .pr-t{flex:1;font-family:var(--mono);font-size:13px;color:var(--ink);word-break:break-all}
+.prow .pr-m{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.rpill{font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:4px 9px;border-radius:20px;min-width:64px;text-align:center}
+.rpill.CRITICAL,.rpill.HIGH{background:rgba(255,91,97,.14);color:var(--red)}
+.rpill.MEDIUM{background:rgba(240,181,69,.14);color:var(--gold)}
+.rpill.LOW,.rpill.INFO{background:rgba(55,211,154,.12);color:var(--green)}
+/* tools modal */
+.tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+@media(max-width:520px){.tool-grid{grid-template-columns:1fr}}
+.toolbtn{background:var(--panel2);border:1px solid var(--line2);color:var(--ink);border-radius:11px;padding:12px;font-size:13px;text-align:left;transition:border-color .15s,background .15s}
+.toolbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.pal-card{position:absolute;top:12%;left:50%;transform:translateX(-50%);width:min(560px,94vw);background:var(--panel);border:1px solid var(--line2);border-radius:14px;overflow:hidden;box-shadow:0 24px 60px -20px rgba(0,0,0,.8)}
+.pal-card #palinp{width:100%;padding:14px 16px;background:transparent;border:none;border-bottom:1px solid var(--line);color:var(--fg);font-size:14px;font-family:var(--sans)}
+.pal-list{max-height:50vh;overflow:auto}
+.pal-item{padding:9px 16px;font-size:13px;cursor:pointer}
+.pal-item.on,.pal-item:hover{background:var(--panel2);color:var(--cyan)}
+.ftable{width:100%;border-collapse:collapse;font-size:12px}
+.ftable th{text-align:left;color:var(--faint);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;padding:4px 8px;border-bottom:1px solid var(--line2);position:sticky;top:0;background:var(--panel)}
+.ftable td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.mod-controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px}
+.mod-controls input{flex:1;min-width:140px;background:var(--panel);border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:8px 10px;font-size:13px}
+.modprofiles{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:8px}
+.pchip{background:var(--panel2);border:1px solid var(--line2);border-radius:20px;padding:4px 10px;font-family:var(--mono);font-size:11px;cursor:pointer}
+.pchip:hover{border-color:var(--cyan);color:var(--cyan)} .pchip.custom{border-color:#c9a0ff55}
+.pdel{color:var(--faint);margin-left:2px} .pdel:hover{color:var(--red)}
+.modlist{max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px}
+.modcat{margin-bottom:9px} .modcat-h{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin:4px 0 5px;border-bottom:1px solid var(--line);padding-bottom:3px}
+.modcat-g{display:grid;grid-template-columns:1fr 1fr;gap:3px 12px}
+@media(max-width:560px){.modcat-g{grid-template-columns:1fr}}
+.moditem{display:flex;align-items:baseline;gap:6px;font-size:12px;padding:3px 5px;border-radius:6px;cursor:pointer}
+.moditem:hover{background:var(--panel)} .moditem.on{background:rgba(56,225,214,.06)}
+.moditem input{accent-color:var(--cyan)} .moditem b{font-family:var(--mono);font-size:11.5px}
+.mod-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.mod-actions input{flex:1;min-width:150px;background:var(--panel);border:1px solid var(--line2);color:var(--fg);border-radius:8px;padding:8px 10px;font-size:13px}
+.modsched-list{margin-top:6px}
+.scan-settings{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border-bottom:1px solid var(--line);padding-bottom:11px;margin-bottom:6px}
+.scan-settings .opt{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink);font-family:var(--mono)}
+.scan-settings .opt input{accent-color:var(--cyan)}
+.dl-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border-top:1px solid var(--line);padding-top:11px;margin-top:4px}
+.dl-label{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-right:4px}
+.dlbtn{background:var(--panel);border:1px solid var(--line2);color:var(--muted);border-radius:20px;padding:7px 11px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.04em}
+.dlbtn:hover{border-color:var(--cyan);color:var(--cyan)}
+.toolout{margin-top:12px;max-height:44vh;overflow-y:auto}
+.toolout:empty{display:none}
+.tout-head{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--cyan);margin:6px 0 8px}
+.trow{border-top:1px solid var(--line);padding:8px 0;font-size:12px;color:#c7d2e4}
+.trow b{color:var(--ink)} .trow .rel{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.bar-mini{height:5px;background:var(--bg);border-radius:20px;overflow:hidden;margin:4px 0}
+.bar-mini>i{display:block;height:100%}
+
+@media (max-width:820px){
+  /* phone-first: bar wraps into brand-row + full-width search; nav collapses */
+  .bar{flex-wrap:wrap;height:auto;gap:9px 10px;padding:10px 12px}
+  .brand b{font-size:13px;letter-spacing:.12em}
+  .brand .tag{display:none}
+  #statuswrap{margin-left:auto;order:1}
+  .navtoggle{display:inline-flex;order:2}
+  .searchbox{order:4;flex-basis:100%;max-width:none;padding-left:12px}
+  .searchbox .eyebrow{display:none}
+  .go{padding:9px 12px;flex:0 0 auto}
+  .topright{order:5;flex-basis:100%;display:none;gap:8px;flex-wrap:wrap}
+  .bar.navopen .topright{display:flex}
+  .topright .navlink{flex:1;justify-content:center;text-align:center;padding:10px}
+
+  .stage{grid-template-columns:1fr;grid-template-rows:auto minmax(46vh,1fr) auto;height:calc(100dvh - 52px)}
+  .rail{overflow-x:auto;overflow-y:hidden;border-right:none;border-bottom:1px solid var(--line);padding:9px 10px;-webkit-overflow-scrolling:touch}
+  .rail::-webkit-scrollbar{display:none}
+  .rail h3,.railstat,.hint{display:none}
+  #kinds{display:flex;gap:6px;width:max-content}
+  .kind{flex:0 0 auto;padding:6px 9px;border:1px solid var(--line2);border-radius:20px;gap:6px;margin:0}
+  .kind .lbl{display:none}
+  .canvaswrap{min-height:46vh}
+  .side{border-left:none;border-top:1px solid var(--line2);max-height:40vh;padding:14px 13px}
+  .tiles{grid-template-columns:1fr 1fr 1fr}
+  .cbar input{max-width:56vw}
+  .askans{max-width:88vw}
+  .zoombar{right:10px;bottom:10px}
+  .zoombar button{width:40px;height:40px}
+  .modal-card{padding:16px 14px}
+}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <svg class="eye" viewBox="0 0 100 100" id="eye" aria-hidden="true"></svg>
+    <b>Ghost&nbsp;Eye</b><span class="tag">OSINT</span>
+  </div>
+  <div class="searchbox">
+    <span class="eyebrow">target</span>
+    <input id="target" placeholder="example.com  ·  8.8.8.8  ·  press Enter to investigate" autocomplete="off" spellcheck="false">
+    <button class="go" id="go">Investigate ▸</button>
+  </div>
+  <div class="status" id="statuswrap"><span class="dot" id="dot"></span><span id="statustxt">idle</span></div>
+  <button class="navlink navtoggle" id="navtoggle" aria-label="menu">☰</button>
+  <div class="topright" id="topright">
+    <button class="navlink" id="toolsbtn">⚙ Tools</button>
+    <button class="navlink" id="portbtn">▦ Portfolio</button>
+    <button class="navlink" id="modbtn">🧩 Modules</button>
+    <button class="navlink" id="keysbtn">🔑 Keys</button>
+    <button class="navlink" id="langbtn" title="language">🌐 עב</button>
+    <button class="navlink" id="themebtn" title="light / dark">🌓</button>
+    <a class="navlink" href="/console" id="consolelink">▤ Console</a>
+  </div>
+</header>
+
+<div id="toolsmodal" class="modal hidden">
+  <div class="modal-card" style="width:min(640px,96vw)">
+    <div class="modal-head"><b>⚙ Tools — <span id="toolstgt"></span></b><button class="x" id="toolsclose">✕</button></div>
+    <div class="scan-settings">
+      <span class="dl-label">scan settings:</span>
+      <label class="opt"><input type="checkbox" id="optpassive"> passive-only</label>
+      <label class="opt"><input type="checkbox" id="optadaptive"> adaptive rate-limit</label>
+      <button class="dlbtn" id="scopebtn">🛡 Scope guard</button>
+      <button class="dlbtn" id="unifiedbtn">🕸 Unified graph</button>
+      <button class="dlbtn" id="metricsbtn">📊 Metrics</button>
+      <button class="dlbtn" id="alertsbtn">🔔 Alert rules</button>
+      <button class="dlbtn" id="backupbtn">⬇ Backup</button>
+      <button class="dlbtn" id="restorebtn">⬆ Restore</button>
+      <input type="file" id="restorefile" accept="application/json,.json" style="display:none">
+    </div>
+    <div class="tool-grid">
+      <button class="toolbtn" data-tool="screenshots">📸 Screenshot subdomains</button>
+      <button class="toolbtn" data-tool="exploits">🧨 Exploit intel</button>
+      <button class="toolbtn" data-tool="risk">🎯 Risk</button>
+      <button class="toolbtn" data-tool="paths">🛤 Attack paths</button>
+      <button class="toolbtn" data-tool="supply">🔗 Supply chain</button>
+      <button class="toolbtn" data-tool="compliance">⚖ Compliance</button>
+      <button class="toolbtn" data-tool="inventory">📋 Inventory</button>
+      <button class="toolbtn" data-tool="rollup">🖧 Host rollup</button>
+      <button class="toolbtn" data-tool="trend">📈 Trend</button>
+      <button class="toolbtn" data-tool="find">🔎 Search findings</button>
+      <button class="toolbtn" data-tool="ticket">🎫 File ticket</button>
+      <button class="toolbtn" data-tool="summary">🧠 AI summary</button>
+      <button class="toolbtn" data-tool="fixes">🩹 Remediation</button>
+      <button class="toolbtn" data-tool="brief">👔 Exec brief</button>
+      <button class="toolbtn" data-tool="table">▦ Findings table</button>
+      <button class="toolbtn" data-tool="timeline">🕓 Timeline</button>
+      <button class="toolbtn" data-tool="deep">🌐 Deep OSINT (auto-pivot)</button>
+      <button class="toolbtn" data-tool="identity">🧑‍🤝‍🧑 Identity graph</button>
+      <button class="toolbtn" data-tool="sources">📊 Source matrix</button>
+    </div>
+    <div class="dl-row">
+      <span class="dl-label">download report:</span>
+      <button class="dlbtn" data-fmt="exec">Exec</button>
+      <button class="dlbtn" data-fmt="intel">Intel</button>
+      <button class="dlbtn" data-fmt="html">HTML</button>
+      <button class="dlbtn" data-fmt="json">JSON</button>
+      <button class="dlbtn" data-fmt="md">MD</button>
+      <button class="dlbtn" data-fmt="sarif">SARIF</button>
+      <button class="dlbtn" data-fmt="csv">CSV</button>
+      <button class="dlbtn" data-fmt="graphml">GraphML</button>
+      <button class="dlbtn" data-fmt="gexf">GEXF</button>
+      <button class="dlbtn" data-fmt="osint">OSINT dossier</button>
+    </div>
+    <div id="toolout" class="toolout"></div>
+  </div>
+</div>
+
+<div id="portmodal" class="modal hidden">
+  <div class="modal-card" style="width:min(760px,96vw)">
+    <div class="modal-head"><b>▦ Portfolio — all monitored targets</b><button class="x" id="portclose">✕</button></div>
+    <div id="porttotals" class="port-tot"></div>
+    <div id="portlist"></div>
+    <p class="modal-note">Every target you investigate is saved automatically and appears here. Click a row to open it in the graph.</p>
+  </div>
+</div>
+
+<div id="keysmodal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head"><b>🔑 API keys</b><button class="x" id="keysclose">✕</button></div>
+    <p class="modal-note" id="keysbackend"></p>
+    <div id="keyslist"></div>
+    <p class="modal-note">Optional — only needed by a few modules (VirusTotal, AbuseIPDB, DeepSeek). Saved locally on this machine; keys are never shown back or sent anywhere.</p>
+  </div>
+</div>
+
+<div id="modmodal" class="modal hidden">
+  <div class="modal-card" style="width:min(820px,96vw)">
+    <div class="modal-head"><b>🧩 Modules · profiles · schedule</b><button class="x" id="modclose">✕</button></div>
+    <div class="mod-controls">
+      <input id="modsearch" placeholder="🔍 filter modules…" autocomplete="off" spellcheck="false">
+      <span class="rel" id="modcount"></span>
+      <button class="dlbtn" id="modall">all</button>
+      <button class="dlbtn" id="modnone">none</button>
+      <button class="dlbtn" id="modpassive">passive</button>
+    </div>
+    <div id="modprofiles" class="modprofiles"></div>
+    <div id="modlist" class="modlist"></div>
+    <div class="mod-actions">
+      <input id="modtarget" placeholder="target (defaults to current)" autocomplete="off" spellcheck="false">
+      <button class="save" id="modrun">▶ Run selected</button>
+      <button class="dlbtn" id="modsave">💾 Save as profile</button>
+      <button class="dlbtn" id="modsched">⏰ Schedule</button>
+    </div>
+    <div id="modsched_list" class="modsched-list"></div>
+    <p class="modal-note">Pick exactly the modules you want, run them now, save the set as a named profile (kept in this browser), or schedule it to re-run on an interval. Passive-only and adaptive rate-limit follow the ⚙ Tools settings.</p>
+  </div>
+</div>
+
+<div id="palette" class="modal hidden">
+  <div class="pal-card">
+    <input id="palinp" placeholder="Type a command or entity…  (Esc to close)" autocomplete="off" spellcheck="false">
+    <div id="pallist" class="pal-list"></div>
+  </div>
+</div>
+
+<div id="scopemodal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-head"><b>🛡 Scope guard</b><button class="x" id="scopeclose">✕</button></div>
+    <p class="modal-note">One entry per line: a domain (covers <code>*.domain</code>), an exact host, a CIDR (<code>10.0.0.0/8</code>) or a single IP. Targets outside this list are refused. Empty = no restriction.</p>
+    <textarea id="scopetext" spellcheck="false" style="width:100%;min-height:150px;background:var(--panel);color:var(--fg);border:1px solid var(--line2);border-radius:8px;padding:9px;font-family:var(--mono);font-size:12px"></textarea>
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="save" id="scopesave">Save scope</button><span class="rel" id="scopemsg"></span></div>
+  </div>
+</div>
+
+<div class="stage">
+  <!-- left rail: entity filters -->
+  <aside class="rail" id="rail">
+    <h3>Entities</h3>
+    <div id="kinds"></div>
+    <div class="railstat" id="railstat"></div>
+    <div class="hint" id="hint">Drag to pan · scroll to zoom · drag a node to move · click a node for details. Shift-click a 2nd node to trace the path.</div>
+  </aside>
+
+  <!-- center: graph canvas -->
+  <div class="canvaswrap">
+    <svg id="net"><g id="cam"><g id="edges"></g><g id="nodes"></g></g></svg>
+    <div class="cbar">
+      <input id="gsearch" placeholder="🔍 search · or ask: subdomains? leaks? tech?" autocomplete="off" spellcheck="false">
+      <button class="cbtn" id="cluster" title="cluster nodes by type">◱ Cluster</button>
+      <button class="cbtn" id="heat" title="colour nodes by risk (heat-map)">🔥 Heat</button>
+      <button class="cbtn" id="export" title="export the graph as a PNG image">⤓ PNG</button>
+    </div>
+    <div id="askans" class="askans hidden"></div>
+    <div class="zoombar">
+      <button id="zin" title="zoom in">+</button>
+      <button id="zout" title="zoom out">−</button>
+      <button id="zfit" title="fit" style="font-size:12px">⊡</button>
+    </div>
+    <svg id="minimap" class="minimap hidden" viewBox="0 0 160 108" title="overview — click to jump"><g id="mmnodes"></g><rect id="mmview" fill="none" stroke="#38e1d6" stroke-width="1.4"/></svg>
+    <div class="canvasnote" id="note">
+      <svg class="big" viewBox="0 0 100 100" id="eye2" aria-hidden="true"></svg>
+      <h2>OSINT investigator</h2>
+      <p>Enter a target and hit <b>Investigate</b>. Ghost Eye correlates its footprint into a live entity graph — click any node to pivot.</p>
+    </div>
+  </div>
+
+  <!-- right: OSINT profile / entity details -->
+  <aside class="side" id="side">
+    <div class="canvasnote" style="position:static;min-height:200px">
+      <p class="mono" style="color:var(--faint)">The unified OSINT profile appears here after an investigation.</p>
+    </div>
+  </aside>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const TOKEN=new URLSearchParams(location.search).get("token")||"";
+function hdrs(){ return TOKEN?{"X-Ghost-Token":TOKEN}:{}; }
+async function api(path,opts={}){
+  const r=await fetch(path,{...opts,headers:{...hdrs(),...(opts.headers||{})}});
+  if(!r.ok) throw new Error((await r.json().catch(()=>({error:r.statusText}))).error||r.statusText);
+  return r.json();
+}
+if(TOKEN) $("consolelink").href="/console?token="+encodeURIComponent(TOKEN);
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* iris */
+function drawEye(svg){
+  svg.innerHTML=`<circle cx="50" cy="50" r="30" fill="none" stroke="#38e1d6" stroke-width="2"/>
+    <circle cx="50" cy="50" r="11" fill="#38e1d6"/><circle cx="50" cy="50" r="44" fill="none" stroke="#1e2636" stroke-width="2"/>
+    <circle cx="50" cy="50" r="5" fill="#06080d"/>`;
+}
+[$("eye"),$("eye2")].forEach(drawEye);
+
+/* entity kind metadata */
+const KMETA={
+  target:{c:"#ff5b61",i:"🎯"}, subdomain:{c:"#38e1d6",i:"🌐"}, domain:{c:"#5aa9ff",i:"🌐"},
+  ip:{c:"#37d39a",i:"🖥"}, cloud:{c:"#f0b545",i:"☁"}, tech:{c:"#a97bf5",i:"🧩"},
+  cert_issuer:{c:"#56d364",i:"🔒"}, email:{c:"#ff6fb2",i:"✉"}, org:{c:"#f0883e",i:"🏢"},
+  cve:{c:"#ff5b61",i:"⚠"}, leak:{c:"#ff7b72",i:"🩸"}, asn:{c:"#37d39a",i:"🛰"},
+  mailserver:{c:"#a5d6ff",i:"✉"}, nameserver:{c:"#a5d6ff",i:"🛰"}, service:{c:"#e3b341",i:"⚙"},
+  dependency:{c:"#c9a0ff",i:"🔗"}
+};
+const km=k=>KMETA[k]||{c:"#8390a6",i:"◆"};
+// risk heat-map palette (feature 17): colour a node by how dangerous it is
+const RISKC={critical:"#ff3b47",high:"#ff7b39",medium:"#f0b545",low:"#37d39a"};
+const riskColor=nd=>RISKC[(nd.attrs&&nd.attrs.risk_band)||"low"]||"#37d39a";
+const KCAP={subdomain:48,ip:36,tech:24,cve:30,email:24,service:24}; // per-kind graph cap
+
+let REP=null;        // last /intel report
+let G={nodes:[],edges:[],byId:{}};
+let hidden=new Set(), selected=null;
+let cam={k:1,x:0,y:0}, W=1000, H=700;
+let clustered=false, searchSet=null, ACKS=new Set(), heat=false;
+let pathSet=null, pathEdges=null;   // shift-click path-finding (feature 5)
+let focusSet=null;                  // focus mode: isolate a cluster (feature 45)
+let CURJOB=null, CURTARGET="";
+
+/* focus mode (45): isolate the connected component of a node */
+function focusOn(id){
+  const adj={}; G.nodes.forEach(n=>adj[n.id]=[]);
+  G.edges.forEach(e=>{ if(adj[e.from]&&adj[e.to]){adj[e.from].push(e.to);adj[e.to].push(e.from);} });
+  const seen=new Set([id]), q=[id];
+  while(q.length){ const c=q.shift(); (adj[c]||[]).forEach(n=>{ if(!seen.has(n)){seen.add(n);q.push(n);} }); }
+  focusSet=seen; render(); renderEntity(id);
+  const ns=G.nodes.filter(n=>seen.has(n.id)); if(ns.length) fitMatches(seen);
+}
+function clearFocus(){ focusSet=null; render(); if(selected)renderEntity(selected); }
+
+/* per-node notes / tags (44), persisted in this browser keyed by target+label */
+function noteKey(){ return "ge_notes_"+(CURTARGET||(REP&&REP.target)||"_"); }
+function allNotes(){ try{ return JSON.parse(localStorage.getItem(noteKey())||"{}"); }catch(e){ return {}; } }
+function noteFor(label){ return allNotes()[label]||""; }
+function setNote(label,val){ const n=allNotes(); if(val)n[label]=val; else delete n[label];
+  try{ localStorage.setItem(noteKey(),JSON.stringify(n)); }catch(e){} }
+
+/* BFS shortest path between two nodes; highlights the chain (feature 5) */
+function tracePath(a,b){
+  const adj={}; G.nodes.forEach(n=>adj[n.id]=[]);
+  G.edges.forEach(e=>{ if(adj[e.from]&&adj[e.to]){adj[e.from].push(e.to);adj[e.to].push(e.from);} });
+  const prev={[a]:null}, q=[a];
+  while(q.length){ const c=q.shift(); if(c===b)break;
+    (adj[c]||[]).forEach(nx=>{ if(!(nx in prev)){prev[nx]=c;q.push(nx);} }); }
+  if(!(b in prev)){ pathSet=null; pathEdges=null; render();
+    $("askans").classList.remove("hidden"); $("askans").innerHTML=`<b>No path</b> between <code>${esc(G.byId[a].label)}</code> and <code>${esc(G.byId[b].label)}</code> in the graph.`;
+    return; }
+  const chain=[]; let n=b; while(n!=null){chain.push(n);n=prev[n];} chain.reverse();
+  pathSet=new Set(chain); pathEdges=new Set();
+  for(let i=0;i<chain.length-1;i++){ pathEdges.add(chain[i]+"|"+chain[i+1]); pathEdges.add(chain[i+1]+"|"+chain[i]); }
+  selected=null; render();
+  const steps=chain.map(id=>`<span class="chip">${esc(G.byId[id].label)}</span>`).join('<span class="rel"> → </span>');
+  $("askans").classList.remove("hidden");
+  $("askans").innerHTML=`<b>Path (${chain.length-1} hops):</b> ${steps} <button class="cbtn" id="clearpath" style="margin-left:6px">clear</button>`;
+  const cp=$("clearpath"); if(cp) cp.onclick=()=>{ pathSet=null; pathEdges=null; $("askans").classList.add("hidden"); render(); };
+}
+
+/* ---------------- investigate ---------------- */
+async function investigate(){
+  const target=$("target").value.trim();
+  if(!target) return;
+  $("go").disabled=true; setStatus("run","starting…");
+  $("note").classList.remove("hidden");
+  $("note").innerHTML=`<div class="spinner"></div><h2>Investigating ${esc(target)}</h2><p id="pmsg">running OSINT modules…</p>`;
+  const passive=$("optpassive")&&$("optpassive").checked;
+  const adaptive=$("optadaptive")&&$("optadaptive").checked;
+  const opts={timeout:15,parallel:4}; if(adaptive) opts.adaptive_rate=true;
+  const sel={mode:"profile",value:"osint"}; if(passive) sel.passive_only=true;
+  let job;
+  try{ job=await api("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({target,selection:sel,options:opts})}); }
+  catch(e){ // fall back to a broad scan if the osint profile is unavailable
+    const sel2={mode:"all"}; if(passive) sel2.passive_only=true;
+    try{ job=await api("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({target,selection:sel2,options:{timeout:12,parallel:5,...(adaptive?{adaptive_rate:true}:{})}})}); }
+    catch(e2){ fail("Scan rejected: "+e2.message); return; } }
+  poll(job.job_id, target);
+}
+function poll(jid,target){
+  const t=setInterval(async()=>{
+    let s; try{ s=await api(`/api/job/${jid}`);}catch(e){return;}
+    setStatus("run",`scanning · ${s.done}/${s.total}`);
+    const pm=$("pmsg"); if(pm) pm.textContent=`${s.done}/${s.total} modules · ${esc(s.current||"")}`;
+    if(s.status!=="running"){ clearInterval(t); loadProfile(jid,target); }
+  },900);
+}
+async function loadProfile(jid,target){
+  setStatus("run","correlating intelligence…");
+  let d; try{ d=await api(`/api/job/${jid}/intel`);}catch(e){ fail("Intelligence failed: "+e.message); return; }
+  REP=d; CURJOB=jid; CURTARGET=target;
+  buildGraph(d); renderProfile(d); setStatus("done",`${target} · grade ${d.grade}`);
+  $("go").disabled=false;
+  try{ const ak=await api(`/api/acks?target=${encodeURIComponent(target)}`); ACKS=new Set(ak.acks||[]); }catch(e){ ACKS=new Set(); }
+}
+function fail(msg){ setStatus("err","error"); $("go").disabled=false;
+  $("note").classList.remove("hidden"); $("note").innerHTML=`<h2>Couldn't complete</h2><p>${esc(msg)}</p>`; }
+function setStatus(cls,txt){ $("dot").className="dot "+cls; $("statustxt").textContent=txt; }
+
+/* ---------------- graph build + layout ---------------- */
+function buildGraph(d){
+  const kg=d.knowledge_graph||{entities:[],relationships:[]};
+  const perKind={};
+  const nodes=[], byId={};
+  (kg.entities||[]).forEach(e=>{
+    perKind[e.kind]=(perKind[e.kind]||0)+1;
+    if(KCAP[e.kind] && perKind[e.kind]>KCAP[e.kind]) return;   // cap noisy kinds
+    const n={id:e.id,kind:e.kind,label:e.label,attrs:e.attrs||{},sources:e.sources||[]};
+    nodes.push(n); byId[e.id]=n;
+  });
+  const edges=(kg.relationships||[]).filter(r=>byId[r.from]&&byId[r.to])
+    .map(r=>({from:r.from,to:r.to,type:r.type,label:r.label||r.type,conf:r.confidence}));
+  // degree
+  nodes.forEach(n=>n.deg=0);
+  edges.forEach(e=>{byId[e.from].deg++;byId[e.to].deg++;});
+  const tgt=nodes.find(n=>n.kind==="target"); if(tgt){tgt.x=W/2;tgt.y=H/2;tgt.pin=true;}
+  G={nodes,edges,byId};
+  layout(nodes,edges);
+  buildKindFilters();
+  cam={k:1,x:0,y:0}; render(); fit();
+  $("note").classList.add("hidden");
+}
+function kindCenters(nodes){
+  const kinds=[...new Set(nodes.map(n=>n.kind))].filter(k=>k!=="target");
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.37, c={target:[cx,cy]};
+  kinds.forEach((k,i)=>{ const a=2*Math.PI*i/Math.max(1,kinds.length)-Math.PI/2;
+    c[k]=[cx+R*Math.cos(a), cy+R*Math.sin(a)]; });
+  return c;
+}
+function layout(nodes,edges){
+  const idx={}; nodes.forEach((n,i)=>{idx[n.id]=i; if(n.x==null){n.x=W/2+(Math.random()-.5)*W*.55; n.y=H/2+(Math.random()-.5)*H*.55;}});
+  const kc=clustered?kindCenters(nodes):null;
+  const k=Math.sqrt((W*H)/Math.max(1,nodes.length))*(clustered?0.5:0.72);
+  let temp=W*0.12;
+  for(let it=0;it<220;it++){
+    const dsp=nodes.map(()=>({x:0,y:0}));
+    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
+      let dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y, dd=dx*dx+dy*dy||0.01, d=Math.sqrt(dd);
+      const fr=k*k/d; const ux=dx/d*fr, uy=dy/d*fr;
+      dsp[i].x+=ux;dsp[i].y+=uy;dsp[j].x-=ux;dsp[j].y-=uy;
+    }
+    edges.forEach(e=>{ const a=idx[e.from], b=idx[e.to];
+      let dx=nodes[a].x-nodes[b].x, dy=nodes[a].y-nodes[b].y, d=Math.hypot(dx,dy)||0.01;
+      const fa=d*d/k/ (e.conf==="high"?1:1.6); const ux=dx/d*fa, uy=dy/d*fa;
+      dsp[a].x-=ux;dsp[a].y-=uy;dsp[b].x+=ux;dsp[b].y+=uy;
+    });
+    nodes.forEach((n,i)=>{ if(n.pin)return; let dx=dsp[i].x,dy=dsp[i].y,d=Math.hypot(dx,dy)||0.01;
+      n.x+=dx/d*Math.min(d,temp); n.y+=dy/d*Math.min(d,temp);
+      if(kc){ const cc=kc[n.kind]||[W/2,H/2]; n.x+=(cc[0]-n.x)*0.09; n.y+=(cc[1]-n.y)*0.09; }
+      else { n.x+=(W/2-n.x)*0.012; n.y+=(H/2-n.y)*0.012; }
+    });
+    temp*=0.965;
+  }
+}
+
+/* ---------------- render ---------------- */
+function neighborsOf(id){ const s=new Set(); G.edges.forEach(e=>{ if(e.from===id)s.add(e.to); if(e.to===id)s.add(e.from);}); return s; }
+function render(){
+  const vis=id=>!hidden.has(G.byId[id].kind)&&(!focusSet||focusSet.has(id));
+  const foc=selected, nbr=foc?neighborsOf(foc):null;
+  let e="";
+  G.edges.forEach(ed=>{ if(!vis(ed.from)||!vis(ed.to))return;
+    const a=G.byId[ed.from], b=G.byId[ed.to];
+    const onPath=pathEdges&&pathEdges.has(ed.from+"|"+ed.to);
+    const lit=onPath||(foc&&(ed.from===foc||ed.to===foc));
+    const dimE=pathSet&&!onPath;
+    e+=`<line class="edge${lit?" lit":""}" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke-width="${onPath?2.4:lit?1.6:1}"${onPath?' stroke="#ffca3a" stroke-opacity="1"':dimE?' stroke-opacity=".08"':''}/>`;
+  });
+  $("edges").innerHTML=e;
+  let n="";
+  G.nodes.forEach(nd=>{ if(hidden.has(nd.kind))return; if(focusSet&&!focusSet.has(nd.id))return;
+    const m=km(nd.kind), isT=nd.kind==="target";
+    const r=isT?13:Math.min(11,6+Math.sqrt(nd.deg||1)*1.4);
+    const isMatch=searchSet&&searchSet.has(nd.id);
+    const onPath=pathSet&&pathSet.has(nd.id);
+    const dim=(pathSet&&!onPath)||(nbr&&nd.id!==foc&&!nbr.has(nd.id))||(searchSet&&!isMatch);
+    const op=dim?0.16:1;
+    const fill=onPath?"#ffca3a":(heat?riskColor(nd):m.c);
+    const ring=(nd.id===foc||onPath)?`<circle r="${r+5}" fill="none" stroke="${onPath?'#ffca3a':fill}" stroke-opacity=".9" stroke-width="1.5"/>`:"";
+    const showLabel=isT||nd.id===foc||onPath||isMatch||(nbr&&nbr.has(nd.id))|| nd.deg>=2 || G.nodes.length<40;
+    n+=`<g class="nodeg${isMatch?" match":""}" data-id="${esc(nd.id)}" transform="translate(${nd.x.toFixed(1)},${nd.y.toFixed(1)})" opacity="${op}">
+      ${ring}
+      <circle class="core" r="${r}" fill="${fill}" fill-opacity="${isT?1:.9}" stroke="#06080d" stroke-width="1.5"/>
+      <text text-anchor="middle" dy="${r*0.34}" font-size="${(r*0.9).toFixed(1)}" pointer-events="none">${m.i}</text>
+      ${showLabel?`<text class="node-label" text-anchor="middle" y="${r+11}">${esc(String(nd.label).slice(0,22))}</text>`:""}
+    </g>`;
+  });
+  $("nodes").innerHTML=n;
+  applyCam();
+  drawMinimap();
+}
+function applyCam(){ $("cam").setAttribute("transform",`translate(${cam.x},${cam.y}) scale(${cam.k})`); drawMinimapView(); }
+
+/* ---- mini-map overview (feature 7) ---- */
+let _mm=null;   // cached world-bounds->minimap transform
+function _mmBounds(){
+  if(!G.nodes.length) return null;
+  const xs=G.nodes.map(n=>n.x), ys=G.nodes.map(n=>n.y);
+  const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+  const pad=40, gw=(maxx-minx)+pad*2||1, gh=(maxy-miny)+pad*2||1;
+  const s=Math.min(160/gw,108/gh);
+  const ox=(160-gw*s)/2, oy=(108-gh*s)/2;
+  return {s, tx:ox-(minx-pad)*s, ty:oy-(miny-pad)*s};
+}
+function drawMinimap(){
+  const mm=$("minimap"); if(!mm) return;
+  if(!G.nodes.length){ mm.classList.add("hidden"); return; }
+  mm.classList.remove("hidden");
+  _mm=_mmBounds(); if(!_mm) return;
+  let s="";
+  G.nodes.forEach(nd=>{ if(hidden.has(nd.kind))return;
+    const x=(nd.x*_mm.s+_mm.tx).toFixed(1), y=(nd.y*_mm.s+_mm.ty).toFixed(1);
+    const c=(pathSet&&pathSet.has(nd.id))?"#ffca3a":(heat?riskColor(nd):km(nd.kind).c);
+    s+=`<circle cx="${x}" cy="${y}" r="${nd.kind==='target'?2.4:1.5}" fill="${c}"/>`;
+  });
+  $("mmnodes").innerHTML=s;
+  drawMinimapView();
+}
+function drawMinimapView(){
+  const r=$("mmview"); if(!r||!_mm) return;
+  // world region currently visible in the canvas → minimap rect
+  const wx0=-cam.x/cam.k, wy0=-cam.y/cam.k, wx1=(W-cam.x)/cam.k, wy1=(H-cam.y)/cam.k;
+  const x=wx0*_mm.s+_mm.tx, y=wy0*_mm.s+_mm.ty;
+  r.setAttribute("x",Math.max(0,x).toFixed(1)); r.setAttribute("y",Math.max(0,y).toFixed(1));
+  r.setAttribute("width",Math.max(2,(wx1-wx0)*_mm.s).toFixed(1));
+  r.setAttribute("height",Math.max(2,(wy1-wy0)*_mm.s).toFixed(1));
+}
+// click the mini-map to recentre the camera there
+$("minimap").addEventListener("click",ev=>{
+  if(!_mm||!G.nodes.length)return;
+  const box=$("minimap").getBoundingClientRect();
+  const mx=(ev.clientX-box.left)/box.width*160, my=(ev.clientY-box.top)/box.height*108;
+  const wx=(mx-_mm.tx)/_mm.s, wy=(my-_mm.ty)/_mm.s;
+  cam.x=W/2-wx*cam.k; cam.y=H/2-wy*cam.k; applyCam();
+});
+
+function buildKindFilters(){
+  const by={}; G.nodes.forEach(n=>by[n.kind]=(by[n.kind]||0)+1);
+  const order=["target","subdomain","domain","ip","asn","cloud","tech","cert_issuer","mailserver","nameserver","email","org","cve","leak","service"];
+  const kinds=order.filter(k=>by[k]).concat(Object.keys(by).filter(k=>!order.includes(k)));
+  $("kinds").innerHTML=kinds.map(k=>{ const m=km(k);
+    return `<label class="kind"><input type="checkbox" data-k="${k}" checked>
+      <span class="ic">${m.i}</span><span class="swatch" style="background:${m.c}"></span>
+      <span class="lbl">${k.replace("_"," ")}</span><span class="cnt">${by[k]}</span></label>`;}).join("");
+  $("kinds").querySelectorAll("input").forEach(cb=>cb.addEventListener("change",()=>{
+    cb.checked?hidden.delete(cb.dataset.k):hidden.add(cb.dataset.k);
+    if(selected&&hidden.has(G.byId[selected].kind)){selected=null;renderProfile(REP);}
+    render();
+  }));
+  const c=(REP.counts)||{};
+  let stat=[["entities",(G.nodes.length)],["relationships",G.edges.length],
+    ["assets",c.assets||0],["risk",REP.risk_level||"—"]]
+    .map(([l,v])=>`<div class="row"><span>${l}</span><b>${esc(v)}</b></div>`).join("");
+  if(heat){ const bc=(REP.risk_heatmap&&REP.risk_heatmap.band_counts)||{};
+    stat+=`<div class="row" style="margin-top:6px;font-size:10px;opacity:.7">RISK HEAT-MAP</div>`+
+      ["critical","high","medium","low"].map(b=>`<div class="row"><span><span class="swatch" style="background:${RISKC[b]}"></span> ${b}</span><b>${bc[b]||0}</b></div>`).join("");
+  }
+  $("railstat").innerHTML=stat;
+}
+
+/* ---------------- interaction: pan / zoom / drag / select ---------------- */
+const net=$("net");
+function resize(){ const r=net.getBoundingClientRect(); W=Math.max(600,r.width); H=Math.max(400,r.height);
+  net.setAttribute("viewBox",`0 0 ${W} ${H}`); }
+window.addEventListener("resize",()=>{resize();});
+resize();
+
+function worldPt(ev){ const p=net.createSVGPoint(); p.x=ev.clientX;p.y=ev.clientY;
+  const m=$("cam").getScreenCTM().inverse(); return p.matrixTransform(m); }
+let drag=null, moved=false;
+net.addEventListener("pointerdown",ev=>{
+  const g=ev.target.closest(".nodeg");
+  moved=false;
+  if(g){ const id=g.dataset.id; drag={type:"node",id,start:worldPt(ev)}; }
+  else { drag={type:"pan",sx:ev.clientX,sy:ev.clientY,ox:cam.x,oy:cam.y}; net.classList.add("grabbing"); }
+  net.setPointerCapture(ev.pointerId);
+});
+net.addEventListener("pointermove",ev=>{
+  if(!drag)return; moved=true;
+  if(drag.type==="pan"){ cam.x=drag.ox+(ev.clientX-drag.sx); cam.y=drag.oy+(ev.clientY-drag.sy); applyCam(); }
+  else { const w=worldPt(ev); const n=G.byId[drag.id]; n.x=w.x;n.y=w.y;n.pin=true; render(); }
+});
+net.addEventListener("pointerup",ev=>{
+  net.classList.remove("grabbing");
+  if(drag&&drag.type==="node"&&!moved){
+    if(ev.shiftKey&&selected&&selected!==drag.id){ tracePath(selected,drag.id); }
+    else { pathSet=null; pathEdges=null; selectNode(drag.id); }
+  }
+  else if(drag&&drag.type==="pan"&&!moved){ if(selected){selected=null;render();renderProfile(REP);} else if(pathSet){pathSet=null;pathEdges=null;$("askans").classList.add("hidden");render();} }
+  drag=null;
+});
+net.addEventListener("wheel",ev=>{ ev.preventDefault();
+  const w=worldPt(ev); const f=ev.deltaY<0?1.15:1/1.15;
+  const nk=Math.max(0.2,Math.min(4,cam.k*f));
+  // keep cursor point stable
+  cam.x=ev.clientX-net.getBoundingClientRect().left-(w.x*nk);
+  cam.y=ev.clientY-net.getBoundingClientRect().top-(w.y*nk);
+  cam.k=nk; applyCam();
+},{passive:false});
+$("zin").onclick=()=>zoomBy(1.25); $("zout").onclick=()=>zoomBy(1/1.25); $("zfit").onclick=fit;
+function zoomBy(f){ const cx=W/2,cy=H/2; const wx=(cx-cam.x)/cam.k, wy=(cy-cam.y)/cam.k;
+  cam.k=Math.max(0.2,Math.min(4,cam.k*f)); cam.x=cx-wx*cam.k; cam.y=cy-wy*cam.k; applyCam(); }
+function fit(){ if(!G.nodes.length)return; let xs=G.nodes.map(n=>n.x),ys=G.nodes.map(n=>n.y);
+  const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+  const gw=maxx-minx+120, gh=maxy-miny+120; const k=Math.max(0.2,Math.min(2,Math.min(W/gw,H/gh)));
+  cam.k=k; cam.x=W/2-(minx+maxx)/2*k; cam.y=H/2-(miny+maxy)/2*k; applyCam(); }
+
+function selectNode(id){ selected=id; render(); renderEntity(id); }
+
+/* ---------------- right panel: OSINT profile ---------------- */
+const GC={ "A+":"#37d39a","A":"#37d39a","B":"#f0b545","C":"#f0b545","D":"#ff9145","F":"#ff5b61" };
+function chips(arr,cls){ arr=arr||[]; return arr.length?arr.map(x=>`<span class="chip ${cls||""}">${esc(x)}</span>`).join(""):`<span class="chip mut">none</span>`; }
+function clickChips(arr,kind){ // chips that select the matching graph node
+  arr=arr||[]; if(!arr.length)return `<span class="chip mut">none</span>`;
+  return arr.map(x=>{ const id=kind+":"+String(x).toLowerCase(); const has=G.byId[id];
+    return `<span class="chip ${has?"click":""}" ${has?`data-sel="${esc(id)}"`:""}>${esc(x)}</span>`;}).join("");
+}
+function renderProfile(d){
+  if(!d){ return; }
+  const intel=d.intelligence||{}, org=d.organization||{}, an=d.analysis||{}, c=d.counts||{}, em=intel.email_security||{}, tl=d.timeline||{};
+  const kgc=(d.knowledge_graph||{}).counts||{};
+  const gc=GC[d.grade]||"#8390a6";
+  const kgByKind=kgc.by_kind||{};
+  const orgs=(d.knowledge_graph.entities||[]).filter(e=>e.kind==="org").map(e=>e.label);
+  const asns=(d.knowledge_graph.entities||[]).filter(e=>e.kind==="asn").map(e=>e.label);
+  let tech=[]; Object.values(intel.technologies||{}).forEach(a=>tech=tech.concat(a));
+  const shots=intel.screenshots||[];
+  const insights=(tl.insights||[]).filter(x=>x&&!x.startsWith("no dated"));
+  const html=`
+    <div class="s-head">
+      <div class="grade" style="background:${gc}">${esc(d.grade||"?")}</div>
+      <div><div class="t">${esc(d.target||"")}</div>
+      <div class="m">risk ${esc(d.risk_level||"")} · ${d.score||0}/100 · ${kgc.entities||0} entities</div></div>
+    </div>
+    <div class="tiles">
+      ${tile("subdomains",c.subdomains)} ${tile("IPs",c.ips)} ${tile("emails",c.emails)}
+      ${tile("tech",c.technologies)} ${tile("leaks",c.leak_indicators,c.leak_indicators?"var(--red)":"")} ${tile("shots",c.screenshots)}
+    </div>
+    ${an.headline?`<div class="analyst"><div class="hl">🧠 ${esc(an.headline)}</div><div class="sm">${esc(an.summary||"")}</div></div>`:""}
+    ${sec("🌐","Subdomains",kgByKind.subdomain||(intel.subdomains||[]).length, clickChips(intel.subdomains,"subdomain"))}
+    ${sec("🖥","IP addresses",(intel.ips||[]).length, clickChips(intel.ips,"ip"))}
+    ${sec("✉","Emails",(intel.emails||[]).length, clickChips(intel.emails,"email"))}
+    ${(orgs.length||asns.length)?sec("🏢","WHOIS / network",orgs.length+asns.length, chips(orgs.concat(asns))):""}
+    ${sec("🧩","Technologies",tech.length, chips(tech))}
+    ${sec("☁","Cloud",(intel.cloud||[]).filter(x=>!/unknown/i.test(x)).length, chips((intel.cloud||[]).filter(x=>!/unknown/i.test(x))))}
+    ${sec("🩸","Leak indicators",(intel.leak_indicators||[]).length, chips(intel.leak_indicators,"bad"))}
+    ${sec("🔒","Email posture",null, `<div class="sm" style="font-family:var(--mono)">${em.score==null?"?":em.score}/100 · ${esc(em.grade||"?")} — SPF ${em.spf} · DKIM ${em.dkim} · DMARC ${em.dmarc}</div>`)}
+    ${insights.length?sec("🕓","Intelligence timeline",tl.events?tl.events.length:insights.length,
+        `<div class="tl">${insights.map(i=>`<div class="r">${esc(i.replace(/^[⏰🩸🗓✏️\s]+/,""))}</div>`).join("")}</div>`):""}
+    ${shots.length?sec("📸","Visual recon",shots.length,
+        `<div class="gal">${shots.slice(0,6).map(s=>`<figure><img loading="lazy" src="${s.image}" alt=""><figcaption>${esc(s.host||"")}</figcaption></figure>`).join("")}</div>`):""}
+  `;
+  $("side").innerHTML=html;
+  $("side").querySelectorAll("[data-sel]").forEach(el=>el.addEventListener("click",()=>{
+    const id=el.dataset.sel; selectNode(id); fitNode(id);
+  }));
+}
+function tile(l,v,col){ return `<div class="tile"><b style="${col?`color:${col}`:""}">${v==null?0:v}</b><span>${esc(l)}</span></div>`; }
+function sec(ic,title,count,body){ return `<div class="sec"><h4>${ic} ${esc(title)}${count!=null?`<em>${count}</em>`:""}</h4>${body}</div>`; }
+function fitNode(id){ const n=G.byId[id]; if(!n)return; cam.k=Math.max(cam.k,1.1);
+  cam.x=W/2-n.x*cam.k; cam.y=H/2-n.y*cam.k; applyCam(); }
+
+/* right panel: single entity detail */
+function renderEntity(id){
+  const n=G.byId[id]; if(!n){ renderProfile(REP); return; }
+  const m=km(n.kind);
+  const conns=G.edges.filter(e=>e.from===id||e.to===id).map(e=>{
+    const other=e.from===id?e.to:e.from; const o=G.byId[other];
+    const dir=e.from===id?e.label:("← "+e.label);
+    return {id:other,label:o.label,kind:o.kind,rel:dir};
+  });
+  const attrs=Object.entries(n.attrs||{}).filter(([k,v])=>v!=null&&v!=="");
+  const acked=ACKS.has(n.label);
+  $("side").innerHTML=`
+    <div class="back" id="back">← back to profile</div>
+    <div class="ent-hero">
+      <div class="ic" style="background:${m.c}22;border:1px solid ${m.c}">${m.i}</div>
+      <div><div class="k">${esc(n.kind.replace("_"," "))}</div><div class="l">${esc(n.label)}</div></div>
+    </div>
+    <div style="display:flex;gap:6px;margin:2px 0 4px">
+      <button class="cbtn" id="focusbtn" style="flex:1;justify-content:center" title="isolate this node's cluster">${focusSet?'✕ Unfocus':'🎯 Focus'}</button>
+      <button class="cbtn" id="ackbtn" style="flex:2;justify-content:center">${acked?"🔕 Known":"🔕 Mark known"}</button>
+    </div>
+    <div class="sec"><h4>Notes & tags</h4>
+      <div id="noteview" class="rel" style="margin-bottom:5px">${esc(noteFor(n.label)||"— none —")}</div>
+      <div style="display:flex;gap:6px"><input id="noteinp" placeholder="add a note / #tag" style="flex:1;background:var(--panel);border:1px solid var(--line2);color:var(--fg);border-radius:6px;padding:6px 8px;font-size:11.5px"><button class="cbtn" id="notesave">save</button></div>
+    </div>
+    ${attrs.length?`<div class="sec"><h4>Attributes</h4>${attrs.map(([k,v])=>`<div class="conn"><span class="rel">${esc(k)}</span><span>${esc(String(v).slice(0,80))}</span></div>`).join("")}</div>`:""}
+    ${n.sources&&n.sources.length?`<div class="sec"><h4>Seen by</h4><div class="chips">${chips(n.sources)}</div></div>`:""}
+    <div class="sec"><h4>Connections <em>${conns.length}</em></h4>
+      ${conns.length?conns.map(c=>`<div class="conn" data-sel="${esc(c.id)}"><span>${km(c.kind).i}</span><span style="flex:1;word-break:break-all">${esc(c.label)}</span><span class="rel">${esc(c.rel)}</span></div>`).join(""):`<div class="chip mut">no connections</div>`}
+    </div>`;
+  $("back").onclick=()=>{ selected=null; render(); renderProfile(REP); };
+  $("focusbtn").onclick=()=>{ focusSet?clearFocus():focusOn(id); };
+  $("notesave").onclick=()=>{ setNote(n.label,$("noteinp").value.trim()); renderEntity(id); };
+  const ni=$("noteinp"); if(ni) ni.addEventListener("keydown",ev=>{ if(ev.key==="Enter"){ setNote(n.label,ni.value.trim()); renderEntity(id);} });
+  $("ackbtn").onclick=async()=>{
+    const remove=ACKS.has(n.label);
+    try{ const r=await api("/api/acks",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({target:REP.target,item:n.label,remove})});
+      ACKS=new Set(r.acks||[]); renderEntity(id);
+    }catch(e){}
+  };
+  $("side").querySelectorAll("[data-sel]").forEach(el=>el.addEventListener("click",()=>{const i=el.dataset.sel;selectNode(i);fitNode(i);}));
+}
+
+/* graph search: highlight matching nodes, Enter selects the first */
+$("gsearch").addEventListener("input",e=>{
+  const q=e.target.value.trim().toLowerCase();
+  searchSet=q?new Set(G.nodes.filter(n=>String(n.label).toLowerCase().includes(q)||n.kind.includes(q)).map(n=>n.id)):null;
+  render();
+});
+$("gsearch").addEventListener("keydown",e=>{ if(e.key==="Enter"){ askGraph(e.target.value.trim()); } });
+
+/* natural-language Q&A over the loaded intel + knowledge graph (rule-based) */
+function askGraph(q){
+  if(!q||!REP){ return; }
+  const ql=q.toLowerCase();
+  const intel=REP.intelligence||{}, kg=REP.knowledge_graph||{}, org=REP.organization||{}, an=REP.analysis||{}, tl=REP.timeline||{};
+  const ents=k=>(kg.entities||[]).filter(e=>e.kind===k);
+  const idsOf=k=>ents(k).map(e=>e.id);
+  const has=(...w)=>w.some(x=>ql.includes(x));
+  let a=null, ids=null, chips=[];
+  if(has("how many subdomain","count subdomain")||(has("subdomain","subs")&&has("how many","count","number"))){
+    a=`${(intel.subdomains||[]).length} subdomains discovered.`; ids=idsOf("subdomain"); chips=intel.subdomains;
+  } else if(has("subdomain","sub-domain","subs","hostname")){
+    const s=intel.subdomains||[]; a=`${s.length} subdomains — highlighted on the graph.`; ids=idsOf("subdomain"); chips=s;
+  } else if(has("ip","address","resolve")){
+    const s=intel.ips||[]; a=`${s.length} IP address(es).`; ids=idsOf("ip"); chips=s;
+  } else if(has("email","mail address","contact")){
+    const s=intel.emails||[]; a=s.length?`${s.length} email(s) found.`:"No emails were surfaced."; ids=idsOf("email"); chips=s;
+  } else if(has("leak","breach","password","credential","pwned","exposed")){
+    const s=intel.leak_indicators||[]; a=s.length?`⚠ ${s.length} leak indicator(s).`:"No leak indicators found."; ids=idsOf("leak"); chips=s;
+  } else if(has("tech","stack","cms","framework","server","built with","running")){
+    let t=[]; Object.values(intel.technologies||{}).forEach(x=>t=t.concat(x)); a=`Stack: ${t.join(", ")||"not fingerprinted"}.`; ids=idsOf("tech"); chips=t;
+  } else if(has("cloud","hosted","hosting","aws","azure","gcp")){
+    const s=(intel.cloud||[]).filter(x=>!/unknown/i.test(x)); a=s.length?`Hosted on: ${s.join(", ")}.`:"Cloud not identified."; ids=idsOf("cloud"); chips=s;
+  } else if(has("cve","vuln","exploit")){
+    const s=ents("cve").map(e=>e.label); a=s.length?`${s.length} CVE(s): ${s.join(", ")}.`:"No CVEs surfaced by this scan."; ids=idsOf("cve"); chips=s;
+  } else if(has("whois","owner","registr","organi","org","asn","network")){
+    const o=ents("org").map(e=>e.label), asn=ents("asn").map(e=>e.label);
+    a=`Owner: ${o.join(", ")||"unknown"}${asn.length?" · "+asn.join(", "):""}.`; ids=idsOf("org").concat(idsOf("asn")); chips=o.concat(asn);
+  } else if(has("cert","ssl","tls","issuer")){
+    const s=(intel.certificates||{}).issuers||[]; a=s.length?`Certificate issuer(s): ${s.join(", ")}.`:"No certificate data."; ids=idsOf("cert_issuer"); chips=s;
+  } else if(has("email security","spf","dkim","dmarc","spoof")){
+    const em=intel.email_security||{}; a=`Email posture ${em.score}/100 (${em.grade}) — SPF ${em.spf} · DKIM ${em.dkim} · DMARC ${em.dmarc}.`;
+  } else if(has("pivot","connected","central","important node")){
+    const pv=(REP.correlation||{}).pivot_points||[]; a=pv.length?`Top pivot: ${pv[0].entity} (${pv[0].kind}, degree ${pv[0].degree}).`:"No strong pivots."; ids=pv.slice(0,3).map(p=>{const e=(kg.entities||[]).find(x=>x.label===p.entity);return e&&e.id;}).filter(Boolean);
+  } else if(has("timeline","when","history","age","expir")){
+    const ins=(tl.insights||[]).filter(x=>x&&!x.startsWith("no dated")); a=ins.length?ins.join(" · "):"No dated intelligence in this scan.";
+  } else if(has("risk","grade","score","secure","posture","how bad")){
+    a=`${REP.target}: ${REP.risk_level} risk, grade ${REP.grade} (${REP.score}/100).`;
+  } else if(has("summary","overview","tell me","what is","attack surface","expose","brief")){
+    a=an.headline?an.headline+" — "+(an.summary||""):`${REP.target}: ${REP.counts.assets} assets, ${REP.counts.subdomains} subdomains.`;
+  } else {
+    // fall back to plain graph search
+    a=`No direct answer — showing nodes matching "${esc(q)}". Try: subdomains, IPs, emails, leaks, tech, cloud, CVEs, whois, risk, summary.`;
+    ids=(kg.entities||[]).filter(e=>String(e.label).toLowerCase().includes(ql)).map(e=>e.id);
+    chips=[];
+  }
+  searchSet=(ids&&ids.length)?new Set(ids):null; render(); if(searchSet) fitMatches(searchSet);
+  const box=$("askans"); box.classList.remove("hidden");
+  box.innerHTML=`<span class="ax" id="askx">✕</span><div class="aq">🔎 ${esc(q)}</div><div class="aa">${esc(a)}</div>`
+    +((chips&&chips.length)?`<div class="achips">${chips.slice(0,14).map(c=>`<span class="chip">${esc(c)}</span>`).join("")}</div>`:"");
+  $("askx").onclick=()=>{ box.classList.add("hidden"); searchSet=null; render(); };
+}
+function fitMatches(set){ const ns=G.nodes.filter(n=>set.has(n.id)); if(!ns.length)return;
+  const xs=ns.map(n=>n.x),ys=ns.map(n=>n.y); const minx=Math.min(...xs)-60,maxx=Math.max(...xs)+60,miny=Math.min(...ys)-60,maxy=Math.max(...ys)+60;
+  const k=Math.max(0.3,Math.min(2.2,Math.min(W/(maxx-minx),H/(maxy-miny)))); cam.k=k; cam.x=W/2-(minx+maxx)/2*k; cam.y=H/2-(miny+maxy)/2*k; applyCam(); }
+
+/* cluster toggle: regroup nodes spatially by entity type */
+$("cluster").addEventListener("click",()=>{
+  if(!G.nodes.length)return;
+  clustered=!clustered; $("cluster").classList.toggle("on",clustered);
+  G.nodes.forEach(n=>{ if(n.kind!=="target") n.pin=false; });
+  layout(G.nodes,G.edges); render(); fit();
+});
+
+/* heat-map toggle: colour every node by its risk band (feature 17) */
+$("heat").addEventListener("click",()=>{
+  if(!G.nodes.length)return;
+  heat=!heat; $("heat").classList.toggle("on",heat);
+  buildKindFilters(); render();
+});
+
+/* export the current graph as a PNG */
+$("export").addEventListener("click",exportPNG);
+function exportPNG(){
+  if(!G.nodes.length)return;
+  const s0=selected, ss0=searchSet; selected=null; searchSet=null; render();   // clean frame
+  const svg=$("net").cloneNode(true);
+  const cam2=svg.querySelector("g");                    // <g id="cam">
+  let xs=G.nodes.map(n=>n.x), ys=G.nodes.map(n=>n.y);
+  const minx=Math.min(...xs)-50,maxx=Math.max(...xs)+50,miny=Math.min(...ys)-50,maxy=Math.max(...ys)+50;
+  const gw=maxx-minx,gh=maxy-miny,kk=Math.min(W/gw,H/gh);
+  cam2.setAttribute("transform",`translate(${W/2-(minx+maxx)/2*kk},${H/2-(miny+maxy)/2*kk}) scale(${kk})`);
+  svg.setAttribute("width",W); svg.setAttribute("height",H);
+  svg.setAttribute("xmlns","http://www.w3.org/2000/svg");
+  const st=document.createElementNS("http://www.w3.org/2000/svg","style");
+  st.textContent=".edge{stroke:#3a4860;stroke-opacity:.55}.node-label{font-family:monospace;font-size:9px;fill:#aeb9cc;paint-order:stroke;stroke:#06080d;stroke-width:3px}";
+  const bg=document.createElementNS("http://www.w3.org/2000/svg","rect");
+  bg.setAttribute("width",W);bg.setAttribute("height",H);bg.setAttribute("fill","#06080d");
+  svg.insertBefore(st,svg.firstChild); svg.insertBefore(bg,svg.firstChild);
+  const data=new XMLSerializer().serializeToString(svg);
+  const img=new Image();
+  img.onload=()=>{ const c=document.createElement("canvas"),sc=2; c.width=W*sc;c.height=H*sc;
+    const ctx=c.getContext("2d"); ctx.scale(sc,sc); ctx.drawImage(img,0,0);
+    c.toBlob(bl=>{ const a=document.createElement("a"); a.href=URL.createObjectURL(bl);
+      a.download=`ghosteye_osint_${(REP&&REP.target||"graph")}.png`; a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),3000); });
+    selected=s0; searchSet=ss0; render();
+  };
+  img.onerror=()=>{ selected=s0; searchSet=ss0; render(); alert("PNG export failed in this browser"); };
+  img.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(data);
+}
+
+/* ---------------- API keys modal ---------------- */
+async function openKeys(){
+  $("keysmodal").classList.remove("hidden");
+  $("keyslist").innerHTML=`<p class="modal-note">loading…</p>`;
+  let d; try{ d=await api("/api/keys"); }
+  catch(e){ $("keyslist").innerHTML=`<p class="modal-note" style="color:var(--red)">${esc(e.message)}</p>`; return; }
+  $("keysbackend").textContent="Stored via: "+(d.backend||"config file");
+  $("keyslist").innerHTML=(d.keys||[]).map(k=>`
+    <div class="keyrow" data-name="${esc(k.name)}">
+      <div class="kh"><b>${esc(k.label)}</b>
+        <span class="badge ${k.set?"on":"off"}">${k.set?"set":"not set"}</span></div>
+      <div class="kin">
+        <input type="password" placeholder="${k.set?"•••••• (enter a new key to replace)":"paste your "+esc(k.label)+" key"}" autocomplete="off">
+        <button class="save">Save</button>
+      </div>
+      <div class="ok hidden">✓ saved</div>
+    </div>`).join("");
+  $("keyslist").querySelectorAll(".keyrow").forEach(row=>{
+    const inp=row.querySelector("input"), btn=row.querySelector(".save"), ok=row.querySelector(".ok");
+    const save=async()=>{ const value=inp.value.trim(); if(!value)return;
+      btn.disabled=true; btn.textContent="…";
+      try{ const r=await api("/api/keys",{method:"POST",headers:{"Content-Type":"application/json"},
+             body:JSON.stringify({name:row.dataset.name,value})});
+        inp.value=""; inp.placeholder="•••••• (saved)";
+        row.querySelector(".badge").className="badge on"; row.querySelector(".badge").textContent="set";
+        ok.classList.remove("hidden"); $("keysbackend").textContent="Stored via: "+(r.backend||"config file");
+        setTimeout(()=>ok.classList.add("hidden"),2500);
+      }catch(e){ ok.textContent="✗ "+e.message; ok.style.color="var(--red)"; ok.classList.remove("hidden"); }
+      btn.disabled=false; btn.textContent="Save";
+    };
+    btn.addEventListener("click",save);
+    inp.addEventListener("keydown",e=>{ if(e.key==="Enter") save(); });
+  });
+}
+/* ---------------- portfolio ---------------- */
+async function openPortfolio(){
+  $("portmodal").classList.remove("hidden");
+  $("portlist").innerHTML=`<p class="modal-note">loading…</p>`; $("porttotals").innerHTML="";
+  let d; try{ d=await api("/api/portfolio"); }
+  catch(e){ $("portlist").innerHTML=`<p class="modal-note" style="color:var(--red)">${esc(e.message)}</p>`; return; }
+  const t=d.totals||{};
+  $("porttotals").innerHTML=[["targets",t.targets||0],["at risk",t.at_risk||0],["assets",t.assets||0],["subdomains",t.subdomains||0],["leaks",t.leaks||0]]
+    .map(([l,v])=>`<div class="pt"><b${l==="leaks"&&v?' style="color:var(--red)"':""}>${v}</b><span>${l}</span></div>`).join("");
+  const rows=(d.targets||[]);
+  if(!rows.length){ $("portlist").innerHTML=`<p class="modal-note">No saved targets yet — investigate a target and it'll appear here.</p>`; return; }
+  $("portlist").innerHTML=rows.map(r=>{ const rl=r.risk_level||"LOW";
+    return `<div class="prow" data-t="${esc(r.target)}">
+      <span class="rpill ${esc(rl)}">${esc(rl)}</span>
+      <span class="pr-t">${esc(r.target)}</span>
+      <span class="pr-m">${r.subdomains} subs · ${r.ips} IP · ${r.assets} assets${r.leaks?` · <span style="color:var(--red)">${r.leaks} leaks</span>`:""}</span>
+    </div>`;}).join("");
+  $("portlist").querySelectorAll(".prow").forEach(row=>row.addEventListener("click",()=>{
+    $("portmodal").classList.add("hidden"); $("target").value=row.dataset.t; investigate();
+  }));
+}
+$("portbtn").addEventListener("click",openPortfolio);
+$("portclose").addEventListener("click",()=>$("portmodal").classList.add("hidden"));
+$("portmodal").addEventListener("click",e=>{ if(e.target===$("portmodal")) $("portmodal").classList.add("hidden"); });
+
+/* mobile: toggle the collapsed nav (Portfolio / Keys / Console) */
+$("navtoggle").addEventListener("click",()=>document.querySelector(".bar").classList.toggle("navopen"));
+
+/* ---------------- Tools (CLI parity: screenshots / exploit / risk / compliance / inventory / rollup / reports) ---------------- */
+function tout(h){ $("toolout").innerHTML=h; }
+function openTools(){
+  $("toolstgt").textContent=CURTARGET||(REP&&REP.target)||"(no scan yet)";
+  $("toolsmodal").classList.remove("hidden");
+  if(!CURJOB){ $("toolout").innerHTML=`<div class="trow rel">Scan settings above apply to your next investigation. The tools below need a completed scan — investigate a target first.</div>`; }
+  else if(!$("toolout").innerHTML){ $("toolout").innerHTML=""; }
+}
+const _sevc={critical:"var(--red)",high:"#ff9145",medium:"var(--gold)",low:"var(--green)","":"var(--muted)"};
+async function runTool(tool){
+  if(!CURJOB){ tout(`<div class="trow rel">Investigate a target first — this tool runs on scan results.</div>`); return; }
+  tout(`<div class="tout-head">${tool}</div><div class="spinner" style="margin:14px auto"></div>`);
+  try{
+    if(tool==="screenshots"){
+      tout(`<div class="tout-head">📸 capturing target + subdomains…</div><div class="spinner" style="margin:14px auto"></div><div class="trow">this launches a headless browser for each host — give it a moment.</div>`);
+      const d=await api(`/api/job/${CURJOB}/screenshots?max=20`,{method:"POST"});
+      await loadProfile(CURJOB,CURTARGET);        // refresh so the gallery shows them
+      tout(`<div class="tout-head">📸 visual recon</div><div class="trow"><b>${d.count}</b> screenshot(s) captured and added to the profile's Visual recon gallery.</div>`
+        + (d.count?`<div class="gal" style="margin-top:8px">${(d.screenshots||[]).slice(0,8).map(s=>`<figure><img loading="lazy" src="${s.image}" alt=""><figcaption>${esc(s.host||"")}</figcaption></figure>`).join("")}</div>`
+           :`<div class="trow">No screenshots — a headless Chromium is required (Termux: <code>pkg install chromium</code>).</div>`));
+    } else if(tool==="exploits"){
+      const d=await api(`/api/job/${CURJOB}/exploits?max=25`);
+      const rows=(d.findings||[]).map(f=>{
+        const kev=f.known_exploited?`<span style="color:#fff;background:var(--red);border-radius:5px;padding:1px 5px;font-size:9.5px">CISA KEV${f.kev_ransomware?" · RANSOMWARE":""}</span> `:"";
+        const ep=(f.epss!=null)?`<span class="rel">EPSS ${(f.epss*100).toFixed(1)}%</span> `:"";
+        const st=f.known_exploited?`<span style="color:var(--red)">ACTIVELY EXPLOITED</span>`:f.exploit_available?`<span style="color:var(--red)">PUBLIC EXPLOIT</span>`:esc(f.verdict||'no public exploit');
+        return `<div class="trow"><span class="rpill ${(f.severity||'').toUpperCase()}">${esc(f.severity||'?')}</span> <b>${esc(f.cve)}</b> ${kev}${ep}— ${st}</div>`;}).join("");
+      tout(`<div class="tout-head">🧨 exploit intel — ${d.cves_found||0} CVEs · ${d.kev_count||0} actively exploited · ${d.exploitable_count||0} with public exploit</div>${rows||'<div class="trow">No CVEs surfaced by this scan.</div>'}`);
+    } else if(tool==="risk"){
+      const d=await api(`/api/job/${CURJOB}/risk`);
+      const rows=(d.prioritised||[]).slice(0,30).map(r=>`<div class="trow"><span class="rpill ${(r.severity||'').toUpperCase()}">${esc(r.severity||'?')}</span> <b>${esc(r.module)}</b> · ${esc(r.field||'')} <span class="rel">score ${esc(String(r.risk_score))}</span><br><span class="rel">${esc(String(r.detail||'').slice(0,90))}</span></div>`).join("");
+      tout(`<div class="tout-head">🎯 risk — overall ${esc(String(d.overall_risk))} · ${d.count} findings</div>${rows||'<div class="trow">no scored risks</div>'}`);
+    } else if(tool==="summary"){
+      const d=await api(`/api/job/${CURJOB}/summary`);
+      tout(`<div class="tout-head">🧠 AI summary <span class="rel">(${esc(d.source||'')})</span></div><div class="trow">${esc(d.summary||'—')}</div>`+
+        (d.source&&d.source.startsWith('deterministic')?`<div class="trow rel">Tip: save a DeepSeek key in 🔑 Keys for an LLM-written summary.</div>`:''));
+    } else if(tool==="fixes"){
+      const rm=(REP&&REP.remediation)||{}; const recs=rm.recommendations||[];
+      const rows=recs.map(r=>`<div class="trow"><span class="rpill ${(r.severity||'').toUpperCase()}">${esc(r.severity||'?')}</span> <b>${esc(r.issue)}</b><br><span class="rel">${esc(r.fix)}</span></div>`).join("");
+      tout(`<div class="tout-head">🩹 remediation — ${recs.length} prioritised fix(es)</div>${rows||'<div class="trow">no specific fixes mapped.</div>'}`);
+    } else if(tool==="brief"){
+      const b=(REP&&REP.management_brief)||{};
+      const pts=(b.points||[]).map(p=>`<div class="trow">• ${esc(p)}</div>`).join("");
+      const sens=(REP&&REP.asset_sensitivity&&REP.asset_sensitivity.counts)||{};
+      tout(`<div class="tout-head">👔 executive brief</div><div class="trow"><b>${esc(b.headline||'')}</b></div>${pts}`+
+        `<div class="trow rel">asset sensitivity — critical ${sens.critical||0} · high ${sens.high||0} · medium ${sens.medium||0} · low ${sens.low||0}</div>`);
+    } else if(tool==="deep"){
+      const t=CURTARGET||(REP&&REP.target)||$("target").value.trim();
+      if(!t){ tout(`<div class="trow">investigate a target first.</div>`); return; }
+      const depth=parseInt(prompt("OSINT deep-dive depth (1-2). Higher = more pivots, slower:","1")||"1",10);
+      tout(`<div class="tout-head">🌐 deep OSINT on ${esc(t)} — auto-pivoting…</div><div class="spinner" style="margin:14px auto"></div><div class="trow rel">running OSINT sources and pivoting onto every entity they reveal — this can take a minute.</div>`);
+      let d; try{ d=await api("/api/osint-deep",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({target:t,depth:Math.max(1,Math.min(2,depth||1))})}); }
+      catch(e){ tout(`<div class="tout-head">🌐 deep OSINT</div><div class="trow">${esc(e.message)}</div>`); return; }
+      // render the merged multi-hop graph
+      buildGraph({knowledge_graph:d.knowledge_graph}); heat=false; $("heat").classList.remove("on");
+      const hops=(d.hops||[]).map(h=>`<div class="trow"><b>hop ${h.hop}</b> <span class="rel">(${h.confidence})</span> · processed ${h.processed} · +${(h.discovered_counts||{}).domain||0} domains · +${(h.discovered_counts||{}).email||0} emails · +${(h.discovered_counts||{}).ip||0} IPs</div>`).join("");
+      const c=d.counts||{}; const cf=(d.confidence&&d.confidence.by_confidence)||{};
+      const cfrow=`<div class="trow">entity confidence — <span style="color:var(--green)">high ${cf.high||0}</span> · <span style="color:var(--gold)">medium ${cf.medium||0}</span> · <span class="rel">low ${cf.low||0}</span> <span class="rel">(by independent-source corroboration)</span></div>`;
+      tout(`<div class="tout-head">🌐 deep OSINT — ${d.entities_processed} entities pivoted · graph ${c.entities||0} nodes</div>${hops}${cfrow}<div class="trow rel">${esc(d.note||'')}</div>`);
+    } else if(tool==="identity"){
+      const ig=(REP&&REP.identity_graph)||{};
+      const ppl=(ig.people||[]).map(p=>{
+        const rels=(ig.relationships||[]).filter(r=>r.from==="person:"+p.toLowerCase());
+        const em=rels.filter(r=>r.type==="has_email").map(r=>r.to.replace("email:",""));
+        const un=rels.filter(r=>r.type==="has_username").map(r=>r.to.replace("username:",""));
+        return `<div class="trow"><b>${esc(p)}</b>${em.length?` · ✉ ${em.map(esc).join(", ")}`:""}${un.length?` · @ ${un.map(esc).join(", ")}`:""}</div>`;
+      }).join("");
+      const c=(ig.counts||{}).by_kind||{};
+      tout(`<div class="tout-head">🧑‍🤝‍🧑 identity graph — ${ig.resolved_identities||0} resolved · ${(ig.people||[]).length} people · ${(ig.emails||[]).length} emails · ${(ig.usernames||[]).length} handles</div>${ppl||'<div class="trow">no people correlated yet — run a scan with e-mail/username OSINT.</div>'}<div class="trow rel">${esc(ig.note||'')}</div>`);
+    } else if(tool==="sources"){
+      const sm=(REP&&REP.source_matrix)||{}; const s=sm.summary||{};
+      const rows=(sm.subdomains||[]).slice(0,60).map(r=>{
+        const col=r.confidence==="high"?"var(--green)":r.confidence==="medium"?"var(--gold)":"var(--faint)";
+        return `<div class="trow"><b>${esc(r.asset)}</b> <span style="color:${col}">●${r.corroboration}</span><br><span class="rel">${(r.sources||[]).map(esc).join(", ")}</span></div>`;
+      }).join("");
+      tout(`<div class="tout-head">📊 source matrix — ${s.subdomains||0} subdomains from ${s.distinct_sources||0} sources · ${s.multi_source_subdomains||0} multi-source</div>${rows||'<div class="trow">no assets attributed yet.</div>'}<div class="trow rel">${esc(sm.note||'')}</div>`);
+    } else if(tool==="table"){
+      const d=await api(`/api/job/${CURJOB}/findings`);
+      const f=d.findings||[];
+      const rows=f.map(x=>`<tr><td><span class="rpill ${(x.severity||'').toUpperCase()}">${esc(x.severity||'?')}</span></td><td>${esc(x.module)}</td><td>${esc(x.field||'')}</td><td>${esc(String(x.detail||'').slice(0,120))}</td></tr>`).join("");
+      tout(`<div class="tout-head">▦ findings — ${f.length} <input id="ftfilter" placeholder="filter…" style="margin-left:8px;padding:4px 8px;background:var(--panel);border:1px solid var(--line2);color:var(--fg);border-radius:6px;font-size:11px"></div>`+
+        `<div style="overflow:auto;max-height:52vh"><table class="ftable"><thead><tr><th>sev</th><th>module</th><th>field</th><th>detail</th></tr></thead><tbody id="ftbody">${rows||'<tr><td colspan=4>no findings</td></tr>'}</tbody></table></div>`);
+      const filt=$("ftfilter"); if(filt) filt.addEventListener("input",()=>{
+        const q=filt.value.toLowerCase();
+        $("ftbody").querySelectorAll("tr").forEach(tr=>{ tr.style.display=tr.textContent.toLowerCase().includes(q)?"":"none"; });
+      });
+    } else if(tool==="timeline"){
+      const tl=(REP&&REP.timeline)||{}; const ev=tl.events||tl||[];
+      const list=Array.isArray(ev)?ev:(ev.events||[]);
+      const rows=list.map(e=>`<div class="trow"><span class="rel">${esc((e.date||e.ts||'').slice(0,10))}</span> · <b>${esc(e.label||e.title||e.event||'')}</b>${e.detail?`<br><span class="rel">${esc(String(e.detail).slice(0,110))}</span>`:''}</div>`).join("");
+      const ins=(tl.insights||[]).map(i=>`<div class="trow rel">• ${esc(i)}</div>`).join("");
+      tout(`<div class="tout-head">🕓 intelligence timeline — ${list.length} event(s)</div>${rows||'<div class="trow">no dated events extracted.</div>'}${ins}`);
+    } else if(tool==="paths"){
+      const ap=(REP&&REP.attack_paths)||{}; const ps=ap.paths||[];
+      const rows=ps.map(p=>`<div class="trow"><span class="rpill ${(p.band||'').toUpperCase()}">${esc(p.band||'?')}</span> <span class="rel">score ${esc(String(p.score))} · ${p.length} hops</span><br>${(p.steps||[]).map(s=>esc(s.label)).join(' <span class="rel">→</span> ')}</div>`).join("");
+      tout(`<div class="tout-head">🛤 attack paths — ${ps.length} chain(s) to the target</div>${rows||'<div class="trow">No exposure/leak/CVE reaches the target in the graph.</div>'}`);
+    } else if(tool==="supply"){
+      const sc=(REP&&REP.supply_chain)||{}; const ds=sc.dependencies||[];
+      const rows=ds.map(d=>`<div class="trow"><b>${esc(d.provider)}</b> <span class="rel">${(d.hosts||[]).length} host(s)</span><div class="achips" style="margin-top:5px">${(d.hosts||[]).slice(0,10).map(h=>`<span class="chip">${esc(h)}</span>`).join("")}</div></div>`).join("");
+      tout(`<div class="tout-head">🔗 supply chain — ${ds.length} external provider(s)</div>${rows||'<div class="trow">No third-party runtime dependencies detected.</div>'}`);
+    } else if(tool==="compliance"){
+      const d=await api(`/api/job/${CURJOB}/compliance?framework=owasp_top10`);
+      const rows=Object.entries(d.controls||{}).map(([n,c])=>{const pct=c.coverage_pct||0,col=pct>=70?'var(--green)':pct>=35?'var(--gold)':'var(--red)';
+        return `<div class="trow"><b>${esc(n)}</b> <span class="rel" style="color:${col}">${pct}%</span><div class="bar-mini"><i style="width:${pct}%;background:${col}"></i></div></div>`;}).join("");
+      tout(`<div class="tout-head">⚖ compliance — ${esc(d.framework||'')} · ${d.overall_pct||0}% overall</div>${rows}`);
+    } else if(tool==="inventory"){
+      const d=await api(`/api/job/${CURJOB}/inventory`);
+      const sec=(t,a)=>a&&a.length?`<div class="trow"><b>${t}</b> <span class="rel">${a.length}</span><div class="achips" style="margin-top:5px">${a.slice(0,40).map(x=>`<span class="chip">${esc(x)}</span>`).join("")}</div></div>`:"";
+      tout(`<div class="tout-head">📋 asset inventory</div>${sec("Hosts",d.hosts)}${sec("IPs",d.ips)}${sec("Services",d.services)}${sec("Emails",d.emails)}${sec("URLs",d.urls)}${sec("Technologies",d.technologies)}`);
+    } else if(tool==="rollup"){
+      const d=await api(`/api/job/${CURJOB}/rollup`);
+      const hosts=d.hosts||d||{}; const keys=Object.keys(hosts).filter(k=>typeof hosts[k]==="object");
+      const rows=keys.map(h=>{const i=hosts[h];return `<div class="trow"><b>${esc(h)}</b> <span class="rel">${(i.findings!=null?i.findings+' findings':'')}${i.severity?' · '+i.severity:''}</span><br><span class="rel">ports ${(i.ports||[]).join(', ')||'—'} · ${(i.cves||[]).length} CVEs</span></div>`;}).join("");
+      tout(`<div class="tout-head">🖧 per-host rollup — ${keys.length} hosts</div>${rows||'<div class="trow">no hosts</div>'}`);
+    } else if(tool==="trend"){
+      const d=await api(`/api/trend?target=${encodeURIComponent(CURTARGET)}`);
+      if((d.scans||0)<1){ tout(`<div class="tout-head">📈 trend</div><div class="trow">No saved history yet for ${esc(CURTARGET)} — investigate it again over time.</div>`); return; }
+      const rows=(d.series||[]).map(s=>`<div class="trow"><span class="rel">${esc((s.ts||'').slice(0,16).replace('T',' '))}</span> · assets ${s.assets} · subs ${s.subdomains} · risk ${s.risk_score}${(s.new_count?` · <span style="color:var(--red)">+${s.new_count} new</span>`:'')}</div>`).join("");
+      tout(`<div class="tout-head">📈 intelligence trend — ${d.scans} scans · ${esc(d.direction)}</div>${rows}`);
+    } else if(tool==="find"){
+      const q=prompt("Search all findings for:","");
+      if(q==null||!q.trim()){ tout(`<div class="tout-head">🔎 search findings</div><div class="trow">enter a term (host, IP, CVE, \"password\", \"admin\"…).</div>`); return; }
+      const d=await api(`/api/job/${CURJOB}/search?q=${encodeURIComponent(q.trim())}`);
+      const rows=(d.matches||[]).map(m=>`<div class="trow"><b>${esc(m.module)}</b> · <span class="rel">${esc(m.field)}</span><br><span>${esc(m.snippet)}</span></div>`).join("");
+      const mods=Object.entries(d.by_module||{}).slice(0,12).map(([k,v])=>`<span class="chip">${esc(k)} ${v}</span>`).join("");
+      tout(`<div class="tout-head">🔎 “${esc(d.query)}” — ${d.count} match(es)</div>${mods?`<div class="achips" style="margin:4px 0 8px">${mods}</div>`:""}${rows||'<div class="trow">nothing matched.</div>'}`);
+    } else if(tool==="ticket"){
+      const ap=(REP&&REP.risk_heatmap&&REP.risk_heatmap.top)||[];
+      const top=ap[0];
+      const finding=top?{module:top.kind,severity:(top.band==="critical"?"critical":top.band==="high"?"high":top.band==="medium"?"medium":"low"),field:top.entity,detail:`${top.entity} — risk ${top.risk}/100`,risk_score:top.risk}
+                       :{module:"summary",severity:REP&&(REP.risk_level||"").toLowerCase()||"medium",detail:`${REP?REP.target:""} — grade ${REP?REP.grade:""}`};
+      const sys=(prompt("Ticket system: jira or servicenow","jira")||"jira").toLowerCase();
+      const d=await api(`/api/job/${CURJOB}/ticket`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({system:sys,finding,dry_run:true})});
+      const pv=d.preview||{}; const pl=pv.payload||{};
+      const summary=(pl.fields&&pl.fields.summary)||pl.short_description||"";
+      tout(`<div class="tout-head">🎫 ${esc(d.system||sys)} ticket — preview (dry-run, not sent)</div>`+
+        `<div class="trow"><b>${esc(summary)}</b></div>`+
+        `<div class="trow"><span class="rel">endpoint</span> ${esc(pv.url||"— not configured —")}</div>`+
+        `<div class="trow"><span class="rel">credentialed</span> ${pv.credentialed?"yes":"no — set env keys to file for real"}</div>`+
+        `<div class="trow rel">${esc(d.reason||"")}</div>`+
+        `<div class="trow rel">Set JIRA_URL/JIRA_USER/JIRA_TOKEN/JIRA_PROJECT (or SERVICENOW_*) in the environment to file for real.</div>`);
+    }
+  }catch(e){ tout(`<div class="trow" style="color:var(--red)">${esc(e.message)}</div>`); }
+}
+$("toolsbtn").addEventListener("click",openTools);
+$("toolsclose").addEventListener("click",()=>$("toolsmodal").classList.add("hidden"));
+$("toolsmodal").addEventListener("click",e=>{ if(e.target===$("toolsmodal")) $("toolsmodal").classList.add("hidden"); });
+$("toolsmodal").addEventListener("click",e=>{
+  const t=e.target.closest("[data-tool]"); if(t){ runTool(t.dataset.tool); return; }
+  const d=e.target.closest("[data-fmt]");
+  if(d && CURJOB){ window.open(`/api/job/${CURJOB}/report?format=${d.dataset.fmt}`+(TOKEN?`&token=${encodeURIComponent(TOKEN)}`:""),"_blank"); }
+});
+
+$("keysbtn").addEventListener("click",openKeys);
+$("keysclose").addEventListener("click",()=>$("keysmodal").classList.add("hidden"));
+$("keysmodal").addEventListener("click",e=>{ if(e.target===$("keysmodal")) $("keysmodal").classList.add("hidden"); });
+
+/* modules · profiles · schedule editor (features 67 / 69 / 70) */
+let MODMETA=null, MODSEL=new Set();
+function lsProfiles(){ try{ return JSON.parse(localStorage.getItem("ge_profiles")||"{}"); }catch(e){ return {}; } }
+function saveProfiles(p){ try{ localStorage.setItem("ge_profiles",JSON.stringify(p)); }catch(e){} }
+async function openMods(){
+  $("modmodal").classList.remove("hidden");
+  if(!MODMETA){ try{ MODMETA=await api("/api/meta"); }catch(e){ $("modlist").innerHTML=`<div class="trow">couldn't load modules: ${esc(e.message)}</div>`; return; }
+    MODSEL=new Set((MODMETA.modules||[]).map(m=>m.id)); }
+  if($("modtarget")&&!$("modtarget").value) $("modtarget").value=CURTARGET||"";
+  renderMods(); renderModProfiles(); loadSchedules();
+}
+function renderMods(filter){
+  const q=(filter||"").toLowerCase();
+  const cats={};
+  (MODMETA.modules||[]).forEach(m=>{ if(q && !(m.id.toLowerCase().includes(q)||m.name.toLowerCase().includes(q)||m.category.toLowerCase().includes(q)))return;
+    (cats[m.category]=cats[m.category]||[]).push(m); });
+  let h="";
+  Object.keys(cats).sort().forEach(c=>{
+    h+=`<div class="modcat"><div class="modcat-h">${esc(c)} <span class="rel">${cats[c].length}</span></div><div class="modcat-g">`;
+    cats[c].forEach(m=>{ h+=`<label class="moditem${MODSEL.has(m.id)?" on":""}"><input type="checkbox" data-mid="${esc(m.id)}"${MODSEL.has(m.id)?" checked":""}> <b>${esc(m.id)}</b> <span class="rel">${esc(m.name)}</span></label>`; });
+    h+=`</div></div>`;
+  });
+  $("modlist").innerHTML=h||`<div class="trow">no modules match “${esc(q)}”.</div>`;
+  $("modcount").textContent=`${MODSEL.size} selected / ${(MODMETA.modules||[]).length}`;
+  $("modlist").querySelectorAll("input[data-mid]").forEach(cb=>cb.addEventListener("change",()=>{
+    cb.checked?MODSEL.add(cb.dataset.mid):MODSEL.delete(cb.dataset.mid);
+    cb.closest(".moditem").classList.toggle("on",cb.checked);
+    $("modcount").textContent=`${MODSEL.size} selected / ${(MODMETA.modules||[]).length}`;
+  }));
+}
+function renderModProfiles(){
+  const built=(MODMETA&&(MODMETA.profiles||MODMETA.recipes))||{}; const custom=lsProfiles();
+  const chip=(name,ids,custom)=>`<span class="pchip${custom?" custom":""}" data-prof="${esc(name)}">${esc(name)} <span class="rel">${ids.length}</span>${custom?` <span class="pdel" data-del="${esc(name)}">✕</span>`:""}</span>`;
+  let h=`<span class="rel">profiles:</span>`;
+  Object.entries(built).forEach(([n,ids])=>h+=chip(n,ids,false));
+  Object.entries(custom).forEach(([n,ids])=>h+=chip(n,ids,true));
+  $("modprofiles").innerHTML=h;
+  $("modprofiles").querySelectorAll("[data-prof]").forEach(el=>el.addEventListener("click",ev=>{
+    if(ev.target.classList.contains("pdel"))return;
+    const n=el.dataset.prof; const ids=(built[n]||custom[n]||[]);
+    MODSEL=new Set(ids); renderMods($("modsearch").value);
+  }));
+  $("modprofiles").querySelectorAll("[data-del]").forEach(el=>el.addEventListener("click",ev=>{
+    ev.stopPropagation(); const p=lsProfiles(); delete p[el.dataset.del]; saveProfiles(p); renderModProfiles();
+  }));
+}
+async function loadSchedules(){
+  try{ const d=await api("/api/schedules"); const s=d.schedules||[];
+    $("modsched_list").innerHTML=s.length?`<div class="rel" style="margin:6px 0 3px">active schedules (${s.length}):</div>`+s.map(x=>`<div class="trow"><b>${esc(x.target||"")}</b> · every ${esc(String(x.interval_minutes||x.interval||"?"))} min <span class="rel">${esc(x.id||"")}</span></div>`).join(""):"";
+  }catch(e){ $("modsched_list").innerHTML=""; }
+}
+function modSelection(){ return {mode:"modules", value:[...MODSEL],
+  ...($("optpassive")&&$("optpassive").checked?{passive_only:true}:{})}; }
+function modOptions(){ return {timeout:15,parallel:4,
+  ...($("optadaptive")&&$("optadaptive").checked?{adaptive_rate:true}:{})}; }
+$("modbtn").addEventListener("click",openMods);
+$("modclose").addEventListener("click",()=>$("modmodal").classList.add("hidden"));
+$("modmodal").addEventListener("click",e=>{ if(e.target===$("modmodal")) $("modmodal").classList.add("hidden"); });
+$("modsearch").addEventListener("input",e=>renderMods(e.target.value));
+$("modall").addEventListener("click",()=>{ MODSEL=new Set((MODMETA.modules||[]).map(m=>m.id)); renderMods($("modsearch").value); });
+$("modnone").addEventListener("click",()=>{ MODSEL=new Set(); renderMods($("modsearch").value); });
+$("modpassive").addEventListener("click",()=>{ // approximate passive set client-side by category
+  const pc=new Set(["osint","threat intel","passive","reputation","geo","intel","supply chain"]);
+  MODSEL=new Set((MODMETA.modules||[]).filter(m=>pc.has((m.category||"").toLowerCase())).map(m=>m.id)); renderMods($("modsearch").value); });
+$("modrun").addEventListener("click",async()=>{
+  const t=($("modtarget").value||CURTARGET||"").trim(); if(!t){ alert("enter a target"); return; }
+  if(!MODSEL.size){ alert("select at least one module"); return; }
+  $("modmodal").classList.add("hidden");
+  $("target").value=t; $("note").classList.remove("hidden");
+  $("note").innerHTML=`<div class="spinner"></div><h2>Investigating ${esc(t)}</h2><p id="pmsg">running ${MODSEL.size} selected modules…</p>`;
+  setStatus("run","starting…"); $("go").disabled=true;
+  try{ const job=await api("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({target:t,selection:modSelection(),options:modOptions()})});
+    poll(job.job_id,t);
+  }catch(e){ fail("Scan rejected: "+e.message); }
+});
+$("modsave").addEventListener("click",()=>{
+  if(!MODSEL.size){ alert("select some modules first"); return; }
+  const name=(prompt("Save selection as profile named:","my-profile")||"").trim();
+  if(!name)return; const p=lsProfiles(); p[name]=[...MODSEL]; saveProfiles(p); renderModProfiles();
+});
+$("modsched").addEventListener("click",async()=>{
+  const t=($("modtarget").value||CURTARGET||"").trim(); if(!t){ alert("enter a target"); return; }
+  if(!MODSEL.size){ alert("select at least one module"); return; }
+  const mins=parseInt(prompt("Re-run every how many minutes?","60")||"0",10);
+  if(!mins||mins<1)return;
+  try{ await api("/api/schedule",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({target:t,interval_minutes:mins,selection:modSelection(),options:modOptions()})});
+    loadSchedules();
+  }catch(e){ alert("schedule failed: "+e.message); }
+});
+
+/* metrics / backup / restore (features 80 / 77) */
+$("metricsbtn").addEventListener("click",async()=>{
+  $("toolsmodal").classList.remove("hidden");
+  try{ const d=await api("/api/metrics");
+    const up=d.uptime_seconds||0, h=Math.floor(up/3600), mnt=Math.floor((up%3600)/60);
+    tout(`<div class="tout-head">📊 system metrics</div>`+
+      `<div class="trow">version <b>${esc(d.version)}</b> · <b>${d.modules}</b> modules</div>`+
+      `<div class="trow">jobs — total ${d.jobs.total} · running ${d.jobs.running} · done ${d.jobs.done} · error ${d.jobs.error}</div>`+
+      `<div class="trow">saved scans <b>${d.saved_scans}</b> · schedules ${d.schedules} · error-log lines ${d.error_log_lines}</div>`+
+      `<div class="trow">uptime ${h}h ${mnt}m</div>`);
+  }catch(e){ tout(`<div class="trow">${esc(e.message)}</div>`); }
+});
+/* custom alert rules editor (feature 49) */
+$("alertsbtn").addEventListener("click",async()=>{
+  $("toolsmodal").classList.remove("hidden");
+  let d; try{ d=await api("/api/alert-rules"); }catch(e){ tout(`<div class="trow">${esc(e.message)}</div>`); return; }
+  const r=d.rules||{};
+  const ev=Object.keys(d.event_severity||{});
+  tout(`<div class="tout-head">🔔 alert rules — fire a change-alert only when it matters</div>`+
+    `<div class="trow"><label class="opt"><input type="checkbox" id="ar_en" ${r.enabled?'checked':''}> enabled</label></div>`+
+    `<div class="trow">min severity <select id="ar_sev">${["low","medium","high","critical"].map(s=>`<option ${r.min_severity===s?'selected':''}>${s}</option>`).join("")}</select> · min events <input id="ar_min" type="number" min="1" value="${r.min_events||1}" style="width:52px"></div>`+
+    `<div class="trow rel">ignore events:</div><div class="achips" id="ar_ignore">${ev.map(e=>`<label class="chip" style="cursor:pointer"><input type="checkbox" data-ev="${e}" ${(r.ignore||[]).includes(e)?'checked':''}> ${esc(e.replace('new_',''))}</label>`).join("")}</div>`+
+    `<div class="trow"><button class="save" id="ar_save">Save rules</button> <span class="rel" id="ar_msg"></span></div>`+
+    `<div class="trow rel">Applies to change-alerts on scheduled/continuous monitoring.</div>`);
+  $("ar_save").onclick=async()=>{
+    const ignore=[...document.querySelectorAll('#ar_ignore input:checked')].map(x=>x.dataset.ev);
+    const body={enabled:$("ar_en").checked,min_severity:$("ar_sev").value,min_events:parseInt($("ar_min").value||"1",10),ignore};
+    try{ await api("/api/alert-rules",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+      $("ar_msg").textContent="saved ✓";
+    }catch(e){ $("ar_msg").textContent="save failed: "+e.message; }
+  };
+});
+$("backupbtn").addEventListener("click",()=>{
+  window.open("/api/backup"+(TOKEN?`?token=${encodeURIComponent(TOKEN)}`:""),"_blank");
+});
+$("restorebtn").addEventListener("click",()=>$("restorefile").click());
+$("restorefile").addEventListener("change",async e=>{
+  const f=e.target.files[0]; if(!f)return;
+  try{ const blob=JSON.parse(await f.text());
+    const d=await api("/api/restore",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(blob)});
+    $("toolsmodal").classList.remove("hidden");
+    tout(`<div class="tout-head">⬆ restore</div><div class="trow">imported <b>${d.imported}</b> saved scan(s).</div>`);
+  }catch(err){ alert("restore failed: "+err.message); }
+  e.target.value="";
+});
+
+/* scope-guard editor (feature 72) */
+async function openScope(){
+  $("scopemodal").classList.remove("hidden"); $("scopemsg").textContent="";
+  try{ const d=await api("/api/scope"); $("scopetext").value=(d.entries||[]).join("\n"); }
+  catch(e){ $("scopetext").value=""; }
+}
+$("scopebtn").addEventListener("click",openScope);
+
+/* unified multi-target graph (feature 4) — merge saved targets into one graph */
+$("unifiedbtn").addEventListener("click",async()=>{
+  const def=[CURTARGET].filter(Boolean).join(",");
+  const raw=prompt("Unified graph — comma-separated targets (each must have a saved scan):",def);
+  if(raw==null||!raw.trim())return;
+  tout(`<div class="tout-head">🕸 building unified graph…</div><div class="spinner" style="margin:14px auto"></div>`);
+  try{
+    const u=await api(`/api/unified?targets=${encodeURIComponent(raw.trim())}`);
+    buildGraph({knowledge_graph:u});
+    heat=false; $("heat").classList.remove("on");
+    const sh=(u.shared_infrastructure||[]).map(s=>`<div class="trow"><b>${esc(s.hub)}</b> <span class="rel">(${esc(s.kind)})</span> — shared by ${(s.targets||[]).map(esc).join(", ")}</div>`).join("");
+    tout(`<div class="tout-head">🕸 unified graph — ${(u.targets||[]).length} targets · ${u.counts.entities} entities</div>${sh||'<div class="trow">no shared infrastructure between these targets.</div>'}`);
+  }catch(e){ tout(`<div class="tout-head">🕸 unified graph</div><div class="trow">${esc(e.message)}</div>`); }
+});
+$("scopeclose").addEventListener("click",()=>$("scopemodal").classList.add("hidden"));
+$("scopemodal").addEventListener("click",e=>{ if(e.target===$("scopemodal")) $("scopemodal").classList.add("hidden"); });
+$("scopesave").addEventListener("click",async()=>{
+  try{ const d=await api("/api/scope",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({entries:$("scopetext").value})});
+    $("scopemsg").textContent=d.empty?"saved · no restriction":`saved · ${(d.entries||[]).length} entrie(s) in scope`;
+  }catch(e){ $("scopemsg").textContent="save failed: "+e.message; }
+});
+
+/* ---- i18n: EN / Hebrew chrome translation (feature 79) ---- */
+const I18N={
+  he:{ go:"חקור ▸", target_ph:"example.com · 8.8.8.8 · Enter כדי לחקור",
+    toolsbtn:"⚙ כלים", portbtn:"▦ תיק נכסים", keysbtn:"🔑 מפתחות", consolelink:"▤ קונסולה",
+    langbtn:"🌐 EN", entities:"ישויות", cluster:"◱ אשכולות", heat:"🔥 חום", export:"⤓ תמונה",
+    gsearch_ph:"🔍 חיפוש · או שאל: subdomains? leaks? tech?",
+    note_h:"חוקר OSINT", note_p:"הכנס יעד ולחץ חקור. Ghost Eye ממפה את טביעת הרגל לגרף ישויות חי — לחץ על צומת כדי להעמיק." },
+  en:{ go:"Investigate ▸", target_ph:"example.com  ·  8.8.8.8  ·  press Enter to investigate",
+    toolsbtn:"⚙ Tools", portbtn:"▦ Portfolio", keysbtn:"🔑 Keys", consolelink:"▤ Console",
+    langbtn:"🌐 עב", entities:"Entities", cluster:"◱ Cluster", heat:"🔥 Heat", export:"⤓ PNG",
+    gsearch_ph:"🔍 search · or ask: subdomains? leaks? tech?",
+    note_h:"OSINT investigator", note_p:"Enter a target and hit Investigate. Ghost Eye correlates its footprint into a live entity graph — click any node to pivot." }
+};
+function applyLang(l){
+  const d=I18N[l]||I18N.en;
+  const setT=(id,v)=>{const e=$(id); if(e&&v!=null)e.textContent=v;};
+  const setP=(id,v)=>{const e=$(id); if(e&&v!=null)e.placeholder=v;};
+  setT("go",d.go); setP("target",d.target_ph); setT("toolsbtn",d.toolsbtn);
+  setT("portbtn",d.portbtn); setT("keysbtn",d.keysbtn); setT("consolelink",d.consolelink);
+  setT("langbtn",d.langbtn); setT("cluster",d.cluster); setT("heat",d.heat); setT("export",d.export);
+  setP("gsearch",d.gsearch_ph);
+  const rh=document.querySelector("#rail h3"); if(rh)rh.textContent=d.entities;
+  const nh=document.querySelector("#note h2"), np=document.querySelector("#note p");
+  if(nh)nh.textContent=d.note_h; if(np)np.textContent=d.note_p;
+  document.documentElement.setAttribute("lang",l);
+  // keep the graph layout LTR (mirroring the absolute-positioned canvas breaks
+  // it); Hebrew strings render correctly via per-element bidi.
+  try{ localStorage.setItem("ge_lang",l); }catch(e){}
+  LANG=l;
+}
+let LANG="en";
+$("langbtn").addEventListener("click",()=>applyLang(LANG==="en"?"he":"en"));
+
+/* command palette (feature 46): Ctrl/⌘+K */
+function paletteActions(){
+  const A=[
+    ["🔎 Focus target input",()=>{$("target").focus();}],
+    ["⚙ Open Tools",()=>openTools()],
+    ["🧩 Modules editor",()=>openMods()],
+    ["▦ Portfolio",()=>openPortfolio()],
+    ["🔑 API keys",()=>openKeys()],
+    ["🛡 Scope guard",()=>openScope()],
+    ["◱ Toggle cluster",()=>$("cluster").click()],
+    ["🔥 Toggle heat-map",()=>$("heat").click()],
+    ["🌓 Toggle theme",()=>$("themebtn").click()],
+    ["🌐 Toggle language",()=>$("langbtn").click()],
+    ["📊 Metrics",()=>$("metricsbtn").click()],
+    ["⤓ Export PNG",()=>$("export").click()],
+    ["⊡ Fit graph",()=>fit()],
+  ];
+  return A;
+}
+function openPalette(){
+  $("palette").classList.remove("hidden"); $("palinp").value=""; renderPalette(""); $("palinp").focus();
+}
+function renderPalette(q){
+  q=(q||"").toLowerCase();
+  const acts=paletteActions().filter(a=>a[0].toLowerCase().includes(q))
+    .map((a,i)=>({label:a[0],run:a[1]}));
+  const ents=(q&&G.nodes?G.nodes.filter(n=>String(n.label).toLowerCase().includes(q)).slice(0,8)
+    .map(n=>({label:`◆ ${n.label} (${n.kind})`,run:()=>{selectNode(n.id);fitNode(n.id);}})):[]);
+  PALITEMS=acts.concat(ents);
+  $("pallist").innerHTML=PALITEMS.map((it,i)=>`<div class="pal-item${i===0?' on':''}" data-i="${i}">${esc(it.label)}</div>`).join("")||`<div class="pal-item rel">no match</div>`;
+  $("pallist").querySelectorAll("[data-i]").forEach(el=>el.addEventListener("click",()=>runPalette(+el.dataset.i)));
+  PALSEL=0;
+}
+let PALITEMS=[], PALSEL=0;
+function runPalette(i){ const it=PALITEMS[i]; $("palette").classList.add("hidden"); if(it&&it.run) it.run(); }
+$("palinp")&&$("palinp").addEventListener("input",e=>renderPalette(e.target.value));
+$("palinp")&&$("palinp").addEventListener("keydown",e=>{
+  if(e.key==="Escape"){ $("palette").classList.add("hidden"); }
+  else if(e.key==="Enter"){ runPalette(PALSEL); }
+  else if(e.key==="ArrowDown"||e.key==="ArrowUp"){ e.preventDefault();
+    PALSEL=Math.max(0,Math.min(PALITEMS.length-1,PALSEL+(e.key==="ArrowDown"?1:-1)));
+    $("pallist").querySelectorAll(".pal-item").forEach((el,i)=>el.classList.toggle("on",i===PALSEL));
+  }
+});
+$("palette")&&$("palette").addEventListener("click",e=>{ if(e.target===$("palette")) $("palette").classList.add("hidden"); });
+document.addEventListener("keydown",e=>{
+  if((e.ctrlKey||e.metaKey)&&(e.key==="k"||e.key==="K")){ e.preventDefault(); openPalette(); }
+});
+
+/* theme toggle: light / dark (feature 47) */
+function applyTheme(t){
+  if(t==="light") document.documentElement.setAttribute("data-theme","light");
+  else document.documentElement.removeAttribute("data-theme");
+  try{ localStorage.setItem("ge_theme",t); }catch(e){}
+  if(G&&G.nodes&&G.nodes.length) render();   // re-tint minimap/heat swatches
+}
+$("themebtn").addEventListener("click",()=>{
+  const cur=document.documentElement.getAttribute("data-theme")==="light"?"dark":"light";
+  applyTheme(cur);
+});
+try{ if(localStorage.getItem("ge_theme")==="light") applyTheme("light"); }catch(e){}
+try{ const sv=localStorage.getItem("ge_lang"); if(sv==="he") applyLang("he"); }catch(e){}
+
+/* wire the search */
+$("go").addEventListener("click",investigate);
+$("target").addEventListener("keydown",e=>{ if(e.key==="Enter") investigate(); });
+// prefill from ?target=
+const qt=new URLSearchParams(location.search).get("target"); if(qt){ $("target").value=qt; investigate(); }
+if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.serviceWorker.register("/sw.js").catch(()=>{})); }
+</script>
+</body>
+</html>
