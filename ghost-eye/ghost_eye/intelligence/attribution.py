@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 from ..core import Result
 from ..reporting import _flatten
@@ -102,7 +102,6 @@ _FIELD_KEYS: List[Tuple[str, Tuple[str, ...]]] = [
     ("ja3s", ("ja3s", "ja3_server")),
     ("asn", ("asn", "as", "as_number")),
 ]
-_HOSTISH = re.compile(r"^[a-z0-9][a-z0-9.\-]{1,253}\.[a-z]{2,63}$")
 
 
 def _norm(value: Any) -> str:

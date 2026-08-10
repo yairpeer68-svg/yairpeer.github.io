@@ -356,8 +356,8 @@ class DepConfusion(Module):
                 all_deps.update(j.get("devDependencies", {}))
                 for pkg in all_deps:
                     if pkg.startswith("@") and "/" in pkg:
-                        scope = pkg.split("/")[0]
-                        # check if scope exists on npm
+                        # a scoped package missing from public npm is the
+                        # dependency-confusion target
                         try:
                             nr = ctx.session.get(
                                 f"https://registry.npmjs.org/{pkg}",
@@ -396,4 +396,5 @@ class DepConfusion(Module):
         if not findings["registries"]:
             findings["registries"] = "none"
 
+        findings["risk"] = risk
         return self.ok(host, findings)

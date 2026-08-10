@@ -22,7 +22,6 @@ them current.
 from __future__ import annotations
 
 import ipaddress
-import os
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 # --------------------------------------------------------------------------- #
@@ -89,10 +88,24 @@ CLOUD_RANGES: Dict[str, List[str]] = {
     "Vultr": ["45.32.0.0/16", "108.61.0.0/16", "149.28.0.0/16"],
 }
 
-# CDN/WAF ranges published as a plain newline list of CIDRs.
+# CDN/WAF ranges published as a plain newline-delimited list of CIDRs.
 _LIVE_SOURCES: Dict[str, Tuple[str, ...]] = {
     "Cloudflare": ("https://www.cloudflare.com/ips-v4",
                    "https://www.cloudflare.com/ips-v6"),
+}
+
+# Providers that publish JSON instead. Each entry maps a URL to the top-level
+# keys holding CIDR lists, so one code path covers both shapes and the refresh
+# is not Cloudflare-only (which is what the docstring has always claimed).
+_LIVE_JSON_SOURCES: Dict[str, Tuple[Tuple[str, Tuple[str, ...]], ...]] = {
+    "Fastly": ((
+        "https://api.fastly.com/public-ip-list",
+        ("addresses", "ipv6_addresses"),
+    ),),
+    "CloudFront": ((
+        "https://d7uri8nf7uskq.cloudfront.net/tools/list-cloudfront-ips",
+        ("CLOUDFRONT_GLOBAL_IP_LIST", "CLOUDFRONT_REGIONAL_EDGE_IP_LIST"),
+    ),),
 }
 
 
@@ -140,6 +153,26 @@ def refresh_ranges(session=None, timeout: int = 10) -> Dict[str, int]:
         if len(cidrs) >= 5:
             CDN_RANGES[provider] = cidrs
             updated[provider] = len(cidrs)
+
+    for provider, sources in _LIVE_JSON_SOURCES.items():
+        cidrs = []
+        for url, keys in sources:
+            try:
+                resp = session.get(url, timeout=timeout)
+                if getattr(resp, "status_code", 0) != 200:
+                    continue
+                doc = resp.json() or {}
+                for key in keys:
+                    for item in doc.get(key, []) or []:
+                        item = str(item).strip()
+                        if item and "/" in item:
+                            cidrs.append(item)
+            except Exception:  # noqa: BLE001
+                continue
+        if len(cidrs) >= 5:
+            CDN_RANGES[provider] = cidrs
+            updated[provider] = len(cidrs)
+
     _CDN_NETS = _compile(CDN_RANGES)
     return updated
 

@@ -133,12 +133,15 @@ def verify_candidate(session, ip: str, host: str,
     """Ask one candidate IP for the target's site and score the answer."""
     best: Dict[str, Any] = {"ip": ip, "verdict": "rejected", "similarity": 0.0,
                             "reasons": ["no usable response"], "scheme": None}
+    # kept outside `best` so a later scheme replacing it doesn't erase the
+    # reason the earlier one failed — that reason is why an origin was rejected
+    errors: List[str] = []
     for scheme in ("https", "http"):
         bracket = f"[{ip}]" if ":" in ip else ip
         try:
             resp = _get(session, f"{scheme}://{bracket}", host, timeout)
         except Exception as exc:  # noqa: BLE001
-            best.setdefault("errors", []).append(f"{scheme}: {str(exc)[:60]}")
+            errors.append(f"{scheme}: {str(exc)[:60]}")
             continue
         scored = compare(baseline, fingerprint(resp))
         scored.update({"ip": ip, "scheme": scheme,
@@ -147,6 +150,8 @@ def verify_candidate(session, ip: str, host: str,
             best = scored
         if scored["verdict"] == "confirmed":
             break
+    if errors:
+        best["errors"] = errors
     return best
 
 

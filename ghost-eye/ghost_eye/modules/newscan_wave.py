@@ -15,7 +15,6 @@ FOR AUTHORISED SECURITY TESTING ONLY.
 
 from __future__ import annotations
 
-import ipaddress
 import os
 import re
 import socket

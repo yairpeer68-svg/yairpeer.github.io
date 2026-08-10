@@ -96,7 +96,11 @@ class OAuthAudit(Module):
         elif findings.get("oidc_discovery"):
             risk = "MEDIUM"
 
-        return self.ok(host, findings or {"oauth": "no OAuth/OIDC endpoints found"})
+        if not findings:
+            return self.ok(host, {"oauth": "no OAuth/OIDC endpoints found",
+                                  "risk": risk})
+        findings["risk"] = risk
+        return self.ok(host, findings)
 
 
 @register
@@ -173,6 +177,7 @@ class JwtAudit(Module):
         if not findings["vulnerabilities"]:
             findings["vulnerabilities"] = "none"
 
+        findings["risk"] = risk
         return self.ok(host, findings)
 
     @staticmethod

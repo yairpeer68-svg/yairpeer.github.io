@@ -74,18 +74,49 @@ def _as_list(val) -> List[str]:
     return [str(val)]
 
 
+def _as_code(val, default: int) -> int:
+    """A status code from arbitrary community data.
+
+    The public datasets are hand-maintained and carry nulls, strings and lists
+    in the code fields. ``int(row.get("m_code", 404))`` blows up on every one of
+    those, and because normalisation runs over the whole file, one bad row used
+    to discard the *entire* registry — the sweep then reported "registry is
+    empty" instead of checking 3000 sites.
+    """
+    if isinstance(val, list):
+        val = val[0] if val else None
+    if val is None or val == "":
+        return default
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return default
+
+
+def _add(out: List["Site"], build) -> None:
+    """Append one built Site, dropping just that row if it can't be built.
+
+    A public registry is other people's data: a row that violates the schema
+    must cost that one site, never the whole file.
+    """
+    try:
+        out.append(build())
+    except Exception:  # noqa: BLE001
+        return
+
+
 def _from_native(rows: list) -> List[Site]:
     out: List[Site] = []
     for r in rows:
         if not isinstance(r, dict) or not r.get("url"):
             continue
-        out.append(Site(
+        _add(out, lambda r=r: Site(
             name=str(r.get("name") or r.get("url")),
             url=str(r["url"]),
             check=str(r.get("check", "status")),
             category=str(r.get("cat") or r.get("category") or "other"),
-            absent_code=int(r.get("absent_code", 404)),
-            present_code=int(r.get("present_code", 200)),
+            absent_code=_as_code(r.get("absent_code"), 404),
+            present_code=_as_code(r.get("present_code"), 200),
             absent_strings=_as_list(r.get("absent_strings")),
             present_strings=_as_list(r.get("present_strings")),
             regex=r.get("regex"),
@@ -103,12 +134,12 @@ def _from_sherlock(doc: dict) -> List[Site]:
         etype = meta.get("errorType", "status_code")
         check = {"status_code": "status", "message": "message",
                  "response_url": "redirect"}.get(etype, "status")
-        out.append(Site(
+        _add(out, lambda name=name, meta=meta, check=check: Site(
             name=str(name),
             url=str(meta["url"]),
             check=check,
             category="sherlock",
-            absent_code=int(meta.get("errorCode") or 404),
+            absent_code=_as_code(meta.get("errorCode"), 404),
             absent_strings=_as_list(meta.get("errorMsg")),
             regex=meta.get("regexCheck"),
             method=str(meta.get("request_method", "GET")).upper(),
@@ -127,16 +158,16 @@ def _from_whatsmyname(doc: dict) -> List[Site]:
         # WMN is "exists when e_code AND e_string present" -> a message check on
         # the presence string is the most portable interpretation
         check = "message" if e_string else "status"
-        out.append(Site(
+        _add(out, lambda s=s, check=check, e_string=e_string: Site(
             name=str(s.get("name", s["uri_check"])),
             url=str(s["uri_check"]),
             check=check,
             category=str(s.get("cat", "other")),
-            present_code=int(s.get("e_code", 200)),
-            absent_code=int(s.get("m_code", 404)),
+            present_code=_as_code(s.get("e_code"), 200),
+            absent_code=_as_code(s.get("m_code"), 404),
             present_strings=_as_list(e_string),
             absent_strings=_as_list(s.get("m_string")),
-            regex=s.get("strip_bad_char") and None,
+            regex=None,          # WhatsMyName carries no username-validity regex
         ))
     return out
 

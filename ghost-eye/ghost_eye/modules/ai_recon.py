@@ -1288,6 +1288,7 @@ class HuggingFaceRecon(Module):
         if not findings["token_leaks"]:
             findings["token_leaks"] = "none"
 
+        findings["risk"] = risk
         return self.ok(host, findings)
 
 

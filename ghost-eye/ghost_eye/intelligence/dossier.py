@@ -119,7 +119,6 @@ def osint_dossier(report: Dict[str, Any],
         A("")
 
     # confidence summary
-    conf = (report.get("risk_heatmap") or {})
     if sm.get("summary"):
         A("## Confidence")
         A(f"- Multi-source subdomains: "

@@ -16,9 +16,9 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1010 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
+- **1035 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 458 are behavioural — see
+  raises"); the other 483 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -411,10 +411,16 @@ python3 ghost_eye.py -t example.com -m freshvulns   # fresh disclosures, last ~2
 
 It reads sources that lead NVD by days-to-weeks — **GitHub Security Advisories**
 (often published first), **CISA KEV recent additions** (a CVE added this
-fortnight is being exploited *right now*, whatever its age), and the newest
-detection templates — and **cross-references them against the products the
-target advertises**, so the headline is "a vuln just dropped for the nginx you
-run", not a firehose. Window is `--config` `fresh_days` (default 21). This is
+fortnight is being exploited *right now*, whatever its age), and the **newest
+Nuclei detection templates** (the community ships a template within hours of a
+vuln being weaponised, routinely before the CVE record settles) — and
+**cross-references them against the products the target advertises**, so the
+headline is "a vuln just dropped for the nginx you run", not a firehose.
+
+A CVE that picked up *both* a KEV listing and a fresh detection template inside
+the window is reported separately as `exploited_and_detectable` — being
+exploited in the wild and trivially scannable is the sharpest signal this
+module can produce. Window is `--config` `fresh_days` (default 21). This is
 fresh *known* intelligence, explicitly **not** literal zero-day discovery.
 
 ---
@@ -1059,7 +1065,7 @@ pip install pytest && python3 -m pytest -q
 ### Health checks — catching silent failure
 
 The offline test suite proves a module *returns a `Result`*; it can't prove the
-module still *works*, because the sources behind 551 modules and 190 external
+module still *works*, because the sources behind 552 modules and 190 external
 services change without warning. The worst failure isn't a crash — it's a
 module that keeps returning stale output after its source moved (`commoncrawl`
 queried a hard-coded crawl index and quietly went stale for months).
@@ -1091,7 +1097,7 @@ fields (it disabled verification with `CERT_NONE`, which makes Python's
 real certificate). That bug had been silent since the module was written.
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 551 modules
+- **All-module smoke test** — runs `run()` for every one of the 552 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions. Note what it does
@@ -1116,7 +1122,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1010 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**1035 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
@@ -1128,6 +1134,37 @@ refused; then it runs a real CLI scan against a local site and asserts the
 report contains an actual `200` finding — not merely that a file was written.
 CI (`.github/workflows/ci.yml`) runs the import check, `compileall`, the full
 suite, the verification gate and advisory ruff/mypy on Python 3.9/3.11/3.12.
+
+### Hostile-response fuzzing
+
+The smoke test feeds every module a *stubbed* network. A separate audit harness
+feeds all 552 modules five kinds of **hostile-but-plausible** HTTP response —
+empty body, binary garbage, `null` JSON, unexpected HTML, and `404` with no
+headers — and fails on any `TypeError` / `AttributeError` / `KeyError` /
+`IndexError` / `UnboundLocalError` raised from Ghost Eye's own frames. 2760
+module-runs currently produce **zero** such crashes: a source that changes shape
+degrades into an error `Result`, it never takes the scan down.
+
+```bash
+python3 scripts/audit_hostile_responses.py       # all five profiles, minutes
+python3 scripts/audit_hostile_responses.py garbage
+```
+
+That harness found nothing, which is the point of running it. What the manual
+audit behind v4.2.1 *did* find was a quieter class of bug — code that ran
+cleanly while silently producing less than it should:
+
+- four modules computed a `CRITICAL`/`HIGH` severity and returned without it,
+  so the rating never reached the operator
+- one malformed row in an imported Sherlock/WhatsMyName registry threw away the
+  **entire** file, and the sweep reported "registry is empty"
+- `sourcehealth` read `username_max = 0` as "audit nothing" where every other
+  consumer reads it as "no cap"
+- `refresh_ranges()` documented a refresh from "the providers" but could only
+  parse Cloudflare's plaintext list, silently skipping every JSON publisher
+- origin verification discarded the error explaining *why* a candidate failed
+
+Each is pinned by a regression test in `tests/test_bugfixes.py`.
 
 ---
 
@@ -1204,7 +1241,8 @@ ghost_eye/
   modules/         ~49 files, 324 self-registering Module subclasses
   web_static/      the single-file dashboard (Hebrew/RTL + Intelligence panel)
 tests/             unit + smoke + behavioural + engine + intelligence + integration
-scripts/           verify.sh (release gate) + benchmark.py
+scripts/           verify.sh (release gate), benchmark.py,
+                   audit_hostile_responses.py (hostile-response fuzz audit)
 .github/workflows/ CI (runs the verification gate)
 ```
 

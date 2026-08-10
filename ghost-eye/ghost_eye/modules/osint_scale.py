@@ -307,7 +307,9 @@ class SourceHealth(Module):
             cap = int(ctx.config.get("username_max") or 500)  # type: ignore[union-attr]
         except Exception:  # noqa: BLE001
             pass
-        sample = sites[:cap]
+        # 0 means "no cap" (same contract as usernamescan) — slicing by it would
+        # audit nothing at all
+        sample = sites[:cap] if cap else sites
         canary = "ge" + secrets.token_hex(6)
         workers = max(4, min(getattr(ctx, "threads", 10) * 2, 40))
         healthy, unreliable, dead = [], [], []

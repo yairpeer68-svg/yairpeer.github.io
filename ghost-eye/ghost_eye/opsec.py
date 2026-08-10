@@ -21,7 +21,7 @@ It records hosts, never request bodies or responses.
 from __future__ import annotations
 
 import threading
-from typing import Dict, List, Optional, Set
+from typing import Dict
 from urllib.parse import urlparse
 
 # hosts that are infrastructure noise rather than a meaningful "who saw my

@@ -832,7 +832,8 @@ def _watch_loop(mods, target, cfg, args):
     Console.info(f"watch mode: re-running every {args.watch}s on {target} "
                  "(Ctrl-C to stop)")
     prev = None
-    store = reporting.Store(args.db)
+    # persistence is run_modules' job (it honours --save-db); opening a second
+    # Store here only leaked an sqlite connection per watch session
     while True:
         ctx = make_context(cfg, args)
         results = run_modules(mods, target, ctx, args)

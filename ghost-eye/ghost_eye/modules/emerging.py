@@ -14,7 +14,9 @@ lookup can get to "just opened":
   * GitHub Security Advisories (GHSA) — frequently published before NVD
   * CISA KEV recent additions — *actively exploited right now*; a CVE added in
     the last fortnight is an emergency even if it's years old
-  * (best-effort) the newest Nuclei detection templates
+  * the newest Nuclei detection templates — the community writes a detection
+    template within hours of a vuln being weaponised, often days before the
+    CVE record settles, so a just-added template is itself an early signal
 
 and, when pointed at a target, cross-references the fresh disclosures against
 the product/version tokens the target advertises, so the output is "a vuln just
@@ -27,7 +29,7 @@ from __future__ import annotations
 
 import re
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import List
 
 from ..core import Context, Module, Result, clean_host, ensure_scheme, register
 from .cve import _extract_products
@@ -35,7 +37,10 @@ from .cve import _extract_products
 _GHSA = "https://api.github.com/advisories"
 _KEV = ("https://www.cisa.gov/sites/default/files/feeds/"
         "known_exploited_vulnerabilities.json")
+_NUCLEI = ("https://api.github.com/repos/projectdiscovery/"
+           "nuclei-templates/commits")
 _DEFAULT_DAYS = 21
+_CVE_RE = re.compile(r"CVE-\d{4}-\d{4,7}", re.I)
 
 
 def _age_days(iso: str) -> int:
@@ -128,6 +133,39 @@ def fetch_kev_recent(ctx: Context, days: int) -> List[dict]:
     return sorted(out, key=lambda x: x["age_days"])
 
 
+def fetch_nuclei_recent(ctx: Context, days: int) -> List[dict]:
+    """Detection templates added to nuclei-templates within `days`.
+
+    A template lands when the community can already *detect* the issue in the
+    wild, which routinely precedes the settled CVE record. Only commits that
+    name a CVE are kept — the rest are refactors and false noise.
+    """
+    try:
+        r = ctx.session.get(_NUCLEI, params={"per_page": 100},
+                            timeout=ctx.timeout + 5)
+        if r.status_code != 200:
+            return [{"_error": f"nuclei HTTP {r.status_code}"}]
+        rows = r.json()
+    except Exception as exc:  # noqa: BLE001
+        return [{"_error": f"nuclei: {str(exc)[:80]}"}]
+    out, seen = [], set()
+    for c in rows if isinstance(rows, list) else []:
+        commit = (c or {}).get("commit", {}) or {}
+        message = str(commit.get("message", "")).splitlines()[0][:160]
+        when = ((commit.get("author") or {}).get("date")
+                or (commit.get("committer") or {}).get("date") or "")
+        age = _age_days(when)
+        if age > days:
+            continue
+        for cve in {m.upper() for m in _CVE_RE.findall(message)}:
+            if cve in seen:
+                continue
+            seen.add(cve)
+            out.append({"cve": cve, "template": message, "age_days": age,
+                        "url": c.get("html_url", "")})
+    return sorted(out, key=lambda x: x["age_days"])
+
+
 def _matches(text: str, tokens: List[str]) -> List[str]:
     low = text.lower()
     return [t for t in tokens if re.search(r"(?<![a-z0-9])" + re.escape(t)
@@ -153,9 +191,12 @@ class EmergingVulns(Module):
         tokens = _product_tokens(str(host), ctx)
         ghsa = fetch_ghsa(ctx, days)
         kev = fetch_kev_recent(ctx, days)
-        errors = [x["_error"] for x in list(ghsa) + list(kev) if "_error" in x]
+        nuclei = fetch_nuclei_recent(ctx, days)
+        errors = [x["_error"] for x in list(ghsa) + list(kev) + list(nuclei)
+                  if "_error" in x]
         ghsa = [a for a in ghsa if "_error" not in a]
         kev = [k for k in kev if "_error" not in k]
+        nuclei = [t for t in nuclei if "_error" not in t]
 
         # which fresh disclosures plausibly hit the target's own stack
         affecting = []
@@ -171,7 +212,20 @@ class EmergingVulns(Module):
                 affecting.append({"cve": k["cve"], "severity": "kev-actively-exploited",
                                   "summary": k.get("name"), "age_days": k["age_days"],
                                   "matched": hit, "source": "CISA KEV"})
+        for t in nuclei:
+            hit = _matches(t["template"], tokens)
+            if hit:
+                affecting.append({"cve": t["cve"],
+                                  "severity": "detection-template-published",
+                                  "summary": t["template"],
+                                  "age_days": t["age_days"], "matched": hit,
+                                  "source": "nuclei-templates"})
         affecting.sort(key=lambda x: x.get("age_days", 9999))
+
+        # a CVE that just got both a KEV listing and a detection template is
+        # the sharpest signal this module can produce
+        kev_cves = {str(k.get("cve", "")).upper() for k in kev}
+        armed = sorted({t["cve"] for t in nuclei if t["cve"] in kev_cves})
 
         crit = [a for a in ghsa if a["severity"] in ("critical", "high")]
         return self.ok(str(host), {
@@ -184,6 +238,9 @@ class EmergingVulns(Module):
             "fresh_advisories": len(ghsa),
             "fresh_critical_high": len(crit),
             "newest_advisories": sorted(ghsa, key=lambda a: a["age_days"])[:15],
+            "new_detection_templates": nuclei[:15] or "none",
+            "new_template_count": len(nuclei),
+            "exploited_and_detectable": armed or "none",
             "source_errors": errors or "none",
             "note": ("freshly *disclosed* vulnerabilities that may pre-date NVD — "
                      "early warning, not literal zero-day discovery (an unknown "

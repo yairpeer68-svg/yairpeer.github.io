@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import json as _json
 from concurrent.futures import ThreadPoolExecutor
 
 from ..core import Module, clean_host, ensure_scheme, register
@@ -386,8 +385,6 @@ class PreflightCheck(Module):
             "https://127.0.0.1",
         ]
 
-        methods = ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
-
         for origin in origins:
             try:
                 r = ctx.session.options(base, timeout=ctx.timeout, headers={
@@ -488,16 +485,8 @@ class HateoasDiscovery(Module):
         base = ensure_scheme(host).rstrip("/")
         links_found = {}
 
-        def extract_links(body, source):
-            links = set()
-            try:
-                j = _json.loads(body)
-                self._walk_links(j, links)
-            except Exception:
-                pass
-            link_header = []
-            return links
-
+        # NB: no per-run state is stashed on `self` — modules are singletons in
+        # REGISTRY and the engine runs them concurrently.
         def _walk(obj, links, depth=0):
             if depth > 5:
                 return
@@ -512,8 +501,6 @@ class HateoasDiscovery(Module):
             if isinstance(obj, list):
                 for item in obj[:20]:
                     _walk(item, links, depth + 1)
-
-        self._walk_links = _walk
 
         for path in self._API_PATHS:
             try:

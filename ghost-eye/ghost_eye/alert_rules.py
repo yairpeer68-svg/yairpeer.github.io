@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 # every diff key the monitor can emit, mapped to a default severity weight
 _EVENT_SEVERITY = {
