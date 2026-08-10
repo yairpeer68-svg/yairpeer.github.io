@@ -634,6 +634,103 @@ def osint_deepdive(seed: str, cfg=None, depth: int = 1,
                      max_per_hop=max_per_hop)
 
 
+def _seed_kind(seed: str) -> str:
+    """username | email | domain — how to investigate a seed."""
+    s = (seed or "").strip()
+    if "@" in s and "." in s.split("@")[-1]:
+        return "email"
+    if "." in s and " " not in s and not s.startswith("@"):
+        # looks like a hostname, not a handle
+        from .core import is_domain
+        if is_domain(s.lstrip("@")):
+            return "domain"
+    return "username"
+
+
+def entity_investigation(seed: str, cfg=None, run_fn=None,
+                         pivot_emails: bool = True) -> dict:
+    """Investigate a *person/entity* seed (username or email) end-to-end and
+    return one dossier-ready picture.
+
+    This is the capstone over the data-driven OSINT engine: it runs the entity
+    modules for the seed's kind (``usernamescan`` & friends for a handle,
+    ``emailfootprint`` & breach sources for an address), correlates the
+    discovered profiles + linked accounts into an **identity graph**, scores
+    every finding's **confidence/provenance**, and reports the **OPSEC**
+    exposure of the investigation itself. Reconnaissance/detection only.
+    """
+    from .intelligence.osint_pivot import (PIVOT_MODULES, _default_run_fn,
+                                           annotate_confidence)
+    from .intelligence.correlation import correlate
+    from .intelligence.entities import knowledge_graph
+    from .intelligence.identity import identity_graph
+    from .reporting_ext import score_findings
+    from . import opsec as _opsec
+    from .core import REGISTRY
+
+    seed = (seed or "").strip()
+    if not seed:
+        return {"error": "no seed"}
+    kind = _seed_kind(seed)
+    if kind == "domain":
+        # a domain seed belongs to the multi-hop deep-dive, not entity recon
+        return {"error": f"{seed!r} looks like a domain — use osint_deepdive()",
+                "seed": seed, "kind": kind}
+    run_fn = run_fn or _default_run_fn
+    recorder = _opsec.LeakRecorder(target=seed)
+
+    def _recording_run(target, module_ids, cfg_):
+        results = run_fn(target, module_ids, cfg_)
+        for r in results:                      # reconstruct leak picture
+            for m in _URLS_RE.findall(str(getattr(r, "data", "") or "")):
+                recorder.record(m)
+        return results
+
+    module_ids = [m for m in PIVOT_MODULES.get(kind, []) if m in REGISTRY]
+    results = _recording_run(seed, module_ids, cfg)
+
+    # if a username investigation surfaced e-mails, pivot onto them once
+    pivoted_emails: List[str] = []
+    if pivot_emails and kind == "username":
+        intel0 = correlate(results, seed)
+        emails = [e for e in intel0.get("emails", []) if "@" in e][:5]
+        email_mods = [m for m in PIVOT_MODULES.get("email", []) if m in REGISTRY]
+        for em in emails:
+            pivoted_emails.append(em)
+            results.extend(_recording_run(em, email_mods, cfg))
+
+    intel = correlate(results, seed)
+    kg = knowledge_graph(results, seed, intel)
+    graph_conf = annotate_confidence(kg)
+    identity = identity_graph(results, seed)
+    scored = score_findings(results)
+    profiles = intel.get("profiles", [])
+    # confirmed = high-confidence profile hits (from the canary-checked engine)
+    confirmed = [p for p in profiles if str(p.get("confidence", "")).lower()
+                 in ("high", "confirmed")]
+    return {
+        "seed": seed,
+        "kind": kind,
+        "profiles": profiles,
+        "confirmed_profiles": confirmed,
+        "profile_count": len(profiles),
+        "linked_emails": sorted(set(intel.get("emails", []))),
+        "pivoted_emails": pivoted_emails,
+        "identity_graph": identity,
+        "knowledge_graph": kg,
+        "graph_confidence": graph_conf,
+        "finding_confidence": scored.get("confidence", {}),
+        "counts": intel.get("counts", {}),
+        "opsec": recorder.report(),
+        "note": "entity investigation: profiles are canary-checked and carry a "
+                "confidence; OPSEC lists the third parties this lookup disclosed "
+                "the seed to. Authorised / OSINT use only.",
+    }
+
+
+_URLS_RE = _re.compile(r"https?://[^\s\"'<>]+")
+
+
 def platform_report(results, target: str = "",
                     exploit: Optional[dict] = None) -> dict:
     """Personal Cyber Intelligence Platform view — the full intelligence

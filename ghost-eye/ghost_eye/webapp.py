@@ -658,6 +658,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._restore()
         if path == "/api/osint-deep":
             return self._osint_deep()
+        if path == "/api/investigate":
+            return self._investigate()
         if path == "/api/alert-rules":
             return self._alert_rules_set()
         if path == "/api/schedule":
@@ -1049,6 +1051,25 @@ class Handler(BaseHTTPRequestHandler):
                                           depth=depth, max_per_hop=8)
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"osint deep-dive failed: {exc}"}, 500)
+        return self._json(out)
+
+    def _investigate(self):
+        """Entity investigation: a username / e-mail seed -> canary-checked
+        profiles + identity + OPSEC dossier. POST {seed}."""
+        body = self._body()
+        seed = (body.get("seed") or body.get("target") or "").strip()
+        if not seed:
+            return self._json({"error": "seed required (username or e-mail)"}, 400)
+        try:
+            out = workflow.entity_investigation(seed, self.server.jobs.cfg)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"investigation failed: {exc}"}, 500)
+        if body.get("dossier"):
+            from .intelligence import entity_dossier
+            try:
+                out["dossier_markdown"] = entity_dossier(out)
+            except Exception:  # noqa: BLE001
+                pass
         return self._json(out)
 
     def _alert_rules_path(self):

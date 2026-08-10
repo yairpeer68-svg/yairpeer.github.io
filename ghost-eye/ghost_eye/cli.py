@@ -490,6 +490,9 @@ def build_parser() -> argparse.ArgumentParser:
     flow.add_argument("--osint-deep", nargs="?", type=int, const=1, default=None,
                       metavar="DEPTH",
                       help="advanced OSINT: automated multi-hop pivot from -t (default depth 1)")
+    flow.add_argument("--investigate", metavar="SEED",
+                      help="entity investigation of a username or e-mail: "
+                           "canary-checked profiles + identity + OPSEC dossier")
     flow.add_argument("--queue", default="",
                       help="shared job-queue DB for distributed scanning")
     flow.add_argument("--enqueue", action="store_true",
@@ -837,6 +840,38 @@ def main(argv: Optional[List[str]] = None) -> int:
             with open(args.output, "w", encoding="utf-8") as fh:
                 _json.dump(out, fh, ensure_ascii=False, indent=2)
             Console.good(f"wrote {args.output}")
+        return 0
+
+    # entity investigation — the person-focused capstone over the data-driven
+    # OSINT engine (username / e-mail seed -> profiles + identity + OPSEC).
+    if getattr(args, "investigate", None):
+        seed = args.investigate.strip()
+        print_banner()
+        Console.rule(f"Entity investigation — {seed}")
+        out = workflow.entity_investigation(seed, cfg)
+        if out.get("error"):
+            Console.err(out["error"])
+            return 2
+        Console.kv("kind", out["kind"])
+        Console.kv("profiles found", f"{out['profile_count']} "
+                   f"({len(out['confirmed_profiles'])} high-confidence)")
+        for p in out["confirmed_profiles"][:30]:
+            Console.kv(p.get("site", "?"), p.get("url", ""), indent=4)
+        if out.get("linked_emails"):
+            Console.kv("linked e-mails", ", ".join(out["linked_emails"][:10]))
+        _print_opsec(out.get("opsec", {}))
+        from .intelligence import entity_dossier
+        md = entity_dossier(out)
+        if args.output:
+            with open(args.output, "w", encoding="utf-8") as fh:
+                if args.output.endswith((".md", ".markdown", ".txt")):
+                    fh.write(md)
+                else:
+                    import json as _json
+                    _json.dump(out, fh, ensure_ascii=False, indent=2)
+            Console.good(f"wrote {args.output}")
+        else:
+            print("\n" + md)
         return 0
 
     if args.config_init:

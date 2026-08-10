@@ -28,7 +28,7 @@ from .advisor import (  # noqa: F401
 from .graph_export import to_gexf, to_graphml, unified_graph  # noqa: F401
 from .identity import identity_graph  # noqa: F401
 from .source_matrix import source_matrix  # noqa: F401
-from .dossier import osint_dossier  # noqa: F401
+from .dossier import entity_dossier, osint_dossier  # noqa: F401
 from .osint_pivot import annotate_confidence, deep_dive  # noqa: F401
 from .risk import (  # noqa: F401
     attack_paths,
@@ -47,7 +47,7 @@ __all__ = [
     "remediation", "asset_sensitivity", "anomaly_detection",
     "management_translation", "ai_summary", "question_answer",
     "deep_dive", "annotate_confidence", "identity_graph", "source_matrix",
-    "osint_dossier",
+    "osint_dossier", "entity_dossier",
     "build_timeline", "analyze",
 ]
 from .features_v2 import (  # noqa: F401

@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **870 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 554 of those are the
+- **881 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 554 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 271 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -141,6 +141,7 @@ python3 ghost_eye_web.py --open
 | `--resume` | skip already-done targets (batch) |
 | `--scope <file>` | refuse targets outside an allow-list |
 | `--osint-deep [depth]` | advanced OSINT: automated multi-hop pivot from `-t` (default depth 1) |
+| `--investigate <seed>` | entity investigation of a username / e-mail: canary-checked profiles + identity + OPSEC dossier |
 | `--passive-only` | run only passive modules (no traffic to the target) |
 | `--opsec` | OPSEC audit: report which third parties the scan disclosed the target to |
 | `--opsec-strict` | OPSEC enforce: contact **only** the target, refuse every third-party request |
@@ -798,6 +799,26 @@ kind, so an investigation shows the *person* side (usernames, linked accounts)
 next to the domain side. Ship your own registry at
 `ghost_eye/data/username_sites.json` or override with `GHOSTEYE_USERNAME_SITES`.
 
+### Entity investigation (the capstone)
+
+`--investigate` ties the whole engine together into one person-focused report:
+give it a username or an e-mail and it runs the right modules for that kind,
+correlates the discovered profiles + linked accounts into an **identity graph**,
+scores every finding's **confidence**, pivots a username's discovered e-mails
+one hop further, and reports the **OPSEC** exposure the lookup itself created.
+
+```bash
+python3 ghost_eye.py --investigate somehandle            # prints a dossier
+python3 ghost_eye.py --investigate someone@example.com -o dossier.md
+```
+
+It prints (and, with `-o file.md`, writes) an **entity dossier**: confirmed
+accounts first (each with its confidence), linked identities, discovered
+e-mails, a confidence roll-up, and the third parties the investigation
+disclosed the seed to. In the dashboard: `POST /api/investigate {seed}`
+(add `"dossier": true` for the Markdown). Reconnaissance / OSINT only —
+authorised use.
+
 ---
 
 ## Architecture / adding a module
@@ -867,7 +888,7 @@ pip install pytest && python3 -m pytest -q
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**870 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**881 tests** pass in ~13s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
