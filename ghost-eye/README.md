@@ -16,9 +16,9 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1168 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1210 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 615 are behavioural — see
+  raises"); the other 657 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -47,6 +47,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [Analyst verdicts — tell it once](#analyst-verdicts--tell-it-once)
 - [Fix order — what to do first](#fix-order--what-to-do-first)
 - [CSP as an asset source](#csp-as-an-asset-source)
+- [Port scanning](#port-scanning)
 - [Reporting](#reporting)
 - [CI/CD security gate](#cicd-security-gate)
 - [Notifications](#notifications)
@@ -144,6 +145,10 @@ python3 ghost_eye_web.py --open
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
 | `--fix-order` | rank every CVE by exploitation pressure × observed reachability — what to fix first |
 | `--csp-assets` | mine the target's Content-Security-Policy for hosts and report the ones enumeration missed |
+| `--ports <spec>` | ports for `portscan`: `80,443`, `1-1024`, `top100`, `all`, or a combination |
+| `--scan-retries <n>` | extra probes before calling a silent port filtered (default 1) |
+| `--scan-rate <n>` | max connection attempts/second — pacing is more *accurate*, not just politer |
+| `--scan-all-addresses` | scan every resolved address, not just the first (IPv4 vs IPv6) |
 | `--ci`, `--fail-on <sev>` | CI mode: non-zero exit if findings breach the severity gate |
 | `--siem <url>` | push results to Elasticsearch / Splunk / webhook (TLS verified; `--siem-insecure` to opt out for a lab collector) |
 | `--notify <webhook>` | Slack / Discord / Telegram summary |
@@ -827,6 +832,64 @@ carries a compact multi-label suffix table (including vendor suffixes like
 
 ---
 
+## Port scanning
+
+```bash
+python3 ghost_eye.py -t example.com -m portscan                      # top 100
+python3 ghost_eye.py -t example.com -m portscan --ports 1-1024
+python3 ghost_eye.py -t example.com -m portscan --ports all --scan-rate 200
+python3 ghost_eye.py -t example.com -m portscan --scan-all-addresses  # v4 + v6
+```
+
+Connect-scan only: a full TCP handshake, closed immediately. No SYN/stealth
+scanning (that needs root and is a different legal posture), no UDP, and
+nothing sent beyond the minimal nudge needed to make a service announce
+itself — a port is reported open, never opened further.
+
+Three things separate a scan you can act on from one that merely looks
+plausible, and all three are pinned by tests:
+
+**`closed` is not `filtered`.** A connection refused (RST) *proves* the host is
+up and nothing is listening there. A timeout proves nothing at all — a firewall
+dropped it, the packet was lost, or you are being rate-limited. Collapsing both
+into "not open" throws away the most useful thing a scan produces: whether
+there is a firewall, and which ports it guards.
+
+```
+== TCP port scan — 93.184.216.34 ==
+  scanned            1024
+  open_count         3
+  closed_count       1019
+  filtered_count     2
+  open_ports         22/ssh: SSH-2.0-OpenSSH_9.6p1
+                     443/https: TLS TLSv1.3 / TLS_AES_256_GCM_SHA384
+  firewall_posture   2 port(s) silently dropped while 1019 were refused —
+                     a firewall is selectively filtering
+```
+
+**One dropped packet is not a firewall.** A scanner that concludes "filtered"
+from a single timeout invents firewalls on any lossy path and gives different
+answers run to run. Every non-answer is retried (`--scan-retries`) before it is
+believed, and each verdict reports how many probes it rests on. A refusal is
+conclusive on the first try and is never retried.
+
+**Scanning a CDN edge is not scanning the target.** If the name resolves into
+Cloudflare, a "port scan of example.com" is a port scan of Cloudflare, and the
+open ports belong to someone else entirely. That is stated as a `WARNING` with
+`scanned_the_target: false` rather than presented as the target's attack
+surface — find the origin first (`--filter-cdn`, `originhunt`) and scan that.
+
+A port spec that cannot be honoured (`443-80`, `70000`, `top0`) is an error,
+not an empty scan — scanning nothing and reporting "no open ports" reads
+exactly like a clean host.
+
+`--scan-rate` is about accuracy as much as courtesy: a host that rate-limits
+you turns real open ports into timeouts, which the scanner then has to report
+as filtered. Slower is more correct.
+
+
+---
+
 ## Reporting
 
 `-o report.<ext>` picks the format by extension, or use `--format`:
@@ -1339,7 +1402,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1168 tests** pass in ~17s. A single **verification gate** runs the whole thing:
+**1210 tests** pass in ~20s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

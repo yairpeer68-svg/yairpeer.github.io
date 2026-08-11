@@ -102,6 +102,12 @@ def make_context(cfg: Config, args) -> Context:
     # remembered so a rotated session can be re-wrapped identically
     ctx.session_wrap = wrap_kw            # type: ignore[attr-defined]
     ctx.opsec = recorder                  # type: ignore[attr-defined]
+    # scan-tuning flags travel on the Context so the port scanner behaves the
+    # same whether it is driven from the CLI, the dashboard, or directly
+    for opt in ("ports", "scan_retries", "scan_rate", "scan_all_addresses"):
+        value = getattr(args, opt, None)
+        if value not in (None, ""):
+            setattr(ctx, opt, value)
     return ctx
 
 
@@ -472,6 +478,20 @@ def build_parser() -> argparse.ArgumentParser:
                      help="drop a verdict by id, reinstating the finding")
     out.add_argument("--verdicts", action="store_true",
                      help="list every standing verdict and exit")
+    out.add_argument("--ports", metavar="SPEC", default="",
+                     help="ports for portscan: '80,443', '1-1024', 'top100', "
+                          "'all', or a combination. Default top100")
+    out.add_argument("--scan-retries", dest="scan_retries", type=int, default=1,
+                     help="extra probes before calling a silent port filtered "
+                          "(default 1) — one dropped packet is not a firewall")
+    out.add_argument("--scan-rate", dest="scan_rate", type=float, default=0.0,
+                     help="max connection attempts per second (0 = unthrottled). "
+                          "Pacing is more accurate, not just politer: "
+                          "rate-limiting turns open ports into false 'filtered'")
+    out.add_argument("--scan-all-addresses", dest="scan_all_addresses",
+                     action="store_true",
+                     help="scan every resolved address, not just the first — "
+                          "IPv4 and IPv6 postures differ more often than expected")
     out.add_argument("--csp-assets", action="store_true", dest="csp_assets",
                      help="mine the target's Content-Security-Policy for hosts "
                           "and report the ones subdomain enumeration missed")

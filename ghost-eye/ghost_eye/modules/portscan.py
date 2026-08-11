@@ -11,6 +11,17 @@ from typing import Dict, List, Tuple
 
 from ..core import Module, clean_host, register
 
+
+def _opt(ctx, name, default):
+    """A scan option from the Context, then config, then the default."""
+    value = getattr(ctx, name, None)
+    if value not in (None, ""):
+        return value
+    try:
+        return ctx.config.get(name, default)          # type: ignore[union-attr]
+    except Exception:  # noqa: BLE001
+        return default
+
 # curated common ports -> service label
 COMMON_PORTS: Dict[int, str] = {
     21: "ftp", 22: "ssh", 23: "telnet", 25: "smtp", 53: "dns", 80: "http",
@@ -77,28 +88,34 @@ def _banner(sock: socket.socket, host: str, port: int, timeout: float) -> str:
 
 @register
 class PortScan(Module):
+    """The registered module. The engine lives in ``portscan_engine`` so the
+    CLI, the dashboard and this module all scan identically."""
     id = "portscan"
     name = "TCP port scan (connect, no root)"
     category = "Network"
     target_kind = "host"
+    expect = ["scanned"]
 
     def run(self, target, ctx):
         try:
             host = clean_host(target)
         except ValueError as exc:
             return self.fail(target, str(exc))
+        from ..portscan_engine import PortSpecError, scan_host
+        # --ports (and the scan-tuning flags) reach the module through the
+        # Context, so the CLI, the dashboard and a plain module run all scan
+        # identically rather than each growing their own defaults.
+        spec = str(_opt(ctx, "ports", "") or "")
         try:
-            ip = host if host.replace(".", "").isdigit() else socket.gethostbyname(host)
-        except OSError as exc:
-            return self.fail(host, f"cannot resolve: {exc}")
-        ports = sorted(COMMON_PORTS)
-        timeout = min(max(ctx.timeout, 1), 4)
-        found = scan_ports(ip, ports, timeout=timeout,
-                           threads=max(ctx.threads * 10, 60), grab=True)
-        return self.ok(host, {
-            "ip": ip,
-            "scanned": len(ports),
-            "open_count": len(found),
-            "open_ports": {f"{p}/{v['service']}": (v["banner"] or "open")
-                           for p, v in found.items()} or "no common ports open",
-        })
+            return self.ok(host, scan_host(
+                str(host), spec,
+                timeout=min(max(ctx.timeout, 1), 5),
+                workers=max(ctx.threads * 10, 60),
+                retries=int(_opt(ctx, "scan_retries", 1) or 0),
+                rate=float(_opt(ctx, "scan_rate", 0.0) or 0.0),
+                all_addresses=bool(_opt(ctx, "scan_all_addresses", False)),
+                grab=True))
+        except PortSpecError as exc:
+            return self.fail(host, str(exc))
+        except Exception as exc:  # noqa: BLE001
+            return self.fail(host, f"scan failed: {str(exc)[:120]}")
