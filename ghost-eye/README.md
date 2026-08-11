@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1292 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1436 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 739 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -54,6 +54,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [Deep scan & asset inventory](#deep-scan--asset-inventory)
 - [API keys](#api-keys)
 - [Web dashboard](#web-dashboard)
+- [Ownership, audit and email](#ownership-audit-and-email)
 - [Telegram bot](#telegram-bot)
 - [Error log](#error-log)
 - [Module catalogue](#module-catalogue)
@@ -893,6 +894,56 @@ as filtered. Slower is more correct.
 
 ---
 
+## Ownership, audit and email
+
+Three things a single-analyst tool can skip and a team cannot.
+
+**Ownership.** A finding nobody owns is a finding nobody fixes. Each one can
+carry an assignee and a workflow status, keyed on the same fingerprint a
+verdict uses — so ownership survives a re-scan instead of being lost with the
+job. Status is a deliberately closed set (`open`, `investigating`,
+`remediating`, `resolved`, `wont_fix`) and anything outside it is **refused**,
+not stored: a typo'd status silently drops the finding out of every filtered
+view, which is worse than no status at all.
+
+**Audit.** Ghost Eye can start scans, rewrite scope, delete stored findings and
+hold API keys, so *"who deleted last quarter's scans?"* has to have an answer
+that is not a shrug. Every state-changing call is recorded — actor, action,
+target, time, and whether it succeeded — by a wrapper around the POST router
+rather than by a line per endpoint, so a new endpoint is audited whether or not
+anyone remembers. The log is append-only from the API's point of view: there is
+a route that reads it and none that edits or deletes it, and a test asserts
+`AuditLog` has no `delete`/`edit`/`clear` method at all.
+
+Nothing secret reaches the log. A redaction pass runs over every free-text
+detail before it is written, and it is deliberately over-eager — a labelled
+credential loses **everything after the label** (`Authorization: Basic <blob>`
+would otherwise keep the blob and lose only the word "Basic"), bearer tokens
+are stripped, and any bare 28-plus-character key-shaped blob is replaced. A
+shortened audit entry beats a leaked one.
+
+**Email.** `--notify` and the webhook sink cover the push case; this is for the
+teams who read email and will not stand up a receiver just to be told a
+certificate expires in nine days. It is configured from the console under
+**Reports → Email this report**.
+
+- **TLS by default.** STARTTLS unless the port is 465 (implicit TLS), and
+  turning it off is reported as a problem unless the host is loopback. A report
+  is a list of your own weaknesses — exactly the message you do not want on the
+  wire in clear.
+- **The password is write-only.** It is stored with the API keys (OS keyring
+  when available, otherwise the 0600 config file, encrypted at rest when
+  `GHOSTEYE_SECRET` is set), never returned by the API, and absent from the
+  mailer's `__repr__` so it cannot be echoed into a log or an audit entry by
+  accident.
+- **Every configuration problem is reported at once**, not one per round trip.
+  One round trip per mistake is how a settings page gets abandoned.
+- **Nothing sends itself.** There is no "email me every scan" switch: a message
+  goes out because an operator pressed a button. A tool that mails findings
+  unprompted is a tool that eventually mails them to the wrong list.
+
+---
+
 ## Telegram bot
 
 `--notify` *pushes* a summary to a Telegram webhook. This is the other
@@ -1086,26 +1137,26 @@ python3 ghost_eye_web.py --open                 # console at /
 python3 ghost_eye_web.py --auth-token SECRET    # require a token
 ```
 
-The console is the home page and reaches **every one of the 42 endpoints the
+The console is the home page and reaches **every one of the 51 endpoints the
 API serves** — a number worth stating precisely, because the previous console
 reached 11 of them, so most of what Ghost Eye could do was invisible from a
 browser and only usable from the CLI. A test measures the coverage on every
 run, so the gap cannot silently reopen as the API grows.
 
-A rail of 27 workspaces, a persistent command bar, one content region:
+A rail of 30 workspaces, a persistent command bar, one content region:
 
 | Group | Workspaces |
 |-------|-----------|
-| Operate | **Scan** (selection, engine, port-scan, batch, baseline) · **Live results** · **Search** |
+| Operate | **Scan** (selection, engine, port-scan, batch, baseline) · **Live results** · **Search** · **Search all scans** |
 | Analyse | **Findings** · **Fix order** · **Anomalies** · **Risk model** · **Intelligence** · **Ask the scan** · **Exploit intel** |
 | Assets | **Inventory** · **By host** · **Ports** · **CDN / origin** · **Verify origin** · **CSP assets** · **Attribution** · **Entity investigation** |
-| Trust | **Verdicts** · **OPSEC** · **Compliance** |
-| Manage | **History & trend** · **Portfolio** · **Reports** · **Schedules** · **Scope, rules & backup** · **Settings** |
+| Trust | **Verdicts** · **OPSEC** · **Compliance** · **Owners & status** |
+| Manage | **History & trend** · **Portfolio** · **Reports** · **Schedules** · **Scope, rules & backup** · **Audit trail** · **Settings** |
 
 Details that decide whether it is usable rather than merely complete:
 
-- **Command palette** (`Ctrl`/`⌘ K`) — jump to any of the 27 workspaces, any of
-  the 553 modules, or an action. 27 workspaces is more than a rail can make fast.
+- **Command palette** (`Ctrl`/`⌘ K`) — jump to any of the 30 workspaces, any of
+  the 553 modules, or an action. 30 workspaces is more than a rail can make fast.
 - **Keyboard triage**: `j`/`k` to move, `f`/`a`/`c` to rule, `x` to select,
   `Enter` for the evidence, `/` to search, `?` for the list. Two hundred findings
   is mouse work otherwise.
@@ -1114,13 +1165,20 @@ Details that decide whether it is usable rather than merely complete:
 - **Evidence drawer** — the finding's provenance and *everything the producing
   module returned*, not just the flattened value.
 - **Shareable deep links** — the workspace, the job and the filter state live in
-  the URL, so the view you are looking at can be sent to someone else.
+  the URL, *and are read back on load*, so the view you are looking at can be
+  sent to someone else and they land on it. If the link names a scan that is
+  still running, the recipient's page keeps updating instead of freezing on
+  whichever frame was current when they opened it.
 - **Force-directed entity graph** with drag, wheel-zoom, highlight and
   neighbourhood focus. A ring layout says nothing about structure, which is the
   only reason to draw a graph.
-- **Scan presets** (selection + every option, named) and a **dry run** that says
-  how many modules, which categories and the worst-case duration — and states
-  plainly that nothing was sent.
+- **Scan presets** (selection + every option, named) and two different previews
+  of what a run will cost. The **dry run** gives a worst-case bound from the
+  timeout; the **estimate** asks the backend what these modules have actually
+  taken *on this machine* — the engine records `elapsed_ms` per module, so with
+  history the number is measured rather than guessed, and without it the console
+  says so instead of inventing one. Both name the modules that spend a paid API
+  quota, and both state plainly that nothing was sent.
 - **Backend self-check** — which endpoints answer and how fast, from the browser.
 - **Themes** (dark / light / high-contrast), **density**, and
   `prefers-reduced-motion` respected.
@@ -1132,6 +1190,30 @@ Details that decide whether it is usable rather than merely complete:
 - **The live stream patches, it does not rebuild.** Re-rendering 553 rows every
   second destroys your scroll position and any text selection *while the scan is
   still running*; only modules whose output changed are touched.
+- **Verdicts are optimistic, with a rollback.** The ruling paints immediately
+  and reconciles after; a write the backend refuses is put back and said out
+  loud. Waiting a round trip per finding makes triaging fifty of them feel
+  broken — but an optimistic UI without a rollback is just one that lies when
+  the network fails.
+- **Re-run a single module.** A module that timed out should not cost you all
+  553 again, and one whose answer you doubt is worth a cheap second opinion. The
+  current results stay open until the new job returns, so you can compare the
+  two rather than losing the one you doubted.
+- **Search across every stored scan**, not just the one on screen — the question
+  you actually have six months later is "where have I *ever* seen this IP?", and
+  no per-scan search can answer it. If the string matches a scan's target but no
+  finding value, it says that too, rather than "nothing matches".
+- **Owners & status.** A finding nobody owns is a finding nobody fixes.
+  Ownership is keyed on the same fingerprint a verdict uses, so it follows the
+  finding into the next scan. Status is a closed set — free text turns into six
+  spellings of "in progress" and none of them can be counted.
+- **Audit trail.** Every state-changing call is recorded: who asked, what
+  changed, when. The log is append-only — there is no endpoint that edits or
+  removes an entry — and a redaction pass strips anything token-shaped before
+  a detail string reaches disk.
+- **Email delivery** alongside the webhook sink: STARTTLS by default, the
+  password write-only (stored with the API keys, never returned to the page),
+  and nothing that sends itself.
 - **Batch scanning**: extra targets, one per line — the queue runs them in turn
   and stops with the scan.
 - **Trend and compare**: sparklines per numeric series across a target's
@@ -1514,7 +1596,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1292 tests** pass in ~20s. A single **verification gate** runs the whole thing:
+**1436 tests** pass in ~20s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

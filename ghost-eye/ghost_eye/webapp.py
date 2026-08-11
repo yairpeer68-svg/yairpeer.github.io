@@ -394,6 +394,17 @@ def _meta() -> dict:
             "categories": cats, "profiles": recipes}
 
 
+def _paid_modules() -> set:
+    """Modules that consume a third-party API key.
+
+    Those are the ones with a quota behind them, so an estimate that ignores
+    them will happily tell you a scan is free right before it burns a month of
+    your VirusTotal allowance.
+    """
+    from .config import MODULE_KEYS
+    return set(MODULE_KEYS)
+
+
 def _select(payload: dict) -> List:
     mode = payload.get("mode", "all")
     val = payload.get("value")
@@ -652,6 +663,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._watchlist_get(parsed)
         if path == "/api/telegram":
             return self._telegram_status()
+        if path == "/api/assign":
+            return self._assign_get(parsed)
+        if path == "/api/audit":
+            return self._audit_get(parsed)
+        if path == "/api/email":
+            return self._email_get()
+        if path == "/api/search-all":
+            return self._search_all(parsed)
+        if path == "/api/estimate":
+            return self._estimate(parsed)
         if path == "/api/verdicts":
             return self._all_verdicts()
         if path == "/api/baseline":
@@ -664,6 +685,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_get(path, parsed)
         return self._json({"error": "not found"}, 404)
 
+    # Routes that write their own audit entry with real detail. Everything else
+    # gets a generic one from the wrapper below, so nothing that changes state
+    # can go unrecorded just because someone forgot to add a line.
+    _SELF_AUDITED = ("/api/assign", "/api/email", "/api/scan")
+
     def _do_post(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -671,6 +697,12 @@ class Handler(BaseHTTPRequestHandler):
             return None
         if not self._authed(parsed):
             return self._json({"error": "unauthorized"}, 401)
+        out = self._post_route(path, parsed)
+        if path.startswith("/api/") and path not in self._SELF_AUDITED:
+            self._record(path[len("/api/"):])
+        return out
+
+    def _post_route(self, path, parsed):
         if path == "/api/scan":
             return self._scan_start()
         if path == "/api/scope":
@@ -689,6 +721,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._retention()
         if path == "/api/telegram":
             return self._telegram_set()
+        if path == "/api/assign":
+            return self._assign_set()
+        if path == "/api/email":
+            return self._email_set()
         if path == "/api/verdict":
             return self._set_verdict()
         if path == "/api/verify-origin":
@@ -729,6 +765,7 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/schedule/"):
             sid = path.split("/")[3] if len(path.split("/")) > 3 else ""
             ok = self.server.scheduler.remove(sid)
+            self._record("schedule-delete", detail=sid, ok=ok)
             return self._json({"deleted": ok})
         return self._json({"error": "not found"}, 404)
 
@@ -748,6 +785,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "no modules matched selection"}, 400)
         options = payload.get("options") or {}
         jid = self.server.jobs.create(target, modules, options)
+        # scans are the one action worth naming its target: "who pointed this
+        # at production?" is the question an audit log exists to answer.
+        self._record("scan", detail=f"{len(modules)} modules", target=target)
         return self._json({"job_id": jid, "total": len(modules)})
 
     def _job_get(self, path: str, parsed):
@@ -1086,6 +1126,230 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"removed": removed, "remaining": remaining,
                            "note": "findings are deleted permanently; take a "
                                    "backup first if you might want them."})
+
+    # ---- ownership, audit, email, cross-scan search ------------------------ #
+    def _assignments(self):
+        """Shared across requests, created on first use so a handler built by a
+        test without going through serve() still works."""
+        store = getattr(self.server, "assignments", None)
+        if store is None:
+            from .collab import Assignments
+            store = Assignments(self._state_path("assignments.json"))
+            self.server.assignments = store       # type: ignore[attr-defined]
+        return store
+
+    def _audit(self):
+        log = getattr(self.server, "audit", None)
+        if log is None:
+            from .collab import AuditLog
+            log = AuditLog(self._state_path("audit.jsonl"))
+            self.server.audit = log               # type: ignore[attr-defined]
+        return log
+
+    def _record(self, action: str, detail: str = "", target: str = "",
+                ok: bool = True) -> None:
+        """Audit one state-changing call. Never raises: an unwritable log must
+        not turn a working API into a broken one."""
+        try:
+            self._audit().record(action, detail=detail, target=target, ok=ok,
+                                 actor=self.headers.get("X-Ghost-Actor", "")
+                                 or self.client_address[0])
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _assign_get(self, parsed):
+        from .collab import STATUSES
+        store = self._assignments()
+        key = (parse_qs(parsed.query).get("key", [""])[0]).strip()
+        if key:
+            return self._json({"key": key, "assignment": store.get(key),
+                               "statuses": list(STATUSES)})
+        return self._json({"assignments": store.all(),
+                           "summary": store.summary(),
+                           "statuses": list(STATUSES)})
+
+    def _assign_set(self):
+        body = self._body()
+        key = str(body.get("key") or "").strip()
+        if not key:
+            return self._json({"error": "key required"}, 400)
+        store = self._assignments()
+        if body.get("remove"):
+            gone = store.unassign(key)
+            self._record("unassign", detail=key, ok=gone)
+            return self._json({"key": key, "removed": gone,
+                               "summary": store.summary()})
+        try:
+            entry = store.assign(key,
+                                 assignee=body.get("assignee") or "",
+                                 status=body.get("status") or "open",
+                                 target=body.get("target") or "",
+                                 note=body.get("note") or "")
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        self._record("assign", detail=f"{key} -> {entry['status']}",
+                     target=entry.get("target", ""))
+        return self._json({"assignment": entry, "summary": store.summary()})
+
+    def _audit_get(self, parsed):
+        q = parse_qs(parsed.query)
+        try:
+            limit = int(q.get("limit", ["200"])[0])
+        except ValueError:
+            limit = 200
+        log = self._audit()
+        return self._json({"entries": log.tail(min(limit, 1000),
+                                               action=q.get("action", [""])[0]),
+                           "summary": log.summary(),
+                           "note": "append-only: there is no API that edits or "
+                                   "deletes an entry."})
+
+    def _mailer(self):
+        from .mailer import Mailer
+        cfg = self.server.jobs.cfg
+        return Mailer(host=cfg.get("smtp_host", "") or "",
+                      port=int(cfg.get("smtp_port", 587) or 587),
+                      username=cfg.get("smtp_user", "") or "",
+                      password=cfg.api_key("smtp_password") or "",
+                      sender=cfg.get("smtp_from", "") or "",
+                      use_tls=str(cfg.get("smtp_tls", "1")) not in ("0", "false"))
+
+    def _email_get(self):
+        m = self._mailer()
+        cfg = self.server.jobs.cfg
+        return self._json({"smtp": m.config(), "problems": m.problems(),
+                           "recipients": cfg.get("smtp_to", "") or "",
+                           "note": "the password is write-only — it is stored "
+                                   "with the API keys and never returned."})
+
+    def _email_set(self):
+        """Save SMTP settings, or send one message. Sending is always an
+        explicit act: there is no 'email me every scan' switch here."""
+        body = self._body()
+        cfg = self.server.jobs.cfg
+        if body.get("action") == "send":
+            return self._email_send(body)
+        for field, option in (("host", "smtp_host"), ("port", "smtp_port"),
+                              ("username", "smtp_user"), ("sender", "smtp_from"),
+                              ("recipients", "smtp_to"), ("use_tls", "smtp_tls")):
+            if field in body:
+                value = body[field]
+                if field == "use_tls":
+                    value = "1" if value else "0"
+                cfg.set(option, str(value))
+        if body.get("password"):
+            cfg.set_api_key("smtp_password", str(body["password"]))
+        m = self._mailer()
+        self._record("email-config", detail=f"host={m.host} port={m.port}")
+        return self._json({"saved": True, "smtp": m.config(),
+                           "problems": m.problems()})
+
+    def _email_send(self, body):
+        from .mailer import MailError, report_email
+        m = self._mailer()
+        cfg = self.server.jobs.cfg
+        to = body.get("to") or cfg.get("smtp_to", "") or ""
+        jid = str(body.get("job_id") or "").strip()
+        subject = str(body.get("subject") or "Ghost Eye test message")
+        text = str(body.get("body") or
+                   "This is a test message from Ghost Eye. "
+                   "If you are reading it, delivery works.")
+        if jid:
+            snap = self.server.jobs.snapshot(jid)
+            results = self.server.jobs.results_obj(jid)
+            if snap is None or not results:
+                return self._json({"error": "job not found or has no results"}, 404)
+            try:
+                scored = reporting_ext.score_findings(results)
+            except Exception as exc:  # noqa: BLE001
+                return self._json({"error": f"findings failed: {exc}"}, 500)
+            subject, text = report_email(snap["target"], snap.get("risk") or {},
+                                         scored.get("findings", []))
+        try:
+            out = m.send(to, subject, text)
+        except MailError as exc:
+            self._record("email-send", detail=str(exc), ok=False)
+            return self._json({"error": str(exc)}, 400)
+        self._record("email-send", detail=f"{len(out['recipients'])} recipient(s)")
+        return self._json(out)
+
+    def _search_all(self, parsed):
+        """Search every stored scan, not just the one on screen."""
+        from .search import search_scans
+        q = parse_qs(parsed.query)
+        query = (q.get("q", [""])[0]).strip()
+        if not query:
+            return self._json({"error": "q required"}, 400)
+        try:
+            limit = min(int(q.get("scans", ["60"])[0]), 300)
+        except ValueError:
+            limit = 60
+        try:
+            store = self.server.jobs.store()
+            scans = store.search_all(query, limit=limit,
+                                     target=(q.get("target", [""])[0]).strip())
+            total = store.count_scans()
+            store.close()
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"history unavailable: {exc}"}, 500)
+        out = search_scans(scans, query)
+        out["stored_scans"] = total
+        return self._json(out)
+
+    def _estimate(self, parsed):
+        """How long a scan will take and what it will cost you, before you
+        press the button.
+
+        The time figure comes from what modules have actually taken on this
+        machine, not from a guess: the engine records elapsed_ms per module and
+        recent scans are the sample. With no history it says so rather than
+        inventing a number.
+        """
+        q = parse_qs(parsed.query)
+        modules = _select({"mode": q.get("mode", ["all"])[0],
+                           "value": q.get("value", [""])[0]
+                           if q.get("mode", ["all"])[0] != "modules"
+                           else [m for m in (q.get("value", [""])[0]).split(",") if m]})
+        samples, seen = {}, 0
+        try:
+            store = self.server.jobs.store()
+            for row in store.recent_scans(15):
+                scan = store.load_scan(row["id"])
+                if not scan:
+                    continue
+                seen += 1
+                for r in scan["results"]:
+                    ms = int(r.get("elapsed_ms") or 0)
+                    if ms > 0:
+                        samples.setdefault(r.get("module", ""), []).append(ms)
+            store.close()
+        except Exception:  # noqa: BLE001 - an estimate is never worth an error
+            pass
+        per = {k: sorted(v)[len(v) // 2] for k, v in samples.items()}
+        typical = sorted(per.values())[len(per) // 2] if per else 0
+        names = [getattr(m, "name", str(m)) for m in modules]
+        total_ms = sum(per.get(n, typical) for n in names)
+        # modules run concurrently; the wall clock is roughly the serial time
+        # divided by the worker count, floored by the slowest single module.
+        workers = max(1, int(getattr(self.server.jobs, "workers", 10) or 10))
+        slowest = max([per.get(n, typical) for n in names], default=0)
+        wall = max(total_ms // workers, slowest)
+        paid_ids = _paid_modules()
+        paid = sorted({getattr(m, "id", "") for m in modules
+                       if getattr(m, "id", "") in paid_ids})
+        return self._json({
+            "modules": len(names),
+            "sampled_scans": seen,
+            "have_history": bool(per),
+            "serial_ms": total_ms,
+            "estimated_seconds": round(wall / 1000.0, 1) if wall else None,
+            "slowest_module_ms": slowest,
+            "requests_upper_bound": len(names) * 4,
+            "paid_api_modules": paid,
+            "note": ("estimated from this machine's own timings"
+                     if per else
+                     "no timing history yet — run one scan and this becomes real"),
+        })
 
     # ---- Telegram bot ---------------------------------------------------- #
     def _telegram_status(self):
@@ -1654,10 +1918,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _keys_get(self):
         """Which optional API keys are configured (never returns values)."""
-        from .config import _ENV_MAP, _KEY_LABELS
+        from .config import _KEY_LABELS, _SERVICE_KEYS
         cfg = self.server.jobs.cfg
         keys = [{"name": n, "label": _KEY_LABELS.get(n, n),
-                 "set": bool(cfg.api_key(n))} for n in _ENV_MAP]
+                 "set": bool(cfg.api_key(n))} for n in _SERVICE_KEYS]
         return self._json({"backend": cfg.key_backend(), "keys": keys})
 
     def _keys_set(self):

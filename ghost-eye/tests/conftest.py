@@ -19,6 +19,9 @@ def _isolate_ghosteye_home(tmp_path_factory):
         "GHOSTEYE_CONFIG": str(home / "config.ini"),
         "GHOSTEYE_ERRORLOG": str(home / "errors.log"),
         "GHOSTEYE_ALERT_RULES": str(home / "alert_rules.json"),
+        # notes, watchlist, assignments and the audit log all live here; without
+        # this a test that assigns a finding writes into a real home directory
+        "GHOSTEYE_STATE": str(home / "state"),
         "GHOSTEYE_NO_KEYRING": "1",   # never touch the OS secret store
     }
     saved = {k: os.environ.get(k) for k in env}

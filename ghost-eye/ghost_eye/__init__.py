@@ -13,7 +13,7 @@ from .core import (Colors, Console, Context, Module, Result, REGISTRY,
                    modules_by_category, register, setup_logging)
 from .config import Config
 
-__version__ = "5.0.0"
+__version__ = "5.1.0"
 __all__ = [
     "Colors", "Console", "Context", "Module", "Result", "REGISTRY",
     "modules_by_category", "register", "setup_logging", "Config", "__version__",

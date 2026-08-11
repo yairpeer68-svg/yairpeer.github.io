@@ -103,7 +103,7 @@ def registrable_domain(host: str) -> str:
     wrong is how a tool decides that every unrelated ``.co.uk`` in a policy
     belongs to the target.
     """
-    name = (host or "").strip().lower().strip(".")
+    name = _hostname(host)
     if not name or _is_ip(name):
         return name
     labels = name.split(".")
@@ -112,6 +112,31 @@ def registrable_domain(host: str) -> str:
     if len(labels) >= 3 and ".".join(labels[-2:]) in _MULTI_SUFFIXES:
         return ".".join(labels[-3:])
     return ".".join(labels[-2:])
+
+
+def _hostname(value: str) -> str:
+    """Reduce anything host-shaped to a bare hostname.
+
+    This is fed both CSP sources (already bare hostnames, mostly) and the scan
+    target, which is routinely a full URL. Splitting ``http://127.0.0.1:8894``
+    on dots without stripping the scheme and port produces ``0.1:8894`` and
+    reports it as the site's apex domain — nonsense that then propagates into
+    every "is this host ours?" decision downstream.
+    """
+    name = (value or "").strip().lower()
+    if "//" in name:                      # scheme://…
+        name = name.split("//", 1)[1]
+    name = name.split("/", 1)[0]          # path
+    name = name.split("?", 1)[0].split("#", 1)[0]
+    if "@" in name:                       # userinfo
+        name = name.rsplit("@", 1)[1]
+    if name.startswith("["):              # bracketed IPv6, optionally with :port
+        end = name.find("]")
+        if end > 0:
+            return name[:end + 1]
+    elif name.count(":") == 1:            # host:port (a bare IPv6 has more)
+        name = name.split(":", 1)[0]
+    return name.strip(".")
 
 
 def _is_ip(value: str) -> bool:

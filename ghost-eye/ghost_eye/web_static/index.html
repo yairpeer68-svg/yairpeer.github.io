@@ -362,6 +362,7 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
       <button class="navitem" data-view="scan"><span class="ico">◎</span><span data-i18n="nav.scan">Scan</span></button>
       <button class="navitem" data-view="live"><span class="ico">⟳</span><span data-i18n="nav.live">Live results</span><span class="badge" id="b-live">0</span></button>
       <button class="navitem" data-view="search"><span class="ico">⌕</span><span data-i18n="nav.search">Search</span></button>
+      <button class="navitem" data-view="library"><span class="ico">▤</span><span data-i18n="nav.library">Search all scans</span></button>
 
       <div class="navgrp eyebrow" data-i18n="nav.analyse">Analyse</div>
       <button class="navitem" data-view="findings"><span class="ico">⚑</span><span data-i18n="nav.findings">Findings</span><span class="badge" id="b-find">0</span></button>
@@ -386,6 +387,7 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
       <button class="navitem" data-view="verdicts"><span class="ico">⚖</span><span data-i18n="nav.verdicts">Verdicts</span><span class="badge" id="b-verd">0</span></button>
       <button class="navitem" data-view="opsec"><span class="ico">👁</span><span data-i18n="nav.opsec">OPSEC</span></button>
       <button class="navitem" data-view="compliance"><span class="ico">§</span><span data-i18n="nav.compliance">Compliance</span></button>
+      <button class="navitem" data-view="owners"><span class="ico">☑</span><span data-i18n="nav.owners">Owners &amp; status</span><span class="badge" id="b-own">0</span></button>
 
       <div class="navgrp eyebrow" data-i18n="nav.manage">Manage</div>
       <button class="navitem" data-view="history"><span class="ico">◷</span><span data-i18n="nav.history">History &amp; trend</span></button>
@@ -393,6 +395,7 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
       <button class="navitem" data-view="reports"><span class="ico">⇩</span><span data-i18n="nav.reports">Reports</span></button>
       <button class="navitem" data-view="schedules"><span class="ico">⏱</span><span data-i18n="nav.schedules">Schedules</span></button>
       <button class="navitem" data-view="governance"><span class="ico">⛉</span><span data-i18n="nav.governance">Scope, rules &amp; backup</span></button>
+      <button class="navitem" data-view="audit"><span class="ico">⧉</span><span data-i18n="nav.audit">Audit trail</span></button>
       <button class="navitem" data-view="settings"><span class="ico">⚙</span><span data-i18n="nav.settings">Settings</span></button>
     </nav>
     <div class="railfoot">
@@ -492,7 +495,9 @@ const CACHE={};                       // per-view fetched payloads
 const I18N={
   he:{
     "nav.operate":"תפעול","nav.scan":"סריקה","nav.live":"תוצאות חיות",
-    "nav.search":"חיפוש","nav.analyse":"ניתוח","nav.findings":"ממצאים",
+    "nav.search":"חיפוש","nav.library":"חיפוש בכל הסריקות",
+    "nav.owners":"אחראים וסטטוס","nav.audit":"יומן ביקורת",
+    "nav.analyse":"ניתוח","nav.findings":"ממצאים",
     "nav.fixorder":"סדר תיקון","nav.anomalies":"חריגות","nav.risk":"מודל סיכון",
     "nav.intel":"מודיעין","nav.exploits":"מודיעין ניצול","nav.ask":"שאל את הסריקה",
     "nav.assets":"נכסים","nav.inventory":"מלאי","nav.rollup":"לפי מארח",
@@ -550,6 +555,12 @@ const I18N={
     "search.t":"חיפוש בתוצאות","search.w":"חיפוש חופשי בכל שדה שכל מודול החזיר. על 553 מודולים זה בדרך כלל הדרך המהירה ביותר להגיע לתשובה.",
     "ask.t":"שאל את הסריקה","ask.w":"שאלות בשפה חופשית שנענות דטרמיניסטית מהמודיעין של הסריקה — בלי LLM, אלא אם הגדרת מפתח.",
     "invg.t":"חקירת ישות","invg.w":"שם משתמש או אימייל כזרע: פרופילים שנבדקו מול canary, זהות, ותיק OPSEC.",
+    "lib.t":"חיפוש בכל הסריקות",
+    "lib.w":"חיפוש בכל סריקה שנשמרה, לא רק בזו שעל המסך. זו השאלה שבאמת עולה אחרי חצי שנה: איפה בכלל ראיתי את הכתובת הזאת.",
+    "own.t":"אחראים וסטטוס",
+    "own.w":"ממצא שאין לו בעלים הוא ממצא שלא מטופל. סטטוס נבחר מרשימה סגורה — טקסט חופשי הופך לשש איותים של 'בטיפול' ואי אפשר לספור אף אחד מהם.",
+    "aud.t":"יומן ביקורת",
+    "aud.w":"מי ביקש, מה השתנה, ומתי. הכלי הזה יכול להתחיל סריקות, לשנות היקף ולמחוק ממצאים — לשאלה 'מי מחק את הסריקות מהרבעון שעבר' חייבת להיות תשובה. היומן הוא הוספה-בלבד.",
   }
 };
 let LANG = (()=>{ try{ return localStorage.getItem("ge_lang")||"en"; }catch(e){ return "en"; } })();
@@ -910,6 +921,7 @@ VIEWS.scan = ()=>{
       </div>
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
         <button class="btn" id="dryrun">Dry run — what would this cost?</button>
+        <button class="btn" id="estimate">Estimate from real timings</button>
         <button class="btn" id="keyhealth">Which modules need a key?</button>
         <button class="btn" id="selfcheck">Self-check the backend</button>
       </div>
@@ -968,6 +980,7 @@ VIEWS.scan = ()=>{
     savePresets(all); drawPresets(); toast("Preset deleted");
   };
   $("dryrun").onclick=dryRun;
+  $("estimate").onclick=estimateRun;
   $("keyhealth").onclick=keyHealth;
   $("selfcheck").onclick=selfCheck;
   api("/api/baseline").then(b=>{
@@ -1037,6 +1050,35 @@ function dryRun(){
     Worst case ≈ <b>${Math.floor(worst/60)}m ${worst%60}s</b> at
     ${parallel} in parallel and a ${timeout}s timeout — an upper bound, since
     most modules answer long before their timeout. Nothing has been sent.`;
+}
+
+/* #67 (the honest half) — the dry run gives an upper bound from the timeout,
+   which is nearly always far too pessimistic. This asks the backend what these
+   modules have actually taken on this machine. With no history it says so
+   rather than inventing a number. */
+async function estimateRun(){
+  const sel=currentSelection();
+  const qs=new URLSearchParams({mode:sel.mode||"all"});
+  if(sel.value) qs.set("value", Array.isArray(sel.value)?sel.value.join(","):sel.value);
+  $("presetOut").innerHTML=`<span class="spin"></span>`;
+  try{
+    const d=await api("/api/estimate?"+qs.toString());
+    const secs=d.estimated_seconds;
+    $("presetOut").innerHTML = `
+      <b>${d.modules} module(s)</b> —
+      ${d.have_history && secs!=null
+        ? `about <b>${secs<90?secs+"s":Math.floor(secs/60)+"m "+Math.round(secs%60)+"s"}</b>,
+           measured from ${d.sampled_scans} recent scan(s) on this machine.
+           Slowest single module ≈ ${(d.slowest_module_ms/1000).toFixed(1)}s.`
+        : `<b>no timing history yet</b> — run one scan and this becomes a real number
+           instead of the timeout-based upper bound above.`}
+      <br>At most ~${d.requests_upper_bound} outbound requests.
+      ${(d.paid_api_modules||[]).length
+        ? `<br><b>${d.paid_api_modules.length} module(s) spend a third-party API quota</b>:
+           ${d.paid_api_modules.map(esc).join(", ")}.`
+        : `<br>None of these spend a paid API quota.`}
+      <br>Nothing has been sent.`;
+  }catch(e){ $("presetOut").innerHTML=errBox(e.message); }
 }
 
 /* #70 — which modules will silently skip themselves for want of a key. */
@@ -1219,6 +1261,8 @@ function streamCard(r, flat, sev){
           ${isErr?`<span class="pill critical">error</span>`:
             r.status==="empty"?`<span class="pill muted">empty</span>`:
             `<span class="pill ok">${Object.keys(flat).length} fields</span>`}
+          <button class="btn sm" data-rerun="${esc(r.module)}"
+            title="run only this module again">↻</button>
           <span class="mono" style="color:var(--faint)">${open?"▾":"▸"}</span>
         </span>
       </div>
@@ -1234,11 +1278,39 @@ function streamCard(r, flat, sev){
 }
 /* one delegated handler instead of rebinding every row on every tick */
 document.addEventListener("click", e=>{
+  const rr=e.target.closest("[data-rerun]");
+  if(rr){ e.stopPropagation(); return rerunModule(rr.dataset.rerun); }
   const h=e.target.closest(".reshead"); if(!h) return;
   const m=h.dataset.mod;
   expanded.has(m) ? expanded.delete(m) : expanded.add(m);
   if(SNAP) renderStream(SNAP);
 });
+
+/* #64 — re-run a single module. A module that errored on a transient timeout
+   should not cost you all 553 again, and a module whose answer you doubt is
+   worth one cheap second opinion. */
+function rerunModule(name){
+  const target=(SNAP&&SNAP.target)||$("target").value.trim();
+  if(!target) return toast("No target to re-run against.");
+  // the stream is keyed by module NAME; the API selects by module ID
+  const meta=(META&&META.modules||[]).find(m=>m.name===name||m.id===name);
+  if(!meta) return toast(`Cannot map "${name}" back to a module id.`);
+  modal("Re-run one module", `<div class="note">Runs <b>${esc(meta.name)}</b>
+    against <b>${esc(target)}</b> as a new job. Your current results stay open
+    until the new job returns, so you can compare the two answers rather than
+    losing the one you doubted.</div>`,
+    async ()=>{
+      try{
+        const res=await api("/api/scan",{method:"POST", body:JSON.stringify({
+          target, selection:{mode:"modules", value:[meta.id]}, options:{}})});
+        JOB=res.job_id; SNAP=null; expanded=new Set([meta.name]);
+        Object.keys(CACHE).forEach(k=>delete CACHE[k]);
+        setScanning(true); go("live"); tick();
+        if(!openStream()) poll=setInterval(tick,1000);
+        toast(`Re-running ${meta.name}`);
+      }catch(e){ toast("Could not re-run: "+e.message); }
+    }, "Re-run");
+}
 
 function flatten(obj, prefix, out){
   if(obj===null||obj===undefined){ out[prefix||"value"]="—"; return; }
@@ -1423,6 +1495,7 @@ function rowMenu(id){
       <button class="btn" data-act="md">Copy as Markdown</button>
       <button class="btn" data-act="ticket">Copy as a ticket</button>
       <button class="btn" data-act="note">Add / edit a note</button>
+      <button class="btn" data-act="own">Assign an owner</button>
       <button class="btn" data-act="watch">Watch this value</button>
       <button class="btn" data-act="sev">Override the severity</button>
       <button class="btn" data-act="fix">Show it in Fix order</button>
@@ -1435,6 +1508,7 @@ function rowMenu(id){
       if(a==="md") copyFinding(id,false);
       else if(a==="ticket") copyFinding(id,true);
       else if(a==="note") noteFor(id);
+      else if(a==="own") assignFinding(id);
       else if(a==="watch") watch(id);
       else if(a==="sev") overrideSeverity(id);
       else if(a==="ev") evidence(id);
@@ -1609,18 +1683,22 @@ function bulkRule(verdict){
     <div class="note">Each ruling still locks onto that finding's own value, so a
       changed value comes back for judgement individually.</div>`,
     async vals=>{
-      let ok=0;
+      const undo=markLocally(ids, verdict);        // #5 paint first, confirm after
+      let ok=0, failed=[];
       for(const id of ids){
         try{
           await api("/api/verdict",{method:"POST", body:JSON.stringify({
             id, verdict, reason:vals.reason||""})});
           ok++;
-        }catch(e){}
+        }catch(e){ failed.push(id); }
       }
       LAST_RULED={ids, verdict};
       SELECTED.clear();
+      if(!ok) undo();
       delete CACHE[JOB+":verdicts"]; reload();
-      toast(`${ok} ruled ${verdict}`, {label:"Undo", run:undoRuling});
+      toast(failed.length
+        ? `${ok} ruled ${verdict}, ${failed.length} refused by the backend`
+        : `${ok} ruled ${verdict}`, ok?{label:"Undo", run:undoRuling}:null);
     }, "Record");
 }
 
@@ -1667,6 +1745,10 @@ function rule(id, verdict){
       changes the finding returns for judgement, and the ruling stops
       suppressing once it expires.</div>`,
     async vals=>{
+      // #5 optimistic: paint the ruling now and reconcile after. Waiting for a
+      // round trip per finding makes triaging fifty of them feel broken; the
+      // rollback below means a rejected write never leaves a lie on screen.
+      const undo=markLocally([id], verdict);
       try{
         await api("/api/verdict",{method:"POST", body:JSON.stringify({
           id, verdict, reason:vals.reason||"",
@@ -1674,9 +1756,28 @@ function rule(id, verdict){
         LAST_RULED={ids:[id], verdict};
         delete CACHE[JOB+":verdicts"]; reload();
         toast(`Ruled ${verdict}`, {label:"Undo", run:undoRuling});
-      }catch(e){ set(errBox("Could not record the verdict: "+e.message)+$("view").innerHTML); }
+      }catch(e){
+        undo();
+        render();
+        toast("The verdict was NOT recorded: "+e.message);
+      }
     }, "Record");
 }
+/* Apply a verdict to the cached payload so the table repaints immediately.
+   Returns a function that puts it back exactly as it was — an optimistic UI
+   without a rollback is just a UI that lies when the network fails. */
+function markLocally(ids, verdict){
+  const d=CACHE[JOB+":verdicts"];
+  if(!d || !d.findings) return ()=>{};
+  const before=[];
+  ids.forEach(id=>{
+    const f=d.findings.find(x=>x.id===id);
+    if(f){ before.push([f, f.verdict]); f.verdict=verdict; }
+  });
+  render();
+  return ()=>{ before.forEach(([f,v])=>{ f.verdict=v; }); };
+}
+
 async function unrule(id){
   try{
     await api("/api/verdict",{method:"POST",
@@ -2404,6 +2505,7 @@ VIEWS.reports = ()=>{
         <button class="btn" id="rb-print">Print / PDF</button>
         <button class="btn" id="rb-share">Copy a share link</button>
         <button class="btn" id="rb-send">Send to a webhook</button>
+        <button class="btn" id="rb-email">Email this report</button>
         <button class="btn" id="rb-pack">Evidence pack</button>
       </div>
       <div id="rb-out" style="margin-top:12px"></div>
@@ -2447,6 +2549,7 @@ VIEWS.reports = ()=>{
   drawSections();
   $("rb-aud").onchange=e=>{ chosen=[...AUDIENCES[e.target.value].sections]; drawSections(); };
   $("rb-redact").onchange=e=>{ REDACT=e.target.checked; };
+  $("rb-email").onclick=()=>emailReport();
 
   const build=async ()=>buildReport($("rb-title").value, chosen);
   $("rb-preview").onclick=async ()=>{
@@ -3009,6 +3112,270 @@ VIEWS.governance = async ()=>{
   };
 };
 
+
+/* Open a scan out of storage into every analysis view. Shared by History and
+   by the cross-scan search, which both mean the same thing by "open this run". */
+async function loadStoredScan(id){
+  try{
+    const raw=await api(`/api/scan/${encodeURIComponent(id)}`);
+    JOB=null; SNAP={target:raw.target, status:"done",
+      total:(raw.results||[]).length, done:(raw.results||[]).length,
+      results:raw.results||[], risk:raw.risk||{}};
+    Object.keys(CACHE).forEach(k=>delete CACHE[k]);
+    notify(`Loaded the stored scan of ${raw.target}`);
+    toast("Loaded — the analysis views now read this scan. Live-only views "+
+          "(fix order, anomalies) need a running job and will say so.");
+    go("live");
+  }catch(e){ toast(e.message); }
+}
+
+/* #58 — email delivery. The webhook sink already existed; most teams read
+   email and comparatively few will stand up a receiver just to be told a
+   certificate expires in nine days. Nothing sends itself: a message goes out
+   because you pressed this, not because a scan finished. */
+async function emailReport(){
+  let cfg={smtp:{}, problems:["could not read the mail settings"], recipients:""};
+  try{ cfg=await api("/api/email"); }catch(e){}
+  const smtp=cfg.smtp||{};
+  modal("Email this report", `
+    ${smtp.configured?"":`<div class="banner warn">No mail server configured yet —
+      fill these in and they are saved for next time.</div>`}
+    ${(cfg.problems||[]).length?`<div class="banner warn">${
+      (cfg.problems||[]).map(esc).join(" · ")}</div>`:""}
+    <div class="row">
+      <div class="field"><label>SMTP host</label>
+        <input type="text" data-field="host" value="${esc(smtp.host||"")}"
+          placeholder="smtp.example.com"></div>
+      <div class="field" style="max-width:110px"><label>Port</label>
+        <input type="number" data-field="port" value="${esc(smtp.port||587)}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Username</label>
+        <input type="text" data-field="username" value="${esc(smtp.username||"")}"></div>
+      <div class="field"><label>Password</label>
+        <input type="password" data-field="password"
+          placeholder="${smtp.password_set?"stored — leave blank to keep":"required for authenticated relays"}"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>From</label>
+        <input type="text" data-field="sender" value="${esc(smtp.sender||"")}"
+          placeholder="ghosteye@example.com"></div>
+      <div class="field"><label>To</label>
+        <input type="text" data-field="recipients" value="${esc(cfg.recipients||"")}"
+          placeholder="you@example.com, team@example.com"></div>
+    </div>
+    <div class="note">STARTTLS is used unless the port is 465 (implicit TLS).
+      The password is stored server-side with your API keys and is never sent
+      back to this page. A report is a list of your own weaknesses — it is
+      exactly the message you do not want travelling in clear.</div>`,
+    async vals=>{
+      try{
+        const save={host:vals.host, port:+vals.port||587, username:vals.username,
+                    sender:vals.sender, recipients:vals.recipients};
+        if(vals.password) save.password=vals.password;
+        const saved=await api("/api/email",{method:"POST", body:JSON.stringify(save)});
+        if((saved.problems||[]).length)
+          return toast("Not sent — "+saved.problems.join("; "));
+        const out=await api("/api/email",{method:"POST", body:JSON.stringify({
+          action:"send", to:vals.recipients, job_id:JOB})});
+        toast(`Sent to ${(out.recipients||[]).length} recipient(s)`);
+      }catch(e){ toast("Could not send: "+e.message); }
+    }, "Save & send");
+}
+
+/* ---------- Search all scans (#40) ----------
+   Per-scan search answers "what did this run find". This answers the question
+   you actually have six months later: "where have I *ever* seen this?" — which
+   no single scan can answer, because the answer is in a run you closed in March. */
+let LIBQ="", LIBTGT="";
+VIEWS.library = ()=>{
+  set(head(t("lib.t","Search all scans"),
+    t("lib.w","Free-text search across every scan in the store, not just the one on "+
+    "screen. Each hit says which run it came from, so you can open that run and "+
+    "see the finding in context."),
+    `<button class="btn sm" id="libgo">Search</button>`) + `
+    <div class="filters">
+      <input type="text" id="libq" style="flex:1;min-width:220px"
+        placeholder="an IP, a header, a CVE, a hostname…" value="${esc(LIBQ)}">
+      <input type="text" id="libtgt" style="max-width:220px"
+        placeholder="limit to one target (optional)" value="${esc(LIBTGT)}">
+    </div>
+    <div id="libout"></div>`);
+  const run=async ()=>{
+    LIBQ=$("libq").value.trim(); LIBTGT=$("libtgt").value.trim();
+    if(!LIBQ) return $("libout").innerHTML=`<div class="empty"><h2>Type something</h2>
+      <p>An empty query would return every value of every scan, which is not a search.</p></div>`;
+    $("libout").innerHTML=loading();
+    try{
+      const d=await api(`/api/search-all?q=${encodeURIComponent(LIBQ)}`+
+        (LIBTGT?`&target=${encodeURIComponent(LIBTGT)}`:""));
+      if(VIEW!=="library") return;
+      $("libout").innerHTML = `
+        <div class="grid g4" style="margin:13px 0">
+          ${stat("Matches", d.count||0, d.count>(d.matches||[]).length
+            ? `showing the first ${(d.matches||[]).length}` : "")}
+          ${stat("Scans searched", d.scanned||0, `of ${d.stored_scans||0} stored`)}
+          ${stat("Targets hit", Object.keys(d.by_target||{}).length)}
+        </div>
+        ${(d.matches||[]).length?`<div class="tblwrap"><table>
+          <thead><tr><th>Target</th><th>When</th><th>Module</th><th>Field</th>
+            <th>Match</th><th></th></tr></thead>
+          <tbody>${d.matches.map(m=>`<tr>
+            <td class="num">${esc(m.target)}</td>
+            <td class="num" style="color:var(--muted)">${esc((m.ts||"").slice(0,16).replace("T"," "))}</td>
+            <td class="num">${esc(m.module)}</td>
+            <td class="num" style="color:var(--ink-2)">${esc(m.field)}</td>
+            <td class="wrap">${esc(m.snippet)}</td>
+            <td><button class="btn sm" data-open="${esc(m.scan_id)}">Open run</button></td>
+          </tr>`).join("")}</tbody></table></div>`
+          :`<div class="empty"><h2>No finding value matches</h2>
+            <p>No saved scan has <b>${esc(LIBQ)}</b> in any field a module returned.
+            This searches what you kept, not the internet.</p></div>`}
+        ${(d.target_matches||[]).length?`<div class="banner info">
+          <b>${d.target_matches.length} scan(s) of a matching target</b> —
+          you have scanned this, the string just does not appear in any finding.
+          ${d.target_matches.slice(0,6).map(m=>
+            `<button class="btn sm" data-open="${esc(m.scan_id)}">${esc(m.target)}
+             · ${esc((m.ts||"").slice(0,10))}</button>`).join(" ")}</div>`:""}`;
+      document.querySelectorAll("[data-open]").forEach(b=> b.onclick=()=>{
+        loadStoredScan(b.dataset.open);
+      });
+    }catch(e){ if(VIEW==="library") $("libout").innerHTML=errBox(e.message); }
+  };
+  $("libgo").onclick=run;
+  $("libq").onkeydown=e=>{ if(e.key==="Enter") run(); };
+  $("libq").focus();
+  if(LIBQ) run();
+};
+
+/* ---------- Owners & status (#19) ----------
+   A finding nobody owns is a finding nobody fixes. */
+VIEWS.owners = async ()=>{
+  set(loading());
+  try{
+    const d=await api("/api/assign");
+    if(VIEW!=="owners") return;
+    const rows=Object.entries(d.assignments||{});
+    const sum=d.summary||{};
+    const open=rows.filter(([,v])=>["open","investigating","remediating"].includes(v.status));
+    set(head(t("own.t","Owners & status"),
+      t("own.w","Every finding somebody has taken on, and where it stands. Status is a "+
+      "closed set on purpose: free text turns into six spellings of “in progress” "+
+      "and none of them can be counted."),
+      `${RE()}`) + `
+      <div class="grid g4" style="margin-bottom:14px">
+        ${stat("Owned findings", sum.total||0)}
+        ${stat("Still open", sum.open||0, "open · investigating · remediating",
+               (sum.open||0)?"accent":"")}
+        ${stat("Resolved", (sum.by_status||{}).resolved||0)}
+        ${stat("Accepted as won't-fix", (sum.by_status||{}).wont_fix||0,
+               "a decision, not a backlog")}
+      </div>
+      ${Object.keys(sum.by_owner||{}).length?`<div class="card" style="margin-bottom:14px">
+        <h3>Open work per owner</h3>
+        <div class="tblwrap"><table><thead><tr><th>Owner</th><th>Open</th></tr></thead>
+        <tbody>${Object.entries(sum.by_owner).map(([who,n])=>`<tr>
+          <td>${esc(who)}</td><td class="num">${n}</td></tr>`).join("")}
+        </tbody></table></div></div>`:""}
+      ${rows.length?`<div class="tblwrap"><table>
+        <thead><tr><th>Status</th><th>Owner</th><th>Target</th><th>Finding</th>
+          <th>Note</th><th>Updated</th><th></th></tr></thead>
+        <tbody>${rows.map(([k,v])=>`<tr>
+          <td><span class="pill ${v.status==="resolved"?"confirmed":
+              v.status==="wont_fix"?"muted":"accent"}">${esc(v.status)}</span></td>
+          <td>${esc(v.assignee||"—")}</td>
+          <td class="num">${esc(v.target||"—")}</td>
+          <td class="num" style="color:var(--muted)">${esc(k.slice(0,16))}</td>
+          <td class="wrap">${esc(v.note||"")}</td>
+          <td class="num" style="color:var(--muted)">${esc((v.updated||"").slice(0,16).replace("T"," "))}</td>
+          <td style="white-space:nowrap">
+            <button class="btn sm" data-reassign="${esc(k)}">Change</button>
+            <button class="btn sm" data-drop="${esc(k)}">Clear</button></td>
+        </tr>`).join("")}</tbody></table></div>`
+        :`<div class="empty"><h2>Nothing is owned yet</h2>
+          <p>Open <b>Findings</b>, press <b>⋯</b> on a row and choose
+          <i>Assign an owner</i>. Ownership travels with the finding's fingerprint,
+          so it survives the next scan.</p></div>`}`);
+    document.querySelectorAll("[data-reassign]").forEach(b=>
+      b.onclick=()=>assignFinding(b.dataset.reassign, d.statuses||[]));
+    document.querySelectorAll("[data-drop]").forEach(b=> b.onclick=async ()=>{
+      try{ await api("/api/assign",{method:"POST",
+        body:JSON.stringify({key:b.dataset.drop, remove:true})});
+        reload(); }catch(e){ toast(e.message); }
+    });
+    const badge=$("b-own"); if(badge) badge.textContent=open.length;
+  }catch(e){ if(VIEW==="owners") set(errBox(e.message)); }
+};
+
+/* Assign one finding. Called from the Owners table and from the row menu. */
+async function assignFinding(id, statuses){
+  let list = statuses && statuses.length ? statuses : null;
+  if(!list){
+    try{ list=(await api("/api/assign")).statuses; }catch(e){ list=["open","resolved"]; }
+  }
+  const cur = (CACHE["__assign"]||{})[id] || {};
+  modal("Assign this finding", `
+    <div class="field"><label>Owner</label>
+      <input type="text" data-field="assignee" value="${esc(cur.assignee||"")}"
+        placeholder="a person, a team, an on-call rota"></div>
+    <div class="field"><label>Status</label>
+      <select data-field="status">${list.map(sv=>
+        `<option value="${esc(sv)}" ${cur.status===sv?"selected":""}>${esc(sv)}</option>`).join("")}</select></div>
+    <div class="field"><label>Note</label>
+      <input type="text" data-field="note" value="${esc(cur.note||"")}"
+        placeholder="what is blocking it"></div>
+    <div class="note">Ownership is keyed on the finding's fingerprint, the same
+      identity a verdict uses — so it follows the finding into the next scan
+      rather than being lost with this job.</div>`,
+    async vals=>{
+      try{
+        await api("/api/assign",{method:"POST", body:JSON.stringify({
+          key:id, assignee:vals.assignee||"", status:vals.status||"open",
+          note:vals.note||"", target:(SNAP&&SNAP.target)||""})});
+        toast("Assigned");
+        if(VIEW==="owners") reload();
+      }catch(e){ toast("Could not assign: "+e.message); }
+    }, "Save");
+}
+
+/* ---------- Audit trail (#59) ---------- */
+VIEWS.audit = async ()=>{
+  set(loading());
+  try{
+    const d=await api("/api/audit?limit=300");
+    if(VIEW!=="audit") return;
+    const sum=d.summary||{};
+    set(head(t("aud.t","Audit trail"),
+      t("aud.w","Who asked, what changed, when. This tool can start scans, rewrite "+
+      "scope and delete stored findings, so “who deleted last quarter’s scans?” "+
+      "needs an answer. The log is append-only — there is no endpoint that edits "+
+      "or removes an entry."),
+      `${RE()}`) + `
+      <div class="grid g4" style="margin-bottom:14px">
+        ${stat("Recorded actions", sum.total||0)}
+        ${stat("Failed actions", sum.failures||0, "refused or errored",
+               (sum.failures||0)?"med":"")}
+        ${stat("Distinct actors", Object.keys(sum.by_actor||{}).length)}
+        ${stat("Since", (sum.first||"—").slice(0,10), "first entry kept")}
+      </div>
+      ${(d.entries||[]).length?`<div class="tblwrap"><table>
+        <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th>
+          <th>Detail</th><th></th></tr></thead>
+        <tbody>${d.entries.map(e=>`<tr${e.ok?"":' style="background:rgba(220,80,80,.07)"'}>
+          <td class="num">${esc((e.at||"").replace("T"," ").replace("Z",""))}</td>
+          <td class="num">${esc(e.actor||"—")}</td>
+          <td><span class="pill ${e.ok?"muted":"high"}">${esc(e.action)}</span></td>
+          <td class="num">${esc(e.target||"—")}</td>
+          <td class="wrap" style="color:var(--muted)">${esc(e.detail||"")}</td>
+          <td>${e.ok?"":`<span class="pill high">failed</span>`}</td>
+        </tr>`).join("")}</tbody></table></div>`
+        :`<div class="empty"><h2>Nothing recorded yet</h2>
+          <p>Entries appear as soon as anything changes state — a scan, a verdict,
+          a scope edit, a deletion.</p></div>`}
+      ${noteBox(d.note)}`);
+  }catch(e){ if(VIEW==="audit") set(errBox(e.message)); }
+};
+
 /* ---------- Verdicts ---------- *//* ---------- Verdicts ---------- */
 VIEWS.verdicts = async ()=>{
   set(loading());
@@ -3091,19 +3458,8 @@ VIEWS.history = async ()=>{
     drawRibbon();
     $("trTarget").onchange=drawRibbon;
     // #53 — load a stored scan into every analysis view
-    document.querySelectorAll("[data-load]").forEach(b=> b.onclick=async ()=>{
-      try{
-        const raw=await api(`/api/scan/${encodeURIComponent(b.dataset.load)}`);
-        JOB=null; SNAP={target:raw.target, status:"done",
-          total:(raw.results||[]).length, done:(raw.results||[]).length,
-          results:raw.results||[], risk:raw.risk||{}};
-        Object.keys(CACHE).forEach(k=>delete CACHE[k]);
-        notify(`Loaded the stored scan of ${raw.target}`);
-        toast("Loaded — the analysis views now read this scan. Live-only views "+
-              "(fix order, anomalies) need a running job and will say so.");
-        go("live");
-      }catch(e){ toast(e.message); }
-    });
+    document.querySelectorAll("[data-load]").forEach(b=>
+      b.onclick=()=>loadStoredScan(b.dataset.load));
     $("trGo").onclick=async ()=>{
       $("trOut").innerHTML=loading();
       try{
@@ -3712,19 +4068,35 @@ $("denstoggle").onclick=()=>{
   }
   wireRailKeys(); applyPins(); drawRecent();
   $("bell").onclick=eventCentre;
-  // restore the scan and workspace across a language reload
+  // #43 — the deep link is the whole point of writing job and workspace into
+  // the URL. Reading it back at boot is what makes a shared link land on the
+  // view it names instead of dropping the recipient on Scan.
+  const link=readUrl();
+  let start=link.view || (location.hash||"").replace("#","");
+  let job=link.job;
+  // a language toggle reloads the page; sessionStorage carries the scan across
   try{
     const j=sessionStorage.getItem("ge_job");
-    if(j){ JOB=j; sessionStorage.removeItem("ge_job");
-      try{ SNAP=await api(`/api/job/${encodeURIComponent(JOB)}`); }catch(e){ JOB=null; }
-      if(JOB) refreshBadges();
-    }
-  }catch(e){}
-  let start=(location.hash||"").replace("#","");
-  try{
+    if(j){ job=j; sessionStorage.removeItem("ge_job"); }
     const v=sessionStorage.getItem("ge_view");
     if(v){ start=v; sessionStorage.removeItem("ge_view"); }
   }catch(e){}
+  if(job){
+    JOB=job;
+    try{
+      SNAP=await api(`/api/job/${encodeURIComponent(JOB)}`);
+      refreshBadges();
+      // a link to a scan that is still running should keep updating, not
+      // freeze on whichever frame happened to be current when it was opened
+      if(SNAP && SNAP.status==="running"){
+        setScanning(true);
+        if(!openStream()) poll=setInterval(tick,1000);
+      }
+    }catch(e){
+      JOB=null;
+      notify("That scan is no longer in memory — open it from History.", "err");
+    }
+  }
   go(VIEWS[start] ? start : "scan");
   try{ const v=await api("/api/verdicts"); $("b-verd").textContent=v.count||0; }catch(e){}
 })();

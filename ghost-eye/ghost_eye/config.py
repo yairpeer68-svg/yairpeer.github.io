@@ -46,7 +46,17 @@ _ENV_MAP = {
     "perplexity": ("PERPLEXITY_API_KEY", "api_keys", "perplexity"),
     "xai": ("XAI_API_KEY", "api_keys", "xai"),
     "replicate": ("REPLICATE_API_TOKEN", "api_keys", "replicate"),
+    # Not a recon provider, but a credential all the same: it goes through the
+    # same keyring/encryption path rather than sitting in plain text next to
+    # the ordinary settings. Excluded from _SERVICE_KEYS below so it does not
+    # appear in the "which OSINT providers are configured" list or get asked
+    # for during --set-keys.
+    "smtp_password": ("GHOSTEYE_SMTP_PASSWORD", "api_keys", "smtp_password"),
 }
+
+# The recon-provider subset: what /api/keys lists and what interactive setup
+# walks through. _ENV_MAP is the storage map; this is the user-facing one.
+_SERVICE_KEYS = tuple(k for k in _ENV_MAP if k != "smtp_password")
 
 _KEYRING_SERVICE = "ghosteye"
 
@@ -250,7 +260,7 @@ class Config:
         """
         if not sys.stdin.isatty():
             return []
-        names = [n for n in _ENV_MAP if (only is None or n in only)]
+        names = [n for n in _SERVICE_KEYS if (only is None or n in only)]
         saved: List[str] = []
         for name in names:
             label = _KEY_LABELS.get(name, name)

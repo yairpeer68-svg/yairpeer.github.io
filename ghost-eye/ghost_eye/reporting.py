@@ -255,6 +255,41 @@ class Store:
             return None
         return {"target": row[0], "results": _json.loads(row[1])}
 
+    def search_all(self, query: str, limit: int = 60, target: str = ""):
+        """Rows for a cross-scan search, prefiltered in SQLite.
+
+        The whole database can be hundreds of megabytes of JSON, and parsing
+        all of it to answer one query is how a search box becomes a thing
+        nobody presses. LIKE on the raw blob is a cheap, conservative filter:
+        it can return a scan that turns out not to match once parsed (the
+        substring might land inside a key name or an escape sequence), but it
+        never *misses* one, so the precise pass afterwards sees everything it
+        needs and far less of what it does not.
+        """
+        import json as _json
+        q = (query or "").strip()
+        if not q:
+            return []
+        sql = ("SELECT id,target,ts,results FROM scans "
+               "WHERE results LIKE ? ESCAPE '\\'")
+        # % and _ are LIKE wildcards; a query containing them must still mean
+        # itself, or searching for "100%" matches every scan in the database.
+        escaped = q.replace("\\", "\\\\").replace("%", r"\%").replace("_", r"\_")
+        params = [f"%{escaped}%"]
+        if target:
+            sql += " AND target=?"
+            params.append(target)
+        sql += " ORDER BY ts DESC LIMIT ?"
+        params.append(max(1, int(limit)))
+        out = []
+        for i, t, ts, res in self.conn.execute(sql, params).fetchall():
+            try:
+                results = _json.loads(res)
+            except Exception:  # noqa: BLE001
+                continue
+            out.append({"id": i, "target": t, "ts": ts, "results": results})
+        return out
+
     def scans_for(self, target: str, limit: int = 100):
         """Every stored scan for a target, oldest first — powers trend()."""
         import json as _json

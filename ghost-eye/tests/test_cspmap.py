@@ -236,3 +236,34 @@ class TestModule:
 
     def test_declares_a_health_expect(self):
         assert REGISTRY["cspassets"].expect == ["csp_present"]
+
+
+class TestHostNormalisation:
+    """registrable_domain() is fed CSP sources *and* the scan target, and the
+    target is routinely a full URL. Splitting one on dots without stripping the
+    scheme and port produced "0.1:8894" and reported it as the site's apex."""
+
+    def test_a_url_target_reduces_to_its_host(self):
+        assert registrable_domain("https://shop.example.co.uk/path?q=1") == \
+            "example.co.uk"
+
+    def test_a_scheme_and_port_do_not_become_labels(self):
+        assert registrable_domain("http://127.0.0.1:8894") == "127.0.0.1"
+
+    def test_a_port_alone_is_stripped(self):
+        assert registrable_domain("api.example.com:8443") == "example.com"
+
+    def test_userinfo_is_dropped(self):
+        assert registrable_domain("user:pw@host.example.com:8443") == "example.com"
+
+    def test_a_bracketed_ipv6_survives_with_its_port_removed(self):
+        assert registrable_domain("[2001:db8::1]:443") == "[2001:db8::1]"
+
+    def test_a_bare_ipv6_is_not_mistaken_for_host_colon_port(self):
+        assert registrable_domain("2001:db8::1") == "2001:db8::1"
+
+    def test_a_bare_hostname_is_unchanged(self):
+        assert registrable_domain("a.b.example.co.uk") == "example.co.uk"
+
+    def test_a_trailing_dot_is_not_an_empty_label(self):
+        assert registrable_domain("example.com.") == "example.com"
