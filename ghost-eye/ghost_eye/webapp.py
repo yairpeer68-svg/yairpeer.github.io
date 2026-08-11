@@ -136,8 +136,15 @@ class JobManager:
                     raise RuntimeError("scan stopped")
                 return inner(method, url, **kw)
             session.request = _guarded
-        return Context(config=self.cfg, session=session, threads=threads,
-                       timeout=timeout, verbose=False)
+        ctx = Context(config=self.cfg, session=session, threads=threads,
+                      timeout=timeout, verbose=False)
+        # scan-tuning options travel on the Context, exactly as the CLI sets
+        # them, so the dashboard drives the port scanner identically
+        for opt in ("ports", "scan_retries", "scan_rate", "scan_all_addresses"):
+            value = options.get(opt)
+            if value not in (None, ""):
+                setattr(ctx, opt, value)
+        return ctx
 
     def _run(self, jid: str) -> None:
         job = self.jobs[jid]
@@ -593,12 +600,13 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         if not self._guard(parsed, state_changing=False):
             return None
-        # the graph-first OSINT dashboard is the default home; the recon console
-        # lives at /console.
-        if path in ("/", "/osint", "/osint.html"):
-            return self._serve_page("osint.html")
-        if path in ("/console", "/console.html", "/index.html"):
+        # The console is the home: it is the only page that reaches every
+        # capability the API exposes. The graph-first OSINT view is a
+        # specialist lens onto the same data and is linked from the rail.
+        if path in ("/", "/console", "/console.html", "/index.html"):
             return self._serve_page("index.html")
+        if path in ("/osint", "/osint.html"):
+            return self._serve_page("osint.html")
         if path == "/manifest.webmanifest":
             return self._serve_asset("manifest.webmanifest", "application/manifest+json")
         if path == "/sw.js":
@@ -635,6 +643,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._metrics()
         if path == "/api/alert-rules":
             return self._alert_rules_get()
+        if path == "/api/verdicts":
+            return self._all_verdicts()
+        if path == "/api/baseline":
+            return self._baseline_summary()
         if path == "/api/backup":
             return self._backup()
         if path.startswith("/api/scan/"):
@@ -755,6 +767,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_ipfilter(jid)
         if sub == "anomalies":
             return self._job_anomalies(jid)
+        if sub == "fixorder":
+            return self._job_fixorder(jid)
+        if sub == "cspassets":
+            return self._job_cspassets(jid)
+        if sub == "verdicts":
+            return self._job_verdicts(jid)
         if sub == "ask":
             return self._job_ask(jid, parsed)
         if sub == "summary":
@@ -915,6 +933,32 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"ip filter failed: {exc}"}, 500)
 
+    def _all_verdicts(self):
+        """Every standing ruling, so suppression is reviewable rather than
+        something that quietly happens to a findings list."""
+        from . import verdicts as v
+        store = v.VerdictStore(self.server.jobs.db_path)
+        try:
+            rows = store.all()
+            return self._json({
+                "verdicts": rows,
+                "count": len(rows),
+                "expired": sum(1 for r in rows if r["expired"]),
+                "note": "an expired verdict no longer suppresses anything; "
+                        "re-judge it or re-mark it.",
+            })
+        finally:
+            store.close()
+
+    def _baseline_summary(self):
+        """How much the corpus baseline knows, and whether it knows enough."""
+        from . import baseline
+        base = baseline.Baseline(self.server.jobs.db_path)
+        try:
+            return self._json(base.summary())
+        finally:
+            base.close()
+
     def _set_verdict(self):
         """Rule on a finding: {id, verdict, reason?, scope?, ttl_days?}.
 
@@ -941,6 +985,46 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": f"verdict failed: {exc}"}, 500)
         finally:
             store.close()
+
+    def _job_fixorder(self, jid: str):
+        """Rank the CVEs this job found by exploitation pressure x observed
+        reachability — the answer to "what do I fix first"."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        try:
+            from . import prioritise
+            return self._json(prioritise.prioritise(results))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"fix order failed: {exc}"}, 500)
+
+    def _job_cspassets(self, jid: str):
+        """Hosts the target's own CSP declares, and which the scan missed."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        try:
+            return self._json(workflow.csp_asset_report(results, target))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"csp assets failed: {exc}"}, 500)
+
+    def _job_verdicts(self, jid: str):
+        """This job's findings with the analyst's standing rulings applied."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        try:
+            from . import reporting_ext, verdicts
+            scored = reporting_ext.score_findings(results)
+            out = verdicts.apply_verdicts(scored["findings"],
+                                          db=self.server.jobs.db_path)
+            out["counts"] = scored.get("counts", {})
+            out["risk_level"] = scored.get("risk_level", "")
+            return self._json(out)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"verdicts failed: {exc}"}, 500)
 
     def _job_anomalies(self, jid: str):
         """What is unusual about this job's target relative to every host this

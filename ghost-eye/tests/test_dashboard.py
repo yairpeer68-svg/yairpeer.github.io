@@ -34,12 +34,11 @@ def test_static_app_wires_platform_renderers():
     for fn in ("function kgraph(", "function renderAnalyst(",
                "function renderCorr(", "function renderTimeline("):
         assert fn in html, f"missing {fn}"
-    # and loadIntel() actually calls them
-    seg = html.split("async function loadIntel(")[1].split(
-        "async function loadInventory(")[0]
+    # and the Intelligence workspace actually calls them
+    seg = html.split("VIEWS.intel")[1].split("function renderAnalyst(")[0]
     for call in ("renderAnalyst(d.analysis)", "kgraph(kg)",
                  "renderCorr(d.correlation)", "renderTimeline(d.timeline)"):
-        assert call in seg, f"loadIntel does not call {call}"
+        assert call in seg, f"the Intelligence view does not call {call}"
 
 
 def test_knowledge_graph_is_interactive():
@@ -48,7 +47,7 @@ def test_knowledge_graph_is_interactive():
     html = _INDEX.read_text(encoding="utf-8")
     # pure renderer + state + updater exist
     for tok in ("function kgSvg(", "function kgUpdate(",
-                "let KGSTATE=", "data-kgnode=", 'class="kgfilter"',
+                "let KGSTATE=", "data-kgnode=", "kgfilter",
                 "data-kgreset="):
         assert tok in html, f"missing interactive piece: {tok}"
     # click handler toggles focus; change handler filters by kind
@@ -60,34 +59,34 @@ def test_knowledge_graph_is_interactive():
 def test_static_app_wires_action_panels():
     """Every CLI-only capability now has a dashboard control + loader."""
     html = _INDEX.read_text(encoding="utf-8")
-    for act in ("exploits", "risk", "compliance", "screenshots", "trend"):
-        assert f'data-act="{act}"' in html, f"missing button {act}"
-    assert "function loadTrend(" in html and "function trendChart(" in html
+    # each CLI-only capability is a workspace in the rail with a renderer
+    for act in ("exploits", "risk", "compliance", "reports", "history"):
+        assert f'data-view="{act}"' in html, f"missing workspace {act}"
+        assert f"VIEWS.{act}" in html, f"workspace {act} has no renderer"
+    assert "screenshots?max=" in html, "on-demand screenshot sweep is unreachable"
     # change-alert monitoring: an alert-webhook option wired into the scan,
     # and into the schedule form for continuous monitoring
     assert 'id="o-alert"' in html
     assert "alert_webhook:" in html
     assert 'id="schedAlert"' in html
+    assert "/report?format=" in html, "no report export at all"
     for fmt in ("exec", "intel"):
-        assert f'data-fmt="{fmt}"' in html, f"missing report button {fmt}"
-    for fn in ("function loadExploits(", "function loadRisk(",
-               "function loadCompliance(", "function loadScreenshots("):
-        assert fn in html, f"missing loader {fn}"
-    # the export/intel click handler routes the new actions
-    for route in ('b.dataset.act==="exploits"', 'b.dataset.act==="risk"',
-                  'b.dataset.act==="compliance"',
-                  'b.dataset.act==="screenshots"'):
-        assert route in html, f"click handler missing {route}"
+        assert f'["{fmt}"' in html, f"missing report format {fmt}"
+    # every analysis view fetches its own job sub-resource
+    for sub in ("exploits", "risk", "compliance"):
+        assert f'jobView("{sub}"' in html, f"{sub} view fetches nothing"
 
 
 def test_static_app_surfaces_error_reasons():
     """Errored modules must show their reason (err-line) and auto-expand so the
     failure is visible without a tap — the 'log' the user was missing."""
     html = _INDEX.read_text(encoding="utf-8")
-    assert 'r.status==="error"' in html and "err-line" in html
-    assert "let autoErr=new Set()" in html
-    # errored modules are auto-added to the expanded set on render
-    assert 'r.status==="error" && !autoErr.has(r.module)' in html
+    assert 'r.status==="error"' in html, "error status is never inspected"
+    # an errored module shows its reason and is expanded without a click
+    assert "const open = expanded.has(r.module) || isErr" in html, \
+        "errored modules do not auto-expand"
+    assert 'esc(r.error||"module errored")' in html, \
+        "the failure reason is never rendered"
 
 
 def test_osint_page_is_served():
@@ -319,16 +318,22 @@ def test_osint_tools_menu_has_cli_parity():
     assert "/report?format=" in osint
     console = _INDEX.read_text(encoding="utf-8")
     assert 'id="schedReport"' in console and "report_webhook" in console
+    # and the console reaches the same report formats directly
+    assert "/report?format=" in console
+    for fmt in ("exec", "intel", "json", "sarif"):
+        assert f'["{fmt}"' in console, f"console cannot export {fmt}"
 
 
 def test_static_app_has_mobile_drawer():
     """The controls panel is a slide-in drawer on mobile (starts collapsed,
     backdrop scrim, toggle wiring) — the professional-UI redesign."""
     html = _INDEX.read_text(encoding="utf-8")
-    assert 'id="scrim"' in html
-    assert 'class="panel collapsed"' in html          # starts closed on mobile
+    assert 'id="scrim"' in html                       # tap-outside backdrop
     assert "function setDrawer(" in html
-    assert "document.body.classList.toggle(\"drawer\"" in html
+    assert 'document.body.classList.toggle("drawer"' in html
+    # the rail is an overlay only on small screens, and starts closed
+    assert ".rail.open{transform:none}" in html
+    assert 'id="menubtn"' in html
 
 
 def test_handler_crash_returns_500(monkeypatch, tmp_path):

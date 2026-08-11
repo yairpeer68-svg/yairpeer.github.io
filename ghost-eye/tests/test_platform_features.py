@@ -3,6 +3,8 @@ adaptive rate-limit, passive-only classification and the scope editor."""
 
 from __future__ import annotations
 
+import pytest
+
 from ghost_eye.core import Result
 
 
@@ -157,3 +159,63 @@ def test_import_all_rejects_foreign_blob(tmp_path):
     with pytest.raises(ValueError):
         s.import_all({"format": "something-else"})
     s.close()
+
+
+# --------------------------------------------------------------------------- #
+#  Dashboard surface: every capability the API has must be reachable from the UI
+# --------------------------------------------------------------------------- #
+class TestConsoleCoverage:
+    """The old console called 11 of ~30 endpoints, so most of the product was
+    invisible from the browser. These tests keep the gap from reopening."""
+
+    def _console(self):
+        from pathlib import Path
+        import ghost_eye
+        return (Path(ghost_eye.__file__).parent / "web_static" / "index.html"
+                ).read_text(encoding="utf-8")
+
+    def test_the_console_is_the_home_page(self):
+        """`/` used to serve the OSINT graph, so the page users actually landed
+        on was not the one that reaches every capability."""
+        import inspect
+        from ghost_eye import webapp
+        src = inspect.getsource(webapp.Handler._do_get)
+        home = src.split("if path in")[1]
+        assert "index.html" in home.split("return")[1]
+
+    @pytest.mark.parametrize("view", [
+        "scan", "live", "findings", "fixorder", "anomalies", "exploits",
+        "inventory", "ports", "ipfilter", "csp", "attribution", "verdicts",
+        "opsec", "compliance", "history", "schedules", "settings",
+    ])
+    def test_every_workspace_has_a_nav_entry_and_a_renderer(self, view):
+        html = self._console()
+        assert f'data-view="{view}"' in html, f"{view} has no rail entry"
+        assert f"VIEWS.{view}" in html, f"{view} has a rail entry but no renderer"
+
+    @pytest.mark.parametrize("sub", [
+        "verdicts", "fixorder", "cspassets", "anomalies", "ipfilter",
+        "inventory", "opsec", "attribution", "exploits", "compliance",
+    ])
+    def test_every_job_analysis_endpoint_is_reachable_from_the_ui(self, sub):
+        assert f'"{sub}"' in self._console(), f"/api/job/<id>/{sub} is unreachable"
+
+    def test_port_scan_options_are_exposed(self):
+        html = self._console()
+        for field in ("o-ports", "o-scan-retries", "o-scan-rate", "o-scan-all-addr"):
+            assert field in html, f"{field} missing from the console"
+        assert '"ports":' in html.replace(" ", "") or "ports:(opt" in html.replace(" ", "")
+
+    def test_findings_can_be_ruled_on_inline(self):
+        html = self._console()
+        assert "/api/verdict" in html
+        for verdict in ("false_positive", "accepted_risk", "confirmed"):
+            assert verdict in html
+
+    def test_the_console_ships_no_external_requests(self):
+        """A recon console that phones out to a CDN leaks which install is
+        running and breaks in an air-gapped environment."""
+        import re
+        html = self._console()
+        remote = re.findall(r'(?:src|href)=["\']https?://[^"\']+', html)
+        assert remote == [], f"console loads external resources: {remote}"

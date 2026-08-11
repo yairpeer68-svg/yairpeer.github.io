@@ -16,9 +16,9 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1210 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1241 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 657 are behavioural — see
+  raises"); the other 688 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -1033,12 +1033,48 @@ python3 ghost_eye.py -t example.com --trend                   # show the timelin
 ## Web dashboard
 
 ```bash
-python3 ghost_eye_web.py                 # localhost only (default)
-python3 ghost_eye_web.py --open          # open a browser (URL carries the token)
-python3 ghost_eye_web.py --host 0.0.0.0 --port 9000 --scope scope.txt
+python3 ghost_eye_web.py --open                 # console at /
+python3 ghost_eye_web.py --auth-token SECRET    # require a token
 ```
 
+The console is the home page and reaches **every capability the API exposes**.
+That is a deliberate correction: the previous console called 11 of ~30
+endpoints, so most of what Ghost Eye could do was invisible from a browser and
+only reachable from the CLI.
+
+A rail of workspaces, a persistent command bar, one content region:
+
+| Group | Workspaces |
+|-------|-----------|
+| Operate | **Scan** (selection, engine, port-scan and baseline options) · **Live results** |
+| Analyse | **Findings** (with inline verdicts) · **Fix order** · **Anomalies** · **Risk model** · **Intelligence** (analyst narrative, entity graph, correlation, timeline) · **Exploit intel** |
+| Assets | **Inventory** · **Ports** · **CDN / origin** · **CSP assets** · **Attribution** |
+| Trust | **Verdicts** · **OPSEC** · **Compliance** |
+| Manage | **History & trend** · **Reports** · **Schedules** · **Settings** |
+
+Things worth knowing:
+
+- **Findings are actionable in place.** Every row carries its 12-character id
+  and three buttons — FP, Accept, Confirm. A ruling posts to `/api/verdict` and
+  applies to every later scan; the count of withheld findings is always shown,
+  because a filter you cannot see is a blindfold.
+- **The rail badges tell you where to look.** After a scan it fills in the
+  exploited-and-reachable count and the anomaly count, so you do not have to
+  open every panel to find out nothing happened.
+- **Port scanning is fully driveable**: port spec, retries-before-filtered,
+  connects/second and IPv4+IPv6, with the closed/filtered distinction and the
+  CDN warning rendered as first-class output rather than buried JSON.
+- **Self-contained.** No CDN, no external fonts, no analytics — a recon console
+  that phones out tells someone else which install is running, and breaks in an
+  air-gapped environment. A test asserts the page loads nothing remote.
+- **Installable PWA**, Hebrew/RTL throughout, and a slide-in rail with a
+  tap-outside backdrop on phones.
+
+The graph-first **OSINT view** remains at `/osint` and is linked from the rail —
+it is a specialist lens on the same data, not a second dashboard.
+
 ### Dashboard security model
+
 
 The dashboard drives scans and stores API keys, so the API is guarded even on
 localhost. "Local" is not a trust boundary in a browser: any page you happen to
@@ -1402,7 +1438,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1210 tests** pass in ~20s. A single **verification gate** runs the whole thing:
+**1241 tests** pass in ~18s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
