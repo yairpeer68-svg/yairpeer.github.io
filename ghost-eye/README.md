@@ -16,9 +16,9 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1241 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1248 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 688 are behavioural — see
+  raises"); the other 695 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -1037,41 +1037,47 @@ python3 ghost_eye_web.py --open                 # console at /
 python3 ghost_eye_web.py --auth-token SECRET    # require a token
 ```
 
-The console is the home page and reaches **every capability the API exposes**.
-That is a deliberate correction: the previous console called 11 of ~30
-endpoints, so most of what Ghost Eye could do was invisible from a browser and
-only reachable from the CLI.
+The console is the home page and reaches **every one of the 42 endpoints the
+API serves** — a number worth stating precisely, because the previous console
+reached 11 of them, so most of what Ghost Eye could do was invisible from a
+browser and only usable from the CLI. A test measures the coverage on every
+run, so the gap cannot silently reopen as the API grows.
 
-A rail of workspaces, a persistent command bar, one content region:
+A rail of 27 workspaces, a persistent command bar, one content region:
 
 | Group | Workspaces |
 |-------|-----------|
-| Operate | **Scan** (selection, engine, port-scan and baseline options) · **Live results** |
-| Analyse | **Findings** (with inline verdicts) · **Fix order** · **Anomalies** · **Risk model** · **Intelligence** (analyst narrative, entity graph, correlation, timeline) · **Exploit intel** |
-| Assets | **Inventory** · **Ports** · **CDN / origin** · **CSP assets** · **Attribution** |
+| Operate | **Scan** (selection, engine, port-scan, batch, baseline) · **Live results** · **Search** |
+| Analyse | **Findings** · **Fix order** · **Anomalies** · **Risk model** · **Intelligence** · **Ask the scan** · **Exploit intel** |
+| Assets | **Inventory** · **By host** · **Ports** · **CDN / origin** · **Verify origin** · **CSP assets** · **Attribution** · **Entity investigation** |
 | Trust | **Verdicts** · **OPSEC** · **Compliance** |
-| Manage | **History & trend** · **Reports** · **Schedules** · **Settings** |
+| Manage | **History & trend** · **Portfolio** · **Reports** · **Schedules** · **Scope, rules & backup** · **Settings** |
 
-Things worth knowing:
+Details that decide whether it is usable rather than merely complete:
 
-- **Findings are actionable in place.** Every row carries its 12-character id
-  and three buttons — FP, Accept, Confirm. A ruling posts to `/api/verdict` and
-  applies to every later scan; the count of withheld findings is always shown,
-  because a filter you cannot see is a blindfold.
-- **The rail badges tell you where to look.** After a scan it fills in the
-  exploited-and-reachable count and the anomaly count, so you do not have to
-  open every panel to find out nothing happened.
-- **Port scanning is fully driveable**: port spec, retries-before-filtered,
-  connects/second and IPv4+IPv6, with the closed/filtered distinction and the
-  CDN warning rendered as first-class output rather than buried JSON.
+- **Findings are actionable in place.** Filter by severity or free text, then
+  rule with FP / Accept / Confirm — a real dialog, with scope and expiry, not a
+  browser `prompt()`. The count of withheld findings is always shown, because a
+  filter you cannot see is a blindfold.
+- **The live stream patches, it does not rebuild.** Re-rendering 553 rows every
+  second destroys your scroll position and any text selection *while the scan is
+  still running*; only modules whose output changed are touched.
+- **Batch scanning**: extra targets, one per line — the queue runs them in turn
+  and stops with the scan.
+- **Trend and compare**: sparklines per numeric series across a target's
+  history, and an added/removed/changed diff between any two stored scans.
+- **Switching language keeps your scan.** The reload restores the job and the
+  workspace you were in.
+- **Keyboard and screen readers**: skip-to-content, a visible focus ring, and an
+  `aria-live` scan status.
 - **Self-contained.** No CDN, no external fonts, no analytics — a recon console
   that phones out tells someone else which install is running, and breaks in an
   air-gapped environment. A test asserts the page loads nothing remote.
-- **Installable PWA**, Hebrew/RTL throughout, and a slide-in rail with a
-  tap-outside backdrop on phones.
+- **Installable PWA**, Hebrew/RTL throughout including body copy, and a slide-in
+  rail with a tap-outside backdrop on phones.
 
 The graph-first **OSINT view** remains at `/osint` and is linked from the rail —
-it is a specialist lens on the same data, not a second dashboard.
+a specialist lens on the same data, not a second dashboard.
 
 ### Dashboard security model
 
@@ -1438,7 +1444,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1241 tests** pass in ~18s. A single **verification gate** runs the whole thing:
+**1248 tests** pass in ~20s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

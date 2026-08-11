@@ -278,9 +278,33 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
   .pickmode button{width:auto;white-space:nowrap}
 }
 .menubtn{display:none}
+.skip{position:absolute;left:-9999px;top:8px;z-index:120;background:var(--accent);
+  color:var(--accent-ink);padding:9px 15px;border-radius:var(--r-sm);font-weight:700}
+.skip:focus{left:12px;text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* filter bar */
+.filters{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:13px}
+.filters input[type=text]{background:var(--bg);border:1px solid var(--line-2);
+  border-radius:var(--r-sm);padding:7px 10px;min-width:220px;outline:none}
+.filters input:focus{border-color:var(--accent);box-shadow:var(--ring)}
+.fchip{font-family:var(--mono);font-size:11px;padding:5px 11px;border-radius:20px;
+  border:1px solid var(--line-2);color:var(--muted);cursor:pointer;user-select:none;
+  background:var(--surface);display:inline-flex;gap:6px;align-items:center}
+.fchip[data-on="1"]{border-color:var(--accent);color:var(--accent);box-shadow:var(--ring)}
+.fchip .n{font-weight:700;color:var(--ink)}
+/* screenshot gallery */
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:11px}
+.shots figure{margin:0;border:1px solid var(--line);border-radius:var(--r);
+  overflow:hidden;background:var(--surface)}
+.shots img{width:100%;display:block;background:#000}
+.shots figcaption{padding:7px 10px;font-family:var(--mono);font-size:10.5px;
+  color:var(--muted);word-break:break-all}
+/* sparkline */
+.spark{width:100%;height:64px;display:block}
 </style>
 </head>
 <body>
+<a class="skip" href="#view">Skip to content</a>
 <div class="scrim hidden" id="scrim"></div>
 <div class="shell">
 
@@ -290,10 +314,11 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
       <svg viewBox="0 0 100 100" id="iris" aria-hidden="true"></svg>
       <div><b>Ghost&nbsp;Eye</b><span class="sub">console · <span id="ver">—</span></span></div>
     </div>
-    <nav class="nav" id="nav">
+    <nav class="nav" id="nav" role="navigation" aria-label="Workspaces">
       <div class="navgrp eyebrow" data-i18n="nav.operate">Operate</div>
       <button class="navitem" data-view="scan"><span class="ico">◎</span><span data-i18n="nav.scan">Scan</span></button>
       <button class="navitem" data-view="live"><span class="ico">⟳</span><span data-i18n="nav.live">Live results</span><span class="badge" id="b-live">0</span></button>
+      <button class="navitem" data-view="search"><span class="ico">⌕</span><span data-i18n="nav.search">Search</span></button>
 
       <div class="navgrp eyebrow" data-i18n="nav.analyse">Analyse</div>
       <button class="navitem" data-view="findings"><span class="ico">⚑</span><span data-i18n="nav.findings">Findings</span><span class="badge" id="b-find">0</span></button>
@@ -302,13 +327,17 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
       <button class="navitem" data-view="exploits"><span class="ico">☣</span><span data-i18n="nav.exploits">Exploit intel</span></button>
       <button class="navitem" data-view="risk"><span class="ico">▲</span><span data-i18n="nav.risk">Risk model</span></button>
       <button class="navitem" data-view="intel"><span class="ico">🕸</span><span data-i18n="nav.intel">Intelligence</span></button>
+      <button class="navitem" data-view="ask"><span class="ico">?</span><span data-i18n="nav.ask">Ask the scan</span></button>
 
       <div class="navgrp eyebrow" data-i18n="nav.assets">Assets</div>
       <button class="navitem" data-view="inventory"><span class="ico">▦</span><span data-i18n="nav.inventory">Inventory</span></button>
+      <button class="navitem" data-view="rollup"><span class="ico">≡</span><span data-i18n="nav.rollup">By host</span></button>
       <button class="navitem" data-view="ports"><span class="ico">⋮⋮</span><span data-i18n="nav.ports">Ports</span></button>
       <button class="navitem" data-view="ipfilter"><span class="ico">☁</span><span data-i18n="nav.ipfilter">CDN / origin</span></button>
+      <button class="navitem" data-view="origin"><span class="ico">✔</span><span data-i18n="nav.origin">Verify origin</span></button>
       <button class="navitem" data-view="csp"><span class="ico">⛨</span><span data-i18n="nav.csp">CSP assets</span></button>
       <button class="navitem" data-view="attribution"><span class="ico">⌗</span><span data-i18n="nav.attribution">Attribution</span></button>
+      <button class="navitem" data-view="investigate"><span class="ico">☌</span><span data-i18n="nav.investigate">Entity investigation</span></button>
 
       <div class="navgrp eyebrow" data-i18n="nav.trust">Trust</div>
       <button class="navitem" data-view="verdicts"><span class="ico">⚖</span><span data-i18n="nav.verdicts">Verdicts</span><span class="badge" id="b-verd">0</span></button>
@@ -317,8 +346,10 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
 
       <div class="navgrp eyebrow" data-i18n="nav.manage">Manage</div>
       <button class="navitem" data-view="history"><span class="ico">◷</span><span data-i18n="nav.history">History &amp; trend</span></button>
+      <button class="navitem" data-view="portfolio"><span class="ico">▤</span><span data-i18n="nav.portfolio">Portfolio</span></button>
       <button class="navitem" data-view="reports"><span class="ico">⇩</span><span data-i18n="nav.reports">Reports</span></button>
       <button class="navitem" data-view="schedules"><span class="ico">⏱</span><span data-i18n="nav.schedules">Schedules</span></button>
+      <button class="navitem" data-view="governance"><span class="ico">⛉</span><span data-i18n="nav.governance">Scope, rules &amp; backup</span></button>
       <button class="navitem" data-view="settings"><span class="ico">⚙</span><span data-i18n="nav.settings">Settings</span></button>
     </nav>
     <div class="railfoot">
@@ -337,10 +368,11 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
       </div>
       <select class="sel" id="quickProfile" title="Scan profile"></select>
       <button class="btn primary" id="runbtn" data-i18n="cmd.run">Run scan</button>
-      <div class="status"><span class="dot" id="dot"></span><span id="statustxt" data-i18n="cmd.idle">Idle</span></div>
+      <div class="status" role="status" aria-live="polite">
+        <span class="dot" id="dot"></span><span id="statustxt" data-i18n="cmd.idle">Idle</span></div>
       <div class="prog" id="prog"></div>
     </div>
-    <main class="view" id="view"></main>
+    <main class="view" id="view" tabindex="-1" role="main"></main>
   </div>
 </div>
 
@@ -377,14 +409,64 @@ const CACHE={};                       // per-view fetched payloads
 const I18N={
   he:{
     "nav.operate":"תפעול","nav.scan":"סריקה","nav.live":"תוצאות חיות",
-    "nav.analyse":"ניתוח","nav.findings":"ממצאים","nav.fixorder":"סדר תיקון",
-    "nav.anomalies":"חריגות","nav.exploits":"מודיעין ניצול",
-    "nav.risk":"מודל סיכון","nav.intel":"מודיעין","nav.reports":"דוחות","nav.assets":"נכסים","nav.inventory":"מלאי","nav.ports":"פורטים",
-    "nav.ipfilter":"CDN / מקור","nav.csp":"נכסי CSP","nav.attribution":"ייחוס",
+    "nav.search":"חיפוש","nav.analyse":"ניתוח","nav.findings":"ממצאים",
+    "nav.fixorder":"סדר תיקון","nav.anomalies":"חריגות","nav.risk":"מודל סיכון",
+    "nav.intel":"מודיעין","nav.exploits":"מודיעין ניצול","nav.ask":"שאל את הסריקה",
+    "nav.assets":"נכסים","nav.inventory":"מלאי","nav.rollup":"לפי מארח",
+    "nav.ports":"פורטים","nav.ipfilter":"CDN / מקור","nav.origin":"אימות מקור",
+    "nav.csp":"נכסי CSP","nav.attribution":"ייחוס","nav.investigate":"חקירת ישות",
     "nav.trust":"אמון","nav.verdicts":"פסיקות","nav.opsec":"אבטחת מבצע",
-    "nav.compliance":"רגולציה","nav.manage":"ניהול","nav.history":"היסטוריה ומגמה",
-    "nav.schedules":"תזמונים","nav.settings":"הגדרות",
-    "cmd.run":"הרץ סריקה","cmd.idle":"ממתין",
+    "nav.compliance":"רגולציה","nav.manage":"ניהול","nav.history":"היסטוריה",
+    "nav.portfolio":"תיק נכסים","nav.reports":"דוחות","nav.schedules":"תזמונים",
+    "nav.governance":"מדיניות וגיבוי","nav.settings":"הגדרות",
+    "cmd.run":"הרץ סריקה","cmd.stop":"עצור","cmd.idle":"ממתין",
+    "cmd.scanning":"סורק…","cmd.complete":"הושלם","cmd.stopped":"נעצר","cmd.error":"שגיאה",
+    "w.noscan":"לא נטענה סריקה","w.working":"עובד…","w.refresh":"רענן",
+
+    "scan.t":"סריקה",
+    "scan.w":"בחר מה להריץ וכמה חזק לדחוף. כל מה שכאן הוא גם דגל CLI — הקונסולה ו-ghost_eye.py מריצים את אותו מנוע.",
+    "scan.sel":"בחירה","scan.engine":"מנוע","scan.ports":"סריקת פורטים",
+    "scan.trust":"אמון ובייסליין","scan.batch":"אצווה",
+    "live.t":"תוצאות חיות",
+    "live.w":"הפלט הגולמי של כל מודול ברגע שהוא נוחת. שגיאות נפתחות מאליהן: מודול שנכשל הוא חור בכיסוי, לא שורה ריקה.",
+    "find.t":"ממצאים",
+    "find.w":"חומרה, ביטחון ומקור לכל מה שהסריקה סימנה. פסוק על ממצא פעם אחת והפסיקה חלה על כל סריקה הבאה — עד שהערך משתנה או שהפסיקה פגה.",
+    "fix.t":"סדר תיקון",
+    "fix.w":"מדורג לפי לחץ ניצול (KEV · אקספלויט ציבורי · תחזית EPSS ל-30 יום) כפול נגישות שנצפתה, כש-CVSS מווסת ולא מכריע. medium נגיש שמנוצל בפועל מנצח critical לא-נגיש שאיש לא נוגע בו.",
+    "anom.t":"חריגות",
+    "anom.w":"מה ההוסט הזה עושה אחרת מכל הוסט שסרקת אי פעם. נדיר זה לא בהכרח רע — זה אומר שהוא בולט, ושם שווה להשקיע תשומת לב.",
+    "risk.t":"מודל סיכון",
+    "risk.w":"חומרה לבדה לא מדרגת כלום. כאן כל ממצא נשקל לפי חשיפה, קיום אקספלויט, וכמה בטוחה התצפית.",
+    "intel.t":"מודיעין",
+    "intel.w":"הסריקה כתמונה ולא כרשימה: ציון, נרטיב אנליסט, אותות מתואמים, ציר זמן וגרף ישויות.",
+    "exp.t":"מודיעין ניצול",
+    "exp.w":"כל CVE שהסריקה מצאה, מול מאגרי האקספלויטים הציבוריים. 'מנוצל בפועל' (CISA KEV) מנצח PoC ציבורי בלבד.",
+    "inv.t":"מלאי נכסים","inv.w":"כל מה שהסריקה העלתה, ללא כפילויות בין המודולים.",
+    "roll.t":"סיכום לפי מארח","roll.w":"אותם ממצאים, מקובצים לפי המכונה שהם שייכים לה.",
+    "ports.t":"פורטים",
+    "ports.w":"closed אומר שההוסט סירב אקטיבית (RST) — הוכחה שהוא חי ושאף אחד לא מאזין. filtered אומר שלא ענו אחרי retry, וזה לא הוכחה לכלום.",
+    "cdn.t":"CDN מול מקור",
+    "cdn.w":"רוב הכתובות שסריקה מחזירה אינן השרתים של היעד — הן צמתי CDN שאלפי אתרים לא-קשורים עונים מהם. להתייחס אליהן כתשתית של היעד זו הדרך הנפוצה ביותר שתמונת OSINT יוצאת שגויה.",
+    "origin.t":"אימות מקור",
+    "origin.w":"למצוא כתובות שאולי הן השרת האמיתי זה החצי הקל. החצי שחשוב הוא אישור: לבקש מהמועמד את האתר של היעד ולהשוות למה שה-CDN מגיש.",
+    "csp.t":"נכסי CSP",
+    "csp.w":"CSP הוא רשימה שהיעד עצמו כתב של כל הוסט שהדפים שלו רשאים לדבר איתו — מקור הנכסים המדויק ביותר שקיים, בבקשה אחת. הדלתא מול מה שההמנייה מצאה היא הממצא.",
+    "attr.t":"ייחוס תשתית",
+    "attr.w":"אילו נכסים מופעלים על ידי אותו גורם. כל ערך נשקל לפי כמה הוא נדיר בדאטה, כך שרעש של תשתית משותפת מודח על ידי הנתונים ולא על ידי רשימה שחורה שלעולם לא תהיה שלמה.",
+    "verd.t":"פסיקות עומדות",
+    "verd.w":"פסיקות שעשית, שחלות על כל סריקה הבאה. פסיקה נועלת את הערך שפסקת עליו, אז כשהערך משתנה הממצא חוזר לשיפוט — דיכוי ששורד את הדבר שעליו פסקת גרוע יותר מהרעש שהוא הסיר.",
+    "opsec.t":"OPSEC — מי למד מה חיפשת",
+    "opsec.w":"כדי לחקור יעד, כלי OSINT מוסר את שמו להרבה צדדים שלישיים. כל אחד מהם יודע עכשיו מה — ודרך ה-IP שלך, מי — חקרת. בחקירה רגישה זו חשיפה אמיתית.",
+    "comp.t":"תצוגת רגולציה","comp.w":"ממצאי הסריקה ממופים למסגרות בקרה.",
+    "hist.t":"היסטוריה ומגמה","hist.w":"כל סריקה שנשמרה. השווה שתיים, או צייר מגמה ליעד לאורך זמן.",
+    "port2.t":"תיק נכסים","port2.w":"מבט-על על כל היעדים בהיסטוריה — מה גדל, מה מסוכן.",
+    "rep.t":"דוחות","rep.w":"כל ייצוא שהמנוע יודע להפיק לסריקה הזו. צילומי מסך נלכדים לפי דרישה כי הם עולים זמן ותעבורה אמיתיים.",
+    "sched.t":"תזמונים","sched.w":"הרץ יעד מחדש במרווח קבוע והתריע על שינוי.",
+    "gov.t":"מדיניות וגיבוי","gov.w":"מה מותר לסרוק, מתי להתריע, ואיך לקחת את הנתונים איתך.",
+    "set.t":"הגדרות","set.w":"מפתחות API הם אופציונליים — כל יכולת ליבה עובדת בלעדיהם. המפתחות נשמרים בשרת, לעולם לא בדפדפן.",
+    "search.t":"חיפוש בתוצאות","search.w":"חיפוש חופשי בכל שדה שכל מודול החזיר. על 553 מודולים זה בדרך כלל הדרך המהירה ביותר להגיע לתשובה.",
+    "ask.t":"שאל את הסריקה","ask.w":"שאלות בשפה חופשית שנענות דטרמיניסטית מהמודיעין של הסריקה — בלי LLM, אלא אם הגדרת מפתח.",
+    "invg.t":"חקירת ישות","invg.w":"שם משתמש או אימייל כזרע: פרופילים שנבדקו מול canary, זהות, ותיק OPSEC.",
   }
 };
 let LANG = (()=>{ try{ return localStorage.getItem("ge_lang")||"en"; }catch(e){ return "en"; } })();
@@ -400,7 +482,12 @@ function applyLang(){
 }
 $("langtoggle").onclick = ()=>{
   LANG = LANG==="he" ? "en" : "he";
-  try{ localStorage.setItem("ge_lang", LANG); }catch(e){}
+  try{
+    localStorage.setItem("ge_lang", LANG);
+    // a reload must not discard the scan you were reading
+    if(JOB) sessionStorage.setItem("ge_job", JOB);
+    sessionStorage.setItem("ge_view", VIEW);
+  }catch(e){}
   location.reload();
 };
 
@@ -452,6 +539,33 @@ function go(view){
 /* ==========================================================================
    View shell helpers
    ========================================================================== */
+/* A real modal. `prompt()` blocks the page, cannot be styled, cannot be
+   cancelled meaningfully and looks like 1998 — not what "professional" means. */
+function modal(title, bodyHtml, onOk, okLabel){
+  const wrap=document.createElement("div");
+  wrap.className="scrim"; wrap.style.display="flex";
+  wrap.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <h2>${esc(title)}</h2><div id="mbody">${bodyHtml}</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn" data-m="cancel">Cancel</button>
+      <button class="btn primary" data-m="ok">${esc(okLabel||"OK")}</button>
+    </div></div>`;
+  document.body.appendChild(wrap);
+  const close=()=>{ wrap.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey=e=>{ if(e.key==="Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  wrap.addEventListener("click", e=>{
+    if(e.target===wrap || e.target.dataset.m==="cancel") return close();
+    if(e.target.dataset.m==="ok"){
+      const vals={};
+      wrap.querySelectorAll("[data-field]").forEach(el=>vals[el.dataset.field]=el.value);
+      close(); onOk(vals);
+    }
+  });
+  const first=wrap.querySelector("[data-field]"); if(first) first.focus();
+  return close;
+}
+
 function head(title, why, actions){
   return `<div class="viewhead"><h1>${esc(title)}</h1>
     ${actions?`<div class="actions">${actions}</div>`:""}</div>
@@ -459,12 +573,12 @@ function head(title, why, actions){
 }
 function needScan(what){
   return `<div class="empty">
-    <h2>No scan loaded</h2>
+    <h2>${esc(t("w.noscan","No scan loaded"))}</h2>
     <p>${esc(what)} is computed from a scan's results. Run one from
     <b>Scan</b>, or open a previous run from <b>History</b>.</p></div>`;
 }
 function loading(){ return `<div class="empty"><span class="spin"></span>
-  <p style="margin-top:12px">Working…</p></div>`; }
+  <p style="margin-top:12px">${esc(t("w.working","Working…"))}</p></div>`; }
 function errBox(msg){ return `<div class="banner err">${esc(msg)}</div>`; }
 function noteBox(text){ return text?`<div class="note">${esc(text)}</div>`:""; }
 
@@ -472,16 +586,18 @@ function noteBox(text){ return text?`<div class="note">${esc(text)}</div>`:""; }
 async function jobView(sub, fn, opts={}){
   if(!JOB) return set(needScan(opts.what||sub));
   const key=JOB+":"+sub;
-  if(CACHE[key] && !opts.fresh) return set(fn(CACHE[key]));
+  const done = d => { set(fn(d)); if(opts.after) opts.after(); };
+  if(CACHE[key] && !opts.fresh) return done(CACHE[key]);
   set(loading());
   try{
     CACHE[key] = await api(`/api/job/${encodeURIComponent(JOB)}/${sub}`);
-    if(VIEW===opts.view) set(fn(CACHE[key]));
+    if(VIEW===opts.view) done(CACHE[key]);
   }catch(e){
     if(VIEW===opts.view) set(errBox(e.message));
   }
 }
 function set(html){ $("view").innerHTML=html; }
+const RE = ()=> `<button class="btn sm" onclick="reload()">${esc(t("w.refresh","Refresh"))}</button>`;
 
 /* ==========================================================================
    Views
@@ -492,7 +608,7 @@ const VIEWS={};
 VIEWS.scan = ()=>{
   const profiles = META ? Object.keys(META.profiles).sort() : [];
   const cats = META ? Object.keys(META.categories).sort() : [];
-  set(head("Scan",
+  set(head(t("scan.t","Scan"),
     "Pick what to run and how hard to push. Everything below is also a CLI flag — "+
     "the console and <code>ghost_eye.py</code> drive the same engine.") + `
   <div class="grid g2">
@@ -544,6 +660,16 @@ VIEWS.scan = ()=>{
       <div class="note">A timeout proves nothing on its own, so a silent port is
         retried before it is called filtered. Pacing is about accuracy too: a host
         that rate-limits you turns real open ports into false "filtered".</div>
+    </div>
+
+    <div class="card">
+      <h3>Batch <span class="tag">one target per line</span></h3>
+      <div class="field"><label>Extra targets</label>
+        <textarea id="o-batch" rows="5" placeholder="app.example.com&#10;api.example.com&#10;10.0.0.0/24"></textarea>
+        <div class="hint">The command-bar target runs first, then each line in
+          turn with the same selection and options. Progress shows which one is
+          running; the queue stops if you press Stop.</div></div>
+      <div id="queueState" class="note"></div>
     </div>
 
     <div class="card">
@@ -639,10 +765,10 @@ function currentSelection(){
 VIEWS.live = ()=>{
   if(!SNAP) return set(needScan("Live results"));
   const s=SNAP, done=s.done||0, total=s.total||1;
-  set(head(`Live — ${esc(s.target)}`,
-    "Every module's raw output as it lands. Errors are expanded automatically: a "+
-    "module that failed is a gap in coverage, not a blank line.",
-    `<button class="btn sm" onclick="reload()">Refresh</button>`) + `
+  set(head(`${t("live.t","Live")} — ${esc(s.target)}`,
+    t("live.w","Every module's raw output as it lands. Errors are expanded "+
+      "automatically: a module that failed is a gap in coverage, not a blank line."),
+    RE()) + `
     <div class="grid g4" style="margin-bottom:14px">
       ${stat("Progress", `${done}/${total}`, s.status)}
       ${stat("Findings", (s.risk&&s.risk.findings||[]).length, s.risk?s.risk.risk_level:"")}
@@ -651,17 +777,36 @@ VIEWS.live = ()=>{
     </div>
     <div class="bar-h" style="margin-bottom:14px"><i style="width:${Math.round(100*done/total)}%"></i></div>
     <div id="stream"></div>`);
-  renderStream(s);
+  renderStream(s, true);          // fresh mount: rebuild once, then patch
 };
-function renderStream(s){
+let STREAM_SEEN = new Map();          // module -> {status, fields}
+function renderStream(s, force){
   const el=$("stream"); if(!el) return;
   const sev={};
   (s.risk&&s.risk.findings||[]).forEach(f=>{ sev[f.module+"::"+f.field]=f.severity; });
-  el.innerHTML = (s.results||[]).map(r=>{
-    const isErr = r.status==="error";
-    const open = expanded.has(r.module) || isErr;
+  if(force){ el.innerHTML=""; STREAM_SEEN=new Map(); }
+  // Append/patch only what changed. Rebuilding 553 rows every second is both
+  // wasteful and hostile: it destroys scroll position and any text selection
+  // while the scan is still running.
+  for(const r of (s.results||[])){
     const flat={}; flatten(r.data, "", flat);
-    return `<div class="res">
+    const sig = r.status + ":" + Object.keys(flat).length + ":" +
+                (expanded.has(r.module)?1:0);
+    if(STREAM_SEEN.get(r.module)===sig) continue;
+    STREAM_SEEN.set(r.module, sig);
+    const html = streamCard(r, flat, sev);
+    const existing = el.querySelector(`[data-card="${cssEsc(r.module)}"]`);
+    if(existing) existing.outerHTML = html;
+    else el.insertAdjacentHTML("beforeend", html);
+  }
+  if(!(s.results||[]).length && !el.innerHTML)
+    el.innerHTML=`<div class="empty"><p>Waiting for the first module…</p></div>`;
+}
+function cssEsc(v){ return String(v).replace(/["\\]/g, "\\$&"); }
+function streamCard(r, flat, sev){
+  const isErr = r.status==="error";
+  const open = expanded.has(r.module) || isErr;
+  return `<div class="res" data-card="${esc(r.module)}">
       <div class="reshead" data-mod="${esc(r.module)}">
         <span class="nm">${esc(r.module)}</span>
         <span class="cat">${esc(r.target||"")}</span>
@@ -679,13 +824,15 @@ function renderStream(s){
             return `<div class="k">${esc(k)}</div><div class="v${sv?" sev-"+sv:""}">${esc(flat[k])}</div>`;
           }).join("")}</div>`}</div>`:""}
     </div>`;
-  }).join("") || `<div class="empty"><p>Waiting for the first module…</p></div>`;
-  el.querySelectorAll(".reshead").forEach(h=> h.onclick = ()=>{
-    const m=h.dataset.mod;
-    expanded.has(m) ? expanded.delete(m) : expanded.add(m);
-    renderStream(SNAP);
-  });
 }
+/* one delegated handler instead of rebinding every row on every tick */
+document.addEventListener("click", e=>{
+  const h=e.target.closest(".reshead"); if(!h) return;
+  const m=h.dataset.mod;
+  expanded.has(m) ? expanded.delete(m) : expanded.add(m);
+  if(SNAP) renderStream(SNAP);
+});
+
 function flatten(obj, prefix, out){
   if(obj===null||obj===undefined){ out[prefix||"value"]="—"; return; }
   if(Array.isArray(obj)){
@@ -700,14 +847,30 @@ function flatten(obj, prefix, out){
 }
 
 /* ---------- Findings (with inline verdicts) ---------- */
+let FFILTER={sev:new Set(), q:""};
 VIEWS.findings = ()=> jobView("verdicts", d=>{
-  const rows = d.findings||[];
+  const all = d.findings||[];
   const c = d.counts||{};
-  return head("Findings",
-    "Severity, confidence and provenance for everything the scan flagged. "+
+  const rows = all.filter(f=>
+    (!FFILTER.sev.size || FFILTER.sev.has(f.severity)) &&
+    (!FFILTER.q || (f.module+" "+f.field+" "+f.detail).toLowerCase()
+       .includes(FFILTER.q.toLowerCase())));
+  const bySev = {};
+  all.forEach(f=>{ bySev[f.severity]=(bySev[f.severity]||0)+1; });
+  return head(t("find.t","Findings"),
+    t("find.w","Severity, confidence and provenance for everything the scan flagged. "+
     "Rule on a finding once with <b>FP</b> or <b>Accept</b> and the ruling applies "+
-    "to every later scan — until the value changes or the verdict expires.",
-    `<button class="btn sm" onclick="reload()">Refresh</button>`) + `
+    "to every later scan — until the value changes or the verdict expires."),
+    RE()) + `
+    <div class="filters">
+      <input type="text" id="fq" placeholder="filter module / field / detail…" value="${esc(FFILTER.q)}">
+      ${["critical","high","medium","low"].map(sv=>`
+        <button class="fchip" data-sev="${sv}" data-on="${FFILTER.sev.has(sv)?"1":"0"}">
+          ${sv} <span class="n">${bySev[sv]||0}</span></button>`).join("")}
+      ${FFILTER.sev.size||FFILTER.q?`<button class="btn sm" id="fclear">clear</button>`:""}
+      <span style="color:var(--muted);font-size:11.5px;margin-left:auto">
+        ${rows.length} / ${all.length}</span>
+    </div>`+`
     <div class="grid g4" style="margin-bottom:14px">
       ${stat("Critical", c.critical||0, "", "crit")}
       ${stat("High", c.high||0, "", "high")}
@@ -744,16 +907,40 @@ VIEWS.findings = ()=> jobView("verdicts", d=>{
         <td><button class="btn sm" onclick="unrule('${esc(f.id)}')">Reinstate</button></td>
       </tr>`).join("")}</tbody></table></div>`:""}
     ${noteBox(d.note)}`;
-}, {view:"findings", what:"Findings"});
+}, {view:"findings", what:"Findings", after:()=>{
+  const q=$("fq");
+  if(q) q.oninput = e=>{ FFILTER.q=e.target.value; render(); 
+    const n=$("fq"); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } };
+  document.querySelectorAll(".fchip[data-sev]").forEach(b=> b.onclick=()=>{
+    const sv=b.dataset.sev;
+    FFILTER.sev.has(sv) ? FFILTER.sev.delete(sv) : FFILTER.sev.add(sv);
+    render();
+  });
+  const c=$("fclear"); if(c) c.onclick=()=>{ FFILTER={sev:new Set(), q:""}; render(); };
+}});
 
-async function rule(id, verdict){
-  const reason = prompt("Why? (recorded with the ruling)") ;
-  if(reason===null) return;
-  try{
-    await api("/api/verdict",{method:"POST",
-      body:JSON.stringify({id, verdict, reason})});
-    delete CACHE[JOB+":verdicts"]; reload();
-  }catch(e){ alert("Could not record the verdict: "+e.message); }
+function rule(id, verdict){
+  modal(`Rule: ${verdict}`, `
+    <div class="field"><label>Why — recorded with the ruling</label>
+      <input type="text" data-field="reason" placeholder="deliberate, behind SSO…"></div>
+    <div class="row">
+      <div class="field"><label>Scope</label>
+        <select data-field="scope"><option value="">this host only</option>
+          <option value="*">the whole estate</option></select></div>
+      <div class="field"><label>Expires in (days)</label>
+        <input type="number" data-field="ttl_days" value="180" min="1"></div>
+    </div>
+    <div class="note">A ruling locks onto the value you saw. When that value
+      changes the finding returns for judgement, and the ruling stops
+      suppressing once it expires.</div>`,
+    async vals=>{
+      try{
+        await api("/api/verdict",{method:"POST", body:JSON.stringify({
+          id, verdict, reason:vals.reason||"",
+          scope:vals.scope||"", ttl_days:+vals.ttl_days||180})});
+        delete CACHE[JOB+":verdicts"]; reload();
+      }catch(e){ set(errBox("Could not record the verdict: "+e.message)+$("view").innerHTML); }
+    }, "Record");
 }
 async function unrule(id){
   try{
@@ -765,7 +952,7 @@ async function unrule(id){
 
 /* ---------- Fix order ---------- */
 VIEWS.fixorder = ()=> jobView("fixorder", d=>
-  head("Fix order",
+  head(t("fix.t","Fix order"),
     "Ranked by exploitation pressure (CISA KEV · public exploit · EPSS 30-day "+
     "forecast) times <i>observed</i> reachability, with CVSS modulating rather "+
     "than deciding. A reachable, actively-exploited medium outranks an "+
@@ -799,7 +986,7 @@ VIEWS.fixorder = ()=> jobView("fixorder", d=>
 
 /* ---------- Anomalies ---------- */
 VIEWS.anomalies = ()=> jobView("anomalies", d=>
-  head("Anomalies",
+  head(t("anom.t","Anomalies"),
     "What this host does differently from every host you have ever scanned. "+
     "Rare is not the same as bad — it means this one stands out, which is where "+
     "attention is worth spending. Identifier fields (unique per host by nature) "+
@@ -832,7 +1019,7 @@ VIEWS.ports = ()=>{
   // "portscan" finds nothing. Identify a port-scan result by its shape — which
   // also survives the module being renamed.
   const ps=(SNAP.results||[]).filter(r=>r.data && r.data.firewall_posture!==undefined);
-  if(!ps.length) return set(head("Ports","") +
+  if(!ps.length) return set(head(t("ports.t","Ports"),"") +
     `<div class="empty"><h2>portscan was not part of this scan</h2>
      <p>Add the <code>portscan</code> module and set a port spec on the
      <b>Scan</b> screen.</p></div>`);
@@ -866,7 +1053,7 @@ VIEWS.ports = ()=>{
 
 /* ---------- CDN / origin ---------- */
 VIEWS.ipfilter = ()=> jobView("ipfilter", d=>
-  head("CDN edge vs origin",
+  head(t("cdn.t","CDN edge vs origin"),
     "Most addresses a scan returns are not the target's servers — they are CDN "+
     "edge nodes thousands of unrelated sites answer from. Treating those as the "+
     "target's infrastructure is the most common way an OSINT picture goes wrong.",
@@ -890,7 +1077,7 @@ VIEWS.ipfilter = ()=> jobView("ipfilter", d=>
 
 /* ---------- CSP assets ---------- */
 VIEWS.csp = ()=> jobView("cspassets", d=>
-  head("CSP assets",
+  head(t("csp.t","CSP assets"),
     "A Content-Security-Policy is a list, written by the target, of every host "+
     "their pages may talk to — the most accurate asset source there is, for one "+
     "request. The delta against what enumeration found is the finding.",
@@ -928,7 +1115,7 @@ VIEWS.csp = ()=> jobView("cspassets", d=>
 
 /* ---------- Attribution ---------- */
 VIEWS.attribution = ()=> jobView("attribution", d=>
-  head("Infrastructure attribution",
+  head(t("attr.t","Infrastructure attribution"),
     "Which assets are run by the same operator. Every value is weighted by how "+
     "rare it is in this dataset, so shared-infrastructure noise is demoted by "+
     "the data rather than by a blocklist that can never be complete.",
@@ -952,7 +1139,7 @@ VIEWS.attribution = ()=> jobView("attribution", d=>
 
 /* ---------- Exploit intel ---------- */
 VIEWS.exploits = ()=> jobView("exploits", d=>
-  head("Exploit intelligence",
+  head(t("exp.t","Exploit intelligence"),
     "Every CVE the scan found, checked against the public exploit databases. "+
     "'Actively exploited' (CISA KEV) outranks a mere public proof-of-concept.",
     `<button class="btn sm" onclick="reload()">Refresh</button>`) +
@@ -970,7 +1157,7 @@ VIEWS.exploits = ()=> jobView("exploits", d=>
 
 /* ---------- Inventory ---------- */
 VIEWS.inventory = ()=> jobView("inventory", d=>
-  head("Asset inventory",
+  head(t("inv.t","Asset inventory"),
     "Everything the scan turned up, de-duplicated across all modules.",
     `<button class="btn sm" onclick="reload()">Refresh</button>`) + `
   <div class="grid g4" style="margin-bottom:14px">
@@ -985,7 +1172,7 @@ VIEWS.inventory = ()=> jobView("inventory", d=>
 
 /* ---------- OPSEC ---------- */
 VIEWS.opsec = ()=> jobView("opsec", d=>
-  head("OPSEC — who learned what you were looking at",
+  head(t("opsec.t","OPSEC — who learned what you were looking at"),
     "To investigate a target, an OSINT tool hands its name to a lot of third "+
     "parties. Each one now knows what — and via your IP, who — you were "+
     "investigating. For a sensitive engagement that is a real exposure.",
@@ -1004,7 +1191,7 @@ VIEWS.opsec = ()=> jobView("opsec", d=>
 
 /* ---------- Compliance ---------- */
 VIEWS.compliance = ()=> jobView("compliance", d=>
-  head("Compliance view",
+  head(t("comp.t","Compliance view"),
     "The scan's findings mapped onto control frameworks.",
     `<button class="btn sm" onclick="reload()">Refresh</button>`) +
   `<pre class="card mono" style="white-space:pre-wrap;font-size:11.5px">${esc(JSON.stringify(d,null,2))}</pre>`,
@@ -1012,7 +1199,7 @@ VIEWS.compliance = ()=> jobView("compliance", d=>
 
 /* ---------- Risk model ---------- */
 VIEWS.risk = ()=> jobView("risk", d=>
-  head("Risk model",
+  head(t("risk.t","Risk model"),
     "Severity alone ranks nothing useful. This weighs each finding by exposure, "+
     "whether an exploit exists, and how confident the observation is.",
     `<button class="btn sm" onclick="reload()">Refresh</button>`) + `
@@ -1037,7 +1224,7 @@ VIEWS.risk = ()=> jobView("risk", d=>
 /* ---------- Intelligence ---------- */
 VIEWS.intel = ()=> jobView("intel", d=>{
   const kg = d.graph || d.knowledge_graph || null;
-  return head("Intelligence",
+  return head(t("intel.t","Intelligence"),
     "The scan read as a picture rather than a list: a grade, the analyst's "+
     "narrative, correlated signals, a timeline, and the entity graph.",
     `<button class="btn sm" onclick="reload()">Refresh</button>
@@ -1169,7 +1356,7 @@ VIEWS.reports = ()=>{
               ["md","Markdown","for a ticket or a wiki"],
               ["csv","CSV","for a spreadsheet"],
               ["graphml","GraphML","for Gephi / yEd"]];
-  set(head("Reports",
+  set(head(t("rep.t","Reports"),
     "Every export the engine can produce for this scan. Screenshots are captured "+
     "on demand because they cost real time and traffic.",
     `<button class="btn sm" id="shotbtn">Capture screenshots</button>`) + `
@@ -1183,10 +1370,349 @@ VIEWS.reports = ()=>{
     $("shotout").innerHTML = loading();
     try{
       const d = await api(`/api/job/${encodeURIComponent(JOB)}/screenshots?max=8`);
+      const shots = (d.results||d.shots||[]).flatMap(r=>{
+        const data = r.data||r;
+        const img = data.image_base64||data.screenshot||data.png_base64;
+        return img ? [{url:data.url||data.target||r.target||"", img}] : [];
+      });
       $("shotout").innerHTML = `<div class="banner info">Captured
-        ${esc(d.captured!=null?d.captured:(d.shots||[]).length)} screenshot(s) —
-        they are merged into the scan and appear in the Intelligence view.</div>`;
+        ${esc(d.captured!=null?d.captured:shots.length)} screenshot(s).</div>` +
+        (shots.length?`<div class="shots" style="margin-top:12px">${shots.map(sh=>`
+          <figure><img alt="${esc(sh.url)}" loading="lazy"
+            src="data:image/png;base64,${esc(sh.img)}">
+          <figcaption>${esc(sh.url)}</figcaption></figure>`).join("")}</div>`
+         :`<div class="note">The sweep returned no inline images — they are
+            merged into the scan and appear in the Intelligence view.</div>`);
     }catch(e){ $("shotout").innerHTML = errBox(e.message); }
+  };
+};
+
+/* ---------- Search across the whole scan ---------- */
+let SQ="";
+VIEWS.search = ()=>{
+  if(!JOB) return set(needScan("Search"));
+  set(head(t("search.t","Search results"),
+    t("search.w","Free-text across every field every module returned. Across 553 "+
+      "modules this is usually the fastest way to an answer.")) + `
+    <div class="filters">
+      <input type="text" id="sq" placeholder="redis · admin · s3.amazonaws · CVE-2021…"
+             value="${esc(SQ)}" style="flex:1;max-width:520px">
+      <button class="btn primary" id="sgo">Search</button>
+    </div><div id="sout"></div>`);
+  const run=async ()=>{
+    SQ=$("sq").value.trim();
+    if(!SQ) return $("sout").innerHTML="";
+    $("sout").innerHTML=loading();
+    try{
+      const d=await api(`/api/job/${encodeURIComponent(JOB)}/search?q=${encodeURIComponent(SQ)}`);
+      const hits=d.matches||d.results||d.hits||[];
+      $("sout").innerHTML = hits.length?`
+        <div style="color:var(--muted);margin-bottom:9px">${d.count!=null?d.count:hits.length} match(es)${
+          d.by_module?" across "+Object.keys(d.by_module).length+" module(s)":""}</div>
+        <div class="tblwrap"><table><thead><tr><th>Module</th><th>Field</th><th>Value</th></tr></thead>
+        <tbody>${hits.map(h=>`<tr>
+          <td class="num">${esc(h.module||"")}</td>
+          <td class="num" style="color:var(--ink-2)">${esc(h.field||h.key||"")}</td>
+          <td class="wrap">${esc(h.snippet||h.value||h.detail||h.match||"")}</td></tr>`).join("")}
+        </tbody></table></div>`
+        : `<div class="banner info">Nothing in this scan matches ${esc(SQ)}.</div>`;
+    }catch(e){ $("sout").innerHTML=errBox(e.message); }
+  };
+  $("sgo").onclick=run;
+  $("sq").addEventListener("keydown", e=>{ if(e.key==="Enter") run(); });
+  $("sq").focus();
+  if(SQ) run();
+};
+
+/* ---------- Ask the scan ---------- */
+VIEWS.ask = ()=>{
+  if(!JOB) return set(needScan("Ask"));
+  set(head(t("ask.t","Ask the scan"),
+    t("ask.w","Free-form questions answered deterministically from the scan's "+
+      "intelligence — no LLM unless you configured a key.")) + `
+    <div class="filters">
+      <input type="text" id="aq" style="flex:1;max-width:560px"
+        placeholder="what is exposed?  ·  which hosts run nginx?  ·  any leaked keys?">
+      <button class="btn primary" id="ago">Ask</button>
+    </div>
+    <div class="card" style="margin-bottom:13px"><h3>Or take a summary</h3>
+      <button class="btn" id="sumbtn">Summarise this scan</button></div>
+    <div id="aout"></div>`);
+  const ask=async ()=>{
+    const q=$("aq").value.trim(); if(!q) return;
+    $("aout").innerHTML=loading();
+    try{
+      const d=await api(`/api/job/${encodeURIComponent(JOB)}/ask?q=${encodeURIComponent(q)}`);
+      $("aout").innerHTML=`<div class="card"><h3>${esc(q)}</h3>
+        <div style="white-space:pre-wrap;line-height:1.7">${esc(
+          d.answer||d.text||JSON.stringify(d,null,2))}</div></div>`;
+    }catch(e){ $("aout").innerHTML=errBox(e.message); }
+  };
+  $("ago").onclick=ask;
+  $("aq").addEventListener("keydown", e=>{ if(e.key==="Enter") ask(); });
+  $("sumbtn").onclick=async ()=>{
+    $("aout").innerHTML=loading();
+    try{
+      const d=await api(`/api/job/${encodeURIComponent(JOB)}/summary`);
+      $("aout").innerHTML=`<div class="card"><h3>Summary
+        <span class="tag">${esc(d.source||d.engine||"deterministic")}</span></h3>
+        <div style="white-space:pre-wrap;line-height:1.7">${esc(
+          d.summary||d.text||JSON.stringify(d,null,2))}</div></div>`;
+    }catch(e){ $("aout").innerHTML=errBox(e.message); }
+  };
+};
+
+/* ---------- Rollup by host ---------- */
+VIEWS.rollup = ()=> jobView("rollup", d=>{
+  const raw=d.hosts||{};
+  const hosts=Array.isArray(raw)?raw
+    : Object.entries(raw).map(([host,v])=>({host, ...(v&&typeof v==="object"?v:{value:v})}));
+  return head(t("roll.t","Per-host rollup"),
+    t("roll.w","The same findings, grouped by the machine they belong to."), RE()) +
+    (hosts.length?hosts.map(h=>`<div class="card" style="margin-bottom:11px">
+      <h3>${esc(h.host||h.name||"host")}
+        ${h.risk?`<span class="pill ${esc(String(h.risk).toLowerCase())}">${esc(h.risk)}</span>`:""}</h3>
+      <div class="kv">${Object.entries(h).filter(([k])=>k!=="host").map(([k,v])=>
+        `<div class="k">${esc(k)}</div><div class="v">${esc(
+          typeof v==="object"?JSON.stringify(v):v)}</div>`).join("")}</div></div>`).join("")
+      : `<div class="banner info">Nothing to roll up — this scan saw one host.</div>`);
+}, {view:"rollup", what:"Per-host rollup"});
+
+/* ---------- Verify origin ---------- */
+VIEWS.origin = ()=>{
+  const cand=(CACHE[JOB+":ipfilter"]||{}).origin_candidates||[];
+  set(head(t("origin.t","Verify origin"),
+    t("origin.w","Finding addresses that might be the real server is the easy half. "+
+      "The half that matters is confirmation: ask the candidate directly for the "+
+      "target's site and compare it with what the CDN serves.")) + `
+    <div class="card"><h3>Probe candidates</h3>
+      <div class="field"><label>Host</label>
+        <input type="text" id="vo-host" value="${esc(SNAP?SNAP.target:"")}"></div>
+      <div class="field"><label>Candidate addresses (one per line)</label>
+        <textarea id="vo-ips" rows="5" placeholder="203.0.113.9&#10;198.51.100.4"
+          >${esc(cand.join("\n"))}</textarea>
+        <div class="hint">${cand.length?`Pre-filled from the CDN/origin analysis.`
+          :`Run <b>CDN / origin</b> first and the candidates land here automatically.`}</div></div>
+      <div class="banner warn">This is the one active probe in the toolkit: it
+        <b>contacts each address directly</b> with the target's Host header.
+        Authorised targets only.</div>
+      <button class="btn primary" id="vo-run">Verify</button></div>
+    <div id="vo-out" style="margin-top:13px"></div>`);
+  $("vo-run").onclick=async ()=>{
+    const host=$("vo-host").value.trim();
+    const ips=$("vo-ips").value.split(/[\s,]+/).filter(Boolean);
+    if(!host||!ips.length) return;
+    $("vo-out").innerHTML=loading();
+    try{
+      const d=await api("/api/verify-origin",{method:"POST",
+        body:JSON.stringify({host, candidates:ips})});
+      $("vo-out").innerHTML=`
+        <div class="grid g4" style="margin-bottom:13px">
+          ${stat("Checked", d.candidates_checked||0)}
+          ${stat("Confirmed", (d.confirmed_origins||[]).length, "served the target's page", "ok")}
+          ${stat("Possible", (d.possible_origins||[]).length, "", "med")}
+        </div>
+        ${(d.verified||[]).length?`<div class="tblwrap"><table>
+          <thead><tr><th>Address</th><th>Verdict</th><th>Similarity</th><th>Why</th></tr></thead>
+          <tbody>${d.verified.map(v=>`<tr>
+            <td class="num">${esc(v.ip)}</td>
+            <td><span class="pill ${v.verdict==="confirmed"?"ok":v.verdict==="possible"?"medium":"muted"}">${esc(v.verdict)}</span></td>
+            <td class="num">${esc(v.similarity)}</td>
+            <td class="wrap" style="color:var(--muted)">${esc((v.reasons||[]).join(" · "))}${
+              (v.errors||[]).length?` — ${esc(v.errors.join("; "))}`:""}</td>
+          </tr>`).join("")}</tbody></table></div>`:""}
+        ${noteBox(d.note)}`;
+    }catch(e){ $("vo-out").innerHTML=errBox(e.message); }
+  };
+};
+
+/* ---------- Entity investigation ---------- */
+VIEWS.investigate = ()=>{
+  set(head(t("invg.t","Entity investigation"),
+    t("invg.w","A username or e-mail as the seed: canary-checked profiles, "+
+      "identity, and an OPSEC dossier.")) + `
+    <div class="card"><h3>Seed</h3>
+      <div class="row">
+        <div class="field"><label>Username or e-mail</label>
+          <input type="text" id="inv-seed" placeholder="torvalds  ·  someone@example.com"></div>
+        <div class="field"><label>OSINT pivot depth</label>
+          <input type="number" id="inv-depth" value="1" min="0" max="3"></div>
+      </div>
+      <label class="check"><input type="checkbox" id="inv-dossier" checked> Build a dossier</label>
+      <div style="display:flex;gap:8px;margin-top:11px">
+        <button class="btn primary" id="inv-run">Investigate</button>
+        <button class="btn" id="inv-deep">Deep OSINT pivot from the scan target</button>
+      </div>
+      <div class="note">Passive: a public profile URL is fetched and classified.
+        No account is created and no message is ever sent to the person.</div></div>
+    <div id="inv-out" style="margin-top:13px"></div>`);
+  $("inv-run").onclick=async ()=>{
+    const seed=$("inv-seed").value.trim(); if(!seed) return;
+    $("inv-out").innerHTML=loading();
+    try{
+      const d=await api("/api/investigate",{method:"POST",
+        body:JSON.stringify({seed, dossier:$("inv-dossier").checked})});
+      $("inv-out").innerHTML = renderEntity(d);
+    }catch(e){ $("inv-out").innerHTML=errBox(e.message); }
+  };
+  $("inv-deep").onclick=async ()=>{
+    const target=(SNAP&&SNAP.target)||$("target").value.trim();
+    if(!target) return $("inv-out").innerHTML=errBox("No target — run a scan or type one above.");
+    $("inv-out").innerHTML=loading();
+    try{
+      const d=await api("/api/osint-deep",{method:"POST",
+        body:JSON.stringify({target, depth:+$("inv-depth").value||1})});
+      $("inv-out").innerHTML=`<pre class="card mono" style="white-space:pre-wrap;font-size:11.5px">${
+        esc(JSON.stringify(d,null,2).slice(0,20000))}</pre>`;
+    }catch(e){ $("inv-out").innerHTML=errBox(e.message); }
+  };
+};
+function renderEntity(d){
+  const profiles=d.profiles||d.found_on||[];
+  return `<div class="grid g4" style="margin-bottom:13px">
+      ${stat("Seed", d.seed||d.target||"—")}
+      ${stat("Profiles", profiles.length, "canary-checked", "accent")}
+      ${stat("Confidence", (d.identity&&d.identity.confidence)||"—")}
+    </div>
+    ${profiles.length?`<div class="tblwrap"><table>
+      <thead><tr><th>Site</th><th>URL</th><th>Confidence</th></tr></thead>
+      <tbody>${profiles.map(p=>`<tr>
+        <td class="num">${esc(p.site||p.name||"")}</td>
+        <td class="wrap"><a href="${esc(p.url||"#")}" target="_blank" rel="noopener">${esc(p.url||"")}</a></td>
+        <td><span class="pill muted">${esc(p.confidence||"")}</span></td></tr>`).join("")}
+      </tbody></table></div>`:""}
+    ${d.dossier_markdown?`<div class="card" style="margin-top:13px"><h3>Dossier</h3>
+      <div style="white-space:pre-wrap;font-size:12.5px;line-height:1.7">${esc(d.dossier_markdown)}</div></div>`:""}
+    ${d.opsec?`<div class="note">OPSEC: ${esc(JSON.stringify(d.opsec).slice(0,400))}</div>`:""}`;
+}
+
+/* ---------- Portfolio ---------- */
+VIEWS.portfolio = async ()=>{
+  set(loading());
+  try{
+    const d=await api("/api/portfolio");
+    if(VIEW!=="portfolio") return;
+    const rows=d.targets||d.portfolio||[];
+    set(head(t("port2.t","Portfolio"),
+      t("port2.w","Every target in the history at a glance — what grew, what is risky.")) + `
+      <div class="grid g4" style="margin-bottom:14px">
+        ${stat("Targets", rows.length)}
+        ${stat("Scans", d.total_scans||d.scans||"—")}
+      </div>
+      ${rows.length?`<div class="tblwrap"><table>
+        <thead><tr><th>Target</th><th>Risk</th><th>Last scan</th><th>Assets</th></tr></thead>
+        <tbody>${rows.map(r=>`<tr>
+          <td class="num">${esc(r.target||r.name)}</td>
+          <td><span class="pill ${esc(String(r.risk||"").toLowerCase())}">${esc(r.risk||"—")}</span></td>
+          <td class="num" style="color:var(--muted)">${esc((r.last||r.ts||"").slice(0,16).replace("T"," "))}</td>
+          <td class="num">${esc(r.assets!=null?r.assets:"—")}</td></tr>`).join("")}
+        </tbody></table></div>`
+        :`<div class="empty"><h2>Nothing stored yet</h2>
+          <p>Run scans with <code>--db</code> and the portfolio fills itself.</p></div>`}
+      ${noteBox(d.note)}`);
+  }catch(e){ if(VIEW==="portfolio") set(errBox(e.message)); }
+};
+
+/* ---------- Scope, alert rules, backup ---------- */
+VIEWS.governance = async ()=>{
+  set(head(t("gov.t","Scope, rules & backup"),
+    t("gov.w","What may be scanned, when to alert, and how to take your data with you.")) +
+    `<div class="grid g2" id="govgrid"></div>`);
+  const grid=$("govgrid");
+  // scope
+  try{
+    const sc=await api("/api/scope");
+    grid.insertAdjacentHTML("beforeend", `<div class="card"><h3>Scope guard
+      <span class="tag">${sc.empty?"off":"enforcing"}</span></h3>
+      <div class="field"><label>Allow-list — one host / *.domain / CIDR per line</label>
+        <textarea id="scope-entries" rows="7">${esc((sc.entries||[]).join("\n"))}</textarea></div>
+      <button class="btn primary" id="scope-save">Save scope</button>
+      <div class="note">${esc(sc.note||"")}</div></div>`);
+    $("scope-save").onclick=async ()=>{
+      try{
+        await api("/api/scope",{method:"POST", body:JSON.stringify({
+          entries:$("scope-entries").value.split(/\n+/).map(x=>x.trim()).filter(Boolean)})});
+        VIEWS.governance();
+      }catch(e){ alert(e.message); }
+    };
+  }catch(e){ grid.insertAdjacentHTML("beforeend", errBox("scope: "+e.message)); }
+  // alert rules
+  try{
+    const ar=await api("/api/alert-rules");
+    grid.insertAdjacentHTML("beforeend", `<div class="card"><h3>Alert rules</h3>
+      <div class="field"><label>Rules (JSON)</label>
+        <textarea id="ar-json" rows="7">${esc(JSON.stringify(ar.rules||ar,null,1))}</textarea></div>
+      <button class="btn primary" id="ar-save">Save rules</button>
+      <div class="note">Which surface changes are worth waking someone for.</div></div>`);
+    $("ar-save").onclick=async ()=>{
+      try{
+        await api("/api/alert-rules",{method:"POST", body:$("ar-json").value});
+        VIEWS.governance();
+      }catch(e){ alert(e.message); }
+    };
+  }catch(e){ grid.insertAdjacentHTML("beforeend", errBox("alert rules: "+e.message)); }
+  // backup / restore
+  grid.insertAdjacentHTML("beforeend", `<div class="card"><h3>Backup &amp; restore</h3>
+    <p style="color:var(--muted);margin:0 0 11px">Scan findings only — never API
+      keys or secrets.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn" href="/api/backup${TOKEN?"?token="+encodeURIComponent(TOKEN):""}"
+         target="_blank" rel="noopener">Download backup ↗</a>
+      <button class="btn" id="restore-btn">Restore from JSON…</button>
+    </div><div id="restore-out" class="note"></div></div>`);
+  $("restore-btn").onclick=()=> modal("Restore scans", `
+    <div class="field"><label>Paste a Ghost Eye backup file</label>
+      <textarea data-field="blob" rows="8" placeholder='{"format":"ghosteye-backup",…}'></textarea></div>`,
+    async vals=>{
+      try{
+        const d=await api("/api/restore",{method:"POST", body:vals.blob});
+        $("restore-out").textContent=`Restored ${d.restored!=null?d.restored:"?"} scan(s).`;
+      }catch(e){ $("restore-out").textContent="Restore failed: "+e.message; }
+    }, "Restore");
+
+  // acknowledged surface-change items — the change alert is a diff, not a memory
+  try{
+    const tgt=(SNAP&&SNAP.target)||"";
+    const ac=await api(`/api/acks?target=${encodeURIComponent(tgt)}`);
+    grid.insertAdjacentHTML("beforeend", `<div class="card"><h3>Acknowledged changes
+      <span class="tag">${esc(tgt||"all targets")}</span></h3>
+      ${(ac.acks||[]).length?`<div class="mono" style="line-height:2">${
+        (ac.acks||[]).map(x=>`<span class="pill muted">${esc(x)}</span>`).join(" ")}</div>`
+        :`<p style="color:var(--muted);margin:0 0 11px">Nothing acknowledged.</p>`}
+      <div class="field" style="margin-top:11px"><label>Acknowledge an item</label>
+        <input type="text" id="ack-item" placeholder="new subdomain, IP, service…"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="ack-add">Acknowledge</button>
+        <button class="btn" id="ack-del">Un-acknowledge</button></div>
+      <div class="note">An acknowledged change stops being reported as new.</div></div>`);
+    const post = remove => async ()=>{
+      const item=$("ack-item").value.trim(); if(!item||!tgt) return;
+      try{ await api("/api/acks",{method:"POST",
+        body:JSON.stringify({target:tgt, item, remove})}); VIEWS.governance(); }
+      catch(e){ $("view").insertAdjacentHTML("beforeend", errBox(e.message)); }
+    };
+    $("ack-add").onclick=post(false); $("ack-del").onclick=post(true);
+  }catch(e){ grid.insertAdjacentHTML("beforeend", errBox("acks: "+e.message)); }
+
+  // unified multi-target graph
+  grid.insertAdjacentHTML("beforeend", `<div class="card"><h3>Unified graph</h3>
+    <p style="color:var(--muted);margin:0 0 11px">Merge several targets' knowledge
+      graphs into one picture, from the most recent saved scan of each.</p>
+    <div class="field"><label>Targets (comma separated)</label>
+      <input type="text" id="uni-targets" placeholder="a.com, b.com"></div>
+    <button class="btn primary" id="uni-go">Build</button>
+    <div id="uni-out" style="margin-top:11px"></div></div>`);
+  $("uni-go").onclick=async ()=>{
+    const q=$("uni-targets").value.trim(); if(!q) return;
+    $("uni-out").innerHTML=loading();
+    try{
+      const d=await api(`/api/unified?targets=${encodeURIComponent(q)}`);
+      const kg=d.graph||d.knowledge_graph||d;
+      $("uni-out").innerHTML = (kg && (kg.nodes||[]).length)
+        ? `<div class="eyebrow">${(kg.nodes||[]).length} nodes · ${
+            ((kg.edges||kg.links)||[]).length} edges</div>${kgSvg(kg)}`
+        : `<div class="banner info">${esc(d.note||"No graph for those targets — scan them first.")}</div>`;
+    }catch(e){ $("uni-out").innerHTML=errBox(e.message); }
   };
 };
 
@@ -1196,7 +1722,7 @@ VIEWS.verdicts = async ()=>{
   try{
     const d=await api("/api/verdicts");
     if(VIEW!=="verdicts") return;
-    set(head("Standing verdicts",
+    set(head(t("verd.t","Standing verdicts"),
       "Rulings you have made, applied to every later scan. A verdict fingerprints "+
       "the <i>value</i> you ruled on, so when the value changes the finding comes "+
       "back for judgement — a suppression that outlives the thing it was about is "+
@@ -1230,22 +1756,85 @@ VIEWS.history = async ()=>{
   try{
     const d=await api("/api/history");
     if(VIEW!=="history") return;
-    const scans=d.scans||d||[];
-    set(head("History & trend",
-      "Every stored scan. Open one to load its results into every analysis view.") +
-      (scans.length?`<div class="tblwrap"><table>
+    const scans=d.history||d.scans||(Array.isArray(d)?d:[]);
+    const targets=[...new Set(scans.map(x=>x.target))];
+    set(head(t("hist.t","History & trend"),
+      t("hist.w","Every stored scan. Compare two, or chart a target over time.")) + `
+      <div class="grid g2" style="margin-bottom:14px">
+        <div class="card"><h3>Trend for a target</h3>
+          <div class="row">
+            <div class="field"><label>Target</label>
+              <select id="trTarget">${targets.map(x=>`<option>${esc(x)}</option>`).join("")}</select></div>
+            <div class="field" style="flex:0 0 auto;align-self:flex-end">
+              <button class="btn primary" id="trGo">Chart</button></div>
+          </div>
+          <div id="trOut"></div></div>
+        <div class="card"><h3>Compare two scans</h3>
+          <div class="row">
+            <div class="field"><label>A (older)</label>
+              <select id="cmpA">${scans.map(x=>`<option value="${esc(x.id)}">${esc(x.target)} · ${esc((x.ts||"").slice(0,16))}</option>`).join("")}</select></div>
+            <div class="field"><label>B (newer)</label>
+              <select id="cmpB">${scans.map(x=>`<option value="${esc(x.id)}">${esc(x.target)} · ${esc((x.ts||"").slice(0,16))}</option>`).join("")}</select></div>
+          </div>
+          <button class="btn primary" id="cmpGo">Compare</button>
+          <div id="cmpOut"></div></div>
+      </div>
+      ${scans.length?`<div class="tblwrap"><table>
         <thead><tr><th>Target</th><th>When</th><th>Risk</th><th>Modules</th><th></th></tr></thead>
-        <tbody>${scans.map(s=>`<tr>
-          <td class="num">${esc(s.target)}</td>
-          <td class="num" style="color:var(--muted)">${esc((s.ts||"").replace("T"," ").slice(0,16))}</td>
-          <td><span class="pill ${String(s.risk||"").toLowerCase()}">${esc(s.risk||"—")}</span></td>
-          <td class="num">${esc(s.modules||"—")}</td>
-          <td><a class="btn sm" href="/api/scan/${esc(s.id)}${TOKEN?"?token="+encodeURIComponent(TOKEN):""}" target="_blank" rel="noopener">Raw ↗</a></td>
+        <tbody>${scans.map(x=>`<tr>
+          <td class="num">${esc(x.target)}</td>
+          <td class="num" style="color:var(--muted)">${esc((x.ts||"").replace("T"," ").slice(0,16))}</td>
+          <td><span class="pill ${esc(String(x.risk||"").toLowerCase())}">${esc(x.risk||"—")}</span></td>
+          <td class="num">${esc(x.modules||"—")}</td>
+          <td><a class="btn sm" href="/api/scan/${esc(x.id)}${TOKEN?"?token="+encodeURIComponent(TOKEN):""}" target="_blank" rel="noopener">Raw ↗</a></td>
         </tr>`).join("")}</tbody></table></div>`
         :`<div class="empty"><h2>No stored scans</h2>
-          <p>Start the dashboard with <code>--db</code> to persist runs.</p></div>`));
+          <p>Start the dashboard with <code>--db</code> to persist runs.</p></div>`}`);
+    $("trGo").onclick=async ()=>{
+      $("trOut").innerHTML=loading();
+      try{
+        const tr=await api(`/api/trend?target=${encodeURIComponent($("trTarget").value)}`);
+        $("trOut").innerHTML=trendChart(tr);
+      }catch(e){ $("trOut").innerHTML=errBox(e.message); }
+    };
+    $("cmpGo").onclick=async ()=>{
+      $("cmpOut").innerHTML=loading();
+      try{
+        const c=await api(`/api/compare?a=${encodeURIComponent($("cmpA").value)}&b=${encodeURIComponent($("cmpB").value)}`);
+        const sec=(k,label,cls)=>{
+          const v=c[k]||[];
+          return v.length?`<div style="margin-top:9px"><span class="pill ${cls}">${label} ${v.length}</span>
+            <div class="mono" style="color:var(--ink-2);margin-top:5px;line-height:1.7">${
+              v.slice(0,40).map(x=>esc(typeof x==="object"?JSON.stringify(x):x)).join("<br>")}</div></div>`:"";
+        };
+        $("cmpOut").innerHTML = (sec("added","added","critical")+sec("removed","removed","ok")+
+          sec("changed","changed","medium")) ||
+          `<div class="banner info">No difference between these two scans.</div>`;
+      }catch(e){ $("cmpOut").innerHTML=errBox(e.message); }
+    };
   }catch(e){ if(VIEW==="history") set(errBox(e.message)); }
 };
+
+/** A sparkline per numeric series. A trend you cannot see is a table. */
+function trendChart(tr){
+  const series = tr.series || tr.history || tr.points || [];
+  if(!Array.isArray(series) || series.length<2)
+    return `<div class="banner info">${esc(tr.note||"Not enough history yet — two scans of this target are needed to draw a trend.")}</div>`;
+  const keys=[...new Set(series.flatMap(p=>Object.keys(p)))]
+    .filter(k=>series.every(p=>typeof p[k]==="number"));
+  if(!keys.length) return `<div class="banner info">No numeric series to chart.</div>`;
+  return keys.slice(0,4).map(k=>{
+    const vals=series.map(p=>p[k]||0), max=Math.max(...vals,1), W=320, H=52;
+    const pts=vals.map((v,i)=>`${(i/(vals.length-1))*W},${H-(v/max)*(H-6)-3}`).join(" ");
+    const last=vals[vals.length-1], first=vals[0];
+    const dir = last>first ? "▲" : last<first ? "▼" : "=";
+    return `<div style="margin-top:11px">
+      <div class="eyebrow">${esc(k)} — ${first} → ${last} ${dir}</div>
+      <svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.8"/>
+      </svg></div>`;
+  }).join("");
+}
 
 /* ---------- Schedules ---------- */
 VIEWS.schedules = async ()=>{
@@ -1254,7 +1843,7 @@ VIEWS.schedules = async ()=>{
     const d=await api("/api/schedules");
     if(VIEW!=="schedules") return;
     const rows=d.schedules||d||[];
-    set(head("Schedules",
+    set(head(t("sched.t","Schedules"),
       "Re-run a target on an interval and alert on change.") + `
       <div class="card" style="margin-bottom:14px"><h3>New schedule</h3>
         <div class="row">
@@ -1295,7 +1884,7 @@ VIEWS.schedules = async ()=>{
 
 /* ---------- Settings ---------- */
 VIEWS.settings = async ()=>{
-  set(head("Settings",
+  set(head(t("set.t","Settings"),
     "API keys are optional — every core capability works without one. Keys are "+
     "stored by the backend, never in the browser."));
   try{
@@ -1345,9 +1934,21 @@ $("target").addEventListener("keydown", e=>{ if(e.key==="Enter" && !scanning) st
 function opt(id, dflt){ const el=$(id); return el ? el.value : dflt; }
 function chk(id){ const el=$(id); return el ? el.checked : false; }
 
+let QUEUE=[], QI=0;
 async function startScan(){
   const target=$("target").value.trim();
   if(!target){ $("target").focus(); return; }
+  const extra=(opt("o-batch","")||"").split(/\n+/).map(x=>x.trim()).filter(Boolean);
+  QUEUE=[target, ...extra]; QI=0;
+  return runQueued();
+}
+async function runQueued(){
+  if(QI>=QUEUE.length){ QUEUE=[]; return; }
+  const target=QUEUE[QI];
+  const label = QUEUE.length>1 ? ` (${QI+1}/${QUEUE.length})` : "";
+  await startOne(target, label);
+}
+async function startOne(target, label){
   // when the Scan view is not mounted, fall back to the command-bar profile
   const sel = $("pickbody") ? currentSelection()
             : {mode:"profile", value:$("quickProfile").value};
@@ -1367,7 +1968,8 @@ async function startScan(){
   let res;
   try{ res=await api("/api/scan",{method:"POST",
         body:JSON.stringify({target, selection:sel, options})}); }
-  catch(e){ set(errBox("Scan rejected: "+e.message)+$("view").innerHTML); return; }
+  catch(e){ QUEUE=[]; set(errBox("Scan rejected: "+e.message)+$("view").innerHTML); return; }
+  BATCH_LABEL = label||"";
   JOB=res.job_id; SNAP=null; expanded=new Set();
   Object.keys(CACHE).forEach(k=>delete CACHE[k]);
   setScanning(true);
@@ -1375,8 +1977,10 @@ async function startScan(){
   poll=setInterval(tick,1000); tick();
 }
 
+let BATCH_LABEL="";
 async function stopScan(){
   if(!JOB) return;
+  QUEUE=[];                                  // a batch stops with the scan
   $("runbtn").disabled=true; $("statustxt").textContent="Stopping…";
   try{ await api(`/api/job/${JOB}/cancel`,{method:"POST"}); }catch(e){}
   tick();
@@ -1402,21 +2006,25 @@ async function tick(){
     const map={done:["done","Complete"],cancelled:["stop","Stopped"],error:["err","Error"]};
     const [cls,txt]=map[s.status]||["done","Done"];
     $("dot").className="dot "+cls;
-    $("statustxt").textContent=`${txt} — ${s.target}`;
+    $("statustxt").textContent=`${t("cmd."+(s.status==="done"?"complete":
+      s.status==="cancelled"?"stopped":"error"), txt)} — ${s.target}${BATCH_LABEL}`;
     $("prog").style.width="0%";
     refreshBadges();
     if(VIEW==="live") render();
+    if(s.status==="done" && QUEUE.length && ++QI < QUEUE.length){
+      setTimeout(runQueued, 600);            // next target in the batch
+    }else{ QUEUE=[]; }
   }
 }
 function stopPoll(){ if(poll){ clearInterval(poll); poll=null; } }
 function setScanning(on){
   scanning=on;
-  $("runbtn").textContent = on ? "Stop scan" : t("cmd.run","Run scan");
+  $("runbtn").textContent = on ? t("cmd.stop","Stop scan") : t("cmd.run","Run scan");
   $("runbtn").classList.toggle("primary", !on);
   $("runbtn").classList.toggle("danger", on);
   $("runbtn").disabled=false;
   $("dot").className = "dot" + (on?" run":"");
-  if(on) $("statustxt").textContent="Scanning…";
+  if(on) $("statustxt").textContent=t("cmd.scanning","Scanning…")+BATCH_LABEL;
 }
 
 /** Badge counts come from the analysis endpoints, so the rail tells you where
@@ -1458,7 +2066,19 @@ async function refreshBadges(){
       Is <code>ghost_eye_web.py</code> running${TOKEN?"":", and does it need a ?token="}?</div>`);
     return;
   }
-  const start=(location.hash||"").replace("#","");
+  // restore the scan and workspace across a language reload
+  try{
+    const j=sessionStorage.getItem("ge_job");
+    if(j){ JOB=j; sessionStorage.removeItem("ge_job");
+      try{ SNAP=await api(`/api/job/${encodeURIComponent(JOB)}`); }catch(e){ JOB=null; }
+      if(JOB) refreshBadges();
+    }
+  }catch(e){}
+  let start=(location.hash||"").replace("#","");
+  try{
+    const v=sessionStorage.getItem("ge_view");
+    if(v){ start=v; sessionStorage.removeItem("ge_view"); }
+  }catch(e){}
   go(VIEWS[start] ? start : "scan");
   try{ const v=await api("/api/verdicts"); $("b-verd").textContent=v.count||0; }catch(e){}
 })();

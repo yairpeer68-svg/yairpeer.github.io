@@ -184,21 +184,73 @@ class TestConsoleCoverage:
         assert "index.html" in home.split("return")[1]
 
     @pytest.mark.parametrize("view", [
-        "scan", "live", "findings", "fixorder", "anomalies", "exploits",
-        "inventory", "ports", "ipfilter", "csp", "attribution", "verdicts",
-        "opsec", "compliance", "history", "schedules", "settings",
+        "scan", "live", "search", "findings", "fixorder", "anomalies", "risk",
+        "intel", "ask", "exploits", "inventory", "rollup", "ports", "ipfilter",
+        "origin", "csp", "attribution", "investigate", "verdicts", "opsec",
+        "compliance", "history", "portfolio", "reports", "schedules",
+        "governance", "settings",
     ])
     def test_every_workspace_has_a_nav_entry_and_a_renderer(self, view):
         html = self._console()
         assert f'data-view="{view}"' in html, f"{view} has no rail entry"
         assert f"VIEWS.{view}" in html, f"{view} has a rail entry but no renderer"
 
-    @pytest.mark.parametrize("sub", [
-        "verdicts", "fixorder", "cspassets", "anomalies", "ipfilter",
-        "inventory", "opsec", "attribution", "exploits", "compliance",
-    ])
-    def test_every_job_analysis_endpoint_is_reachable_from_the_ui(self, sub):
-        assert f'"{sub}"' in self._console(), f"/api/job/<id>/{sub} is unreachable"
+    def test_every_api_endpoint_is_reachable_from_the_console(self):
+        """The measurement that started this: the old console reached 11 of ~30
+        endpoints, so most of the product was invisible from a browser. This
+        keeps the gap from silently reopening as the API grows."""
+        import inspect
+        import re
+        from ghost_eye import webapp
+        src = inspect.getsource(webapp)
+        html = self._console()
+        top = sorted(set(re.findall(r'path == "(/api/[a-z0-9_-]+)"', src)))
+        subs = sorted(set(re.findall(r'sub == "([a-z0-9_]+)"', src)))
+        unreachable = ([p for p in top if p not in html]
+                       + [s for s in subs if s not in html])
+        assert not unreachable, (
+            f"{len(unreachable)} endpoint(s) the API serves but the console "
+            f"cannot reach: {unreachable}")
+
+    def test_findings_can_be_filtered(self):
+        """200 findings with no filter is a list nobody reads."""
+        html = self._console()
+        assert "FFILTER" in html, "no findings filter state"
+        assert 'data-sev="${sv}"' in html, "no per-severity filter chips"
+        assert 'FFILTER.sev.has(sv)' in html, "the severity chips filter nothing"
+        assert 'id="fq"' in html, "no free-text filter on the findings table"
+
+    def test_the_verdict_reason_is_not_a_browser_prompt(self):
+        """prompt() blocks the page, cannot be styled and cannot be cancelled
+        meaningfully — the opposite of what 'professional' means here."""
+        html = self._console()
+        # a call, not the word in the comment explaining why it is gone
+        import re
+        calls = re.findall(r'(?<![.\w`])prompt\s*\(', html)
+        assert not calls, "the console still calls a browser prompt()"
+        assert "function modal(" in html and 'role="dialog"' in html
+
+    def test_the_live_stream_patches_instead_of_rebuilding(self):
+        """Rebuilding 553 rows every second destroys scroll position and any
+        text selection while the scan is still running."""
+        html = self._console()
+        assert "STREAM_SEEN" in html, "the stream has no per-module render cache"
+        assert "existing.outerHTML = html" in html, "the stream rebuilds wholesale"
+
+    def test_a_language_switch_keeps_the_loaded_scan(self):
+        html = self._console()
+        assert 'sessionStorage.setItem("ge_job"' in html, \
+            "switching language throws away the scan you were reading"
+
+    def test_batch_targets_are_supported(self):
+        html = self._console()
+        assert 'id="o-batch"' in html and "runQueued" in html
+
+    def test_the_console_is_navigable_without_a_mouse(self):
+        html = self._console()
+        assert 'class="skip"' in html, "no skip-to-content link"
+        assert 'aria-live="polite"' in html, "scan status is not announced"
+        assert ":focus-visible" in html, "no visible focus ring"
 
     def test_port_scan_options_are_exposed(self):
         html = self._console()
