@@ -643,6 +643,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._metrics()
         if path == "/api/alert-rules":
             return self._alert_rules_get()
+        if path == "/api/telegram":
+            return self._telegram_status()
         if path == "/api/verdicts":
             return self._all_verdicts()
         if path == "/api/baseline":
@@ -672,6 +674,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._osint_deep()
         if path == "/api/investigate":
             return self._investigate()
+        if path == "/api/telegram":
+            return self._telegram_set()
         if path == "/api/verdict":
             return self._set_verdict()
         if path == "/api/verify-origin":
@@ -932,6 +936,62 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(workflow.ip_filter_report(results, target))
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"ip filter failed: {exc}"}, 500)
+
+    # ---- Telegram bot ---------------------------------------------------- #
+    def _telegram_status(self):
+        """Whether the bot is configured and running. The token is never
+        returned — only whether one is set."""
+        bot = getattr(self.server, "telegram", None)
+        cfg = self.server.jobs.cfg
+        allow = str(cfg.get("telegram_allow", "") or "")
+        return self._json({
+            "running": bool(bot and not bot._stop.is_set()),
+            "token_configured": bool(cfg.get("telegram_token")),
+            "allowed_chats": [c for c in allow.replace(";", ",").split(",") if c.strip()],
+            "unauthorised_seen": (bot.seen_unauthorised if bot else []),
+            "note": "the allow-list is default-deny: empty means nobody may "
+                    "command the bot. Message it /whoami to learn your chat id.",
+        })
+
+    def _telegram_set(self):
+        """Configure and start/stop the bot. POST {token?, allow?, action}."""
+        body = self._body()
+        cfg = self.server.jobs.cfg
+        if body.get("token"):
+            cfg.set("telegram_token", str(body["token"]).strip())
+        if body.get("allow") is not None:
+            cfg.set("telegram_allow", str(body["allow"]).strip())
+        action = str(body.get("action") or "").lower()
+        bot = getattr(self.server, "telegram", None)
+        if action == "stop":
+            if bot:
+                bot.shutdown()
+            self.server.telegram = None
+            return self._json({"running": False})
+        if action == "start":
+            if bot:
+                bot.shutdown()
+            token = str(cfg.get("telegram_token") or "").strip()
+            if not token:
+                return self._json({"error": "no bot token configured"}, 400)
+            allow = str(cfg.get("telegram_allow", "") or "")
+            try:
+                from .telegram_bot import TelegramBot
+                new = TelegramBot(
+                    token=token,
+                    allowed_chats=[c for c in allow.replace(";", ",").split(",") if c.strip()],
+                    cfg=cfg, scope=getattr(self.server, "scope", None),
+                    db=self.server.jobs.db_path)
+            except ValueError as exc:
+                return self._json({"error": str(exc)}, 400)
+            self.server.telegram = new
+            threading.Thread(target=new.run_forever, daemon=True).start()
+            return self._json({"running": True,
+                               "allowed": len(new.allowed),
+                               "warning": ("the allow-list is empty, so every "
+                                           "command will be refused")
+                               if not new.allowed else ""})
+        return self._telegram_status()
 
     def _all_verdicts(self):
         """Every standing ruling, so suppression is reviewable rather than

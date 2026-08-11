@@ -16,9 +16,9 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1248 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1292 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 695 are behavioural — see
+  raises"); the other 739 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -54,6 +54,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [Deep scan & asset inventory](#deep-scan--asset-inventory)
 - [API keys](#api-keys)
 - [Web dashboard](#web-dashboard)
+- [Telegram bot](#telegram-bot)
 - [Error log](#error-log)
 - [Module catalogue](#module-catalogue)
 - [Architecture](#architecture--adding-a-module)
@@ -145,6 +146,8 @@ python3 ghost_eye_web.py --open
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
 | `--fix-order` | rank every CVE by exploitation pressure × observed reachability — what to fix first |
 | `--csp-assets` | mine the target's Content-Security-Policy for hosts and report the ones enumeration missed |
+| `--telegram-bot` | run the Telegram bot — drive scans from your phone |
+| `--telegram-token`, `--telegram-allow` | bot token, and the chat ids permitted to command it (**empty = nobody**) |
 | `--ports <spec>` | ports for `portscan`: `80,443`, `1-1024`, `top100`, `all`, or a combination |
 | `--scan-retries <n>` | extra probes before calling a silent port filtered (default 1) |
 | `--scan-rate <n>` | max connection attempts/second — pacing is more *accurate*, not just politer |
@@ -890,6 +893,52 @@ as filtered. Slower is more correct.
 
 ---
 
+## Telegram bot
+
+`--notify` *pushes* a summary to a Telegram webhook. This is the other
+direction: a bot that takes commands, runs real scans, and answers with the
+result. Start a scan on the train, read the findings when it lands.
+
+```bash
+python3 ghost_eye.py --telegram-bot \
+    --telegram-token 123456:ABC-DEF… \
+    --telegram-allow 987654321 \
+    --scope scope.txt --db estate.db
+```
+
+```
+/scan example.com quick     run a profile against a target
+/ports example.com 1-1024   a port sweep on its own
+/status                     how the running scan is doing
+/findings                   the last scan's findings, worst first
+/fixorder                   what to fix first (KEV × reachability)
+/stop  /scans  /profiles  /whoami  /help
+```
+
+It can also be started, stopped and allow-listed from the console's **Settings**
+workspace — the token is stored by the backend and never returned to the browser.
+
+**Read this before enabling it.** A bot that runs scans is a remote-command
+channel into the machine hosting it. Two rules are enforced in code rather than
+offered as advice:
+
+- **Default deny.** Only allow-listed chat ids may command the bot, and an empty
+  allow-list authorises **nobody** — not everybody. Anyone who obtained the token
+  could otherwise point your host at any target on the internet, turning your
+  machine into someone else's scanning proxy. Message the bot `/whoami` (answered
+  for anyone, since you need your own id to allow-list yourself) and pass what it
+  reports. Unauthorised chats that try are recorded and shown to you.
+- **Scope still applies.** Every target goes through the same `Scope` guard the
+  CLI and dashboard use. Remote convenience does not widen what you may scan.
+
+Also: one scan at a time, a cooldown between scan commands, replies truncated to
+Telegram's 4096-character limit rather than silently rejected, and the token is
+never echoed into a chat. Long-polling — no inbound port, no webhook to expose,
+works from behind NAT.
+
+
+---
+
 ## Reporting
 
 `-o report.<ext>` picks the format by extension, or use `--format`:
@@ -1054,6 +1103,27 @@ A rail of 27 workspaces, a persistent command bar, one content region:
 | Manage | **History & trend** · **Portfolio** · **Reports** · **Schedules** · **Scope, rules & backup** · **Settings** |
 
 Details that decide whether it is usable rather than merely complete:
+
+- **Command palette** (`Ctrl`/`⌘ K`) — jump to any of the 27 workspaces, any of
+  the 553 modules, or an action. 27 workspaces is more than a rail can make fast.
+- **Keyboard triage**: `j`/`k` to move, `f`/`a`/`c` to rule, `x` to select,
+  `Enter` for the evidence, `/` to search, `?` for the list. Two hundred findings
+  is mouse work otherwise.
+- **Bulk verdicts** — select twelve identical false positives and rule once, with
+  an **Undo** toast; each ruling still locks onto its own value.
+- **Evidence drawer** — the finding's provenance and *everything the producing
+  module returned*, not just the flattened value.
+- **Shareable deep links** — the workspace, the job and the filter state live in
+  the URL, so the view you are looking at can be sent to someone else.
+- **Force-directed entity graph** with drag, wheel-zoom, highlight and
+  neighbourhood focus. A ring layout says nothing about structure, which is the
+  only reason to draw a graph.
+- **Scan presets** (selection + every option, named) and a **dry run** that says
+  how many modules, which categories and the worst-case duration — and states
+  plainly that nothing was sent.
+- **Backend self-check** — which endpoints answer and how fast, from the browser.
+- **Themes** (dark / light / high-contrast), **density**, and
+  `prefers-reduced-motion` respected.
 
 - **Findings are actionable in place.** Filter by severity or free text, then
   rule with FP / Accept / Confirm — a real dialog, with scope and expiry, not a
@@ -1444,7 +1514,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1248 tests** pass in ~20s. A single **verification gate** runs the whole thing:
+**1292 tests** pass in ~20s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

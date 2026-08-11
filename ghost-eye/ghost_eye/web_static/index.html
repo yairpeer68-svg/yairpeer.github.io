@@ -278,6 +278,39 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
   .pickmode button{width:auto;white-space:nowrap}
 }
 .menubtn{display:none}
+/* #38 themes — light and high-contrast redefine the tokens, nothing else */
+:root[data-theme="light"]{
+  --bg:#f6f7fa; --surface:#fff; --surface-2:#eef1f6; --surface-3:#e3e8f0;
+  --line:#d7dde7; --line-2:#c3ccda; --line-3:#a6b2c4;
+  --ink:#141922; --ink-2:#3c4657; --muted:#5f6b7d; --faint:#8b95a5;
+  --accent:#a86b00; --accent-2:#8d5900; --accent-ink:#fff;
+  --crit:#c62630; --high:#b45309; --med:#8a6d1a; --low:#1f6f9c; --ok:#0f7a4d;
+  --shadow:0 1px 2px rgba(16,24,40,.08), 0 10px 28px -16px rgba(16,24,40,.28);
+}
+:root[data-theme="contrast"]{
+  --bg:#000; --surface:#0a0a0a; --surface-2:#141414; --surface-3:#1f1f1f;
+  --line:#4a4a4a; --line-2:#6a6a6a; --line-3:#8a8a8a;
+  --ink:#fff; --ink-2:#eaeaea; --muted:#c8c8c8; --faint:#a0a0a0;
+  --accent:#ffd24a; --accent-ink:#000;
+  --crit:#ff6b70; --high:#ffab5e; --med:#ffe066; --low:#7cc7f0; --ok:#5fe0a3;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme]){ color-scheme:light }
+}
+/* #75 density */
+:root[data-density="compact"]{ --r:8px; --r-sm:6px }
+:root[data-density="compact"] body{ font-size:12.5px }
+:root[data-density="compact"] td{ padding:5px 9px }
+:root[data-density="compact"] th{ padding:7px 9px }
+:root[data-density="compact"] .card{ padding:11px 12px }
+:root[data-density="compact"] .stat{ padding:9px 11px }
+:root[data-density="compact"] .stat .v{ font-size:21px }
+:root[data-density="compact"] .navitem{ padding:5px 10px }
+/* #74 respect reduced motion */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:.001ms !important;
+    animation-iteration-count:1 !important; transition-duration:.001ms !important }
+}
 .skip{position:absolute;left:-9999px;top:8px;z-index:120;background:var(--accent);
   color:var(--accent-ink);padding:9px 15px;border-radius:var(--r-sm);font-weight:700}
 .skip:focus{left:12px;text-decoration:none}
@@ -355,6 +388,8 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
     <div class="railfoot">
       <a class="btn sm" id="osintlink" href="/osint">🕸 OSINT graph</a>
       <button class="btn sm" id="langtoggle">🌐 <span id="langlbl">עברית</span></button>
+      <button class="btn sm" id="themetoggle" title="Theme">◐</button>
+      <button class="btn sm" id="denstoggle" title="Density">⇕</button>
     </div>
   </aside>
 
@@ -513,6 +548,120 @@ $("langtoggle").onclick = ()=>{
 })();
 
 /* ==========================================================================
+   Deep links (#43) — the workspace AND its filter state live in the URL, so a
+   view you are looking at can be sent to someone else and they land on it.
+   ========================================================================== */
+function writeUrl(){
+  const p=new URLSearchParams();
+  if(JOB) p.set("job", JOB);
+  if(VIEW!=="scan") p.set("w", VIEW);
+  if(FFILTER.q) p.set("q", FFILTER.q);
+  if(FFILTER.sev.size) p.set("sev", [...FFILTER.sev].join(","));
+  if(TOKEN) p.set("token", TOKEN);
+  const url = location.pathname + (p.toString()?"?"+p:"") ;
+  try{ history.replaceState(null,"",url); }catch(e){}
+}
+function readUrl(){
+  const p=new URLSearchParams(location.search);
+  if(p.get("q")) FFILTER.q=p.get("q");
+  if(p.get("sev")) FFILTER.sev=new Set(p.get("sev").split(",").filter(Boolean));
+  return {job:p.get("job"), view:p.get("w")};
+}
+window.addEventListener("popstate", ()=>{
+  const st=readUrl();
+  if(st.view && VIEWS[st.view]) go(st.view);
+});
+
+/* ==========================================================================
+   Command palette (#39) — 27 workspaces is more than a rail can make fast.
+   Ctrl/Cmd-K jumps to a workspace, a module, or an action.
+   ========================================================================== */
+function palette(){
+  const items=[];
+  document.querySelectorAll(".navitem").forEach(b=>{
+    // the label is the [data-i18n] span, NOT innerText: the first line of a
+    // rail button is its icon glyph, so matching on that finds nothing.
+    const span=b.querySelector("[data-i18n]");
+    items.push({kind:"go",
+      label:(span?span.textContent:b.dataset.view).trim(),
+      hint:"workspace · "+b.dataset.view,
+      run:()=>go(b.dataset.view)});
+  });
+  items.push(
+    {kind:"act", label:"Run scan", hint:"action", run:()=>startScan()},
+    {kind:"act", label:"Stop scan", hint:"action", run:()=>stopScan()},
+    {kind:"act", label:"Refresh this view", hint:"action", run:()=>reload()},
+    {kind:"act", label:"Toggle language / החלף שפה", hint:"action",
+     run:()=>$("langtoggle").click()},
+    {kind:"act", label:"Copy a link to this view", hint:"action", run:()=>{
+      writeUrl();
+      navigator.clipboard && navigator.clipboard.writeText(location.href);
+      toast("Link copied");}});
+  (META?META.modules:[]).forEach(m=>items.push({
+    kind:"mod", label:m.name, hint:m.id+" · "+m.category,
+    run:()=>{ PICK="modules"; go("scan");
+      setTimeout(()=>{ const c=document.querySelector(`.modchk[value="${m.id}"]`);
+        if(c){ c.checked=true; c.scrollIntoView({block:"center"}); updateSelCount(); }},60); }}));
+
+  let sel=0, shown=items;
+  const wrap=document.createElement("div");
+  wrap.className="scrim"; wrap.style.cssText="display:flex;align-items:flex-start;padding-top:12vh";
+  wrap.innerHTML=`<div class="modal" style="width:min(620px,100%);padding:0"
+      role="dialog" aria-modal="true" aria-label="Command palette">
+    <input id="palq" placeholder="Jump to a workspace, module or action…"
+      style="width:100%;background:var(--bg);border:none;border-bottom:1px solid var(--line);
+             padding:15px 17px;font-size:14px;outline:none;font-family:var(--sans)">
+    <div id="pallist" style="max-height:46vh;overflow-y:auto"></div></div>`;
+  document.body.appendChild(wrap);
+  const draw=()=>{
+    const q=$("palq").value.toLowerCase();
+    shown=items.filter(i=>!q || (i.label+" "+i.hint).toLowerCase().includes(q)).slice(0,40);
+    if(sel>=shown.length) sel=Math.max(0,shown.length-1);
+    $("pallist").innerHTML=shown.map((i,n)=>`
+      <div class="palrow" data-n="${n}" style="display:flex;gap:11px;align-items:center;
+        padding:9px 17px;cursor:pointer;${n===sel?"background:var(--surface-3)":""}">
+        <span class="pill ${i.kind==="go"?"cyan":i.kind==="act"?"accent":"muted"}"
+          style="min-width:74px;justify-content:center">${i.kind==="go"?"go":i.kind==="act"?"do":"module"}</span>
+        <span>${esc(i.label)}</span>
+        <span style="margin-left:auto;color:var(--faint);font-family:var(--mono);font-size:10.5px">${esc(i.hint)}</span>
+      </div>`).join("") || `<div style="padding:17px;color:var(--muted)">No match.</div>`;
+  };
+  const close=()=>{ wrap.remove(); document.removeEventListener("keydown", key, true); };
+  const key=e=>{
+    if(e.key==="Escape"){ e.preventDefault(); return close(); }
+    if(e.key==="ArrowDown"){ e.preventDefault(); sel=Math.min(sel+1, shown.length-1); draw(); }
+    if(e.key==="ArrowUp"){ e.preventDefault(); sel=Math.max(sel-1,0); draw(); }
+    if(e.key==="Enter" && shown[sel]){ e.preventDefault(); const r=shown[sel].run; close(); r(); }
+  };
+  document.addEventListener("keydown", key, true);
+  wrap.addEventListener("click", e=>{
+    if(e.target===wrap) return close();
+    const row=e.target.closest(".palrow");
+    if(row){ const r=shown[+row.dataset.n].run; close(); r(); }
+  });
+  $("palq").oninput=draw;
+  draw(); $("palq").focus();
+}
+
+/* toast for transient confirmations (#14, #39) */
+function toast(text, action){
+  const el=document.createElement("div");
+  el.style.cssText=`position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+    background:var(--surface-3);border:1px solid var(--line-2);border-radius:var(--r);
+    padding:11px 16px;z-index:100;box-shadow:var(--shadow);display:flex;gap:12px;
+    align-items:center;font-size:12.5px`;
+  el.innerHTML=`<span>${esc(text)}</span>`;
+  if(action){
+    const b=document.createElement("button");
+    b.className="btn sm"; b.textContent=action.label;
+    b.onclick=()=>{ el.remove(); action.run(); };
+    el.appendChild(b);
+  }
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), action?7000:2600);
+}
+
+/* ==========================================================================
    Navigation
    ========================================================================== */
 $("nav").addEventListener("click", e=>{
@@ -526,13 +675,30 @@ function setDrawer(open){
   document.body.classList.toggle("drawer", open);
 }
 $("menubtn").onclick = ()=> setDrawer(!$("rail").classList.contains("open"));
+document.addEventListener("keydown", e=>{
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName||""));
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); return palette(); }
+  if(typing) return;
+  if(e.key==="/"){ e.preventDefault(); return go("search"); }
+  if(e.key==="?"){ e.preventDefault(); return shortcutHelp(); }
+  if(VIEW==="findings") triageKey(e);
+});
+function shortcutHelp(){
+  modal("Keyboard", `<div class="kv" style="font-size:12.5px">
+    <div class="k">Ctrl/⌘ K</div><div class="v">command palette</div>
+    <div class="k">/</div><div class="v">search the scan</div>
+    <div class="k">j / k</div><div class="v">move through findings</div>
+    <div class="k">f / a / c</div><div class="v">false positive / accept / confirm</div>
+    <div class="k">x</div><div class="v">select a finding (bulk)</div>
+    <div class="k">?</div><div class="v">this help</div></div>`, ()=>{}, "Close");
+}
 $("scrim").onclick = ()=> setDrawer(false);
 
 function go(view){
   VIEW=view;
   document.querySelectorAll(".navitem").forEach(b=>
     b.setAttribute("aria-current", b.dataset.view===view ? "true" : "false"));
-  try{ location.hash = view; }catch(e){}
+  writeUrl();
   render();
 }
 
@@ -663,6 +829,23 @@ VIEWS.scan = ()=>{
     </div>
 
     <div class="card">
+      <h3>Presets <span class="tag">selection + options, named</span></h3>
+      <div class="row">
+        <div class="field"><label>Load</label><select id="presetSel"></select></div>
+        <div class="field" style="flex:0 0 auto;align-self:flex-end;display:flex;gap:7px">
+          <button class="btn" id="presetLoad">Load</button>
+          <button class="btn" id="presetSave">Save current…</button>
+          <button class="btn" id="presetDel">Delete</button></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
+        <button class="btn" id="dryrun">Dry run — what would this cost?</button>
+        <button class="btn" id="keyhealth">Which modules need a key?</button>
+        <button class="btn" id="selfcheck">Self-check the backend</button>
+      </div>
+      <div id="presetOut" class="note"></div>
+    </div>
+
+    <div class="card">
       <h3>Batch <span class="tag">one target per line</span></h3>
       <div class="field"><label>Extra targets</label>
         <textarea id="o-batch" rows="5" placeholder="app.example.com&#10;api.example.com&#10;10.0.0.0/24"></textarea>
@@ -694,6 +877,28 @@ VIEWS.scan = ()=>{
     const b=e.target.closest("button"); if(!b) return;
     PICK=b.dataset.mode; drawPicker(profiles, cats);
   });
+  drawPresets();
+  $("presetSave").onclick=()=> modal("Save preset", `
+    <div class="field"><label>Name</label>
+      <input type="text" data-field="name" placeholder="perimeter + ports"></div>
+    <div class="note">Stores the current selection and every engine, port and
+      trust option as one named thing.</div>`, vals=>{
+    if(!vals.name) return;
+    const all=loadPresets();
+    all[vals.name]={selection:currentSelection(), options:currentOptions()};
+    savePresets(all); drawPresets(); toast("Saved “"+vals.name+"”");
+  }, "Save");
+  $("presetLoad").onclick=()=>{
+    const pr=loadPresets()[$("presetSel").value]; if(!pr) return;
+    applyPreset(pr); toast("Preset loaded");
+  };
+  $("presetDel").onclick=()=>{
+    const all=loadPresets(); delete all[$("presetSel").value];
+    savePresets(all); drawPresets(); toast("Preset deleted");
+  };
+  $("dryrun").onclick=dryRun;
+  $("keyhealth").onclick=keyHealth;
+  $("selfcheck").onclick=selfCheck;
   api("/api/baseline").then(b=>{
     const el=$("baselineStat"); if(!el) return;
     el.textContent = b.ready
@@ -701,6 +906,104 @@ VIEWS.scan = ()=>{
       : `Baseline holds ${b.corpus_hosts} host(s) — needs ${b.min_corpus} before rarity means anything.`;
   }).catch(()=>{});
 };
+
+/* #66 — presets. A scan configuration you retype every time is a configuration
+   you get wrong eventually. */
+function loadPresets(){
+  try{ return JSON.parse(localStorage.getItem("ge_presets")||"{}"); }catch(e){ return {}; }
+}
+function savePresets(o){ try{ localStorage.setItem("ge_presets", JSON.stringify(o)); }catch(e){} }
+function drawPresets(){
+  const sel=$("presetSel"); if(!sel) return;
+  const names=Object.keys(loadPresets()).sort();
+  sel.innerHTML = names.length ? names.map(n=>`<option>${esc(n)}</option>`).join("")
+    : `<option value="">(none saved yet)</option>`;
+}
+function currentOptions(){
+  const o={};
+  ["o-timeout","o-parallel","o-threads","o-rate","o-rate-host","o-ua","o-alert",
+   "o-ports","o-scan-retries","o-scan-rate"].forEach(id=>{ const e=$(id); if(e) o[id]=e.value; });
+  ["o-cache","o-tor","o-insecure","o-deep","o-scan-all-addr","o-baseline-learn"]
+    .forEach(id=>{ const e=$(id); if(e) o[id]=e.checked; });
+  return o;
+}
+function applyPreset(pr){
+  Object.entries(pr.options||{}).forEach(([id,v])=>{
+    const e=$(id); if(!e) return;
+    if(e.type==="checkbox") e.checked=!!v; else e.value=v;
+  });
+  const selq=pr.selection||{};
+  PICK=selq.mode||"profile";
+  drawPicker(Object.keys(META.profiles).sort(), Object.keys(META.categories).sort());
+  setTimeout(()=>{
+    if(PICK==="profile" && $("profileSel")) $("profileSel").value=selq.value;
+    if(PICK==="category" && $("categorySel")) $("categorySel").value=selq.value;
+    if(PICK==="modules") (selq.value||[]).forEach(id=>{
+      const c=document.querySelector(`.modchk[value="${id}"]`); if(c) c.checked=true; });
+    updateSelCount();
+  }, 40);
+}
+
+/* #67 — dry run. What will this actually do, before it does it. */
+function dryRun(){
+  const sel=currentSelection();
+  let ids=[];
+  if(sel.mode==="all") ids=META.modules.map(m=>m.id);
+  else if(sel.mode==="profile") ids=META.profiles[sel.value]||[];
+  else if(sel.mode==="category") ids=META.categories[sel.value]||[];
+  else ids=sel.value||[];
+  const mods=ids.map(i=>META.byId?META.byId[i]:null).filter(Boolean);
+  const cats={};
+  mods.forEach(m=>{ cats[m.category]=(cats[m.category]||0)+1; });
+  const parallel=Math.max(1,+opt("o-parallel",4));
+  const timeout=+opt("o-timeout",15);
+  // a module rarely burns its whole timeout; this is an upper bound, said so
+  const worst=Math.round(ids.length/parallel*timeout);
+  $("presetOut").innerHTML=`<b>${ids.length} module(s)</b> across
+    ${Object.keys(cats).length} categor(ies): ${
+      Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,8)
+        .map(([c,n])=>`${esc(c)} ${n}`).join(" · ")}<br>
+    Worst case ≈ <b>${Math.floor(worst/60)}m ${worst%60}s</b> at
+    ${parallel} in parallel and a ${timeout}s timeout — an upper bound, since
+    most modules answer long before their timeout. Nothing has been sent.`;
+}
+
+/* #70 — which modules will silently skip themselves for want of a key. */
+async function keyHealth(){
+  $("presetOut").innerHTML=`<span class="spin"></span>`;
+  try{
+    const keys=(await api("/api/keys")).keys||[];
+    const missing=keys.filter(k=>!k.set);
+    $("presetOut").innerHTML = missing.length
+      ? `<b>${missing.length} of ${keys.length} key(s) not configured</b> — modules
+         needing them report "needs an API key" rather than fail:
+         ${missing.map(k=>esc(k.label||k.name)).join(", ")}.
+         Every core capability works without any of them.`
+      : `All ${keys.length} known keys are configured.`;
+  }catch(e){ $("presetOut").innerHTML=errBox(e.message); }
+}
+
+/* #80 — self-check: which endpoints answer, and how fast. */
+async function selfCheck(){
+  $("presetOut").innerHTML=`<span class="spin"></span> probing the backend…`;
+  const probes=[["/api/meta","meta"],["/api/history","history"],
+                ["/api/verdicts","verdicts"],["/api/baseline","baseline"],
+                ["/api/schedules","schedules"],["/api/scope","scope"],
+                ["/api/portfolio","portfolio"],["/api/alert-rules","alert rules"]];
+  const rows=[];
+  for(const [path,label] of probes){
+    const t0=performance.now();
+    try{ await api(path); rows.push([label, "ok", Math.round(performance.now()-t0)]); }
+    catch(e){ rows.push([label, e.message.slice(0,40), Math.round(performance.now()-t0)]); }
+  }
+  $("presetOut").innerHTML=`<div class="tblwrap" style="margin-top:8px"><table>
+    <thead><tr><th>Endpoint</th><th>Status</th><th>ms</th></tr></thead><tbody>
+    ${rows.map(([l,st,ms])=>`<tr><td class="num">${esc(l)}</td>
+      <td><span class="pill ${st==="ok"?"ok":"critical"}">${esc(st)}</span></td>
+      <td class="num">${ms}</td></tr>`).join("")}</tbody></table></div>
+    <div style="margin-top:7px">Console v${esc(META?META.version:"?")} ·
+      ${esc(META?META.modules.length:"?")} modules registered.</div>`;
+}
 
 function drawPicker(profiles, cats){
   document.querySelectorAll("#pickmode button").forEach(b=>
@@ -848,45 +1151,78 @@ function flatten(obj, prefix, out){
 
 /* ---------- Findings (with inline verdicts) ---------- */
 let FFILTER={sev:new Set(), q:""};
+let SELECTED=new Set();        // bulk selection (#11)
+let CURSOR=0;                  // keyboard cursor (#13)
+let LAST_RULED=null;           // for undo (#14)
+const PRESETS = {              // saved filters (#12)
+  "critical & high": {sev:new Set(["critical","high"]), q:""},
+  "unverdicted":     {sev:new Set(), q:"", only:"unruled"},
+  "new since last":  {sev:new Set(), q:"", only:"new"},
+};
+let PRESET="";
+
 VIEWS.findings = ()=> jobView("verdicts", d=>{
   const all = d.findings||[];
   const c = d.counts||{};
+  const prev = prevFindingIds();
   const rows = all.filter(f=>
     (!FFILTER.sev.size || FFILTER.sev.has(f.severity)) &&
     (!FFILTER.q || (f.module+" "+f.field+" "+f.detail).toLowerCase()
-       .includes(FFILTER.q.toLowerCase())));
+       .includes(FFILTER.q.toLowerCase())) &&
+    (FFILTER.only!=="unruled" || !f.verdict) &&
+    (FFILTER.only!=="new" || !prev.has(f.id)));
   const bySev = {};
   all.forEach(f=>{ bySev[f.severity]=(bySev[f.severity]||0)+1; });
+  const newCount = all.filter(f=>!prev.has(f.id)).length;
+  if(CURSOR>=rows.length) CURSOR=Math.max(0, rows.length-1);
   return head(t("find.t","Findings"),
     t("find.w","Severity, confidence and provenance for everything the scan flagged. "+
     "Rule on a finding once with <b>FP</b> or <b>Accept</b> and the ruling applies "+
     "to every later scan — until the value changes or the verdict expires."),
-    RE()) + `
+    `${RE()} <button class="btn sm" id="fexport">Export view</button>
+     <button class="btn sm" onclick="shortcutHelp()">⌨ ?</button>`) + `
+    <div class="grid g4" style="margin-bottom:13px">
+      ${stat("Critical", c.critical||0, "", "crit")}
+      ${stat("High", c.high||0, "", "high")}
+      ${stat("New since last scan", newCount, prev.size?"":"first scan of this target", newCount?"accent":"")}
+      ${stat("Withheld by verdicts", d.suppressed_count||0, "reviewable, not deleted")}
+    </div>
+    ${d.expired_count?`<div class="banner warn">${d.expired_count} verdict(s)
+      have expired and no longer suppress anything — re-judge them.</div>`:""}
     <div class="filters">
       <input type="text" id="fq" placeholder="filter module / field / detail…" value="${esc(FFILTER.q)}">
       ${["critical","high","medium","low"].map(sv=>`
         <button class="fchip" data-sev="${sv}" data-on="${FFILTER.sev.has(sv)?"1":"0"}">
           ${sv} <span class="n">${bySev[sv]||0}</span></button>`).join("")}
-      ${FFILTER.sev.size||FFILTER.q?`<button class="btn sm" id="fclear">clear</button>`:""}
+      <select class="sel" id="fpreset" style="max-width:170px">
+        <option value="">saved filters…</option>
+        ${Object.keys(PRESETS).map(k=>`<option value="${esc(k)}" ${PRESET===k?"selected":""}>${esc(k)}</option>`).join("")}
+      </select>
+      ${FFILTER.sev.size||FFILTER.q||FFILTER.only?`<button class="btn sm" id="fclear">clear</button>`:""}
       <span style="color:var(--muted);font-size:11.5px;margin-left:auto">
         ${rows.length} / ${all.length}</span>
-    </div>`+`
-    <div class="grid g4" style="margin-bottom:14px">
-      ${stat("Critical", c.critical||0, "", "crit")}
-      ${stat("High", c.high||0, "", "high")}
-      ${stat("Medium", c.medium||0, "", "med")}
-      ${stat("Withheld by verdicts", d.suppressed_count||0, "reviewable, not deleted")}
     </div>
-    ${d.expired_count?`<div class="banner warn">${d.expired_count} verdict(s)
-      have expired and no longer suppress anything — re-judge them.</div>`:""}
+    ${SELECTED.size?`<div class="banner info" style="display:flex;gap:9px;align-items:center">
+      <b>${SELECTED.size} selected</b>
+      <button class="btn sm" data-bulk="false_positive">Mark all FP</button>
+      <button class="btn sm" data-bulk="accepted_risk">Accept all</button>
+      <button class="btn sm" data-bulk="confirmed">Confirm all</button>
+      <button class="btn sm" id="bclear" style="margin-left:auto">clear selection</button>
+    </div>`:""}
     ${rows.length?`<div class="tblwrap"><table>
-      <thead><tr><th>Sev</th><th>Module</th><th>Field</th><th>Detail</th>
+      <thead><tr><th style="width:30px"><input type="checkbox" id="ballsel"></th>
+        <th>Sev</th><th>Module</th><th>Field</th><th>Detail</th>
         <th>Confidence</th><th>Verdict</th><th></th></tr></thead>
-      <tbody>${rows.map(f=>`<tr>
-        <td><span class="pill ${esc(f.severity)}">${esc(f.severity)}</span></td>
+      <tbody>${rows.map((f,i)=>`<tr data-row="${i}" data-fid="${esc(f.id)}"
+          ${i===CURSOR?'style="outline:2px solid var(--accent);outline-offset:-2px"':""}>
+        <td><input type="checkbox" class="rowsel" data-fid="${esc(f.id)}" ${SELECTED.has(f.id)?"checked":""}></td>
+        <td><span class="pill ${esc(f.severity)}">${esc(f.severity)}</span>
+            ${!prev.has(f.id)&&prev.size?`<span class="pill accent">new</span>`:""}</td>
         <td class="num">${esc(f.module)}</td>
         <td class="num" style="color:var(--ink-2)">${esc(f.field)}</td>
-        <td class="wrap">${esc(f.detail)}</td>
+        <td class="wrap"><a href="#" data-ev="${esc(f.id)}"
+            style="color:inherit;text-decoration:none;border-bottom:1px dotted var(--line-3)"
+            title="open the evidence">${esc(f.detail)}</a></td>
         <td><span class="pill muted" title="${esc(f.provenance_label||"")}">${esc(f.confidence||"—")}</span></td>
         <td>${f.verdict?`<span class="pill ${f.verdict==="confirmed"?"confirmed":"muted"}">${esc(f.verdict)}${f.verdict_expired?" (expired)":""}</span>`:"—"}</td>
         <td style="white-space:nowrap">
@@ -894,8 +1230,9 @@ VIEWS.findings = ()=> jobView("verdicts", d=>{
           <button class="btn sm" onclick="rule('${esc(f.id)}','accepted_risk')">Accept</button>
           <button class="btn sm" onclick="rule('${esc(f.id)}','confirmed')">Confirm</button>
         </td></tr>`).join("")}</tbody></table></div>`
-      : `<div class="empty"><h2>Nothing flagged</h2><p>No finding crossed the
-         severity threshold in this scan.</p></div>`}
+      : `<div class="empty"><h2>Nothing matches</h2><p>${all.length
+          ? "No finding matches the current filter."
+          : "No finding crossed the severity threshold in this scan."}</p></div>`}
     ${d.suppressed_count?`<h3 style="margin:22px 0 9px;font-size:13px">Withheld by your verdicts</h3>
       <div class="tblwrap"><table><thead><tr><th>Sev</th><th>Module</th><th>Detail</th>
       <th>Verdict</th><th>Reason</th><th></th></tr></thead><tbody>
@@ -909,15 +1246,148 @@ VIEWS.findings = ()=> jobView("verdicts", d=>{
     ${noteBox(d.note)}`;
 }, {view:"findings", what:"Findings", after:()=>{
   const q=$("fq");
-  if(q) q.oninput = e=>{ FFILTER.q=e.target.value; render(); 
+  if(q) q.oninput = e=>{ FFILTER.q=e.target.value; writeUrl(); render();
     const n=$("fq"); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } };
   document.querySelectorAll(".fchip[data-sev]").forEach(b=> b.onclick=()=>{
     const sv=b.dataset.sev;
     FFILTER.sev.has(sv) ? FFILTER.sev.delete(sv) : FFILTER.sev.add(sv);
+    writeUrl(); render();
+  });
+  const c=$("fclear"); if(c) c.onclick=()=>{ FFILTER={sev:new Set(), q:""}; PRESET=""; writeUrl(); render(); };
+  const pr=$("fpreset"); if(pr) pr.onchange=e=>{
+    PRESET=e.target.value;
+    const preset=PRESETS[PRESET];
+    FFILTER = preset ? {sev:new Set(preset.sev), q:preset.q, only:preset.only} : {sev:new Set(), q:""};
+    writeUrl(); render();
+  };
+  const all=$("ballsel"); if(all) all.onclick=()=>{
+    document.querySelectorAll(".rowsel").forEach(cb=>{
+      cb.checked=all.checked;
+      all.checked ? SELECTED.add(cb.dataset.fid) : SELECTED.delete(cb.dataset.fid);
+    });
+    render();
+  };
+  document.querySelectorAll(".rowsel").forEach(cb=> cb.onclick=()=>{
+    cb.checked ? SELECTED.add(cb.dataset.fid) : SELECTED.delete(cb.dataset.fid);
     render();
   });
-  const c=$("fclear"); if(c) c.onclick=()=>{ FFILTER={sev:new Set(), q:""}; render(); };
+  document.querySelectorAll("[data-bulk]").forEach(b=> b.onclick=()=>bulkRule(b.dataset.bulk));
+  const bc=$("bclear"); if(bc) bc.onclick=()=>{ SELECTED.clear(); render(); };
+  document.querySelectorAll("[data-ev]").forEach(a=> a.onclick=e=>{
+    e.preventDefault(); evidence(a.dataset.ev);
+  });
+  const ex=$("fexport"); if(ex) ex.onclick=exportView;
 }});
+
+/** ids of the previous scan of this target, so "new" means new (#17). */
+function prevFindingIds(){
+  try{
+    const key="ge_prev:"+((SNAP&&SNAP.target)||"");
+    const raw=localStorage.getItem(key);
+    return new Set(raw?JSON.parse(raw):[]);
+  }catch(e){ return new Set(); }
+}
+function rememberFindingIds(ids){
+  try{ localStorage.setItem("ge_prev:"+((SNAP&&SNAP.target)||""),
+       JSON.stringify(ids.slice(0,4000))); }catch(e){}
+}
+
+/** #15 — the evidence behind a finding, not just its flattened value. */
+function evidence(id){
+  const d=CACHE[JOB+":verdicts"]||{};
+  const f=[...(d.findings||[]),...(d.suppressed||[])].find(x=>x.id===id);
+  if(!f) return;
+  const mod=(SNAP&&(SNAP.results||[]).find(r=>r.module===f.module))||null;
+  const flat={}; if(mod) flatten(mod.data, "", flat);
+  modal(`${f.module} — ${f.field}`, `
+    <div class="kv" style="font-size:12px">
+      <div class="k">severity</div><div class="v">${esc(f.severity)}</div>
+      <div class="k">confidence</div><div class="v">${esc(f.confidence||"—")}</div>
+      <div class="k">provenance</div><div class="v">${esc(f.provenance_label||f.provenance||"—")}</div>
+      <div class="k">finding id</div><div class="v">${esc(f.id)}</div>
+      <div class="k">target</div><div class="v">${esc(f.target||"")}</div>
+    </div>
+    <h3 style="margin:15px 0 7px;font-size:12.5px">Value</h3>
+    <div class="resbody" style="border:1px solid var(--line);border-radius:8px">${esc(f.detail)}</div>
+    <h3 style="margin:15px 0 7px;font-size:12.5px">Everything this module returned</h3>
+    <div class="resbody" style="border:1px solid var(--line);border-radius:8px;max-height:260px;overflow:auto">
+      ${mod ? `<div class="kv">${Object.keys(flat).map(k=>
+        `<div class="k">${esc(k)}</div><div class="v">${esc(flat[k])}</div>`).join("")}</div>`
+        : `<span style="color:var(--muted)">the producing module is not in the loaded scan</span>`}
+    </div>`, ()=>{}, "Close");
+}
+
+/** #20 — export exactly what you are looking at, not the whole scan. */
+function exportView(){
+  const d=CACHE[JOB+":verdicts"]||{};
+  const rows=(d.findings||[]).filter(f=>
+    (!FFILTER.sev.size || FFILTER.sev.has(f.severity)) &&
+    (!FFILTER.q || (f.module+" "+f.field+" "+f.detail).toLowerCase().includes(FFILTER.q.toLowerCase())));
+  const md = [`# Findings — ${(SNAP&&SNAP.target)||""}`, "",
+    "| Severity | Module | Field | Detail | Confidence |",
+    "|---|---|---|---|---|",
+    ...rows.map(f=>`| ${f.severity} | ${f.module} | ${f.field} | ${
+      String(f.detail).replace(/\|/g,"\\|")} | ${f.confidence||""} |`)].join("\n");
+  const blob=new Blob([md],{type:"text/markdown"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=`ghosteye-findings-${((SNAP&&SNAP.target)||"scan").replace(/[^a-z0-9.-]/gi,"_")}.md`;
+  a.click(); URL.revokeObjectURL(a.href);
+  toast(`Exported ${rows.length} finding(s)`);
+}
+
+/** #11 — bulk verdicts. Twelve identical false positives should cost one action. */
+function bulkRule(verdict){
+  const ids=[...SELECTED];
+  if(!ids.length) return;
+  modal(`Rule ${ids.length} finding(s): ${verdict}`, `
+    <div class="field"><label>Why — recorded on every one of them</label>
+      <input type="text" data-field="reason" placeholder="same deliberate header everywhere"></div>
+    <div class="note">Each ruling still locks onto that finding's own value, so a
+      changed value comes back for judgement individually.</div>`,
+    async vals=>{
+      let ok=0;
+      for(const id of ids){
+        try{
+          await api("/api/verdict",{method:"POST", body:JSON.stringify({
+            id, verdict, reason:vals.reason||""})});
+          ok++;
+        }catch(e){}
+      }
+      LAST_RULED={ids, verdict};
+      SELECTED.clear();
+      delete CACHE[JOB+":verdicts"]; reload();
+      toast(`${ok} ruled ${verdict}`, {label:"Undo", run:undoRuling});
+    }, "Record");
+}
+
+/** #13 — triage without the mouse. */
+function triageKey(e){
+  const rows=[...document.querySelectorAll("tr[data-fid]")];
+  if(!rows.length) return;
+  const cur=rows[Math.min(CURSOR, rows.length-1)];
+  const id=cur && cur.dataset.fid;
+  if(e.key==="j"){ e.preventDefault(); CURSOR=Math.min(CURSOR+1, rows.length-1); render(); }
+  else if(e.key==="k"){ e.preventDefault(); CURSOR=Math.max(CURSOR-1,0); render(); }
+  else if(e.key==="x" && id){ e.preventDefault();
+    SELECTED.has(id)?SELECTED.delete(id):SELECTED.add(id); render(); }
+  else if(e.key==="f" && id){ e.preventDefault(); rule(id,"false_positive"); }
+  else if(e.key==="a" && id){ e.preventDefault(); rule(id,"accepted_risk"); }
+  else if(e.key==="c" && id){ e.preventDefault(); rule(id,"confirmed"); }
+  else if(e.key==="Enter" && id){ e.preventDefault(); evidence(id); }
+}
+
+/** #14 — undo. A ruling made by a keystroke needs a way back. */
+async function undoRuling(){
+  if(!LAST_RULED) return;
+  for(const id of LAST_RULED.ids){
+    try{ await api("/api/verdict",{method:"POST",
+      body:JSON.stringify({id, verdict:"confirmed", reason:"undone"})}); }catch(e){}
+  }
+  LAST_RULED=null;
+  delete CACHE[JOB+":verdicts"]; reload();
+  toast("Ruling undone");
+}
 
 function rule(id, verdict){
   modal(`Rule: ${verdict}`, `
@@ -938,7 +1408,9 @@ function rule(id, verdict){
         await api("/api/verdict",{method:"POST", body:JSON.stringify({
           id, verdict, reason:vals.reason||"",
           scope:vals.scope||"", ttl_days:+vals.ttl_days||180})});
+        LAST_RULED={ids:[id], verdict};
         delete CACHE[JOB+":verdicts"]; reload();
+        toast(`Ruled ${verdict}`, {label:"Undo", run:undoRuling});
       }catch(e){ set(errBox("Could not record the verdict: "+e.message)+$("view").innerHTML); }
     }, "Record");
 }
@@ -1240,7 +1712,14 @@ VIEWS.intel = ()=> jobView("intel", d=>{
   ${renderCorr(d.correlation)}
   ${renderTimeline(d.timeline)}
   ${noteBox(d.note)}`;
-}, {view:"intel", what:"Intelligence"});
+}, {view:"intel", what:"Intelligence", after:()=>{
+  wireGraph();
+  const q=$("kgq"); if(q) q.oninput=e=>{
+    KGSTATE.q=e.target.value;
+    const d=CACHE[JOB+":intel"]; if(d){ $("kgbox").innerHTML=kgUpdate(d); wireGraph();
+      const n=$("kgq"); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } }
+  };
+}});
 
 function renderAnalyst(a){
   if(!a) return "";
@@ -1277,54 +1756,143 @@ function renderTimeline(t){
 
 /* Entity graph. State lives outside the renderer so filtering and focusing
    never re-fetch — a graph that reloads on every click is unusable. */
-let KGSTATE={focus:null, hidden:new Set()};
+let KGSTATE={focus:null, hidden:new Set(), q:"", tx:0, ty:0, k:1};
 function kgraph(kg){
   if(!kg || !(kg.nodes||[]).length) return "";
   const kinds=[...new Set(kg.nodes.map(n=>n.kind||n.type||"node"))].sort();
   return `<div class="card" style="margin-bottom:13px">
     <h3>Entity graph <span class="tag">${kg.nodes.length} nodes · ${(kg.edges||kg.links||[]).length} edges</span></h3>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;align-items:center">
       ${kinds.map(k=>`<button class="pill kgfilter" data-kind="${esc(k)}"
         data-on="${KGSTATE.hidden.has(k)?"0":"1"}">${esc(k)}</button>`).join("")}
+      <input type="text" id="kgq" placeholder="highlight…" value="${esc(KGSTATE.q||"")}"
+        style="background:var(--bg);border:1px solid var(--line-2);border-radius:20px;
+               padding:4px 11px;font-size:11px;width:130px;outline:none">
       <button class="btn sm" data-kgreset="1">Reset</button>
+      <span style="color:var(--faint);font-size:10.5px;margin-left:auto">
+        drag to pan · wheel to zoom · click a node for its neighbourhood</span>
     </div>
     <div id="kgbox">${kgSvg(kg)}</div></div>`;
 }
 function kgSvg(kg){
-  const nodes=(kg.nodes||[]).filter(n=>!KGSTATE.hidden.has(n.kind||n.type||"node"));
+  const nodes=(kg.nodes||[]).filter(n=>!KGSTATE.hidden.has(n.kind||n.type||"node"))
+                            .slice(0,400);
   const edges=(kg.edges||kg.links||[]);
   const ids=new Set(nodes.map(n=>n.id||n.name));
-  const W=760, H=Math.max(260, Math.min(520, 60+nodes.length*7));
-  const pos={};
+  const links=edges.filter(e=>ids.has(e.source||e.from)&&ids.has(e.target||e.to)).slice(0,900);
+  const W=880, H=520;
+  // Force layout: a ring tells you nothing about structure, which is the only
+  // reason to draw a graph at all. Simulated once, synchronously — a stable
+  // picture beats an animated one you cannot screenshot.
+  const pos={}, vel={};
   nodes.forEach((n,i)=>{
-    const a=i/Math.max(1,nodes.length)*Math.PI*2, r=Math.min(W,H)/2-45;
-    pos[n.id||n.name]=[W/2+Math.cos(a)*r, H/2+Math.sin(a)*r];
+    const a=i/Math.max(1,nodes.length)*Math.PI*2;
+    const id=n.id||n.name;
+    pos[id]=[W/2+Math.cos(a)*(W/3), H/2+Math.sin(a)*(H/3)];
+    vel[id]=[0,0];
   });
+  const K=Math.sqrt((W*H)/Math.max(1,nodes.length));
+  for(let step=0; step<180; step++){
+    const t=1-step/180;
+    for(let i=0;i<nodes.length;i++){
+      const a=nodes[i].id||nodes[i].name;
+      for(let j=i+1;j<nodes.length;j++){
+        const b=nodes[j].id||nodes[j].name;
+        let dx=pos[a][0]-pos[b][0], dy=pos[a][1]-pos[b][1];
+        let d2=dx*dx+dy*dy || 0.01;
+        const rep=(K*K)/d2;
+        const d=Math.sqrt(d2);
+        vel[a][0]+=dx/d*rep; vel[a][1]+=dy/d*rep;
+        vel[b][0]-=dx/d*rep; vel[b][1]-=dy/d*rep;
+      }
+    }
+    for(const e of links){
+      const a=e.source||e.from, b=e.target||e.to;
+      if(!pos[a]||!pos[b]) continue;
+      const dx=pos[a][0]-pos[b][0], dy=pos[a][1]-pos[b][1];
+      const d=Math.sqrt(dx*dx+dy*dy)||0.01;
+      const att=(d*d)/K;
+      vel[a][0]-=dx/d*att; vel[a][1]-=dy/d*att;
+      vel[b][0]+=dx/d*att; vel[b][1]+=dy/d*att;
+    }
+    for(const n of nodes){
+      const id=n.id||n.name;
+      const sp=Math.sqrt(vel[id][0]**2+vel[id][1]**2)||1;
+      const cap=Math.min(sp, 22*t);
+      pos[id][0]=Math.max(24, Math.min(W-24, pos[id][0]+vel[id][0]/sp*cap));
+      pos[id][1]=Math.max(24, Math.min(H-24, pos[id][1]+vel[id][1]/sp*cap));
+      vel[id][0]*=0.55; vel[id][1]*=0.55;
+    }
+  }
+  // neighbourhood of the focused node (#26)
+  const near=new Set();
+  if(KGSTATE.focus){
+    near.add(KGSTATE.focus);
+    for(const e of links){
+      const a=e.source||e.from, b=e.target||e.to;
+      if(a===KGSTATE.focus) near.add(b);
+      if(b===KGSTATE.focus) near.add(a);
+    }
+  }
+  const q=(KGSTATE.q||"").toLowerCase();
   const colour=k=>({domain:"#5cc9d8",ip:"#f0b545",host:"#6aa9ff",email:"#a68bf0",
-    service:"#41c48a",tech:"#ecc94b"}[k]||"#7b8699");
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;
-    background:var(--bg);border:1px solid var(--line);border-radius:8px">
-    ${edges.filter(e=>ids.has(e.source||e.from)&&ids.has(e.target||e.to)).slice(0,600)
-      .map(e=>{const a=pos[e.source||e.from],b=pos[e.target||e.to];
-        return a&&b?`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"
-          stroke="#232b3a" stroke-width="1"/>`:"";}).join("")}
-    ${nodes.slice(0,400).map(n=>{const id=n.id||n.name, p=pos[id];
-      const k=n.kind||n.type||"node";
-      const on = !KGSTATE.focus || KGSTATE.focus===id;
-      return `<g data-kgnode="${esc(id)}" style="cursor:pointer;opacity:${on?1:.25}">
-        <circle cx="${p[0]}" cy="${p[1]}" r="${KGSTATE.focus===id?7:4.5}"
-          fill="${colour(k)}"/>
-        <text x="${p[0]+8}" y="${p[1]+3.5}" font-size="9" fill="#a8b4c8"
-          font-family="ui-monospace,monospace">${esc(String(id).slice(0,26))}</text>
+    service:"#41c48a",tech:"#ecc94b",asn:"#ff934a"}[k]||"#7b8699");
+  const deg={};
+  links.forEach(e=>{ const a=e.source||e.from,b=e.target||e.to;
+    deg[a]=(deg[a]||0)+1; deg[b]=(deg[b]||0)+1; });
+  return `<svg id="kgsvg" viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;
+      background:var(--bg);border:1px solid var(--line);border-radius:8px;cursor:grab;touch-action:none">
+    <g id="kgpan" transform="translate(${KGSTATE.tx||0},${KGSTATE.ty||0}) scale(${KGSTATE.k||1})">
+    ${links.map(e=>{const a=pos[e.source||e.from], b=pos[e.target||e.to];
+      const on = !KGSTATE.focus || (near.has(e.source||e.from)&&near.has(e.target||e.to));
+      return `<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}"
+        stroke="${on?"#39465e":"#1b2230"}" stroke-width="${on?1.2:0.6}"/>`;}).join("")}
+    ${nodes.map(n=>{const id=n.id||n.name, pt=pos[id], k=n.kind||n.type||"node";
+      const on = (!KGSTATE.focus || near.has(id)) && (!q || String(id).toLowerCase().includes(q));
+      const r = 4 + Math.min(6, (deg[id]||0)*0.6) + (KGSTATE.focus===id?3:0);
+      return `<g data-kgnode="${esc(id)}" style="cursor:pointer;opacity:${on?1:.16}">
+        <circle cx="${pt[0]}" cy="${pt[1]}" r="${r}" fill="${colour(k)}"
+          stroke="${KGSTATE.focus===id?"#fff":"none"}" stroke-width="1.4"/>
+        ${(on && (r>6 || KGSTATE.focus===id || q))?`<text x="${pt[0]+r+3}" y="${pt[1]+3.5}"
+          font-size="9.5" fill="#a8b4c8" font-family="ui-monospace,monospace"
+          >${esc(String(id).slice(0,28))}</text>`:""}
       </g>`;}).join("")}
-  </svg>`;
+    </g></svg>`;
 }
+
+/* drag to pan, wheel to zoom — a graph you cannot move is a picture */
+function wireGraph(){
+  const svg=$("kgsvg"); if(!svg) return;
+  let dragging=false, sx=0, sy=0, ox=0, oy=0;
+  svg.addEventListener("pointerdown", e=>{
+    if(e.target.closest("[data-kgnode]")) return;
+    dragging=true; sx=e.clientX; sy=e.clientY;
+    ox=KGSTATE.tx||0; oy=KGSTATE.ty||0;
+    svg.style.cursor="grabbing"; svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener("pointermove", e=>{
+    if(!dragging) return;
+    KGSTATE.tx=ox+(e.clientX-sx); KGSTATE.ty=oy+(e.clientY-sy);
+    const g=$("kgpan"); if(g) g.setAttribute("transform",
+      `translate(${KGSTATE.tx},${KGSTATE.ty}) scale(${KGSTATE.k||1})`);
+  });
+  const stop=e=>{ dragging=false; svg.style.cursor="grab"; };
+  svg.addEventListener("pointerup", stop);
+  svg.addEventListener("pointercancel", stop);
+  svg.addEventListener("wheel", e=>{
+    e.preventDefault();
+    KGSTATE.k=Math.max(0.3, Math.min(4, (KGSTATE.k||1) * (e.deltaY<0?1.12:0.89)));
+    const g=$("kgpan"); if(g) g.setAttribute("transform",
+      `translate(${KGSTATE.tx||0},${KGSTATE.ty||0}) scale(${KGSTATE.k})`);
+  }, {passive:false});
+}
+
 document.addEventListener("click", e=>{
   const node=e.target.closest("[data-kgnode]");
   if(node){
     const id=node.getAttribute("data-kgnode");
     KGSTATE.focus = KGSTATE.focus===id ? null : id;
-    const d=CACHE[JOB+":intel"]; if(d) $("kgbox").innerHTML=kgUpdate(d);
+    const d=CACHE[JOB+":intel"]; if(d){ $("kgbox").innerHTML=kgUpdate(d); wireGraph(); }
     return;
   }
   const f=e.target.closest(".kgfilter");
@@ -1332,11 +1900,11 @@ document.addEventListener("click", e=>{
     const k=f.dataset.kind;
     KGSTATE.hidden.has(k) ? KGSTATE.hidden.delete(k) : KGSTATE.hidden.add(k);
     f.dataset.on = KGSTATE.hidden.has(k) ? "0" : "1";
-    const d=CACHE[JOB+":intel"]; if(d) $("kgbox").innerHTML=kgUpdate(d);
+    const d=CACHE[JOB+":intel"]; if(d){ $("kgbox").innerHTML=kgUpdate(d); wireGraph(); }
     return;
   }
   if(e.target.closest("[data-kgreset]")){
-    KGSTATE={focus:null, hidden:new Set()};
+    KGSTATE={focus:null, hidden:new Set(), q:"", tx:0, ty:0, k:1};
     render();
   }
 });
@@ -1890,22 +2458,75 @@ VIEWS.settings = async ()=>{
   try{
     const k=await api("/api/keys");
     if(VIEW!=="settings") return;
-    const keys=k.keys||{};
+    const keys=k.keys||[];
     $("view").insertAdjacentHTML("beforeend", `
-      <div class="card"><h3>API keys <span class="tag">${esc(k.backend||"file")}</span></h3>
+      <div class="card"><h3>API keys <span class="tag">${esc(k.backend||"file")}</span>
+        <span class="tag">${keys.filter(x=>x.set).length}/${keys.length} set</span></h3>
       <div class="tblwrap"><table><thead><tr><th>Service</th><th>Status</th><th>Set</th></tr></thead>
-      <tbody>${Object.keys(keys).map(name=>`<tr>
-        <td class="num">${esc(name)}</td>
-        <td>${keys[name]?`<span class="pill ok">configured</span>`:`<span class="pill muted">not set</span>`}</td>
-        <td><input type="text" class="keyin" data-name="${esc(name)}" placeholder="paste key…"
+      <tbody>${keys.map(key=>`<tr>
+        <td class="num" title="${esc(key.name)}">${esc(key.label||key.name)}</td>
+        <td>${key.set?`<span class="pill ok">configured</span>`:`<span class="pill muted">not set</span>`}</td>
+        <td><input type="password" class="keyin" data-name="${esc(key.name)}" placeholder="paste key…"
              style="background:var(--bg);border:1px solid var(--line-2);border-radius:6px;padding:5px 8px;width:210px"></td>
       </tr>`).join("")}</tbody></table></div>
       <button class="btn primary" style="margin-top:11px" id="savekeys">Save keys</button></div>
+      <div class="card" style="margin-top:13px"><h3>Telegram bot
+        <span class="tag" id="tg-state">…</span></h3>
+        <p style="color:var(--muted);margin:0 0 11px">Drive scans from your
+          phone: <code>/scan example.com quick</code>, <code>/findings</code>,
+          <code>/fixorder</code>, <code>/ports</code>, <code>/status</code>.</p>
+        <div class="field"><label>Bot token (from @BotFather)</label>
+          <input type="password" id="tg-token" placeholder="123456:ABC-DEF…"></div>
+        <div class="field"><label>Allowed chat ids — comma separated</label>
+          <input type="text" id="tg-allow" placeholder="123456789">
+          <div class="hint">Default deny: <b>empty means nobody</b>. A bot that
+            runs scans is a remote command channel, and an open one turns this
+            host into someone else's scanning proxy. Message the bot
+            <code>/whoami</code> and paste the id it reports.</div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn primary" id="tg-start">Save &amp; start</button>
+          <button class="btn" id="tg-stop">Stop</button>
+        </div>
+        <div id="tg-out" class="note"></div></div>
+
       <div class="card" style="margin-top:13px"><h3>Backend</h3>
         <div class="mono" style="color:var(--ink-2)">Ghost Eye ${esc(META?META.version:"—")} ·
         ${META?META.modules.length:"—"} modules · ${META?Object.keys(META.profiles).length:"—"} profiles</div>
         <div class="note">Scope enforcement, backup/restore and metrics are served at
         <code>/api/scope</code>, <code>/api/backup</code> and <code>/api/metrics</code>.</div></div>`);
+    // Telegram panel
+    const tgDraw = async ()=>{
+      try{
+        const st=await api("/api/telegram");
+        $("tg-state").textContent = st.running ? "running" :
+          st.token_configured ? "configured, stopped" : "not configured";
+        $("tg-allow").value = (st.allowed_chats||[]).join(",");
+        $("tg-out").innerHTML = st.note +
+          ((st.unauthorised_seen||[]).length
+            ? `<br><b>Unauthorised chats that tried to command it:</b> ${
+                st.unauthorised_seen.map(esc).join(", ")} — add one only if it is yours.`
+            : "");
+      }catch(e){ $("tg-out").textContent = e.message; }
+    };
+    tgDraw();
+    $("tg-start").onclick = async ()=>{
+      $("tg-out").innerHTML=`<span class="spin"></span>`;
+      try{
+        const r=await api("/api/telegram",{method:"POST", body:JSON.stringify({
+          token:$("tg-token").value.trim() || undefined,
+          allow:$("tg-allow").value.trim(), action:"start"})});
+        $("tg-token").value="";
+        toast(r.running ? "Bot started" : "Bot not started");
+        if(r.warning) toast(r.warning);
+        tgDraw();
+      }catch(e){ $("tg-out").innerHTML=errBox(e.message); }
+    };
+    $("tg-stop").onclick = async ()=>{
+      try{ await api("/api/telegram",{method:"POST", body:JSON.stringify({action:"stop"})});
+        toast("Bot stopped"); tgDraw();
+      }catch(e){ $("tg-out").innerHTML=errBox(e.message); }
+    };
+
     $("savekeys").onclick = async ()=>{
       for(const el of document.querySelectorAll(".keyin")){
         const v=el.value.trim(); if(!v) continue;
@@ -1922,7 +2543,28 @@ function stat(k, v, note, cls){
   return `<div class="stat ${cls||""}"><div class="k">${esc(k)}</div>
     <div class="v">${esc(v)}</div>${note?`<div class="n">${esc(note)}</div>`:""}</div>`;
 }
-function render(){ (VIEWS[VIEW]||VIEWS.scan)(); }
+function render(){
+  // #76 — one broken workspace must not leave a blank panel with no way back
+  try{
+    const out=(VIEWS[VIEW]||VIEWS.scan)();
+    if(out && typeof out.catch==="function") out.catch(viewCrash);
+  }catch(e){ viewCrash(e); }
+  rememberBadges();
+}
+function viewCrash(e){
+  console.error(e);
+  set(`<div class="banner err"><b>${esc(VIEW)} could not render.</b><br>
+    ${esc(String(e && e.message || e))}</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn primary" onclick="reload()">Retry</button>
+      <button class="btn" onclick="go('scan')">Back to Scan</button>
+    </div>`);
+}
+function rememberBadges(){
+  if(VIEW!=="findings") return;
+  const d=CACHE[JOB+":verdicts"];
+  if(d && d.findings) setTimeout(()=>rememberFindingIds(d.findings.map(f=>f.id)), 1500);
+}
 function reload(){ if(JOB) Object.keys(CACHE).forEach(k=>{ if(k.startsWith(JOB+":")) delete CACHE[k]; }); render(); }
 
 /* ==========================================================================
@@ -2053,13 +2695,33 @@ async function refreshBadges(){
 /* ==========================================================================
    Boot
    ========================================================================== */
+function applyChrome(){
+  const th=(()=>{ try{ return localStorage.getItem("ge_theme")||"dark"; }catch(e){ return "dark"; } })();
+  const den=(()=>{ try{ return localStorage.getItem("ge_density")||"comfortable"; }catch(e){ return "comfortable"; } })();
+  document.documentElement.dataset.theme=th;
+  document.documentElement.dataset.density=den;
+}
+$("themetoggle").onclick=()=>{
+  const order=["dark","light","contrast"];
+  const cur=document.documentElement.dataset.theme||"dark";
+  const next=order[(order.indexOf(cur)+1)%order.length];
+  try{ localStorage.setItem("ge_theme", next); }catch(e){}
+  applyChrome(); toast("Theme: "+next);
+};
+$("denstoggle").onclick=()=>{
+  const next=(document.documentElement.dataset.density==="compact")?"comfortable":"compact";
+  try{ localStorage.setItem("ge_density", next); }catch(e){}
+  applyChrome(); toast("Density: "+next);
+};
+
 (async function boot(){
-  applyLang();
+  applyLang(); applyChrome();
   if("serviceWorker" in navigator){
     try{ navigator.serviceWorker.register("/sw.js"); }catch(e){}
   }
   try{
     META=await api("/api/meta");
+    META.byId={}; META.modules.forEach(m=>{ META.byId[m.id]=m; });
     $("ver").textContent="v"+META.version;
   }catch(e){
     set(`<div class="banner err">Cannot reach the backend: ${esc(e.message)}.

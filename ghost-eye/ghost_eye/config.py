@@ -202,6 +202,19 @@ class Config:
         except OSError:
             pass
 
+    def set(self, option: str, value: str) -> None:
+        """Persist a plain setting to the 0600 config file.
+
+        Deliberately separate from ``set_api_key``: that one prefers the OS
+        keyring and knows the set of secret names. This is for ordinary
+        settings the dashboard can edit — a Telegram allow-list, for instance,
+        is configuration rather than a credential.
+        """
+        if not self._cp.has_section("settings"):
+            self._cp.add_section("settings")
+        self._cp.set("settings", option, str(value))
+        self._write_config(self._cp)
+
     def set_api_key(self, name: str, value: str) -> None:
         """Persist an API key. Uses the OS keyring when available (nothing
         written to disk), otherwise the 0600 config file."""

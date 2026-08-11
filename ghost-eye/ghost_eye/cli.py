@@ -478,6 +478,16 @@ def build_parser() -> argparse.ArgumentParser:
                      help="drop a verdict by id, reinstating the finding")
     out.add_argument("--verdicts", action="store_true",
                      help="list every standing verdict and exit")
+    out.add_argument("--telegram-bot", action="store_true", dest="telegram_bot",
+                     help="run the Telegram bot: drive scans from your phone. "
+                          "Needs --telegram-token (or the telegram_token config "
+                          "key) and --telegram-allow")
+    out.add_argument("--telegram-token", dest="telegram_token", default="",
+                     help="bot token from @BotFather")
+    out.add_argument("--telegram-allow", dest="telegram_allow", default="",
+                     help="comma-separated chat ids permitted to command the "
+                          "bot. EMPTY MEANS NOBODY — message the bot /whoami "
+                          "to learn your id")
     out.add_argument("--ports", metavar="SPEC", default="",
                      help="ports for portscan: '80,443', '1-1024', 'top100', "
                           "'all', or a combination. Default top100")
@@ -803,6 +813,41 @@ def _print_attribution(rep: dict) -> None:
         Console.kv("ignored as shared infrastructure", ", ".join(demoted[:6]))
 
 
+def _run_telegram(args, cfg) -> int:
+    """Run the Telegram bot until interrupted."""
+    from .scope import Scope
+    from .telegram_bot import TelegramBot
+    token = (args.telegram_token or cfg.get("telegram_token") or "").strip()
+    if not token:
+        Console.err("--telegram-token is required (get one from @BotFather), "
+                    "or set telegram_token in the config")
+        return 2
+    raw = (args.telegram_allow or cfg.get("telegram_allow") or "").strip()
+    allowed = [c.strip() for c in raw.replace(";", ",").split(",") if c.strip()]
+    scope = None
+    if getattr(args, "scope", None):
+        try:
+            scope = Scope.from_file(args.scope)
+        except Exception as exc:  # noqa: BLE001
+            Console.warn(f"scope file unreadable ({exc}) — continuing without it")
+    print_banner()
+    Console.rule("Telegram bot")
+    if not allowed:
+        Console.warn("the allow-list is EMPTY, so every command will be refused. "
+                     "That is deliberate: a bot that runs scans is a remote "
+                     "command channel, and an open one turns this host into "
+                     "someone else's scanning proxy. Message the bot /whoami "
+                     "and pass the id with --telegram-allow.")
+    bot = TelegramBot(token=token, allowed_chats=allowed, cfg=cfg,
+                      scope=scope, db=args.db)
+    try:
+        bot.run_forever(on_event=Console.info)
+    except KeyboardInterrupt:
+        Console.warn("\nstopping the bot")
+        bot.shutdown()
+    return 0
+
+
 def _handle_verdicts(args) -> Optional[int]:
     """Record / drop / list analyst verdicts.
 
@@ -1090,6 +1135,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.doctor:
         workflow.doctor()
         return 0
+
+    if getattr(args, "telegram_bot", False):
+        return _run_telegram(args, cfg)
 
     if (getattr(args, "verdicts", False) or getattr(args, "unmark", None)
             or getattr(args, "mark", None)):

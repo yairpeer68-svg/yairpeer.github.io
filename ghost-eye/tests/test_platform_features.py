@@ -271,3 +271,74 @@ class TestConsoleCoverage:
         html = self._console()
         remote = re.findall(r'(?:src|href)=["\']https?://[^"\']+', html)
         assert remote == [], f"console loads external resources: {remote}"
+
+    # ---- the 80-feature dashboard wave ---------------------------------- #
+    def test_command_palette_labels_come_from_the_label_not_the_icon(self):
+        """A rail button's first innerText line is its icon glyph, so building
+        the palette from innerText made every entry unsearchable."""
+        html = self._console()
+        assert "function palette(" in html
+        assert 'b.querySelector("[data-i18n]")' in html, \
+            "the palette would index icon glyphs instead of workspace names"
+        assert 'e.key.toLowerCase()==="k"' in html, "no Ctrl/Cmd-K binding"
+
+    def test_deep_links_carry_the_filter_state(self):
+        html = self._console()
+        assert "function writeUrl(" in html and "function readUrl(" in html
+        for key in ('"job"', '"w"', '"q"', '"sev"'):
+            assert f"p.set({key}" in html, f"{key} is not in the shareable URL"
+
+    def test_bulk_verdicts_and_keyboard_triage(self):
+        html = self._console()
+        assert "function bulkRule(" in html and "SELECTED" in html
+        assert "function triageKey(" in html
+        for key in ('e.key==="j"', 'e.key==="f"', 'e.key==="a"', 'e.key==="c"'):
+            assert key in html, f"missing triage binding {key}"
+
+    def test_a_ruling_can_be_undone(self):
+        html = self._console()
+        assert "function undoRuling(" in html and "LAST_RULED" in html
+
+    def test_a_finding_exposes_its_evidence(self):
+        html = self._console()
+        assert "function evidence(" in html
+        assert "Everything this module returned" in html, \
+            "the drawer shows the flattened value but not the module's output"
+
+    def test_the_graph_is_force_directed_and_movable(self):
+        """A ring layout says nothing about structure, which is the only reason
+        to draw a graph."""
+        html = self._console()
+        assert "function wireGraph(" in html
+        assert "pointerdown" in html and "wheel" in html, "graph cannot pan/zoom"
+        assert "KGSTATE.k" in html and "KGSTATE.tx" in html
+
+    def test_scan_presets_and_dry_run(self):
+        html = self._console()
+        assert "function loadPresets(" in html and "function applyPreset(" in html
+        assert "function dryRun(" in html
+        assert "Nothing has been sent" in html, \
+            "a dry run must say plainly that it sent nothing"
+
+    def test_the_backend_self_check_exists(self):
+        assert "function selfCheck(" in self._console()
+
+    def test_api_keys_are_read_as_a_list_not_a_map(self):
+        """/api/keys returns [{name,label,set}]. Treating it as a name->value
+        map reported every key as configured and listed array indices as
+        service names."""
+        html = self._console()
+        assert "keys.filter(k=>!k.set)" in html, "key health misreads the shape"
+        assert "keys.map(key=>" in html, "the key table misreads the shape"
+
+    def test_themes_and_density_are_offered(self):
+        html = self._console()
+        assert 'data-theme="light"' in html and 'data-theme="contrast"' in html
+        assert 'data-density="compact"' in html
+        assert "prefers-reduced-motion" in html
+
+    def test_the_telegram_bot_is_controllable_from_the_console(self):
+        html = self._console()
+        assert "/api/telegram" in html
+        assert "empty means nobody" in html, \
+            "the console must state the bot's default-deny posture"
