@@ -4929,8 +4929,13 @@ class CspDomains(Module):
             low = tok.lower()
             if "." in low and not low.endswith((".self", ".none")):
                 domains.add(low)
-        base = ".".join(host.split(".")[-2:])
-        external = sorted(d for d in domains if not d.endswith(base))
+        # NB: not `host.split(".")[-2:]` — on a multi-label suffix that yields
+        # "co.uk", and every unrelated .co.uk host in the policy gets filed as
+        # the target's own infrastructure.
+        from ..cspmap import registrable_domain
+        base = registrable_domain(host)
+        external = sorted(d for d in domains
+                          if d != base and not d.endswith("." + base))
         return self.ok(host, {"csp_present": bool(csp),
                               "external_domains": external[:60],
                               "external_count": len(external),

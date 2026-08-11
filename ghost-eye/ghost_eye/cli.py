@@ -472,6 +472,9 @@ def build_parser() -> argparse.ArgumentParser:
                      help="drop a verdict by id, reinstating the finding")
     out.add_argument("--verdicts", action="store_true",
                      help="list every standing verdict and exit")
+    out.add_argument("--csp-assets", action="store_true", dest="csp_assets",
+                     help="mine the target's Content-Security-Policy for hosts "
+                          "and report the ones subdomain enumeration missed")
     out.add_argument("--fix-order", action="store_true", dest="fix_order",
                      help="rank every CVE found by exploitation pressure "
                           "(KEV / public exploit / EPSS forecast) times observed "
@@ -667,6 +670,9 @@ def _run_once(mods, target, cfg, args):
         _print_ip_filter(workflow.ip_filter_report(results, target))
     if getattr(args, "attribute", False):
         _print_attribution(workflow.attribution_report(results, target))
+    if getattr(args, "csp_assets", False):
+        _print_csp_assets(workflow.csp_asset_report(
+            results, target, session=ctx.session, timeout=ctx.timeout))
     if getattr(args, "fix_order", False):
         from . import prioritise as _prio
         _print_fix_order(_prio.prioritise(results, session=ctx.session,
@@ -824,6 +830,34 @@ def _handle_verdicts(args) -> Optional[int]:
         return None
     finally:
         store.close()
+
+
+def _print_csp_assets(rep: dict) -> None:
+    """Hosts the target's own CSP declares, and which of them are new."""
+    if not rep.get("csp_present") and not rep.get("report_only_present"):
+        Console.warn("no Content-Security-Policy published — nothing to mine "
+                     "(and no CSP protection either)")
+        return
+    Console.rule(f"CSP assets — {rep['new_host_count']} host(s) not found by "
+                 "any other module")
+    for host in (rep.get("new_hosts_not_otherwise_found") or []):
+        if isinstance(host, str) and host != "none":
+            Console.good(f"NEW  {host}")
+    for directive, hosts in (rep.get("hosts_by_directive") or {}).items():
+        meaning = (rep.get("directive_meaning") or {}).get(directive, "")
+        Console.kv(directive, ", ".join(hosts[:10])
+                   + (" …" if len(hosts) > 10 else ""))
+        if meaning:
+            Console.kv("=", meaning, indent=6)
+    if rep.get("report_endpoints") not in (None, "none"):
+        Console.kv("report sinks", ", ".join(rep["report_endpoints"][:5]))
+    if rep.get("staged_in_report_only") not in (None, "none"):
+        Console.kv("staged in Report-Only", ", ".join(rep["staged_in_report_only"][:8]))
+    weak = rep.get("weaknesses")
+    if isinstance(weak, list):
+        for w in weak[:8]:
+            Console.warn(f"{w['directive']}: {w['source']} — {w['why']}")
+    Console.info(rep.get("note", ""))
 
 
 def _print_fix_order(rep: dict) -> None:

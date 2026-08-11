@@ -11,14 +11,14 @@ one 400-line loop; this is a small Python package where **every feature is a
 self-registering module** and the menu, CLI and dashboard build themselves from
 the registry. Adding a capability is just dropping a class into a file.
 
-- **552 modules** across 19 categories
+- **553 modules** across 19 categories
 - Everything is **reconnaissance / detection only** — no exploitation, payloads,
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1119 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
+- **1168 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 567 are behavioural — see
+  raises"); the other 615 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -46,6 +46,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [Corpus baseline — what is unusual here](#corpus-baseline--what-is-unusual-here)
 - [Analyst verdicts — tell it once](#analyst-verdicts--tell-it-once)
 - [Fix order — what to do first](#fix-order--what-to-do-first)
+- [CSP as an asset source](#csp-as-an-asset-source)
 - [Reporting](#reporting)
 - [CI/CD security gate](#cicd-security-gate)
 - [Notifications](#notifications)
@@ -142,6 +143,7 @@ python3 ghost_eye_web.py --open
 | `--inventory`, `--rollup` | asset inventory / per-host rollup |
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
 | `--fix-order` | rank every CVE by exploitation pressure × observed reachability — what to fix first |
+| `--csp-assets` | mine the target's Content-Security-Policy for hosts and report the ones enumeration missed |
 | `--ci`, `--fail-on <sev>` | CI mode: non-zero exit if findings breach the severity gate |
 | `--siem <url>` | push results to Elasticsearch / Splunk / webhook (TLS verified; `--siem-insecure` to opt out for a lab collector) |
 | `--notify <webhook>` | Slack / Discord / Telegram summary |
@@ -770,6 +772,61 @@ a 240-CVE estate costs three requests instead of 240.
 
 ---
 
+## CSP as an asset source
+
+A Content-Security-Policy is a list, written by the target themselves, of every
+host their pages are allowed to talk to. Nobody publishes their infrastructure
+more accurately: it is maintained by the people who know, it breaks the site
+when it is wrong, and it costs one HTTP request to read. Subdomain
+brute-forcing guesses — a CSP simply tells you.
+
+```bash
+python3 ghost_eye.py -t example.com -p perimeter --csp-assets
+```
+
+```
+== CSP assets — 4 host(s) not found by any other module ==
+NEW  checkout.example.com
+NEW  csp-collector.internal.example.com
+  connect-src            api.example.com, metrics.vendor.io
+      =                  an API/websocket the front end talks to
+  form-action            checkout.example.com
+      =                  where this site is allowed to POST forms — credentials go here
+  frame-ancestors        partner.example.net
+  report sinks           https://csp-collector.internal.example.com/report
+  staged in Report-Only  next-gen.example.com
+```
+
+Most tooling treats CSP purely as a hardening check ("is `unsafe-inline` set?")
+and throws the host list away. Ghost Eye mines it as intelligence:
+
+- **Per-directive meaning is kept.** A host in `connect-src` is an API the front
+  end calls; in `form-action` it is where credentials may be posted; in
+  `frame-ancestors` it is a named partner. Flattening them into one "domains"
+  list discards the part that says *what each host is*.
+- **Report sinks.** `report-uri` / `report-to` name whoever collects violation
+  reports — very often an internal or vendor hostname that appears nowhere in
+  public DNS.
+- **Report-Only is a preview.** Sites stage the *next* policy there before
+  enforcing it, so it routinely names infrastructure that is not live yet. A
+  weakness that is only staged is not reported as live.
+- **The delta is the finding.** Cross-referenced against the hosts the scan
+  already discovered, the headline becomes "CSP names 4 hosts your enumeration
+  missed".
+
+Hardening findings come along for free (`unsafe-inline`, `unsafe-eval`, `data:`,
+wildcard and `http:` sources), each with the reason it matters.
+
+**On registrable domains.** Splitting a hostname on the last two labels reduces
+`shop.example.co.uk` to `co.uk`, which files every unrelated `.co.uk` host in
+the policy as the target's own infrastructure — a bug the older `cspdomains`
+module had, now fixed and pinned by a test. `cspmap.registrable_domain()`
+carries a compact multi-label suffix table (including vendor suffixes like
+`github.io`, so two tenants of one platform are never treated as the same org).
+
+
+---
+
 ## Reporting
 
 `-o report.<ext>` picks the format by extension, or use `--format`:
@@ -1225,7 +1282,7 @@ pip install pytest && python3 -m pytest -q
 ### Health checks — catching silent failure
 
 The offline test suite proves a module *returns a `Result`*; it can't prove the
-module still *works*, because the sources behind 552 modules and 190 external
+module still *works*, because the sources behind 553 modules and 190 external
 services change without warning. The worst failure isn't a crash — it's a
 module that keeps returning stale output after its source moved (`commoncrawl`
 queried a hard-coded crawl index and quietly went stale for months).
@@ -1257,7 +1314,7 @@ fields (it disabled verification with `CERT_NONE`, which makes Python's
 real certificate). That bug had been silent since the module was written.
 
 - **Unit tests** — validators, inventory, rollup, deep-plan, workflow helpers.
-- **All-module smoke test** — runs `run()` for every one of the 552 modules
+- **All-module smoke test** — runs `run()` for every one of the 553 modules
   fully offline (network/DNS/sockets/subprocess stubbed) and asserts each
   returns a `Result` instead of crashing. This is the net that catches
   "module raises instead of failing gracefully" regressions. Note what it does
@@ -1282,7 +1339,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1119 tests** pass in ~15s. A single **verification gate** runs the whole thing:
+**1168 tests** pass in ~17s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
@@ -1298,7 +1355,7 @@ suite, the verification gate and advisory ruff/mypy on Python 3.9/3.11/3.12.
 ### Hostile-response fuzzing
 
 The smoke test feeds every module a *stubbed* network. A separate audit harness
-feeds all 552 modules five kinds of **hostile-but-plausible** HTTP response —
+feeds all 553 modules five kinds of **hostile-but-plausible** HTTP response —
 empty body, binary garbage, `null` JSON, unexpected HTML, and `404` with no
 headers — and fails on any `TypeError` / `AttributeError` / `KeyError` /
 `IndexError` / `UnboundLocalError` raised from Ghost Eye's own frames. 2760

@@ -285,6 +285,31 @@ def wrap_session(session, rate: float = 0.0,
     return session
 
 
+
+# --------------------------------------------------------------------------- #
+#  CSP-driven asset discovery, cross-referenced against what the scan found
+# --------------------------------------------------------------------------- #
+def csp_asset_report(results, target: str, session=None, timeout: int = 15) -> dict:
+    """Mine the target's CSP for hosts, and say which ones the scan missed.
+
+    The host list on its own is interesting; the *delta* against everything
+    subdomain enumeration already turned up is the finding, so this feeds the
+    scan's own inventory in as `known_hosts`.
+    """
+    from . import cspmap
+    from .inventory import build_inventory
+    try:
+        known = set(build_inventory(results, target).get("hosts") or [])
+    except Exception:  # noqa: BLE001
+        known = set()
+    known.add(str(target).strip().lower())
+    if session is None:
+        from .core import build_session
+        session = build_session(timeout=timeout)
+    return cspmap.csp_asset_map(session, str(target), known_hosts=known,
+                                timeout=timeout)
+
+
 # --------------------------------------------------------------------------- #
 #  #76  Checkpoint / resume for multi-target runs
 # --------------------------------------------------------------------------- #

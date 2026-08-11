@@ -73,6 +73,8 @@ from . import (  # noqa: F401
     netfilter,
     # --- v4.2: emerging / freshly-disclosed vulnerability early warning ---
     emerging,
+    # --- v4.6: CSP as an asset-discovery source ---
+    csp_assets,
 )
 
 __all__ = [
@@ -90,4 +92,5 @@ __all__ = [
     "web_v4", "dns_v4", "email_v3", "tls_v3", "network_v4", "ai_v2", "mobile",
     "osint_sources", "newscan_wave", "osint_power", "osint_freesources",
     "ai_providers", "mobile_v2", "osint_scale", "netfilter", "emerging",
+    "csp_assets",
 ]
