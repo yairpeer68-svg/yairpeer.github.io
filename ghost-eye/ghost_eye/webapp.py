@@ -22,6 +22,7 @@ import traceback
 import uuid
 from concurrent.futures import (FIRST_COMPLETED, ThreadPoolExecutor,
                                 wait)
+from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -643,6 +644,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._metrics()
         if path == "/api/alert-rules":
             return self._alert_rules_get()
+        if path.startswith("/api/job/") and path.endswith("/stream"):
+            return self._job_stream(path.split("/")[3])
+        if path == "/api/notes":
+            return self._notes_get(parsed)
+        if path == "/api/watchlist":
+            return self._watchlist_get(parsed)
         if path == "/api/telegram":
             return self._telegram_status()
         if path == "/api/verdicts":
@@ -674,6 +681,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._osint_deep()
         if path == "/api/investigate":
             return self._investigate()
+        if path == "/api/notes":
+            return self._notes_set()
+        if path == "/api/watchlist":
+            return self._watchlist_set()
+        if path == "/api/retention":
+            return self._retention()
         if path == "/api/telegram":
             return self._telegram_set()
         if path == "/api/verdict":
@@ -936,6 +949,143 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(workflow.ip_filter_report(results, target))
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"ip filter failed: {exc}"}, 500)
+
+    # ---- live stream ------------------------------------------------------ #
+    def _job_stream(self, jid: str):
+        """Server-sent events for a running job.
+
+        Polling once a second is a correct but wasteful way to watch a scan: it
+        costs a request per second per open tab whether or not anything
+        happened, and it puts a one-second floor on how fresh the view can be.
+        This pushes a frame only when the job actually changes, and the client
+        falls back to polling if the stream cannot be established — a dashboard
+        that goes blank because SSE was blocked by a proxy is worse than a
+        chatty one.
+        """
+        snap = self.server.jobs.snapshot(jid)
+        if snap is None:
+            return self._json({"error": "unknown job"}, 404)
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self._security_headers()
+        self.end_headers()
+        last = None
+        deadline = time.time() + 900          # a stream is not immortal
+        try:
+            while time.time() < deadline:
+                snap = self.server.jobs.snapshot(jid)
+                if snap is None:
+                    break
+                stamp = (snap.get("done"), snap.get("status"), len(snap.get("results") or []))
+                if stamp != last:
+                    last = stamp
+                    payload = json.dumps(snap)
+                    self.wfile.write(b"event: job\ndata: " + payload.encode() + b"\n\n")
+                    self.wfile.flush()
+                if snap.get("status") != "running":
+                    break
+                time.sleep(0.4)
+            # a comment frame keeps intermediaries from closing an idle stream
+            self.wfile.write(b": done\n\n")
+            self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass          # the tab was closed; nothing to report
+        return None
+
+    # ---- notes / watchlist / retention ------------------------------------ #
+    def _state_path(self, name: str):
+        base = Path(os.environ.get("GHOSTEYE_STATE", "")
+                    or (Path.home() / ".ghosteye"))
+        base.mkdir(parents=True, exist_ok=True)
+        return base / name
+
+    def _read_state(self, name: str) -> dict:
+        try:
+            return json.loads(self._state_path(name).read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            return {}
+
+    def _write_state(self, name: str, obj: dict) -> None:
+        self._state_path(name).write_text(json.dumps(obj, indent=1),
+                                          encoding="utf-8")
+
+    def _notes_get(self, parsed):
+        """Analyst notes, keyed by finding id or by target."""
+        key = (parse_qs(parsed.query).get("key", [""])[0]).strip()
+        notes = self._read_state("notes.json")
+        return self._json({"key": key, "note": notes.get(key, ""),
+                           "count": len(notes)} if key
+                          else {"notes": notes, "count": len(notes)})
+
+    def _notes_set(self):
+        body = self._body()
+        key = str(body.get("key") or "").strip()
+        if not key:
+            return self._json({"error": "key required"}, 400)
+        notes = self._read_state("notes.json")
+        text = str(body.get("note") or "").strip()
+        if text:
+            notes[key] = text[:4000]
+        else:
+            notes.pop(key, None)
+        self._write_state("notes.json", notes)
+        return self._json({"key": key, "saved": bool(text), "count": len(notes)})
+
+    def _watchlist_get(self, parsed):
+        """Values you pinned; a scan that changes one of them is worth a look."""
+        wl = self._read_state("watchlist.json")
+        return self._json({"watchlist": wl, "count": len(wl),
+                           "note": "a watched value is compared on every scan of "
+                                   "its target; a change is reported rather than "
+                                   "buried in the diff."})
+
+    def _watchlist_set(self):
+        body = self._body()
+        key = str(body.get("key") or "").strip()
+        if not key:
+            return self._json({"error": "key required"}, 400)
+        wl = self._read_state("watchlist.json")
+        if body.get("remove"):
+            wl.pop(key, None)
+        else:
+            wl[key] = {"value": str(body.get("value") or "")[:400],
+                       "target": str(body.get("target") or ""),
+                       "added": datetime.now(timezone.utc).isoformat()}
+        self._write_state("watchlist.json", wl)
+        return self._json({"watchlist": wl, "count": len(wl)})
+
+    def _retention(self):
+        """Prune stored scans older than N days, or beyond N per target."""
+        body = self._body()
+        days = int(body.get("days") or 0)
+        keep = int(body.get("keep_per_target") or 0)
+        if days <= 0 and keep <= 0:
+            return self._json({"error": "pass days and/or keep_per_target"}, 400)
+        try:
+            store = self.server.jobs.store()
+            rows = store.recent_scans(100000)
+            removed, by_target = 0, {}
+            cutoff = (datetime.now(timezone.utc)
+                      - timedelta(days=days)).isoformat() if days > 0 else None
+            for row in rows:            # recent_scans is newest-first
+                target = row.get("target", "")
+                by_target[target] = by_target.get(target, 0) + 1
+                too_old = bool(cutoff and str(row.get("ts", "")) < cutoff)
+                too_many = bool(keep > 0 and by_target[target] > keep)
+                if too_old or too_many:
+                    store.conn.execute("DELETE FROM scans WHERE id=?", (row["id"],))
+                    removed += 1
+            store.conn.commit()
+            remaining = store.count_scans()
+            store.close()
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"retention failed: {exc}"}, 500)
+        return self._json({"removed": removed, "remaining": remaining,
+                           "note": "findings are deleted permanently; take a "
+                                   "backup first if you might want them."})
 
     # ---- Telegram bot ---------------------------------------------------- #
     def _telegram_status(self):

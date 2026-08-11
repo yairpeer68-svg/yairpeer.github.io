@@ -377,6 +377,10 @@ class Result:
     data: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
     started: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    # wall time the module took, filled in by engine.execute_module. Without it
+    # a slow scan is a mystery: you can see that it took ten minutes but not
+    # which module spent them.
+    elapsed_ms: int = 0
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -386,6 +390,7 @@ class Result:
             "data": self.data,
             "error": self.error,
             "timestamp": self.started,
+            "elapsed_ms": self.elapsed_ms,
         }
 
     def render(self) -> None:

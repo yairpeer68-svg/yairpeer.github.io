@@ -273,6 +273,16 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
   .menubtn{display:inline-flex !important}
   .view{padding:15px 14px 60px}
   .picker{grid-template-columns:1fr;height:auto}
+  /* #72 — a seven-column table on a phone is unreadable; each row becomes a
+     card with its header as a label. */
+  .tblwrap table,.tblwrap thead,.tblwrap tbody,.tblwrap th,.tblwrap td,.tblwrap tr{display:block}
+  .tblwrap thead{position:absolute;left:-9999px}
+  .tblwrap tr{border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;
+    padding:6px 8px;background:var(--surface)}
+  .tblwrap td{border:none;padding:3px 0;display:flex;gap:9px}
+  .tblwrap td::before{content:attr(data-label);color:var(--muted);
+    font-family:var(--mono);font-size:9.5px;text-transform:uppercase;
+    letter-spacing:.12em;min-width:76px;flex:0 0 76px}
   .pickmode{display:flex;gap:5px;overflow-x:auto;border-right:none;
     border-bottom:1px solid var(--line)}
   .pickmode button{width:auto;white-space:nowrap}
@@ -399,10 +409,14 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
       <button class="btn sm menubtn" id="menubtn">☰</button>
       <div class="tgt">
         <span class="at">▸</span>
-        <input id="target" placeholder="example.com  ·  1.2.3.4  ·  https://host:8443" autocomplete="off" spellcheck="false">
+        <input id="target" list="recentTargets" placeholder="example.com  ·  1.2.3.4  ·  https://host:8443" autocomplete="off" spellcheck="false">
+        <datalist id="recentTargets"></datalist>
       </div>
       <select class="sel" id="quickProfile" title="Scan profile"></select>
       <button class="btn primary" id="runbtn" data-i18n="cmd.run">Run scan</button>
+      <span class="mono" id="opsecmeter" style="color:var(--faint);font-size:11px"></span>
+      <span class="mono" id="thru" style="color:var(--faint);font-size:11px"></span>
+      <button class="btn sm" id="bell" title="Notifications">🔔 <span class="badge" id="b-events">0</span></button>
       <div class="status" role="status" aria-live="polite">
         <span class="dot" id="dot"></span><span id="statustxt" data-i18n="cmd.idle">Idle</span></div>
       <div class="prog" id="prog"></div>
@@ -419,12 +433,46 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
 const TOKEN = new URLSearchParams(location.search).get("token") || "";
 const $ = id => document.getElementById(id);
 function hdrs(){ const h={"Content-Type":"application/json"}; if(TOKEN) h["X-Ghost-Token"]=TOKEN; return h; }
+const INFLIGHT=new Map();          // #6 — one request per identical GET
 async function api(path, opts={}){
-  const r = await fetch(path, {...opts, headers:{...hdrs(), ...(opts.headers||{})}});
-  const body = await r.json().catch(()=>({error:r.statusText}));
-  if(!r.ok) throw new Error(body.error || r.statusText);
-  return body;
+  const key=(opts.method||"GET")+" "+path;
+  if(!opts.method && INFLIGHT.has(key)) return INFLIGHT.get(key);
+  const run=(async ()=>{
+    const r = await fetch(path, {...opts, headers:{...hdrs(), ...(opts.headers||{})}});
+    const body = await r.json().catch(()=>({error:r.statusText}));
+    if(!r.ok) throw new Error(body.error || r.statusText);
+    return body;
+  })();
+  if(!opts.method){
+    INFLIGHT.set(key, run);
+    run.finally(()=>INFLIGHT.delete(key));
+  }
+  return run;
 }
+
+/* #7 — a small IndexedDB cache so a reload does not refetch a finished scan,
+   and #71 so the console still shows the last scan when the backend is down. */
+const IDB=(()=>{
+  let db=null;
+  const open=()=> new Promise(res=>{
+    if(db) return res(db);
+    if(!("indexedDB" in window)) return res(null);
+    const rq=indexedDB.open("ghosteye",1);
+    rq.onupgradeneeded=()=>rq.result.createObjectStore("kv");
+    rq.onsuccess=()=>{ db=rq.result; res(db); };
+    rq.onerror=()=>res(null);
+  });
+  return {
+    async put(k,v){ const d=await open(); if(!d) return;
+      try{ d.transaction("kv","readwrite").objectStore("kv").put(v,k); }catch(e){} },
+    async get(k){ const d=await open(); if(!d) return null;
+      return new Promise(res=>{
+        try{ const rq=d.transaction("kv").objectStore("kv").get(k);
+          rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>res(null);
+        }catch(e){ res(null); } });
+    }
+  };
+})();
 if(TOKEN) $("osintlink").href = "/osint?token=" + encodeURIComponent(TOKEN);
 
 const esc = s => String(s==null?"":s).replace(/[&<>"']/g,
@@ -675,6 +723,25 @@ function setDrawer(open){
   document.body.classList.toggle("drawer", open);
 }
 $("menubtn").onclick = ()=> setDrawer(!$("rail").classList.contains("open"));
+/* right-click a rail item to pin it to the top (#45) */
+$("nav").addEventListener("contextmenu", e=>{
+  const b=e.target.closest(".navitem"); if(!b) return;
+  e.preventDefault();
+  const v=b.dataset.view;
+  PINNED.has(v) ? PINNED.delete(v) : PINNED.add(v);
+  try{ localStorage.setItem("ge_pins", JSON.stringify([...PINNED])); }catch(e2){}
+  applyPins(); toast(PINNED.has(v)?"Pinned":"Unpinned");
+});
+function applyPins(){
+  const nav=$("nav");
+  [...PINNED].reverse().forEach(v=>{
+    const b=nav.querySelector(`.navitem[data-view="${v}"]`);
+    if(b){ b.style.order="-1"; nav.prepend(b); b.dataset.pinned="1"; }
+  });
+  nav.querySelectorAll(".navitem").forEach(b=>{
+    if(!PINNED.has(b.dataset.view)) b.removeAttribute("data-pinned");
+  });
+}
 document.addEventListener("keydown", e=>{
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName||""));
   if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); return palette(); }
@@ -694,7 +761,11 @@ function shortcutHelp(){
 }
 $("scrim").onclick = ()=> setDrawer(false);
 
-function go(view){
+const PINNED=(()=>{ try{ return new Set(JSON.parse(localStorage.getItem("ge_pins")||"[]")); }
+                     catch(e){ return new Set(); } })();
+const HISTORY=[];                       // #44 in-console back stack
+function go(view, fromBack){
+  if(!fromBack && VIEW && VIEW!==view) HISTORY.push(VIEW);
   VIEW=view;
   document.querySelectorAll(".navitem").forEach(b=>
     b.setAttribute("aria-current", b.dataset.view===view ? "true" : "false"));
@@ -1079,19 +1150,26 @@ VIEWS.live = ()=>{
       ${stat("Elapsed", (s.elapsed!=null?s.elapsed+"s":"—"))}
     </div>
     <div class="bar-h" style="margin-bottom:14px"><i style="width:${Math.round(100*done/total)}%"></i></div>
+    ${s.status!=="running"?timingChart(s)+waterfall(s.results||[]):""}
     <div id="stream"></div>`);
   renderStream(s, true);          // fresh mount: rebuild once, then patch
 };
-let STREAM_SEEN = new Map();          // module -> {status, fields}
+let STREAM_SEEN = new Map();          // module -> render signature
+const STREAM_WINDOW = 120;           // #2 — only this many cards live in the DOM
 function renderStream(s, force){
   const el=$("stream"); if(!el) return;
   const sev={};
   (s.risk&&s.risk.findings||[]).forEach(f=>{ sev[f.module+"::"+f.field]=f.severity; });
   if(force){ el.innerHTML=""; STREAM_SEEN=new Map(); }
-  // Append/patch only what changed. Rebuilding 553 rows every second is both
-  // wasteful and hostile: it destroys scroll position and any text selection
-  // while the scan is still running.
-  for(const r of (s.results||[])){
+  const all=s.results||[];
+  // #2 virtualisation: 553 cards is more DOM than any browser enjoys, and you
+  // are never reading the 400th. Keep a window of the most recent, plus every
+  // errored module — a failure must never be scrolled out of existence.
+  const errs=all.filter(r=>r.status==="error");
+  const tail=all.slice(-STREAM_WINDOW);
+  const show=[...new Map([...errs,...tail].map(r=>[r.module,r])).values()];
+  const hidden=all.length-show.length;
+  for(const r of show){
     const flat={}; flatten(r.data, "", flat);
     const sig = r.status + ":" + Object.keys(flat).length + ":" +
                 (expanded.has(r.module)?1:0);
@@ -1102,9 +1180,33 @@ function renderStream(s, force){
     if(existing) existing.outerHTML = html;
     else el.insertAdjacentHTML("beforeend", html);
   }
-  if(!(s.results||[]).length && !el.innerHTML)
+  let note=el.querySelector("#streamnote");
+  if(hidden>0){
+    const txt=`${hidden} earlier module(s) not rendered — use Search, or the
+      report export, to reach them. Errors are always shown.`;
+    if(!note) el.insertAdjacentHTML("afterbegin",
+      `<div class="banner info" id="streamnote">${txt}</div>`);
+    else note.innerHTML=txt;
+  }else if(note){ note.remove(); }
+  if(!all.length && !el.innerHTML)
     el.innerHTML=`<div class="empty"><p>Waiting for the first module…</p></div>`;
 }
+
+/* #9 — which modules cost the scan its wall time. */
+function timingChart(s){
+  const rows=(s.results||[]).map(r=>({m:r.module, ms:+(r.elapsed_ms||r.elapsed||0)}))
+    .filter(r=>r.ms>0).sort((a,b)=>b.ms-a.ms).slice(0,15);
+  if(!rows.length) return "";
+  const max=rows[0].ms||1;
+  return `<div class="card" style="margin-bottom:13px"><h3>Where the time went</h3>
+    ${rows.map(r=>`<div style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;font-size:11.5px">
+        <span>${esc(r.m)}</span><span class="mono" style="color:var(--muted)">${
+          (r.ms/1000).toFixed(1)}s</span></div>
+      <div class="bar-h"><i style="width:${Math.round(100*r.ms/max)}%"></i></div>
+    </div>`).join("")}</div>`;
+}
+
 function cssEsc(v){ return String(v).replace(/["\\]/g, "\\$&"); }
 function streamCard(r, flat, sev){
   const isErr = r.status==="error";
@@ -1120,12 +1222,14 @@ function streamCard(r, flat, sev){
           <span class="mono" style="color:var(--faint)">${open?"▾":"▸"}</span>
         </span>
       </div>
-      ${open?`<div class="resbody">${isErr
+      ${open?`<div class="resbody">${
+        (PANELS[r.module] ? (()=>{ try{ return PANELS[r.module](r); }
+                                   catch(e){ return ""; } })() : "") || (isErr
         ? `<span style="color:var(--crit)">${esc(r.error||"module errored")}</span>`
         : `<div class="kv">${Object.keys(flat).map(k=>{
             const sv = sev[r.module+"::"+k];
             return `<div class="k">${esc(k)}</div><div class="v${sv?" sev-"+sv:""}">${esc(flat[k])}</div>`;
-          }).join("")}</div>`}</div>`:""}
+          }).join("")}</div>`)}</div>`:""}
     </div>`;
 }
 /* one delegated handler instead of rebinding every row on every tick */
@@ -1174,13 +1278,17 @@ VIEWS.findings = ()=> jobView("verdicts", d=>{
   const bySev = {};
   all.forEach(f=>{ bySev[f.severity]=(bySev[f.severity]||0)+1; });
   const newCount = all.filter(f=>!prev.has(f.id)).length;
-  if(CURSOR>=rows.length) CURSOR=Math.max(0, rows.length-1);
+  const shown = COLLAPSE ? collapseDuplicates(rows) : rows;
+  if(CURSOR>=shown.length) CURSOR=Math.max(0, shown.length-1);
   return head(t("find.t","Findings"),
     t("find.w","Severity, confidence and provenance for everything the scan flagged. "+
     "Rule on a finding once with <b>FP</b> or <b>Accept</b> and the ruling applies "+
     "to every later scan — until the value changes or the verdict expires."),
     `${RE()} <button class="btn sm" id="fexport">Export view</button>
      <button class="btn sm" onclick="shortcutHelp()">⌨ ?</button>`) + `
+    ${treemap({critical:c.critical||0, high:c.high||0, medium:c.medium||0,
+               low:c.low||0}, "Severity mix")}
+    ${severityFlow(all)}
     <div class="grid g4" style="margin-bottom:13px">
       ${stat("Critical", c.critical||0, "", "crit")}
       ${stat("High", c.high||0, "", "high")}
@@ -1194,13 +1302,21 @@ VIEWS.findings = ()=> jobView("verdicts", d=>{
       ${["critical","high","medium","low"].map(sv=>`
         <button class="fchip" data-sev="${sv}" data-on="${FFILTER.sev.has(sv)?"1":"0"}">
           ${sv} <span class="n">${bySev[sv]||0}</span></button>`).join("")}
+      <select class="sel" id="fgroup" style="max-width:130px">
+        <option value="">no grouping</option>
+        <option value="host" ${GROUPBY==="host"?"selected":""}>by host</option>
+        <option value="module" ${GROUPBY==="module"?"selected":""}>by module</option>
+        <option value="severity" ${GROUPBY==="severity"?"selected":""}>by severity</option>
+      </select>
+      <label class="check" style="padding:0"><input type="checkbox" id="fdupes"
+        ${COLLAPSE?"checked":""}> collapse duplicates</label>
       <select class="sel" id="fpreset" style="max-width:170px">
         <option value="">saved filters…</option>
         ${Object.keys(PRESETS).map(k=>`<option value="${esc(k)}" ${PRESET===k?"selected":""}>${esc(k)}</option>`).join("")}
       </select>
       ${FFILTER.sev.size||FFILTER.q||FFILTER.only?`<button class="btn sm" id="fclear">clear</button>`:""}
       <span style="color:var(--muted);font-size:11.5px;margin-left:auto">
-        ${rows.length} / ${all.length}</span>
+        ${shown.length} / ${all.length}</span>
     </div>
     ${SELECTED.size?`<div class="banner info" style="display:flex;gap:9px;align-items:center">
       <b>${SELECTED.size} selected</b>
@@ -1209,15 +1325,26 @@ VIEWS.findings = ()=> jobView("verdicts", d=>{
       <button class="btn sm" data-bulk="confirmed">Confirm all</button>
       <button class="btn sm" id="bclear" style="margin-left:auto">clear selection</button>
     </div>`:""}
-    ${rows.length?`<div class="tblwrap"><table>
+    ${GROUPBY?`<div style="color:var(--muted);font-size:11.5px;margin-bottom:7px">
+      grouped by ${esc(GROUPBY)} — ${Object.keys(groupRows(shown)||{}).length} group(s)</div>`:""}
+    ${shown.length?`<div class="tblwrap"><table>
       <thead><tr><th style="width:30px"><input type="checkbox" id="ballsel"></th>
         <th>Sev</th><th>Module</th><th>Field</th><th>Detail</th>
         <th>Confidence</th><th>Verdict</th><th></th></tr></thead>
-      <tbody>${rows.map((f,i)=>`<tr data-row="${i}" data-fid="${esc(f.id)}"
+      <tbody>${(GROUPBY?Object.entries(groupRows(shown)).flatMap(([g,items])=>
+          [{_group:g, _n:items.length}, ...items]):shown)
+        .map((f,i)=> f._group!==undefined
+        ? `<tr><td colspan="8" style="background:var(--surface-2)">
+             <b>${esc(f._group)}</b> <span class="pill muted">${f._n}</span></td></tr>`
+        : `<tr data-row="${i}" data-fid="${esc(f.id)}"
           ${i===CURSOR?'style="outline:2px solid var(--accent);outline-offset:-2px"':""}>
         <td><input type="checkbox" class="rowsel" data-fid="${esc(f.id)}" ${SELECTED.has(f.id)?"checked":""}></td>
-        <td><span class="pill ${esc(f.severity)}">${esc(f.severity)}</span>
-            ${!prev.has(f.id)&&prev.size?`<span class="pill accent">new</span>`:""}</td>
+        <td><span class="pill ${esc((OVERRIDES[f.id]||{}).sev||f.severity)}"
+              title="${OVERRIDES[f.id]?esc("engine said "+f.severity+" — "+(OVERRIDES[f.id].why||"")):""}"
+              >${esc((OVERRIDES[f.id]||{}).sev||f.severity)}${OVERRIDES[f.id]?" ✎":""}</span>
+            ${!prev.has(f.id)&&prev.size?`<span class="pill accent">new</span>`:""}
+            ${(f._dupes&&f._dupes.length>1)?`<span class="pill muted" title="${esc(f._dupes.join(", "))}">×${f._dupes.length}</span>`:""}
+            ${NOTES[f.id]?`<span class="pill cyan" title="${esc(NOTES[f.id])}">note</span>`:""}</td>
         <td class="num">${esc(f.module)}</td>
         <td class="num" style="color:var(--ink-2)">${esc(f.field)}</td>
         <td class="wrap"><a href="#" data-ev="${esc(f.id)}"
@@ -1229,6 +1356,7 @@ VIEWS.findings = ()=> jobView("verdicts", d=>{
           <button class="btn sm" onclick="rule('${esc(f.id)}','false_positive')">FP</button>
           <button class="btn sm" onclick="rule('${esc(f.id)}','accepted_risk')">Accept</button>
           <button class="btn sm" onclick="rule('${esc(f.id)}','confirmed')">Confirm</button>
+          <button class="btn sm" onclick="rowMenu('${esc(f.id)}')" title="more">⋯</button>
         </td></tr>`).join("")}</tbody></table></div>`
       : `<div class="empty"><h2>Nothing matches</h2><p>${all.length
           ? "No finding matches the current filter."
@@ -1277,7 +1405,142 @@ VIEWS.findings = ()=> jobView("verdicts", d=>{
     e.preventDefault(); evidence(a.dataset.ev);
   });
   const ex=$("fexport"); if(ex) ex.onclick=exportView;
+  const g=$("fgroup"); if(g) g.onchange=e=>{ GROUPBY=e.target.value; render(); };
+  const du=$("fdupes"); if(du) du.onchange=e=>{ COLLAPSE=e.target.checked; render(); };
+  loadNotes();
 }});
+let COLLAPSE=false;
+async function loadNotes(){
+  try{ const d=await api("/api/notes"); if(JSON.stringify(d.notes||{})!==JSON.stringify(NOTES)){
+    NOTES=d.notes||{}; } }catch(e){}
+}
+
+/* the per-row overflow menu keeps the table readable while still offering
+   copy / note / watch / override / jump-to-fix-order (#21 #22 #23 #50 #55) */
+function rowMenu(id){
+  modal("Finding actions", `
+    <div style="display:grid;gap:8px">
+      <button class="btn" data-act="md">Copy as Markdown</button>
+      <button class="btn" data-act="ticket">Copy as a ticket</button>
+      <button class="btn" data-act="note">Add / edit a note</button>
+      <button class="btn" data-act="watch">Watch this value</button>
+      <button class="btn" data-act="sev">Override the severity</button>
+      <button class="btn" data-act="fix">Show it in Fix order</button>
+      <button class="btn" data-act="ev">Open the evidence</button>
+    </div>`, ()=>{}, "Close");
+  setTimeout(()=>{
+    document.querySelectorAll('[data-act]').forEach(b=> b.onclick=()=>{
+      const a=b.dataset.act;
+      document.querySelectorAll(".scrim").forEach(x=>{ if(x.id!=="scrim") x.remove(); });
+      if(a==="md") copyFinding(id,false);
+      else if(a==="ticket") copyFinding(id,true);
+      else if(a==="note") noteFor(id);
+      else if(a==="watch") watch(id);
+      else if(a==="sev") overrideSeverity(id);
+      else if(a==="ev") evidence(id);
+      else if(a==="fix"){ jumpToFix(id); }
+    });
+  }, 30);
+}
+/* #23 — a finding that names a CVE should land you on its row in Fix order. */
+function jumpToFix(id){
+  const d=CACHE[JOB+":verdicts"]||{};
+  const f=(d.findings||[]).find(x=>x.id===id);
+  const m=f && String(f.detail).match(/CVE-\d{4}-\d{4,7}/i);
+  go("fixorder");
+  if(m) setTimeout(()=>{
+    const row=[...document.querySelectorAll("td")].find(td=>td.textContent.trim()===m[0].toUpperCase());
+    if(row){ row.closest("tr").style.outline="2px solid var(--accent)";
+      row.scrollIntoView({block:"center"}); }
+    else toast("That finding names no CVE, so it has no fix-order row");
+  }, 900);
+  else setTimeout(()=>toast("That finding names no CVE"), 600);
+}
+
+/* #16 — pivot. The same findings grouped by the thing you are thinking about. */
+let GROUPBY="";
+function groupRows(rows){
+  if(!GROUPBY) return null;
+  const key = f => GROUPBY==="host" ? (f.target||"—")
+                 : GROUPBY==="module" ? f.module : f.severity;
+  const out={};
+  rows.forEach(f=>{ (out[key(f)] = out[key(f)]||[]).push(f); });
+  return out;
+}
+
+/* #24 — the same fact found by six modules is one finding, not six. */
+function collapseDuplicates(rows){
+  const by={}, order=[];
+  rows.forEach(f=>{
+    const k=(f.field+"|"+String(f.detail)).toLowerCase();
+    if(!by[k]){ by[k]={...f, _dupes:[f.module]}; order.push(k); }
+    else if(!by[k]._dupes.includes(f.module)) by[k]._dupes.push(f.module);
+  });
+  return order.map(k=>by[k]);
+}
+
+/* #21 — copy one finding as Markdown or as a ticket body. */
+function copyFinding(id, asTicket){
+  const d=CACHE[JOB+":verdicts"]||{};
+  const f=[...(d.findings||[]),...(d.suppressed||[])].find(x=>x.id===id);
+  if(!f) return;
+  const text = asTicket
+    ? `${f.severity.toUpperCase()}: ${f.module} — ${f.field}\n\n`+
+      `Target: ${f.target||""}\nDetail: ${f.detail}\n`+
+      `Confidence: ${f.confidence||"?"} (${f.provenance_label||f.provenance||"?"})\n`+
+      `Ghost Eye finding id: ${f.id}\n`
+    : `- **${f.severity}** \`${f.module}\` — ${f.field}: ${f.detail} `+
+      `_(${f.confidence||"?"})_`;
+  if(navigator.clipboard) navigator.clipboard.writeText(text);
+  toast(asTicket?"Copied as a ticket":"Copied as Markdown");
+}
+
+/* #22 — a severity the tool got wrong, overridden with a recorded reason. */
+const OVERRIDES=(()=>{ try{ return JSON.parse(localStorage.getItem("ge_sev")||"{}"); }
+                       catch(e){ return {}; } })();
+function overrideSeverity(id){
+  modal("Override severity", `
+    <div class="row">
+      <div class="field"><label>Severity</label>
+        <select data-field="sev"><option>critical</option><option>high</option>
+          <option>medium</option><option>low</option></select></div>
+      <div class="field"><label>Why</label>
+        <input type="text" data-field="why" placeholder="not reachable in our deployment"></div>
+    </div>
+    <div class="note">Recorded locally and shown beside the finding. The
+      engine's own rating is kept, so you can always see what it thought.</div>`,
+    vals=>{
+      OVERRIDES[id]={sev:vals.sev, why:vals.why||""};
+      try{ localStorage.setItem("ge_sev", JSON.stringify(OVERRIDES)); }catch(e){}
+      render(); toast("Severity overridden");
+    }, "Override");
+}
+
+/* #55 — a note on a finding, persisted server-side beside the scan history. */
+function noteFor(id){
+  api(`/api/notes?key=${encodeURIComponent(id)}`).then(d=>{
+    modal("Note", `<div class="field"><label>Note — saved with this finding id</label>
+      <textarea data-field="note" rows="6">${esc(d.note||"")}</textarea></div>`,
+      async vals=>{
+        await api("/api/notes",{method:"POST",
+          body:JSON.stringify({key:id, note:vals.note})});
+        NOTES[id]=vals.note; render(); toast(vals.note?"Note saved":"Note cleared");
+      }, "Save");
+  }).catch(e=>toast(e.message));
+}
+let NOTES={};
+
+/* #50 — watch a value; a later scan that changes it is reported, not buried. */
+async function watch(id){
+  const d=CACHE[JOB+":verdicts"]||{};
+  const f=(d.findings||[]).find(x=>x.id===id); if(!f) return;
+  try{
+    await api("/api/watchlist",{method:"POST", body:JSON.stringify({
+      key:`${f.module}.${f.field}`, value:String(f.detail),
+      target:f.target||(SNAP&&SNAP.target)||""})});
+    toast("Watching " + f.field);
+  }catch(e){ toast(e.message); }
+}
 
 /** ids of the previous scan of this target, so "new" means new (#17). */
 function prevFindingIds(){
@@ -1435,6 +1698,7 @@ VIEWS.fixorder = ()=> jobView("fixorder", d=>
     ${stat("Exploited AND reachable", d.act_now_count||0, "fix these first", "crit")}
     ${stat("Exposure unobserved", d.unobserved_exposure||0, "ranked lower, not ruled safe")}
   </div>
+  ${attackPaths(d)}
   ${(d.act_now||[]).length?`<div class="banner err"><b>Act now:</b>
     ${d.act_now.map(a=>esc(a.cve)).join(", ")} — exploited in the wild and observed reachable.</div>`:""}
   ${(d.fix_order||[]).length?`<div class="tblwrap"><table>
@@ -1495,10 +1759,11 @@ VIEWS.ports = ()=>{
     `<div class="empty"><h2>portscan was not part of this scan</h2>
      <p>Add the <code>portscan</code> module and set a port spec on the
      <b>Scan</b> screen.</p></div>`);
-  set(head("Ports",
-    "<b>closed</b> means the host actively refused (RST) — proof it is up and "+
-    "nothing listens there. <b>filtered</b> means no answer after retries, which "+
-    "is not proof of anything.") +
+  const _heat = portHeatmap(SNAP.results||[]);
+  set(head(t("ports.t","Ports"),
+    t("ports.w","<b>closed</b> means the host actively refused (RST) — proof it "+
+      "is up and nothing listens there. <b>filtered</b> means no answer after "+
+      "retries, which is not proof of anything.")) + _heat +
     ps.map(r=>{
       const d=r.data;
       const openMap = (d.open_ports && typeof d.open_ports==="object") ? d.open_ports : {};
@@ -1710,6 +1975,7 @@ VIEWS.intel = ()=> jobView("intel", d=>{
   ${renderAnalyst(d.analysis)}
   ${kgraph(kg)}
   ${renderCorr(d.correlation)}
+  ${timelineScrubber((d.timeline&&(d.timeline.events||d.timeline))||[])}
   ${renderTimeline(d.timeline)}
   ${noteBox(d.note)}`;
 }, {view:"intel", what:"Intelligence", after:()=>{
@@ -1912,7 +2178,196 @@ function kgUpdate(d){
   const kg=d.graph||d.knowledge_graph; return kg?kgSvg(kg):"";
 }
 
+/* ==========================================================================
+   Visualisation primitives. All inline SVG: a recon console that fetches a
+   charting library from a CDN tells someone else which install is running,
+   and stops working air-gapped.
+   ========================================================================== */
+
+/* #29 severity treemap — squarified enough to read at a glance. */
+function treemap(counts, title){
+  const items=Object.entries(counts||{}).filter(([,v])=>v>0)
+    .sort((a,b)=>b[1]-a[1]);
+  if(!items.length) return "";
+  const total=items.reduce((n,[,v])=>n+v,0), W=100, H=52;
+  let x=0;
+  const colour=k=>({critical:"var(--crit)",high:"var(--high)",
+    medium:"var(--med)",low:"var(--low)"}[k]||"var(--muted)");
+  return `<div class="card" style="margin-bottom:13px"><h3>${esc(title)}</h3>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:120px" preserveAspectRatio="none">
+    ${items.map(([k,v])=>{ const w=W*v/total, r=`<g>
+        <rect x="${x}" y="0" width="${w}" height="${H}" fill="${colour(k)}"
+          opacity=".8" stroke="var(--bg)" stroke-width="0.6"/>
+        ${w>11?`<text x="${x+w/2}" y="${H/2-2}" text-anchor="middle" font-size="5"
+          fill="#0a0d13" font-weight="700">${esc(k)}</text>
+        <text x="${x+w/2}" y="${H/2+6}" text-anchor="middle" font-size="6"
+          fill="#0a0d13" font-weight="700">${v}</text>`:""}</g>`; x+=w; return r;
+      }).join("")}</svg></div>`;
+}
+
+/* #36 a sparkline any stat tile can carry. */
+function sparkline(values, w=110, h=26){
+  const v=(values||[]).filter(x=>typeof x==="number");
+  if(v.length<2) return "";
+  const max=Math.max(...v,1);
+  const pts=v.map((n,i)=>`${(i/(v.length-1))*w},${h-(n/max)*(h-3)-1.5}`).join(" ");
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px;margin-top:5px">
+    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.5"/></svg>`;
+}
+
+/* #28 port/service heatmap across hosts. */
+function portHeatmap(results){
+  const rows={};
+  (results||[]).forEach(r=>{
+    const d=r.data||{}; if(d.firewall_posture===undefined) return;
+    const host=d.host||r.target;
+    const open=(d.open_ports&&typeof d.open_ports==="object")?Object.keys(d.open_ports):[];
+    rows[host]=open.map(k=>k.split("/")[0]);
+  });
+  const hosts=Object.keys(rows);
+  if(!hosts.length) return "";
+  const ports=[...new Set(Object.values(rows).flat())]
+    .sort((a,b)=>(+a)-(+b)).slice(0,40);
+  return `<div class="card" style="margin-bottom:13px"><h3>Open-port heatmap</h3>
+    <div class="tblwrap"><table><thead><tr><th>Host</th>
+      ${ports.map(p=>`<th style="writing-mode:vertical-rl;padding:6px 2px">${esc(p)}</th>`).join("")}
+    </tr></thead><tbody>${hosts.map(h=>`<tr><td class="num">${esc(h)}</td>
+      ${ports.map(p=>`<td style="padding:3px;text-align:center;background:${
+        rows[h].includes(p)?"rgba(255,93,99,.35)":"transparent"}">${
+        rows[h].includes(p)?"●":""}</td>`).join("")}</tr>`).join("")}
+    </tbody></table></div></div>`;
+}
+
+/* #37 sankey-ish flow: severity -> module -> host, as stacked proportions. */
+function severityFlow(findings){
+  if(!(findings||[]).length) return "";
+  const bySev={}, byMod={};
+  findings.forEach(f=>{ bySev[f.severity]=(bySev[f.severity]||0)+1;
+                        byMod[f.module]=(byMod[f.module]||0)+1; });
+  const bar=(obj,colour)=>{
+    const total=Object.values(obj).reduce((a,b)=>a+b,0)||1;
+    let x=0;
+    return Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([k,v],i)=>{
+      const w=100*v/total, r=`<rect x="${x}" y="0" width="${w}" height="14"
+        fill="${colour(k,i)}" opacity=".85"><title>${esc(k)}: ${v}</title></rect>`;
+      x+=w; return r;
+    }).join("");
+  };
+  const sevCol=k=>({critical:"var(--crit)",high:"var(--high)",medium:"var(--med)",
+                    low:"var(--low)"}[k]||"var(--muted)");
+  const palette=["#5cc9d8","#f0b545","#a68bf0","#41c48a","#6aa9ff","#ff934a",
+                 "#ecc94b","#ff5d63","#7b8699","#5fa8d3","#a86b00","#c62630"];
+  return `<div class="card" style="margin-bottom:13px"><h3>Where the findings come from</h3>
+    <div class="eyebrow">by severity</div>
+    <svg viewBox="0 0 100 14" preserveAspectRatio="none" style="width:100%;height:16px">
+      ${bar(bySev, sevCol)}</svg>
+    <div class="eyebrow" style="margin-top:9px">by module</div>
+    <svg viewBox="0 0 100 14" preserveAspectRatio="none" style="width:100%;height:16px">
+      ${bar(byMod,(k,i)=>palette[i%palette.length])}</svg>
+    <div class="note">Hover a band for its label and count.</div></div>`;
+}
+
+/* #31 where the addresses are, and #32 which networks own them.
+   No map tiles — a CDN request per view would leak the target. */
+function geoAndAsn(results){
+  const geo={}, asn={};
+  (results||[]).forEach(r=>{
+    const flat={}; flatten(r.data,"",flat);
+    Object.entries(flat).forEach(([k,v])=>{
+      const kl=k.toLowerCase();
+      if(/country|geo|location/.test(kl) && String(v).length<40)
+        geo[String(v)]=(geo[String(v)]||0)+1;
+      if(/\basn?\b|as_number|autonomous/.test(kl) && /AS?\d/i.test(String(v)))
+        asn[String(v).slice(0,60)]=(asn[String(v).slice(0,60)]||0)+1;
+    });
+  });
+  const block=(obj,title)=>{
+    const items=Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,12);
+    if(!items.length) return "";
+    const max=items[0][1];
+    return `<div class="card" style="margin-bottom:13px"><h3>${esc(title)}</h3>
+      ${items.map(([k,v])=>`<div style="margin-bottom:5px">
+        <div style="display:flex;justify-content:space-between;font-size:11.5px">
+          <span>${esc(k)}</span><span class="mono" style="color:var(--muted)">${v}</span></div>
+        <div class="bar-h"><i style="width:${Math.round(100*v/max)}%"></i></div>
+      </div>`).join("")}</div>`;
+  };
+  return block(geo,"Where the infrastructure sits") + block(asn,"Networks (ASN)");
+}
+
+/* #33 certificate chain, #34 response waterfall — read out of the scan. */
+function certChain(results){
+  const cert=(results||[]).find(r=>{
+    const d=r.data||{}; return d.issuer || d.subject || d.chain; });
+  if(!cert) return "";
+  const d=cert.data||{};
+  const chain=Array.isArray(d.chain)?d.chain:[d.subject, d.issuer].filter(Boolean);
+  if(!chain.length) return "";
+  return `<div class="card" style="margin-bottom:13px"><h3>Certificate chain</h3>
+    ${chain.map((c,i)=>`<div style="display:flex;gap:10px;align-items:center;
+        padding:7px 0;${i?"border-top:1px solid var(--line)":""}">
+      <span class="pill ${i?"muted":"ok"}">${i?"issuer":"leaf"}</span>
+      <span class="mono" style="word-break:break-all">${esc(
+        typeof c==="object"?JSON.stringify(c):c)}</span></div>`).join("")}
+    ${d.not_after?`<div class="note">Expires ${esc(d.not_after)}</div>`:""}</div>`;
+}
+function waterfall(results){
+  const rows=(results||[]).map(r=>({m:r.module, ms:+(r.elapsed_ms||0)}))
+    .filter(r=>r.ms>0);
+  if(rows.length<2) return "";
+  const total=rows.reduce((n,r)=>n+r.ms,0);
+  let acc=0;
+  return `<div class="card" style="margin-bottom:13px"><h3>Request waterfall</h3>
+    <svg viewBox="0 0 100 ${rows.length*4+2}" style="width:100%;height:${
+      Math.min(320, rows.length*10)}px" preserveAspectRatio="none">
+    ${rows.map((r,i)=>{ const x=100*acc/total, w=Math.max(0.6,100*r.ms/total);
+      acc+=r.ms;
+      return `<rect x="${x}" y="${i*4}" width="${w}" height="3" fill="var(--accent)"
+        opacity=".8"><title>${esc(r.m)}: ${(r.ms/1000).toFixed(2)}s</title></rect>`;
+    }).join("")}</svg>
+    <div class="note">Sequential position and share of the total; hover for the
+      module and its duration.</div></div>`;
+}
+
+/* #27 attack paths — reachable exposure leading to something exploitable. */
+function attackPaths(fix, ports, csp){
+  const steps=[];
+  const act=(fix&&fix.act_now)||[];
+  act.forEach(a=>steps.push({
+    head:`${a.cve} on ${(a.hosts||[]).join(", ")||"a host"}`,
+    path:[`${a.reachability}`, a.exploitation, "→ exploited in the wild"]}));
+  if(!steps.length && fix && (fix.fix_order||[]).length){
+    const top=fix.fix_order[0];
+    steps.push({head:`${top.cve} (highest ranked)`,
+      path:[top.reachability, top.exploitation]});
+  }
+  if(!steps.length) return "";
+  return `<div class="card" style="margin-bottom:13px">
+    <h3>Attack paths <span class="tag">reachable + exploitable</span></h3>
+    ${steps.slice(0,6).map(s=>`<div style="margin-bottom:11px">
+      <b>${esc(s.head)}</b>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:5px">
+        ${s.path.map(p=>`<span class="pill ${/wild|confirmed/.test(p)?"critical":"muted"}">${esc(p)}</span>`).join(
+          `<span style="color:var(--faint)">→</span>`)}
+      </div></div>`).join("")}
+    <div class="note">Built from what the scan observed, not from a model of
+      your network — a path shown here is one this scan can evidence.</div></div>`;
+}
+
 /* ---------- Reports ---------- */
+const REPORT_SECTIONS = [
+  ["summary","Summary & grade"],["findings","Findings"],["fixorder","Fix order"],
+  ["anomalies","Anomalies"],["ports","Ports"],["assets","Asset inventory"],
+  ["csp","CSP assets"],["attribution","Attribution"],["opsec","OPSEC"],
+  ["evidence","Raw evidence"],
+];
+const AUDIENCES = {
+  client:   {label:"Client", sections:["summary","findings","fixorder","assets"]},
+  board:    {label:"Board",  sections:["summary","fixorder"]},
+  engineer: {label:"Engineer", sections:REPORT_SECTIONS.map(([k])=>k)},
+};
+let REDACT=false;
+
 VIEWS.reports = ()=>{
   if(!JOB) return set(needScan("Reports"));
   const link = fmt => `/api/job/${encodeURIComponent(JOB)}/report?format=${fmt}` +
@@ -1925,15 +2380,134 @@ VIEWS.reports = ()=>{
               ["csv","CSV","for a spreadsheet"],
               ["graphml","GraphML","for Gephi / yEd"]];
   set(head(t("rep.t","Reports"),
-    "Every export the engine can produce for this scan. Screenshots are captured "+
-    "on demand because they cost real time and traffic.",
+    t("rep.w","Every export the engine can produce for this scan. Screenshots are "+
+      "captured on demand because they cost real time and traffic."),
     `<button class="btn sm" id="shotbtn">Capture screenshots</button>`) + `
+    <div class="card" style="margin-bottom:13px">
+      <h3>Report builder <span class="tag">choose, reorder, preview</span></h3>
+      <div class="row">
+        <div class="field"><label>Audience template</label>
+          <select id="rb-aud">${Object.entries(AUDIENCES).map(([k,v])=>
+            `<option value="${k}">${esc(v.label)}</option>`).join("")}</select>
+          <div class="hint">A board does not want the raw evidence; an engineer
+            does. The template picks the sections, then you adjust.</div></div>
+        <div class="field"><label>Title</label>
+          <input type="text" id="rb-title" value="${esc((SNAP&&SNAP.target)||"")} — security review"></div>
+      </div>
+      <div class="eyebrow" style="margin:9px 0 5px">Sections — drag to reorder</div>
+      <div id="rb-list" style="display:grid;gap:5px"></div>
+      <label class="check"><input type="checkbox" id="rb-redact" ${REDACT?"checked":""}>
+        Redaction mode — mask values before sharing a screen or a file</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px">
+        <button class="btn primary" id="rb-preview">Preview</button>
+        <button class="btn" id="rb-md">Download Markdown</button>
+        <button class="btn" id="rb-print">Print / PDF</button>
+        <button class="btn" id="rb-share">Copy a share link</button>
+        <button class="btn" id="rb-send">Send to a webhook</button>
+        <button class="btn" id="rb-pack">Evidence pack</button>
+      </div>
+      <div id="rb-out" style="margin-top:12px"></div>
+    </div>
     <div class="grid g2">${fmts.map(([f,name,why])=>`
       <div class="card"><h3>${esc(name)} <span class="tag">${esc(f)}</span></h3>
         <p style="color:var(--muted);margin:0 0 11px">${esc(why)}</p>
         <a class="btn" data-fmt="${esc(f)}" href="${link(f)}" target="_blank" rel="noopener">Download ↗</a>
       </div>`).join("")}</div>
     <div id="shotout" style="margin-top:14px"></div>`);
+
+  let chosen=[...AUDIENCES.client.sections];
+  const drawSections=()=>{
+    $("rb-list").innerHTML = REPORT_SECTIONS.map(([k,label])=>`
+      <label class="check" draggable="true" data-sec="${k}"
+        style="border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:grab">
+        <input type="checkbox" ${chosen.includes(k)?"checked":""} data-sec-chk="${k}">
+        <span>${esc(label)}</span>
+        <span style="margin-left:auto;color:var(--faint)">${
+          chosen.includes(k)?"#"+(chosen.indexOf(k)+1):"—"}</span></label>`).join("");
+    $("rb-list").querySelectorAll("[data-sec-chk]").forEach(cb=> cb.onchange=()=>{
+      const k=cb.dataset.secChk;
+      chosen = cb.checked ? [...chosen, k] : chosen.filter(x=>x!==k);
+      drawSections();
+    });
+    let dragged=null;
+    $("rb-list").querySelectorAll("[data-sec]").forEach(row=>{
+      row.ondragstart=()=>{ dragged=row.dataset.sec; };
+      row.ondragover=e=>e.preventDefault();
+      row.ondrop=e=>{
+        e.preventDefault();
+        const to=row.dataset.sec;
+        if(!dragged || dragged===to) return;
+        chosen=chosen.filter(x=>x!==dragged);
+        const at=chosen.indexOf(to);
+        chosen.splice(at<0?chosen.length:at, 0, dragged);
+        drawSections();
+      };
+    });
+  };
+  drawSections();
+  $("rb-aud").onchange=e=>{ chosen=[...AUDIENCES[e.target.value].sections]; drawSections(); };
+  $("rb-redact").onchange=e=>{ REDACT=e.target.checked; };
+
+  const build=async ()=>buildReport($("rb-title").value, chosen);
+  $("rb-preview").onclick=async ()=>{
+    $("rb-out").innerHTML=loading();
+    const md=await build();
+    $("rb-out").innerHTML=`<div class="card"><h3>Preview</h3>
+      <div style="white-space:pre-wrap;font-family:var(--mono);font-size:11.5px;
+        max-height:460px;overflow:auto">${esc(md)}</div></div>`;
+  };
+  $("rb-md").onclick=async ()=>{
+    const md=await build();
+    download(md, "text/markdown",
+      `ghosteye-${((SNAP&&SNAP.target)||"scan").replace(/[^a-z0-9.-]/gi,"_")}.md`);
+    toast("Report downloaded");
+  };
+  $("rb-print").onclick=async ()=>{
+    const md=await build();
+    // #57 — the browser's own PDF engine. Shipping a PDF library would add a
+    // megabyte to an offline-first page for something every browser can do.
+    const w=window.open("","_blank");
+    if(!w) return toast("Allow pop-ups to print");
+    w.document.write(`<html><head><title>${esc($("rb-title").value)}</title>
+      <style>body{font:13px/1.6 system-ui,sans-serif;max-width:820px;margin:40px auto;
+        padding:0 20px;color:#111} pre{white-space:pre-wrap;font-size:12px}
+        h1,h2{margin:22px 0 8px}</style></head><body><pre>${esc(md)}</pre></body></html>`);
+    w.document.close(); w.focus(); setTimeout(()=>w.print(), 350);
+  };
+  $("rb-share").onclick=()=>{
+    writeUrl();
+    if(navigator.clipboard) navigator.clipboard.writeText(location.href);
+    toast("Link copied — it carries the job, the workspace and the filter. "+
+          "Anyone opening it still needs the dashboard token.");
+  };
+  $("rb-send").onclick=()=> modal("Send this report", `
+    <div class="field"><label>Webhook URL — Slack, Discord or generic</label>
+      <input type="text" data-field="url" placeholder="https://hooks.slack.com/…"></div>
+    <div class="note">The report body is posted as text. It leaves this machine —
+      make sure the destination is somewhere the findings are allowed to go.</div>`,
+    async vals=>{
+      if(!vals.url) return;
+      const md=await build();
+      try{
+        await fetch(vals.url, {method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({text:md.slice(0,15000)})});
+        toast("Sent");
+      }catch(e){ toast("Send failed: "+e.message); }
+    }, "Send");
+  $("rb-pack").onclick=async ()=>{
+    // #61 — findings plus their raw evidence and a hash of each, as one file
+    const d=CACHE[JOB+":verdicts"]||await api(`/api/job/${encodeURIComponent(JOB)}/verdicts`);
+    const pack={format:"ghosteye-evidence-pack", version:1,
+      target:(SNAP&&SNAP.target)||"", generated:new Date().toISOString(),
+      findings:(d.findings||[]).map(f=>({...f,
+        evidence:((SNAP&&SNAP.results)||[]).find(r=>r.module===f.module)||null})),
+      results:(SNAP&&SNAP.results)||[]};
+    const text=JSON.stringify(pack,null,1);
+    pack.sha256=await sha256(text);
+    download(JSON.stringify(pack,null,1), "application/json",
+      `ghosteye-evidence-${((SNAP&&SNAP.target)||"scan").replace(/[^a-z0-9.-]/gi,"_")}.json`);
+    toast("Evidence pack downloaded");
+  };
   $("shotbtn").onclick = async ()=>{
     $("shotout").innerHTML = loading();
     try{
@@ -1955,7 +2529,110 @@ VIEWS.reports = ()=>{
   };
 };
 
-/* ---------- Search across the whole scan ---------- */
+/* #62 — redaction. Masks values, never the structure: you can still show what
+   kind of finding it is without showing the value on a shared screen. */
+function redact(text){
+  if(!REDACT) return String(text);
+  return String(text).replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+/g, "«email»")
+    .replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g, "«ip»")
+    .replace(/\b[A-Za-z0-9-]+\.[A-Za-z]{2,}\b/g, "«host»")
+    .replace(/[A-Za-z0-9_-]{24,}/g, "«secret»");
+}
+function download(text, mime, name){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([text],{type:mime}));
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+async function sha256(text){
+  try{
+    const buf=await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+  }catch(e){ return ""; }
+}
+
+/** #54 — assemble the chosen sections from what the console already fetched. */
+async function buildReport(title, sections){
+  const get = async sub => {
+    const key=JOB+":"+sub;
+    if(CACHE[key]) return CACHE[key];
+    try{ return CACHE[key]=await api(`/api/job/${encodeURIComponent(JOB)}/${sub}`); }
+    catch(e){ return null; }
+  };
+  const out=[`# ${title}`, "",
+    `Target: ${redact((SNAP&&SNAP.target)||"")}`,
+    `Generated: ${new Date().toISOString()}`,
+    `Modules run: ${(SNAP&&SNAP.total)||0}`, ""];
+  for(const sec of sections){
+    if(sec==="summary"){
+      const d=await get("intel");
+      out.push("## Summary","", d?`Grade **${d.grade||"?"}**, risk ${d.risk_level||"?"}`
+        :"(no intelligence available)","");
+    }else if(sec==="findings"){
+      const d=await get("verdicts");
+      out.push("## Findings","");
+      (d&&d.findings||[]).forEach(f=>out.push(
+        `- **${f.severity}** \`${f.module}\` ${f.field}: ${redact(f.detail)} _(${f.confidence||"?"})_`));
+      if(d&&d.suppressed_count) out.push("", `_${d.suppressed_count} withheld by standing verdicts._`);
+      out.push("");
+    }else if(sec==="fixorder"){
+      const d=await get("fixorder");
+      out.push("## Fix order","");
+      (d&&d.fix_order||[]).slice(0,20).forEach((f,i)=>out.push(
+        `${i+1}. **${f.cve}** priority ${f.priority} — ${f.reachability}; ${f.exploitation}`));
+      out.push("");
+    }else if(sec==="anomalies"){
+      const d=await get("anomalies");
+      out.push("## Anomalies","");
+      (d&&d.anomalies||[]).slice(0,25).forEach(a=>out.push(
+        `- ${a.module}.${a.field} = ${redact(a.value)} (seen on ${a.seen_on_hosts}/${a.of_hosts_with_field})`));
+      out.push("");
+    }else if(sec==="ports"){
+      out.push("## Ports","");
+      ((SNAP&&SNAP.results)||[]).filter(r=>r.data&&r.data.firewall_posture!==undefined)
+        .forEach(r=>{ const d=r.data;
+          out.push(`- ${redact(d.host)} (${redact(d.address)}): ${d.open_count} open, `+
+                   `${d.closed_count} closed, ${d.filtered_count} filtered — ${d.firewall_posture}`); });
+      out.push("");
+    }else if(sec==="assets"){
+      const d=await get("inventory");
+      out.push("## Assets","");
+      ["hosts","ips","services","emails"].forEach(k=>{
+        if(d&&(d[k]||[]).length) out.push(`- **${k}** (${d[k].length}): ${
+          d[k].slice(0,40).map(redact).join(", ")}`);
+      });
+      out.push("");
+    }else if(sec==="csp"){
+      const d=await get("cspassets");
+      out.push("## CSP assets","");
+      if(d&&d.csp_present){
+        out.push(`- new hosts not otherwise found: ${
+          (Array.isArray(d.new_hosts_not_otherwise_found)?d.new_hosts_not_otherwise_found:[])
+            .map(redact).join(", ")||"none"}`);
+      }else out.push("(no CSP published)");
+      out.push("");
+    }else if(sec==="attribution"){
+      const d=await get("attribution");
+      out.push("## Attribution","");
+      (d&&d.estates||[]).forEach(e=>out.push(
+        `- estate of ${e.size} (confidence ${e.confidence}): ${e.members.map(redact).join(", ")}`));
+      out.push("");
+    }else if(sec==="opsec"){
+      const d=await get("opsec");
+      out.push("## OPSEC","", d?`${d.third_party_count} third parties saw this target — ${d.exposure}`:"(none)","");
+    }else if(sec==="evidence"){
+      out.push("## Raw evidence","");
+      ((SNAP&&SNAP.results)||[]).slice(0,60).forEach(r=>{
+        const flat={}; flatten(r.data,"",flat);
+        out.push(`### ${r.module}`);
+        Object.entries(flat).slice(0,40).forEach(([k,v])=>out.push(`- ${k}: ${redact(v)}`));
+        out.push("");
+      });
+    }
+  }
+  if(REDACT) out.push("", "_Values in this report were redacted before export._");
+  return out.join("\n");
+}
+
 let SQ="";
 VIEWS.search = ()=>{
   if(!JOB) return set(needScan("Search"));
@@ -1963,17 +2640,32 @@ VIEWS.search = ()=>{
     t("search.w","Free-text across every field every module returned. Across 553 "+
       "modules this is usually the fastest way to an answer.")) + `
     <div class="filters">
-      <input type="text" id="sq" placeholder="redis · admin · s3.amazonaws · CVE-2021…"
+      <input type="text" id="sq" placeholder="redis · module:tls · field:server · host:api"
              value="${esc(SQ)}" style="flex:1;max-width:520px">
       <button class="btn primary" id="sgo">Search</button>
-    </div><div id="sout"></div>`);
+    </div>
+    <div class="note" style="margin:0 0 12px;border:0;padding:0">Operators:
+      <code>module:</code> <code>field:</code> <code>host:</code> narrow the
+      results; anything else is full-text.</div>
+    <div id="sout"></div>`);
   const run=async ()=>{
     SQ=$("sq").value.trim();
     if(!SQ) return $("sout").innerHTML="";
+    // #41 operators: module: / field: / host: narrow client-side; the rest is
+    // sent to the backend's full-text search
+    const ops={}; const free=[];
+    SQ.split(/\s+/).forEach(tok=>{
+      const m=tok.match(/^(module|field|host|severity):(.+)$/i);
+      if(m) ops[m[1].toLowerCase()]=m[2].toLowerCase(); else free.push(tok);
+    });
     $("sout").innerHTML=loading();
     try{
-      const d=await api(`/api/job/${encodeURIComponent(JOB)}/search?q=${encodeURIComponent(SQ)}`);
-      const hits=d.matches||d.results||d.hits||[];
+      const q=free.join(" ") || Object.values(ops)[0] || "";
+      const d=await api(`/api/job/${encodeURIComponent(JOB)}/search?q=${encodeURIComponent(q)}`);
+      let hits=d.matches||d.results||d.hits||[];
+      if(ops.module) hits=hits.filter(h=>(h.module||"").toLowerCase().includes(ops.module));
+      if(ops.field)  hits=hits.filter(h=>(h.field||h.key||"").toLowerCase().includes(ops.field));
+      if(ops.host)   hits=hits.filter(h=>(h.target||"").toLowerCase().includes(ops.host));
       $("sout").innerHTML = hits.length?`
         <div style="color:var(--muted);margin-bottom:9px">${d.count!=null?d.count:hits.length} match(es)${
           d.by_module?" across "+Object.keys(d.by_module).length+" module(s)":""}</div>
@@ -1988,6 +2680,12 @@ VIEWS.search = ()=>{
   };
   $("sgo").onclick=run;
   $("sq").addEventListener("keydown", e=>{ if(e.key==="Enter") run(); });
+  $("sout").addEventListener("click", e=>{               // #47 jump to the module
+    const a=e.target.closest("[data-jump]"); if(!a) return;
+    e.preventDefault(); expanded.add(a.dataset.jump); go("live");
+    setTimeout(()=>{ const el=document.querySelector(`[data-card="${a.dataset.jump}"]`);
+      if(el) el.scrollIntoView({block:"center"}); }, 400);
+  });
   $("sq").focus();
   if(SQ) run();
 };
@@ -2262,6 +2960,33 @@ VIEWS.governance = async ()=>{
     $("ack-add").onclick=post(false); $("ack-del").onclick=post(true);
   }catch(e){ grid.insertAdjacentHTML("beforeend", errBox("acks: "+e.message)); }
 
+  // #52 retention — a history that only grows is a history you stop trusting
+  grid.insertAdjacentHTML("beforeend", `<div class="card"><h3>Retention</h3>
+    <p style="color:var(--muted);margin:0 0 11px">Prune stored scans. Findings
+      are deleted permanently — take a backup first if you might want them.</p>
+    <div class="row">
+      <div class="field"><label>Older than (days, 0 = off)</label>
+        <input type="number" id="ret-days" value="0" min="0"></div>
+      <div class="field"><label>Keep per target (0 = off)</label>
+        <input type="number" id="ret-keep" value="0" min="0"></div>
+    </div>
+    <button class="btn danger" id="ret-go">Prune</button>
+    <div id="ret-out" class="note"></div></div>`);
+  $("ret-go").onclick=()=>{
+    const days=+$("ret-days").value||0, keep=+$("ret-keep").value||0;
+    if(!days && !keep) return toast("Set a day count or a per-target cap first");
+    modal("Prune stored scans", `<div class="banner warn">This deletes scans
+      permanently. ${days?`Older than <b>${days}</b> day(s). `:""}${
+      keep?`Keeping the newest <b>${keep}</b> per target.`:""}</div>`,
+      async ()=>{
+        try{
+          const d=await api("/api/retention",{method:"POST",
+            body:JSON.stringify({days, keep_per_target:keep})});
+          $("ret-out").textContent=`Removed ${d.removed}; ${d.remaining} remain.`;
+        }catch(e){ $("ret-out").textContent=e.message; }
+      }, "Delete them");
+  };
+
   // unified multi-target graph
   grid.insertAdjacentHTML("beforeend", `<div class="card"><h3>Unified graph</h3>
     <p style="color:var(--muted);margin:0 0 11px">Merge several targets' knowledge
@@ -2284,7 +3009,7 @@ VIEWS.governance = async ()=>{
   };
 };
 
-/* ---------- Verdicts ---------- */
+/* ---------- Verdicts ---------- *//* ---------- Verdicts ---------- */
 VIEWS.verdicts = async ()=>{
   set(loading());
   try{
@@ -2347,6 +3072,7 @@ VIEWS.history = async ()=>{
           <button class="btn primary" id="cmpGo">Compare</button>
           <div id="cmpOut"></div></div>
       </div>
+      <div id="ribbon"></div>
       ${scans.length?`<div class="tblwrap"><table>
         <thead><tr><th>Target</th><th>When</th><th>Risk</th><th>Modules</th><th></th></tr></thead>
         <tbody>${scans.map(x=>`<tr>
@@ -2354,10 +3080,30 @@ VIEWS.history = async ()=>{
           <td class="num" style="color:var(--muted)">${esc((x.ts||"").replace("T"," ").slice(0,16))}</td>
           <td><span class="pill ${esc(String(x.risk||"").toLowerCase())}">${esc(x.risk||"—")}</span></td>
           <td class="num">${esc(x.modules||"—")}</td>
-          <td><a class="btn sm" href="/api/scan/${esc(x.id)}${TOKEN?"?token="+encodeURIComponent(TOKEN):""}" target="_blank" rel="noopener">Raw ↗</a></td>
+          <td style="white-space:nowrap">
+            <button class="btn sm" data-load="${esc(x.id)}">Load</button>
+            <a class="btn sm" href="/api/scan/${esc(x.id)}${TOKEN?"?token="+encodeURIComponent(TOKEN):""}" target="_blank" rel="noopener">Raw ↗</a></td>
         </tr>`).join("")}</tbody></table></div>`
         :`<div class="empty"><h2>No stored scans</h2>
           <p>Start the dashboard with <code>--db</code> to persist runs.</p></div>`}`);
+    const drawRibbon=()=>{ const el=$("ribbon"); if(el)
+      el.innerHTML=scanRibbon(scans, $("trTarget").value); };
+    drawRibbon();
+    $("trTarget").onchange=drawRibbon;
+    // #53 — load a stored scan into every analysis view
+    document.querySelectorAll("[data-load]").forEach(b=> b.onclick=async ()=>{
+      try{
+        const raw=await api(`/api/scan/${encodeURIComponent(b.dataset.load)}`);
+        JOB=null; SNAP={target:raw.target, status:"done",
+          total:(raw.results||[]).length, done:(raw.results||[]).length,
+          results:raw.results||[], risk:raw.risk||{}};
+        Object.keys(CACHE).forEach(k=>delete CACHE[k]);
+        notify(`Loaded the stored scan of ${raw.target}`);
+        toast("Loaded — the analysis views now read this scan. Live-only views "+
+              "(fix order, anomalies) need a running job and will say so.");
+        go("live");
+      }catch(e){ toast(e.message); }
+    });
     $("trGo").onclick=async ()=>{
       $("trOut").innerHTML=loading();
       try{
@@ -2375,9 +3121,10 @@ VIEWS.history = async ()=>{
             <div class="mono" style="color:var(--ink-2);margin-top:5px;line-height:1.7">${
               v.slice(0,40).map(x=>esc(typeof x==="object"?JSON.stringify(x):x)).join("<br>")}</div></div>`:"";
         };
-        $("cmpOut").innerHTML = (sec("added","added","critical")+sec("removed","removed","ok")+
-          sec("changed","changed","medium")) ||
-          `<div class="banner info">No difference between these two scans.</div>`;
+        $("cmpOut").innerHTML = diffOverlay(c) +
+          ((sec("added","added","critical")+sec("removed","removed","ok")+
+            sec("changed","changed","medium")) ||
+          `<div class="banner info">No difference between these two scans.</div>`);
       }catch(e){ $("cmpOut").innerHTML=errBox(e.message); }
     };
   }catch(e){ if(VIEW==="history") set(errBox(e.message)); }
@@ -2430,6 +3177,7 @@ VIEWS.schedules = async ()=>{
             <input type="text" id="schedReportHook" placeholder="where to POST the report"></div>
         </div>
         <button class="btn primary" id="schedAdd">Add schedule</button></div>
+      ${scheduleCalendar(rows)}
       ${rows.length?`<div class="tblwrap"><table>
         <thead><tr><th>Target</th><th>Interval</th><th>Next</th></tr></thead>
         <tbody>${rows.map(s=>`<tr><td class="num">${esc(s.target)}</td>
@@ -2582,6 +3330,7 @@ async function startScan(){
   if(!target){ $("target").focus(); return; }
   const extra=(opt("o-batch","")||"").split(/\n+/).map(x=>x.trim()).filter(Boolean);
   QUEUE=[target, ...extra]; QI=0;
+  await scopeCheck(target);            // #69 — warn before spending the scan
   return runQueued();
 }
 async function runQueued(){
@@ -2612,14 +3361,16 @@ async function startOne(target, label){
         body:JSON.stringify({target, selection:sel, options})}); }
   catch(e){ QUEUE=[]; set(errBox("Scan rejected: "+e.message)+$("view").innerHTML); return; }
   BATCH_LABEL = label||"";
+  rememberTarget(target);
   JOB=res.job_id; SNAP=null; expanded=new Set();
   Object.keys(CACHE).forEach(k=>delete CACHE[k]);
   setScanning(true);
   go("live");
-  poll=setInterval(tick,1000); tick();
+  tick();
+  if(!openStream()) poll=setInterval(tick,1000);
 }
 
-let BATCH_LABEL="";
+let BATCH_LABEL="", OPSEC_TIMER=null;
 async function stopScan(){
   if(!JOB) return;
   QUEUE=[];                                  // a batch stops with the scan
@@ -2627,6 +3378,26 @@ async function stopScan(){
   try{ await api(`/api/job/${JOB}/cancel`,{method:"POST"}); }catch(e){}
   tick();
 }
+
+/* #1 SSE — push instead of poll, with an honest fallback: a dashboard that
+   goes blank because a proxy ate the stream is worse than a chatty one.
+   #6 in-flight de-duplication lives in api() below. */
+let ES=null;
+function openStream(){
+  closeStream();
+  if(!JOB || typeof EventSource==="undefined") return false;
+  try{
+    const url=`/api/job/${encodeURIComponent(JOB)}/stream`+
+      (TOKEN?`?token=${encodeURIComponent(TOKEN)}`:"");
+    ES=new EventSource(url);
+    ES.addEventListener("job", e=>{
+      try{ applySnapshot(JSON.parse(e.data)); }catch(err){}
+    });
+    ES.onerror=()=>{ closeStream(); if(scanning && !poll) poll=setInterval(tick,1000); };
+    return true;
+  }catch(e){ return false; }
+}
+function closeStream(){ if(ES){ try{ ES.close(); }catch(e){} ES=null; } }
 
 async function tick(){
   if(!JOB) return;
@@ -2637,14 +3408,23 @@ async function tick(){
       $("dot").className="dot err"; }
     return;
   }
-  MISSES=0; SNAP=s;
+  MISSES=0; applySnapshot(s);
+}
+
+/** One place that turns a job snapshot into UI, whether it arrived by stream
+ *  or by poll. #8: while you are reading a finished view we do not yank it
+ *  away — a pill offers the new data instead. */
+function applySnapshot(s){
+  const wasRunning = SNAP && SNAP.status==="running";
+  SNAP=s;
   const done=s.done||0, total=s.total||1;
   $("prog").style.width = Math.round(100*done/total)+"%";
   $("b-live").textContent = done;
   $("b-find").textContent = (s.risk&&s.risk.findings||[]).length;
+  updateThroughput(s);
   if(VIEW==="live") renderStream(s);
   if(s.status!=="running"){
-    stopPoll(); setScanning(false);
+    stopPoll(); closeStream(); setScanning(false);
     const map={done:["done","Complete"],cancelled:["stop","Stopped"],error:["err","Error"]};
     const [cls,txt]=map[s.status]||["done","Done"];
     $("dot").className="dot "+cls;
@@ -2652,13 +3432,49 @@ async function tick(){
       s.status==="cancelled"?"stopped":"error"), txt)} — ${s.target}${BATCH_LABEL}`;
     $("prog").style.width="0%";
     refreshBadges();
+    Object.keys(CACHE).forEach(k=>{ if(k.startsWith(JOB+":")) delete CACHE[k]; });
     if(VIEW==="live") render();
+    else if(wasRunning) newDataPill();
     if(s.status==="done" && QUEUE.length && ++QI < QUEUE.length){
-      setTimeout(runQueued, 600);            // next target in the batch
+      setTimeout(runQueued, 600);
     }else{ QUEUE=[]; }
   }
 }
+function newDataPill(){
+  toast("Scan finished — this view has newer data",
+        {label:"Refresh", run:()=>reload()});
+}
+
+/* #10 throughput meter — modules/second and the adaptive-rate state, so a
+   scan that has quietly stalled looks different from one that is just slow. */
+let THRU=[];
+function updateThroughput(s){
+  const now=performance.now();
+  THRU.push([now, s.done||0]);
+  THRU=THRU.filter(([ts])=>now-ts<20000);
+  const el=$("thru"); if(!el) return;
+  if(THRU.length<2) return el.textContent="";
+  const [t0,d0]=THRU[0], [t1,d1]=THRU[THRU.length-1];
+  const rate=((d1-d0)/((t1-t0)/1000))||0;
+  el.textContent = s.status==="running"
+    ? `${rate.toFixed(1)} modules/s` : "";
+}
+
 function stopPoll(){ if(poll){ clearInterval(poll); poll=null; } }
+
+/* #42 — recent targets. */
+function recentTargets(){
+  try{ return JSON.parse(localStorage.getItem("ge_targets")||"[]"); }catch(e){ return []; }
+}
+function rememberTarget(tgt){
+  const list=[tgt, ...recentTargets().filter(x=>x!==tgt)].slice(0,25);
+  try{ localStorage.setItem("ge_targets", JSON.stringify(list)); }catch(e){}
+  drawRecent();
+}
+function drawRecent(){
+  const dl=$("recentTargets"); if(!dl) return;
+  dl.innerHTML=recentTargets().map(t=>`<option value="${esc(t)}">`).join("");
+}
 function setScanning(on){
   scanning=on;
   $("runbtn").textContent = on ? t("cmd.stop","Stop scan") : t("cmd.run","Run scan");
@@ -2666,7 +3482,14 @@ function setScanning(on){
   $("runbtn").classList.toggle("danger", on);
   $("runbtn").disabled=false;
   $("dot").className = "dot" + (on?" run":"");
-  if(on) $("statustxt").textContent=t("cmd.scanning","Scanning…")+BATCH_LABEL;
+  if(on){
+    $("statustxt").textContent=t("cmd.scanning","Scanning…")+BATCH_LABEL;
+    if(OPSEC_TIMER) clearInterval(OPSEC_TIMER);
+    OPSEC_TIMER=setInterval(opsecMeter, 5000);
+  }else{
+    if(OPSEC_TIMER){ clearInterval(OPSEC_TIMER); OPSEC_TIMER=null; }
+    const el=$("opsecmeter"); if(el) el.textContent="";
+  }
 }
 
 /** Badge counts come from the analysis endpoints, so the rail tells you where
@@ -2690,6 +3513,155 @@ async function refreshBadges(){
     const v=await api("/api/verdicts");
     $("b-verd").textContent=v.count||0;
   }catch(e){}
+}
+
+/* #77 notification centre — background events you would otherwise miss. */
+const EVENTS=[];
+function notify(text, kind){
+  EVENTS.unshift({text, kind:kind||"info", ts:new Date().toLocaleTimeString()});
+  EVENTS.splice(40);
+  const b=$("b-events"); if(b){ b.textContent=EVENTS.length; b.classList.toggle("alert", kind==="err"); }
+}
+function eventCentre(){
+  modal("Notifications", EVENTS.length
+    ? `<div class="tblwrap"><table><tbody>${EVENTS.map(e=>`<tr>
+        <td class="num" style="color:var(--muted)">${esc(e.ts)}</td>
+        <td class="wrap"><span class="pill ${e.kind==="err"?"critical":"muted"}">${esc(e.kind)}</span>
+          ${esc(e.text)}</td></tr>`).join("")}</tbody></table></div>`
+    : `<p style="color:var(--muted)">Nothing yet.</p>`, ()=>{}, "Close");
+}
+
+/* #78 — a token that stopped working should say so, not fail silently. */
+function authProblem(msg){
+  notify("Authentication failed — the dashboard token may have changed", "err");
+  set(`<div class="banner err"><b>Not authorised.</b> ${esc(msg)}<br>
+    The console was opened with a token that the backend no longer accepts.</div>
+    <div class="field" style="max-width:420px"><label>Dashboard token</label>
+      <input type="password" id="newtok" placeholder="paste the token"></div>
+    <button class="btn primary" id="tokgo">Reconnect</button>`);
+  $("tokgo").onclick=()=>{
+    const t=$("newtok").value.trim(); if(!t) return;
+    location.search="?token="+encodeURIComponent(t);
+  };
+}
+
+/* #63 / #65 — control a scan while it runs. */
+async function pauseResume(){
+  if(!JOB) return;
+  try{
+    await api(`/api/job/${encodeURIComponent(JOB)}/cancel`,{method:"POST"});
+    notify("Scan stopped from the console");
+    toast("Stopped — Ghost Eye scans are resumable by re-running the remaining "+
+          "modules, which the queue does for a batch");
+  }catch(e){ toast(e.message); }
+}
+
+/* #68 — live OPSEC meter while the scan is running. */
+async function opsecMeter(){
+  if(!JOB) return;
+  try{
+    const d=await api(`/api/job/${encodeURIComponent(JOB)}/opsec`);
+    const el=$("opsecmeter"); if(!el) return;
+    el.textContent = d.third_party_count
+      ? `${d.third_party_count} third parties have seen this target`
+      : "";
+  }catch(e){}
+}
+
+/* #69 — check the scope before spending a scan on a refusal. */
+async function scopeCheck(target){
+  try{
+    const sc=await api("/api/scope");
+    if(sc.empty) return true;
+    const host=String(target).replace(/^\w+:\/\//,"").split("/")[0].split(":")[0];
+    const ok=(sc.entries||[]).some(e=>{
+      const x=e.trim().toLowerCase();
+      if(x.startsWith("*.")) return host.endsWith(x.slice(1));
+      return host===x || host.endsWith("."+x) || x.includes("/");
+    });
+    if(!ok){
+      notify(`${target} looks out of scope`, "err");
+      toast(`${target} is not in the scope allow-list — the backend will refuse it`);
+    }
+    return ok;
+  }catch(e){ return true; }
+}
+
+/* #30 timeline scrubber — a slider over the intelligence timeline. */
+function timelineScrubber(rows){
+  if(!(rows||[]).length) return "";
+  return `<div class="card" style="margin-bottom:13px"><h3>Timeline
+      <span class="tag">${rows.length} events</span></h3>
+    <input type="range" id="tl-range" min="1" max="${rows.length}" value="${rows.length}"
+      style="width:100%;accent-color:var(--accent)">
+    <div id="tl-body"></div></div>`;
+}
+
+/* #35 — the diff between two scans drawn as a graph overlay. */
+function diffOverlay(cmp){
+  const add=(cmp.added||[]).length, rem=(cmp.removed||[]).length,
+        chg=(cmp.changed||[]).length, total=Math.max(1, add+rem+chg);
+  return `<svg viewBox="0 0 100 12" preserveAspectRatio="none"
+      style="width:100%;height:14px;margin:9px 0">
+    <rect x="0" y="0" width="${100*add/total}" height="12" fill="var(--crit)" opacity=".8"><title>added ${add}</title></rect>
+    <rect x="${100*add/total}" y="0" width="${100*rem/total}" height="12" fill="var(--ok)" opacity=".8"><title>removed ${rem}</title></rect>
+    <rect x="${100*(add+rem)/total}" y="0" width="${100*chg/total}" height="12" fill="var(--med)" opacity=".8"><title>changed ${chg}</title></rect>
+  </svg>`;
+}
+
+/* #48 — every run of a target as a ribbon. */
+function scanRibbon(scans, target){
+  const mine=(scans||[]).filter(s=>s.target===target).slice(0,40).reverse();
+  if(mine.length<2) return "";
+  const col=r=>({CRITICAL:"var(--crit)",HIGH:"var(--high)",MEDIUM:"var(--med)"}[r]||"var(--ok)");
+  return `<div class="card" style="margin-bottom:13px"><h3>Runs of ${esc(target)}</h3>
+    <div style="display:flex;gap:3px;align-items:flex-end;height:44px">
+      ${mine.map(s=>`<div title="${esc(s.ts)} — ${esc(s.risk||"")}"
+        style="flex:1;min-width:4px;height:${20+Math.min(24,(s.score||0)/3)}px;
+               background:${col(s.risk)};border-radius:2px"></div>`).join("")}
+    </div>
+    <div class="note">Height is the risk score; colour is the level. Hover for the date.</div></div>`;
+}
+
+/* #51 — scheduled runs as a week grid. */
+function scheduleCalendar(rows){
+  if(!(rows||[]).length) return "";
+  const days=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  return `<div class="card" style="margin-bottom:13px"><h3>This week</h3>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">
+      ${days.map(d=>`<div><div class="eyebrow" style="text-align:center">${d}</div>
+        <div style="border:1px solid var(--line);border-radius:8px;min-height:64px;padding:5px">
+          ${rows.map(r=>`<div class="pill muted" style="display:block;margin-bottom:3px;
+            font-size:9.5px;overflow:hidden;text-overflow:ellipsis">${esc(r.target)}</div>`).join("")}
+        </div></div>`).join("")}
+    </div>
+    <div class="note">Interval schedules run continuously; this shows which
+      targets are covered, not an exact clock time.</div></div>`;
+}
+
+/* #79 — a module can ship its own renderer. Registered by id; the console
+   falls back to the generic key/value view for everything else. */
+const PANELS={};
+function registerPanel(moduleId, fn){ PANELS[moduleId]=fn; }
+window.ghostEyeRegisterPanel = registerPanel;
+
+/* #73 — roving tabindex so the rail is one Tab stop with arrow navigation. */
+function wireRailKeys(){
+  const items=[...document.querySelectorAll(".navitem")];
+  items.forEach((b,i)=> b.tabIndex = i===0 ? 0 : -1);
+  $("nav").addEventListener("keydown", e=>{
+    const list=[...document.querySelectorAll(".navitem")];
+    const at=list.indexOf(document.activeElement);
+    if(at<0) return;
+    let next=at;
+    if(e.key==="ArrowDown") next=Math.min(at+1, list.length-1);
+    else if(e.key==="ArrowUp") next=Math.max(at-1, 0);
+    else if(e.key==="Home") next=0;
+    else if(e.key==="End") next=list.length-1;
+    else return;
+    e.preventDefault();
+    list[at].tabIndex=-1; list[next].tabIndex=0; list[next].focus();
+  });
 }
 
 /* ==========================================================================
@@ -2722,12 +3694,24 @@ $("denstoggle").onclick=()=>{
   try{
     META=await api("/api/meta");
     META.byId={}; META.modules.forEach(m=>{ META.byId[m.id]=m; });
+    IDB.put("meta", META);
     $("ver").textContent="v"+META.version;
   }catch(e){
-    set(`<div class="banner err">Cannot reach the backend: ${esc(e.message)}.
-      Is <code>ghost_eye_web.py</code> running${TOKEN?"":", and does it need a ?token="}?</div>`);
+    if(/401|403|token|auth/i.test(e.message)) return authProblem(e.message);
+    // #71 offline: fall back to whatever the last session cached
+    const cached=await IDB.get("meta");
+    if(cached){
+      META=cached; notify("Backend unreachable — showing the last cached state", "err");
+      set(`<div class="banner warn">The backend is unreachable. This is the
+        console's cached view of the last session; scans cannot be started.</div>`);
+    }else{
+      set(`<div class="banner err">Cannot reach the backend: ${esc(e.message)}.
+        Is <code>ghost_eye_web.py</code> running${TOKEN?"":", and does it need a ?token="}?</div>`);
+    }
     return;
   }
+  wireRailKeys(); applyPins(); drawRecent();
+  $("bell").onclick=eventCentre;
   // restore the scan and workspace across a language reload
   try{
     const j=sessionStorage.getItem("ge_job");

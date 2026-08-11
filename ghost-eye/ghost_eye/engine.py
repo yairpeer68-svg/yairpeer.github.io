@@ -86,17 +86,25 @@ def execute_module(module: Module, target: str, ctx: Context) -> Result:
     coerced into an error Result, so downstream code can always trust the type.
     """
     mid = getattr(module, "id", "?")
+    started = time.time()
+    def _ms() -> int:
+        return int((time.time() - started) * 1000)
     try:
         res = module.run(target, ctx)
     except Exception as exc:  # noqa: BLE001 - one module must never kill a scan
         record_error(f"module {mid}", target, exc)
         return Result(getattr(module, "name", mid), target,
-                      status="error", error=str(exc))
+                      status="error", error=str(exc), elapsed_ms=_ms())
     if not isinstance(res, Result):
         record_error(f"module {mid}", target,
                      f"returned {type(res).__name__}, expected Result")
         return Result(getattr(module, "name", mid), target,
-                      status="error", error="module did not return a Result")
+                      status="error", error="module did not return a Result",
+                      elapsed_ms=_ms())
+    # a module that timed itself keeps its own number; everything else gets the
+    # measurement it never had
+    if not getattr(res, "elapsed_ms", 0):
+        res.elapsed_ms = _ms()
     return res
 
 

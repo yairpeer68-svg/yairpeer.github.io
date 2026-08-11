@@ -342,3 +342,74 @@ class TestConsoleCoverage:
         assert "/api/telegram" in html
         assert "empty means nobody" in html, \
             "the console must state the bot's default-deny posture"
+
+    # ---- completing the 80 ---------------------------------------------- #
+    def test_the_stream_is_pushed_with_a_polling_fallback(self):
+        """SSE alone is not enough: a proxy that eats the stream must degrade
+        to polling, not to a blank dashboard."""
+        html = self._console()
+        assert "EventSource" in html and "/stream" in html
+        assert "poll=setInterval(tick,1000)" in html, "no polling fallback"
+
+    def test_the_stream_is_windowed(self):
+        """553 cards is more DOM than a browser enjoys and you never read the
+        400th — but an errored module must never be scrolled out of existence."""
+        html = self._console()
+        assert "STREAM_WINDOW" in html
+        assert 'all.filter(r=>r.status==="error")' in html, \
+            "virtualisation would hide failures"
+
+    def test_identical_gets_are_deduplicated(self):
+        assert "INFLIGHT" in self._console()
+
+    def test_a_finished_scan_does_not_yank_the_view_you_are_reading(self):
+        html = self._console()
+        assert "function newDataPill(" in html
+
+    def test_visualisations_are_all_inline(self):
+        html = self._console()
+        for fn in ("function treemap(", "function sparkline(", "function portHeatmap(",
+                   "function severityFlow(", "function geoAndAsn(", "function certChain(",
+                   "function waterfall(", "function attackPaths(", "function timingChart(",
+                   "function diffOverlay(", "function scanRibbon(",
+                   "function scheduleCalendar(", "function timelineScrubber("):
+            assert fn in html, f"missing {fn}"
+
+    def test_the_report_builder_can_assemble_and_redact(self):
+        html = self._console()
+        assert "function buildReport(" in html and "REPORT_SECTIONS" in html
+        assert "AUDIENCES" in html, "no per-audience templates"
+        assert "function redact(" in html
+        assert "function sha256(" in html, "evidence pack has no integrity hash"
+
+    def test_search_supports_operators(self):
+        html = self._console()
+        assert "module|field|host|severity" in html
+
+    def test_findings_can_be_grouped_and_deduplicated(self):
+        html = self._console()
+        assert "function groupRows(" in html and "function collapseDuplicates(" in html
+
+    def test_a_finding_can_be_copied_noted_watched_and_overridden(self):
+        html = self._console()
+        for fn in ("function copyFinding(", "function noteFor(", "function watch(",
+                   "function overrideSeverity(", "function jumpToFix("):
+            assert fn in html, f"missing {fn}"
+
+    def test_modules_may_ship_their_own_panel(self):
+        html = self._console()
+        assert "ghostEyeRegisterPanel" in html
+
+    def test_the_console_survives_the_backend_being_down(self):
+        html = self._console()
+        assert "IDB" in html and "indexedDB" in html
+        assert "function authProblem(" in html, "an expired token fails silently"
+
+    def test_module_timing_is_recorded_by_the_engine(self):
+        """A slow scan you cannot attribute to a module is a mystery."""
+        import inspect
+        from ghost_eye import engine
+        src = inspect.getsource(engine.execute_module)
+        assert "elapsed_ms" in src
+        from ghost_eye.core import Result
+        assert "elapsed_ms" in Result(module="m", target="t").as_dict()
