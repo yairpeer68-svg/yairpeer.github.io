@@ -50,6 +50,11 @@ _CSP = ("default-src 'self'; "
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data:; "
         "connect-src 'self'; "
+        # The entity-graph force layout runs in a Worker built from a same-origin
+        # Blob, so it does not freeze the page for a second on a large graph.
+        # This permits blob: workers ONLY — script-src is untouched, so it
+        # cannot be used to pull in remote code.
+        "worker-src 'self' blob:; "
         "object-src 'none'; "
         "base-uri 'none'; "
         "form-action 'none'; "

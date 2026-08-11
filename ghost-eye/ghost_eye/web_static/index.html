@@ -114,6 +114,20 @@ a:hover{text-decoration:underline}
   width:0;transition:width .3s ease;box-shadow:0 0 8px rgba(240,181,69,.5)}
 
 .view{flex:1;overflow-y:auto;padding:20px 22px 60px;min-height:0}
+/* #46 — open scans. Hidden entirely at one tab: a tab bar with one tab is
+   chrome that teaches you nothing. */
+.tabs{display:flex;gap:5px;padding:6px 22px 0;flex-shrink:0;overflow-x:auto;
+  border-bottom:1px solid var(--line);background:var(--surface)}
+.tabs[hidden]{display:none}
+.tab{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;
+  background:transparent;border:1px solid var(--line);border-bottom:none;
+  border-radius:7px 7px 0 0;color:var(--muted);font:inherit;font-size:11.5px;
+  padding:6px 11px;cursor:pointer;position:relative;top:1px}
+.tab:hover{color:var(--ink)}
+.tab[data-on="1"]{background:var(--bg);color:var(--ink);border-color:var(--line-2);
+  border-bottom:1px solid var(--bg)}
+.tab .x{color:var(--faint);font-size:13px;line-height:1}
+.tab .x:hover{color:var(--crit)}
 .viewhead{display:flex;align-items:baseline;gap:12px;margin-bottom:4px;flex-wrap:wrap}
 .viewhead h1{font-size:19px;margin:0;font-weight:650;letter-spacing:-.01em}
 .viewhead .why{color:var(--muted);font-size:12.5px;margin:0 0 18px;max-width:70ch;
@@ -424,6 +438,7 @@ code{font-family:var(--mono);font-size:11.5px;background:var(--surface-3);
         <span class="dot" id="dot"></span><span id="statustxt" data-i18n="cmd.idle">Idle</span></div>
       <div class="prog" id="prog"></div>
     </div>
+    <div class="tabs" id="jobtabs" hidden></div>
     <main class="view" id="view" tabindex="-1" role="main"></main>
   </div>
 </div>
@@ -448,7 +463,12 @@ async function api(path, opts={}){
   })();
   if(!opts.method){
     INFLIGHT.set(key, run);
-    run.finally(()=>INFLIGHT.delete(key));
+    // .catch() before .finally() on purpose. `run.finally(...)` returns a NEW
+    // promise that also rejects when `run` does, and nothing awaits that one —
+    // so every failed GET raised an unhandled rejection even though the caller
+    // handled the error properly. Visible as a red console entry on any 500,
+    // any timeout, and every single request once the backend is unreachable.
+    run.catch(()=>{}).finally(()=>INFLIGHT.delete(key));
   }
   return run;
 }
@@ -486,6 +506,8 @@ const esc = s => String(s==null?"":s).replace(/[&<>"']/g,
    ========================================================================== */
 let META=null, JOB=null, SNAP=null, poll=null, MISSES=0, scanning=false;
 let VIEW="scan", PICK="profile", expanded=new Set();
+let OFFLINE=false;                 // read by the unhandled-rejection handler, which is registered
+                                   // far earlier than the tab block it used to live in
 const CACHE={};                       // per-view fetched payloads
 
 /* ==========================================================================
@@ -701,6 +723,34 @@ function palette(){
   $("palq").oninput=draw;
   draw(); $("palq").focus();
 }
+
+/* The backend being unreachable is a *condition*, not an event: a toast that
+   fades after two seconds leaves you reading stale findings with no idea they
+   are stale. This stays until the page is reloaded against a live backend. */
+function offlineBanner(target, at){
+  const when = at ? new Date(at).toLocaleString() : "the last session";
+  const el=document.createElement("div");
+  el.id="offlinebar";
+  el.style.cssText=`position:sticky;top:0;z-index:40;padding:8px 22px;
+    background:var(--surface-3);border-bottom:1px solid var(--line-2);
+    font-size:12px;color:var(--ink-2)`;
+  el.innerHTML=`<b>Backend unreachable</b> — showing the cached scan of
+    <b>${esc(target||"?")}</b> from ${esc(when)}. Nothing here is live, no scan
+    can be started, and any view the backend computes will say it needs one.`;
+  const main=document.querySelector(".main");
+  if(main) main.insertBefore(el, main.firstChild);
+}
+
+/* Anything that rejects with nobody listening would otherwise vanish into the
+   devtools console, which is exactly where a user will not look. */
+window.addEventListener("unhandledrejection", e=>{
+  const why=(e.reason && (e.reason.message||e.reason)) || "unknown";
+  if(OFFLINE && /fetch|network|Load failed/i.test(String(why))){
+    e.preventDefault();          // expected while offline; the banner says so
+    return;
+  }
+  console.warn("unhandled rejection:", why);
+});
 
 /* toast for transient confirmations (#14, #39) */
 function toast(text, action){
@@ -2121,6 +2171,111 @@ function renderTimeline(t){
     </tr>`).join("")}</tbody></table></div></div>`;
 }
 
+/* ==========================================================================
+   #3 — the entity-graph force layout, off the main thread.
+
+   Measured before building it, because a Worker is not free: the findings
+   filter costs 0.02ms per pass while a structured clone of the same array
+   costs 0.08ms, so moving *that* to a worker would make the console four
+   times slower. The layout is the opposite case — 180 steps of an O(n²)
+   repulsion loop, ~950ms of blocked main thread at 400 nodes, in exchange for
+   a position table small enough that the clone is free.
+
+   The algorithm exists once. The worker is built from `layoutBody.toString()`,
+   so the threaded and inline paths cannot drift apart, and the Blob URL is
+   same-origin — the page still loads nothing from a remote host.
+   ========================================================================== */
+function layoutBody(nodes, links, W, H){
+  const pos={}, vel={};
+  nodes.forEach((n,i)=>{
+    const a=i/Math.max(1,nodes.length)*Math.PI*2;
+    const id=n.id||n.name;
+    pos[id]=[W/2+Math.cos(a)*(W/3), H/2+Math.sin(a)*(H/3)];
+    vel[id]=[0,0];
+  });
+  const K=Math.sqrt((W*H)/Math.max(1,nodes.length));
+  for(let step=0; step<180; step++){
+    const t=1-step/180;
+    for(let i=0;i<nodes.length;i++){
+      const a=nodes[i].id||nodes[i].name;
+      for(let j=i+1;j<nodes.length;j++){
+        const b=nodes[j].id||nodes[j].name;
+        const dx=pos[a][0]-pos[b][0], dy=pos[a][1]-pos[b][1];
+        const d2=dx*dx+dy*dy || 0.01;
+        const rep=(K*K)/d2;
+        const d=Math.sqrt(d2);
+        vel[a][0]+=dx/d*rep; vel[a][1]+=dy/d*rep;
+        vel[b][0]-=dx/d*rep; vel[b][1]-=dy/d*rep;
+      }
+    }
+    for(const e of links){
+      const a=e.source||e.from, b=e.target||e.to;
+      if(!pos[a]||!pos[b]) continue;
+      const dx=pos[a][0]-pos[b][0], dy=pos[a][1]-pos[b][1];
+      const d=Math.sqrt(dx*dx+dy*dy)||0.01;
+      const att=(d*d)/K;
+      vel[a][0]-=dx/d*att; vel[a][1]-=dy/d*att;
+      vel[b][0]+=dx/d*att; vel[b][1]+=dy/d*att;
+    }
+    for(const n of nodes){
+      const id=n.id||n.name;
+      const sp=Math.sqrt(vel[id][0]**2+vel[id][1]**2)||1;
+      const cap=Math.min(sp, 22*t);
+      pos[id][0]=Math.max(24, Math.min(W-24, pos[id][0]+vel[id][0]/sp*cap));
+      pos[id][1]=Math.max(24, Math.min(H-24, pos[id][1]+vel[id][1]/sp*cap));
+      vel[id][0]*=0.55; vel[id][1]*=0.55;
+    }
+  }
+  return pos;
+}
+
+const KGCACHE={key:null, pos:null, pending:null};
+/* The positions depend on the node and link sets — and on nothing else. A
+   focus highlight, a text filter or a theme change must not re-run a second
+   of physics to draw the same picture in a different colour. */
+function kgKey(nodes, links){
+  return nodes.length+"|"+links.length+"|"+
+    nodes.map(n=>n.id||n.name).join(",")+"|"+
+    links.map(e=>(e.source||e.from)+">"+(e.target||e.to)).join(",");
+}
+function kgLayout(nodes, links, W, H){
+  if(!nodes.length) return {};
+  const key=kgKey(nodes, links);
+  if(KGCACHE.key===key && KGCACHE.pos) return KGCACHE.pos;
+  // Small graphs settle faster than a worker takes to start; the threshold is
+  // where the measurement put the crossover, not where it felt about right.
+  if(nodes.length<=120 || typeof Worker==="undefined" || typeof Blob==="undefined"){
+    KGCACHE.key=key; KGCACHE.pos=layoutBody(nodes, links, W, H);
+    return KGCACHE.pos;
+  }
+  if(KGCACHE.pending===key) return null;      // already being computed
+  KGCACHE.pending=key;
+  try{
+    const src=`self.layoutBody=${layoutBody.toString()};
+      self.onmessage=e=>{ const d=e.data;
+        self.postMessage(self.layoutBody(d.nodes, d.links, d.W, d.H)); };`;
+    const url=URL.createObjectURL(new Blob([src], {type:"application/javascript"}));
+    const w=new Worker(url);
+    const finish=pos=>{
+      URL.revokeObjectURL(url); w.terminate();
+      KGCACHE.pending=null;
+      KGCACHE.key=key; KGCACHE.pos=pos;
+      if(VIEW==="intel") render();
+    };
+    w.onmessage=e=>finish(e.data);
+    // a Worker that cannot start must not leave a spinner up for ever
+    w.onerror=()=>finish(layoutBody(nodes, links, W, H));
+    w.postMessage({nodes:nodes.map(n=>({id:n.id||n.name})),
+                   links:links.map(e=>({source:e.source||e.from,
+                                        target:e.target||e.to})), W, H});
+    return null;                              // caller draws a placeholder
+  }catch(err){
+    KGCACHE.pending=null;
+    KGCACHE.key=key; KGCACHE.pos=layoutBody(nodes, links, W, H);
+    return KGCACHE.pos;
+  }
+}
+
 /* Entity graph. State lives outside the renderer so filtering and focusing
    never re-fetch — a graph that reloads on every click is unusable. */
 let KGSTATE={focus:null, hidden:new Set(), q:"", tx:0, ty:0, k:1};
@@ -2149,48 +2304,15 @@ function kgSvg(kg){
   const links=edges.filter(e=>ids.has(e.source||e.from)&&ids.has(e.target||e.to)).slice(0,900);
   const W=880, H=520;
   // Force layout: a ring tells you nothing about structure, which is the only
-  // reason to draw a graph at all. Simulated once, synchronously — a stable
-  // picture beats an animated one you cannot screenshot.
-  const pos={}, vel={};
-  nodes.forEach((n,i)=>{
-    const a=i/Math.max(1,nodes.length)*Math.PI*2;
-    const id=n.id||n.name;
-    pos[id]=[W/2+Math.cos(a)*(W/3), H/2+Math.sin(a)*(H/3)];
-    vel[id]=[0,0];
-  });
-  const K=Math.sqrt((W*H)/Math.max(1,nodes.length));
-  for(let step=0; step<180; step++){
-    const t=1-step/180;
-    for(let i=0;i<nodes.length;i++){
-      const a=nodes[i].id||nodes[i].name;
-      for(let j=i+1;j<nodes.length;j++){
-        const b=nodes[j].id||nodes[j].name;
-        let dx=pos[a][0]-pos[b][0], dy=pos[a][1]-pos[b][1];
-        let d2=dx*dx+dy*dy || 0.01;
-        const rep=(K*K)/d2;
-        const d=Math.sqrt(d2);
-        vel[a][0]+=dx/d*rep; vel[a][1]+=dy/d*rep;
-        vel[b][0]-=dx/d*rep; vel[b][1]-=dy/d*rep;
-      }
-    }
-    for(const e of links){
-      const a=e.source||e.from, b=e.target||e.to;
-      if(!pos[a]||!pos[b]) continue;
-      const dx=pos[a][0]-pos[b][0], dy=pos[a][1]-pos[b][1];
-      const d=Math.sqrt(dx*dx+dy*dy)||0.01;
-      const att=(d*d)/K;
-      vel[a][0]-=dx/d*att; vel[a][1]-=dy/d*att;
-      vel[b][0]+=dx/d*att; vel[b][1]+=dy/d*att;
-    }
-    for(const n of nodes){
-      const id=n.id||n.name;
-      const sp=Math.sqrt(vel[id][0]**2+vel[id][1]**2)||1;
-      const cap=Math.min(sp, 22*t);
-      pos[id][0]=Math.max(24, Math.min(W-24, pos[id][0]+vel[id][0]/sp*cap));
-      pos[id][1]=Math.max(24, Math.min(H-24, pos[id][1]+vel[id][1]/sp*cap));
-      vel[id][0]*=0.55; vel[id][1]*=0.55;
-    }
-  }
+  // reason to draw a graph at all. The simulation itself is #3 material — see
+  // kgLayout() below — and its result is cached, so highlighting a node or
+  // typing in the graph filter reuses the positions instead of re-running a
+  // second of physics to draw the same picture with a different colour.
+  const pos = kgLayout(nodes, links, W, H);
+  if(!pos) return `<div class="empty"><span class="spin"></span>
+    <p style="margin-top:12px">Laying out ${nodes.length} nodes…</p>
+    <p style="color:var(--muted);font-size:11.5px">Running off the main thread,
+    so the console stays usable while it settles.</p></div>`;
   // neighbourhood of the focused node (#26)
   const near=new Set();
   if(KGSTATE.focus){
@@ -3113,6 +3235,108 @@ VIEWS.governance = async ()=>{
 };
 
 
+/* ==========================================================================
+   #46 — several scans open at once.
+
+   Comparing two hosts, or the same host before and after a change, otherwise
+   means loading one, writing things down, and loading the other. The tabs hold
+   the snapshots this session already has, so switching between them is free
+   and costs no request.
+   ========================================================================== */
+let ACTIVETAB=null;
+const TABS=[];                       // [{id, target, snap, live}] — newest last
+/* `live` distinguishes a running/finished job (the per-job endpoints resolve
+   it) from a scan restored out of storage (they do not — its id is a scan id,
+   and JOB must stay null so the analysis views fall back to the snapshot). */
+function openTab(id, target, opts={}){
+  if(!id) return;
+  const live = opts.live!==false;
+  const at=TABS.findIndex(t=>t.id===id);
+  const snap = opts.snap || ((SNAP && (live ? JOB===id : true)) ? SNAP
+                             : (at>=0 ? TABS[at].snap : null));
+  if(at>=0) TABS[at]={id, target:target||TABS[at].target, snap, live};
+  else TABS.push({id, target:target||id, snap, live});
+  while(TABS.length>6) TABS.shift();    // six is more than anyone compares
+  ACTIVETAB=id;
+  drawTabs();
+}
+function drawTabs(){
+  const el=$("jobtabs"); if(!el) return;
+  el.hidden = TABS.length<2;            // one tab is not a tab bar
+  // clear it as well as hide it: leaving the old buttons in the DOM leaves
+  // their click handlers live on a tab that no longer exists
+  if(el.hidden){ el.innerHTML=""; return; }
+  el.innerHTML = TABS.map(t=>`
+    <button class="tab" data-tab="${esc(t.id)}" ${ACTIVETAB===t.id?'data-on="1"':""}
+      title="${esc(t.id)}">
+      <span>${esc(t.target)}</span>
+      <span class="x" data-close="${esc(t.id)}" title="close">×</span>
+    </button>`).join("") +
+    (TABS.length>1?`<button class="tab" id="tabdiff" title="compare the two most recent"
+      >⇄ compare</button>`:"");
+  el.querySelectorAll("[data-tab]").forEach(b=> b.onclick=e=>{
+    if(e.target.dataset.close) return;
+    switchTab(b.dataset.tab);
+  });
+  el.querySelectorAll("[data-close]").forEach(x=> x.onclick=e=>{
+    e.stopPropagation();
+    const i=TABS.findIndex(t=>t.id===x.dataset.close);
+    if(i>=0) TABS.splice(i,1);
+    // closing the tab you are reading has to leave you somewhere real
+    if(ACTIVETAB===x.dataset.close && TABS.length) switchTab(TABS[TABS.length-1].id);
+    else drawTabs();
+  });
+  const d=$("tabdiff"); if(d) d.onclick=()=>compareTabs();
+}
+function switchTab(id){
+  const tab=TABS.find(t=>t.id===id); if(!tab) return;
+  ACTIVETAB=id;
+  JOB = tab.live ? tab.id : null;
+  Object.keys(CACHE).forEach(k=>delete CACHE[k]);
+  if(tab.snap){ SNAP=tab.snap; drawTabs(); writeUrl(); render(); return; }
+  api(`/api/job/${encodeURIComponent(id)}`).then(s=>{
+    tab.snap=s; SNAP=s; drawTabs(); writeUrl(); render();
+  }).catch(e=>toast("That scan is no longer in memory: "+e.message));
+}
+/* A side-by-side of the two most recent tabs. Deliberately module-level and
+   not finding-level: the API already has a findings diff for two *stored*
+   scans, and duplicating it here would be a second answer to one question. */
+function compareTabs(){
+  const [a,b]=TABS.slice(-2);
+  if(!a||!b||!a.snap||!b.snap) return toast("Both tabs need results first.");
+  const fields=snap=>{
+    const out=new Set();
+    (snap.results||[]).forEach(r=>{
+      const flat={}; flatten(r.data, "", flat);
+      Object.keys(flat).forEach(k=>out.add(r.module+"."+k+"="+flat[k]));
+    });
+    return out;
+  };
+  const fa=fields(a.snap), fb=fields(b.snap);
+  const only=(x,y)=>[...x].filter(v=>!y.has(v));
+  const inA=only(fa,fb), inB=only(fb,fa);
+  const sevOf=snap=>((snap.risk&&snap.risk.findings)||[]).length;
+  modal(`${a.target} vs ${b.target}`, `
+    <div class="grid g2" style="margin-bottom:12px">
+      ${stat(esc(a.target), sevOf(a.snap), `${(a.snap.results||[]).length} modules`)}
+      ${stat(esc(b.target), sevOf(b.snap), `${(b.snap.results||[]).length} modules`)}
+    </div>
+    <div class="grid g2">
+      <div><div class="eyebrow">only in ${esc(a.target)} (${inA.length})</div>
+        <div style="max-height:210px;overflow:auto;font-family:var(--mono);font-size:11px">
+          ${inA.slice(0,120).map(v=>`<div>${esc(v.slice(0,110))}</div>`).join("")
+            || "<div style='color:var(--muted)'>nothing</div>"}</div></div>
+      <div><div class="eyebrow">only in ${esc(b.target)} (${inB.length})</div>
+        <div style="max-height:210px;overflow:auto;font-family:var(--mono);font-size:11px">
+          ${inB.slice(0,120).map(v=>`<div>${esc(v.slice(0,110))}</div>`).join("")
+            || "<div style='color:var(--muted)'>nothing</div>"}</div></div>
+    </div>
+    <div class="note">Values either scan observed. A value missing from one side
+      may mean the module did not run there, not that the thing is absent —
+      check the module counts above before reading anything into it.</div>`,
+    ()=>{}, "Close");
+}
+
 /* Open a scan out of storage into every analysis view. Shared by History and
    by the cross-scan search, which both mean the same thing by "open this run". */
 async function loadStoredScan(id){
@@ -3122,6 +3346,9 @@ async function loadStoredScan(id){
       total:(raw.results||[]).length, done:(raw.results||[]).length,
       results:raw.results||[], risk:raw.risk||{}};
     Object.keys(CACHE).forEach(k=>delete CACHE[k]);
+    // JOB stays null on purpose: a stored-scan id is not a job id, and the
+    // per-job endpoints would 404 on it. The tab carries the snapshot itself.
+    openTab(id, raw.target, {live:false, snap:SNAP});
     notify(`Loaded the stored scan of ${raw.target}`);
     toast("Loaded — the analysis views now read this scan. Live-only views "+
           "(fix order, anomalies) need a running job and will say so.");
@@ -3720,6 +3947,7 @@ async function startOne(target, label){
   rememberTarget(target);
   JOB=res.job_id; SNAP=null; expanded=new Set();
   Object.keys(CACHE).forEach(k=>delete CACHE[k]);
+  openTab(JOB, target);
   setScanning(true);
   go("live");
   tick();
@@ -3788,6 +4016,10 @@ function applySnapshot(s){
       s.status==="cancelled"?"stopped":"error"), txt)} — ${s.target}${BATCH_LABEL}`;
     $("prog").style.width="0%";
     refreshBadges();
+    // #71 — a finished scan is worth keeping. When the backend is gone the
+    // console can still show you the last one instead of an empty page.
+    IDB.put("lastjob", {id:JOB, snap:s, at:Date.now()});
+    openTab(JOB, s.target);
     Object.keys(CACHE).forEach(k=>{ if(k.startsWith(JOB+":")) delete CACHE[k]; });
     if(VIEW==="live") render();
     else if(wasRunning) newDataPill();
@@ -4058,6 +4290,16 @@ $("denstoggle").onclick=()=>{
     const cached=await IDB.get("meta");
     if(cached){
       META=cached; notify("Backend unreachable — showing the last cached state", "err");
+      // #71 — the findings themselves, not just the module catalogue. A cached
+      // page that can only tell you which modules exist is not an offline mode.
+      const last=await IDB.get("lastjob");
+      if(last && last.snap){
+        JOB=last.id; SNAP=last.snap; OFFLINE=true;
+        applyLang();
+        offlineBanner(SNAP.target, last.at);
+        go("live");
+        return;
+      }
       set(`<div class="banner warn">The backend is unreachable. This is the
         console's cached view of the last session; scans cannot be started.</div>`);
     }else{

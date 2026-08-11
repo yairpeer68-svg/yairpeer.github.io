@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1436 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1458 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 739 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -1171,7 +1171,24 @@ Details that decide whether it is usable rather than merely complete:
   whichever frame was current when they opened it.
 - **Force-directed entity graph** with drag, wheel-zoom, highlight and
   neighbourhood focus. A ring layout says nothing about structure, which is the
-  only reason to draw a graph.
+  only reason to draw a graph. The simulation runs **in a Worker** — 180 steps
+  of an O(n²) repulsion loop is ~950ms of frozen page at 400 nodes — and its
+  result is cached on the node and link set, so highlighting a node reuses the
+  positions instead of re-running the physics to draw the same picture in a
+  different colour. The worker is built from `layoutBody.toString()`, so there
+  is exactly one copy of the algorithm and the threaded and inline paths cannot
+  drift apart; the Blob URL is same-origin, so the page still loads nothing
+  remote.
+
+  That it is a Worker at all was a measurement, not a preference. The findings
+  filter costs **0.02ms** per pass while a structured clone of the same array
+  costs **0.08ms** — moving *that* off the main thread would have made the
+  console four times slower, so it stays where it is.
+- **Several scans open at once.** Comparing two hosts otherwise means loading
+  one, writing things down, and loading the other. Tabs hold the snapshots this
+  session already has, so switching is free and costs no request, and any two
+  can be diffed side by side. One scan shows no tab bar — a tab bar with one
+  tab is chrome that teaches you nothing.
 - **Scan presets** (selection + every option, named) and two different previews
   of what a run will cost. The **dry run** gives a worst-case bound from the
   timeout; the **estimate** asks the backend what these modules have actually
@@ -1222,6 +1239,12 @@ Details that decide whether it is usable rather than merely complete:
   workspace you were in.
 - **Keyboard and screen readers**: skip-to-content, a visible focus ring, and an
   `aria-live` scan status.
+- **Genuinely offline.** The last finished scan is kept in IndexedDB, so with
+  the backend dead the console still opens on those findings — not on a page
+  that can only list which modules exist. A persistent banner says what you are
+  looking at and when it was captured, because "the backend is gone" is a
+  condition and a toast that fades leaves you reading stale findings believing
+  they are live.
 - **Self-contained.** No CDN, no external fonts, no analytics — a recon console
   that phones out tells someone else which install is running, and breaks in an
   air-gapped environment. A test asserts the page loads nothing remote.
@@ -1596,7 +1619,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1436 tests** pass in ~20s. A single **verification gate** runs the whole thing:
+**1458 tests** pass in ~20s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
