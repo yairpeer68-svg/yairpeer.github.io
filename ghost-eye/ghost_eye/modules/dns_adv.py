@@ -21,7 +21,7 @@ class DnssecChain(Module):
     def run(self, target, ctx):
         try:
             host = clean_host(target)
-            import dns.resolver
+            import dns.resolver  # noqa: F401 - availability probe
         except ImportError:
             return self.fail(target, "requires dnspython")
         except ValueError as e:
@@ -74,7 +74,7 @@ class DnsWildcard(Module):
         for fqdn in probes:
             for qtype in ("A", "AAAA", "CNAME"):
                 try:
-                    import dns.resolver
+                    import dns.resolver  # noqa: F401 - availability probe
                     r = _resolver(ctx)
                     ans = r.resolve(fqdn, qtype)
                     results[f"{fqdn}/{qtype}"] = [str(rr) for rr in ans]
@@ -178,7 +178,7 @@ class SubdomainTakeover(Module):
     def run(self, target, ctx):
         try:
             host = clean_host(target)
-            import dns.resolver
+            import dns.resolver  # noqa: F401 - availability probe
         except ImportError:
             return self.fail(target, "requires dnspython")
         except ValueError as e:
@@ -241,7 +241,7 @@ class DnsPropagation(Module):
     def run(self, target, ctx):
         try:
             host = clean_host(target)
-            import dns.resolver
+            import dns.resolver  # noqa: F401 - availability probe
         except ImportError:
             return self.fail(target, "requires dnspython")
         except ValueError as e:
@@ -276,7 +276,7 @@ class DmarcDkimSpfAudit(Module):
     def run(self, target, ctx):
         try:
             host = clean_host(target)
-            import dns.resolver
+            import dns.resolver  # noqa: F401 - availability probe
         except ImportError:
             return self.fail(target, "requires dnspython")
         except ValueError as e:
@@ -397,7 +397,7 @@ class DnsRebinding(Module):
             return self.fail(target, str(e))
         findings = {}
         try:
-            import dns.resolver
+            import dns.resolver  # noqa: F401 - availability probe
             r = _resolver(ctx)
             ans = r.resolve(host, "A")
             ips = [str(rr) for rr in ans]
@@ -507,7 +507,7 @@ class NsDelegation(Module):
     def run(self, target, ctx):
         try:
             host = clean_host(target)
-            import dns.resolver
+            import dns.resolver  # noqa: F401 - availability probe
         except ImportError:
             return self.fail(target, "requires dnspython")
         except ValueError as e:
@@ -605,7 +605,7 @@ class GlueRecordAudit(Module):
     def run(self, target, ctx):
         try:
             host = clean_host(target)
-            import dns.resolver
+            import dns.resolver  # noqa: F401 - availability probe
         except ImportError:
             return self.fail(target, "requires dnspython")
         except ValueError as e:

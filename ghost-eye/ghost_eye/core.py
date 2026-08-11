@@ -427,6 +427,37 @@ def _render_value(value: Any, indent: int = 0) -> None:
 # --------------------------------------------------------------------------- #
 #  Context passed to every module
 # --------------------------------------------------------------------------- #
+
+def open_db(path, timeout: float = 30.0):
+    """Open a SQLite connection with the settings a threaded server needs.
+
+    Five call sites opened their own connection with five different sets of
+    defaults, so parts of the product were hardened against concurrent access
+    and parts were not — and "database is locked" surfaces only under the load
+    nobody tests with.
+
+    * **WAL** lets readers run while a writer holds the file. Without it, a
+      background scan writing results blocks every dashboard read.
+    * **busy_timeout** makes a contended write wait instead of raising
+      immediately, which is what "database is locked" actually is.
+    * **check_same_thread=False** because the connection is handed between the
+      request thread and the worker that finishes a job. The caller still owns
+      serialising its own writes.
+
+    WAL is unavailable on some network filesystems; failing to set it is not a
+    reason to refuse to open the database.
+    """
+    import sqlite3
+    conn = sqlite3.connect(str(path), timeout=timeout, check_same_thread=False)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(f"PRAGMA busy_timeout={int(timeout * 1000)}")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except Exception:  # noqa: BLE001 - e.g. WAL on a network filesystem
+        pass
+    return conn
+
+
 @dataclass
 class Context:
     config: Any = None

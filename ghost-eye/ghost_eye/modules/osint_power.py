@@ -20,7 +20,7 @@ import re
 import socket
 import ssl
 from typing import Any, Dict, List, Set
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 
 from ..core import Context, Module, Result, clean_host, ensure_scheme, register
 

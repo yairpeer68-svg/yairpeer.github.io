@@ -330,8 +330,10 @@ class MtlsDetect(Module):
                 c.check_hostname = False
                 c.verify_mode = ssl.CERT_NONE
                 with socket.create_connection((host, port), timeout=ctx.timeout) as s:
-                    with c.wrap_socket(s, server_hostname=host) as ss:
-                        # if server requires client cert, handshake fails differently
+                    with c.wrap_socket(s, server_hostname=host):
+                        # the handshake completing IS the result here; whether a
+                        # client certificate was demanded shows up as an
+                        # exception below, not as anything on the socket
                         results[port] = "TLS up, no client cert required"
             except ssl.SSLError as e:
                 err = str(e).lower()

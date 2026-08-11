@@ -38,7 +38,8 @@ No network. Local judgement store only.
 from __future__ import annotations
 
 import hashlib
-import sqlite3
+
+from .core import open_db
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -91,7 +92,7 @@ class VerdictStore:
     """Persisted analyst rulings, applied to later scans."""
 
     def __init__(self, path: str = "ghosteye.db") -> None:
-        self.conn = sqlite3.connect(path)
+        self.conn = open_db(path)
         self.conn.execute(
             """CREATE TABLE IF NOT EXISTS verdicts(
                    fingerprint TEXT PRIMARY KEY,

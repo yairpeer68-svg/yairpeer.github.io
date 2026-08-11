@@ -190,7 +190,7 @@ def _leak_indicators(results: List[Result], blob: str) -> List[str]:
             data = getattr(r, "data", {}) or {}
             flat: Dict[str, str] = {}
             _flatten("", data, flat)
-            for k, v in flat.items():
+            for _k, v in flat.items():
                 sval = str(v).lower()
                 if any(s in sval for s in _LEAK_SIGNALS) and "no " not in sval[:4]:
                     hits.append(f"{r.module}: {str(v)[:80]}")

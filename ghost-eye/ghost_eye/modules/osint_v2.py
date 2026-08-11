@@ -23,7 +23,7 @@ class BreachCheck(Module):
         # HIBP domain search (free, no API key needed for domain)
         try:
             r = ctx.session.get(
-                f"https://haveibeenpwned.com/api/v3/breaches",
+                "https://haveibeenpwned.com/api/v3/breaches",
                 timeout=ctx.timeout,
                 headers={"User-Agent": "GhostEye-OSINT"})
             if r.status_code == 200:

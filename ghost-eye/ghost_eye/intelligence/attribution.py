@@ -266,7 +266,7 @@ def attribute(results: List[Result], target: str = "",
 
     # document frequency per (kind, value)
     df: Dict[Tuple[str, str], int] = {}
-    for host, kinds in fps.items():
+    for _host, kinds in fps.items():
         for kind, values in kinds.items():
             for v in values:
                 df[(kind, v)] = df.get((kind, v), 0) + 1
@@ -299,7 +299,7 @@ def attribute(results: List[Result], target: str = "",
     for h in hosts:
         clusters.setdefault(uf.find(h), []).append(h)
     estates = []
-    for root, members in clusters.items():
+    for _root, members in clusters.items():
         if len(members) < 2:
             continue
         member_set = set(members)

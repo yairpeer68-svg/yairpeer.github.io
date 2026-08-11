@@ -29,6 +29,18 @@ python3 -m pytest -q -p no:cacheprovider; check $?
 step "load + abuse: bounded concurrency, bounded body, real cancellation"
 python3 -m pytest -q -p no:cacheprovider tests/test_resource_limits.py; check $?
 
+# The neighbouring questions to "can a caller make this consume more?":
+# does every job reach a terminal state, does every resource get released,
+# and is scope enforced on EVERY attacker-controlled value that becomes a
+# destination — not just the one called "target". The scope test derives the
+# endpoint list from the router, so a new network-reaching route is caught
+# the day it is added rather than the day someone remembers to look.
+step "lifecycle + scope: terminal states, resource release, SSRF gate"
+python3 -m pytest -q -p no:cacheprovider tests/test_lifecycle_and_scope.py; check $?
+
+step "bug-level lint is blocking (style stays advisory)"
+python3 -m ruff check ghost_eye --select F,E9,PLE,B; check $?
+
 step "concurrent jobs do not multiply the worker count"
 python3 - <<'PY'
 import threading, time, json, urllib.request, subprocess, sys, tempfile, os

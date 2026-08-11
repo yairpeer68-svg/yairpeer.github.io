@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1501 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1531 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 739 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -910,6 +910,44 @@ where the method was thin.
 | `MAX_BODY_BYTES = 4 MiB` | `rfile.read(Content-Length)` allocates whatever the caller declares. Checked from the header **before** routing and before any read — checking afterwards means buffering the attack and then declining it. |
 | Bounded drain | A rejected body is read and discarded in 64 KiB chunks so the client can finish writing and actually receive the 413, with a 2-second deadline: a `Content-Length` that over-declares must not pin a worker thread, which would be a denial of service against the check that exists to prevent one. |
 
+**Scope applies to every destination, not just the one called `target`.**
+`/api/verify-origin` scope-checked the hostname and then connected to every IP
+in `candidates` without checking any of them — which is scope-checking the
+label on the envelope. Candidates are now validated in three passes: they must
+be **IP literals** (a hostname would be resolved at connect time, after any
+check made here), they must be **public** (`169.254.169.254` is the cloud
+metadata endpoint — a recon tool that fetches it on request hands over the
+credentials of the host it runs on), and they must be **in scope individually**.
+The list is capped at 64, and every refusal is audited.
+
+That endpoint was found by review. The *other* one — `/api/investigate`, with
+no scope check at all — was found by deriving the endpoint list from the router
+and asking which handlers reach the wire. A test does that derivation on every
+run, so a new network-reaching route is caught the day it is added rather than
+the day someone thinks to look.
+
+**Every job reaches a terminal state.** Building the scan `Context` happened
+*outside* the `try`, so an unparseable proxy or a malformed header killed the
+worker thread while the job stayed `running` for ever: the console spun,
+nothing was persisted, and the job's workers were never returned to the budget.
+Setup is now inside the guarded block, and the HTTP session is closed in
+`finally` — `requests.Session` holds a connection pool, and a server running
+thousands of jobs leaked a file-descriptor set per job without it.
+
+**Writes that cannot be half-done.** `write_text` truncates first and writes
+second, so a crash in between left half a JSON file — and the next read failed
+and quietly returned `{}`, which means the state was not corrupted but *gone*,
+silently. Analyst notes, the watchlist and the response cache now serialise
+first, write to a temp file, `fsync`, and `os.replace`, so a reader sees the
+old file or the new one and never a torn one.
+
+**One SQLite policy.** Five call sites opened connections with five different
+sets of defaults, so parts of the product were hardened against concurrent
+access and parts were not — and "database is locked" only shows up under the
+load nobody tests with. All of them now go through `core.open_db`: WAL so
+readers run while a scan writes, a busy timeout so a contended write waits
+instead of raising, and a documented threading contract.
+
 **Cancellation now cancels.** It used to mean "stop collecting results": queued
 modules were dropped and further session requests refused, but a module already
 inside a request ran to completion, and `run_scan`'s `with ThreadPoolExecutor`
@@ -1659,10 +1697,10 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1501 tests** pass in ~20s. A single **verification gate** runs the whole thing:
+**1531 tests** pass in ~25s. A single **verification gate** runs the whole thing:
 
 ```bash
-bash scripts/verify.sh     # compile · import · ruff · tests · LOAD/ABUSE · LIVE smoke
+bash scripts/verify.sh     # compile · import · lint · tests · load/abuse · lifecycle+scope · live smoke
 ```
 
 The live smoke starts the real dashboard and checks the `401`→`200` auth gate,

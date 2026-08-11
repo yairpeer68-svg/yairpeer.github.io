@@ -124,7 +124,7 @@ def export_pdf(results: List[Result], path: str, target: str = "") -> str:
         raise RuntimeError(
             f"reportlab not installed - wrote HTML instead: {html_path} "
             "(pip install reportlab for PDF, or print the HTML to PDF)"
-        )
+        ) from None
     c = canvas.Canvas(path, pagesize=A4)
     width, height = A4
     y = height - 25 * mm

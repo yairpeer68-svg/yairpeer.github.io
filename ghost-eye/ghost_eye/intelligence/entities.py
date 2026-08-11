@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..core import Result, clean_host, is_ip
+from ..core import Result, clean_host
 from ..reporting import _flatten
 
 _IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")

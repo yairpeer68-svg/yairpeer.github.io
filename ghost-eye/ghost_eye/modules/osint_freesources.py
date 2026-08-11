@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Set
 
-from ..core import Context, Module, Result, clean_host, is_ip, register
+from ..core import Module, clean_host, is_ip, register
 
 _HOSTRE = re.compile(r"[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?(?:\.[a-z0-9\-]{1,63})+")
 _IPV4 = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")

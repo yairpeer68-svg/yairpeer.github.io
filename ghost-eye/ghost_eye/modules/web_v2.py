@@ -258,7 +258,7 @@ class RateLimitDetect(Module):
         url = ensure_scheme(host)
         statuses = []
         headers_seen = {}
-        for i in range(15):
+        for _ in range(15):
             try:
                 r = ctx.session.get(url, timeout=ctx.timeout)
                 statuses.append(r.status_code)

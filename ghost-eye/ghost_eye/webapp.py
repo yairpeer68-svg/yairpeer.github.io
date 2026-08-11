@@ -160,18 +160,35 @@ class JobManager:
         return ctx
 
     def _run(self, jid: str) -> None:
+        # Everything that can raise belongs inside the try. Building the
+        # Context was outside it, so an unparseable proxy or a bad header
+        # killed this thread while the job stayed status="running" for ever:
+        # the console spun, nothing was persisted, and the workers were never
+        # returned. A job must always reach done / cancelled / error.
         job = self.jobs[jid]
-        ctx = self._make_ctx(job["options"], job["_stop"])
-        mods = job["_modules"]
-        asked = clamp_parallel(job["options"].get("parallel"),
-                               default=DEFAULT_PARALLEL)
-        # Ask for what was requested, run with what the host can spare. A
-        # second concurrent scan runs slowly instead of doubling the thread
-        # count, and is told so rather than silently throttled.
-        parallel = WORKER_BUDGET.take(asked, minimum=1)
-        job["workers"] = parallel
-        job["workers_requested"] = asked
         target = job["target"]
+        ctx = None
+        parallel = 0
+        ex = None
+        try:
+            ctx = self._make_ctx(job["options"], job["_stop"])
+            mods = job["_modules"]
+            asked = clamp_parallel(job["options"].get("parallel"),
+                                   default=DEFAULT_PARALLEL)
+            # Ask for what was requested, run with what the host can spare. A
+            # second concurrent scan runs slowly instead of doubling the thread
+            # count, and is told so rather than silently throttled.
+            parallel = WORKER_BUDGET.take(asked, minimum=1)
+            job["workers"] = parallel
+            job["workers_requested"] = asked
+        except Exception as exc:  # noqa: BLE001
+            record_error("job setup", target, exc)
+            job["status"] = "error"
+            job["error"] = f"could not start the scan: {exc}"
+            job["finished"] = time.time()
+            WORKER_BUDGET.give(parallel)
+            _close_session(ctx)
+            return
         # feature 66: adaptive throttle that widens delay when the target/network
         # starts erroring or rate-limiting us (opt-in via options.adaptive_rate)
         rl = (engine.AdaptiveRateLimiter(ceiling=float(job["options"].get("rate_ceiling") or 5))
@@ -278,6 +295,10 @@ class JobManager:
             # Hand the workers back before the (slow) persist, so a second scan
             # queued behind this one gets them immediately.
             WORKER_BUDGET.give(parallel)
+            # requests.Session holds a connection pool and its sockets. A
+            # long-lived server running thousands of jobs leaks a file
+            # descriptor set per job without this.
+            _close_session(ctx)
             job["finished"] = time.time()
             self._persist(job)
 
@@ -492,6 +513,101 @@ class _WorkerBudget:
 
 
 WORKER_BUDGET = _WorkerBudget(MAX_TOTAL_WORKERS)
+
+
+def atomic_write_json(path, obj) -> None:
+    """Write JSON so a crash mid-write cannot destroy what was already there.
+
+    ``write_text`` truncates first and writes second. A process that dies in
+    between leaves half a file, and the next read fails and quietly returns an
+    empty dict — so the state is not corrupted, it is *gone*, silently, which
+    is the worse of the two. Serialise first (a value that cannot be encoded
+    must not have touched the file), write to a temp file in the same
+    directory, fsync, then rename: on POSIX that replacement is atomic, so a
+    reader sees either the old file or the new one and never a partial one.
+    """
+    path = Path(path)
+    blob = json.dumps(obj, indent=1, ensure_ascii=False)   # may raise; nothing written yet
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + f".{os.getpid()}.tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(blob)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    finally:
+        try:
+            if tmp.exists():
+                tmp.unlink()      # a failed write must not leave litter behind
+        except OSError:
+            pass
+
+
+def _close_session(ctx) -> None:
+    """Release a job's HTTP session. Never raises: a failure to clean up must
+    not become the reason a job reports an error."""
+    try:
+        session = getattr(ctx, "session", None)
+        if session is not None and hasattr(session, "close"):
+            session.close()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+MAX_CANDIDATES = 64          # an origin has a handful of addresses, not a /16
+
+
+def validate_candidates(candidates, scope=None):
+    """Gate the candidate IPs of an origin probe. Returns (ok, reason).
+
+    These values become HTTP destinations directly — ``origin.py`` builds
+    ``scheme://<candidate>`` and connects. Scope-checking the hostname beside
+    them, as this endpoint used to, is scope-checking the label on the
+    envelope: the request goes wherever the candidate says.
+
+    Three gates, in order of how badly they end:
+
+    1. **Shape.** Anything that is not exactly an IP literal is refused. A
+       hostname would be resolved at connect time — attacker-controlled DNS,
+       re-resolved after any check we could do here.
+    2. **Reachability class.** Loopback, link-local, private and reserved
+       ranges are refused. 169.254.169.254 is the cloud metadata endpoint: a
+       recon tool that will fetch it on request hands over the credentials of
+       the host it runs on. A real origin is a public address.
+    3. **Scope.** When a scope is configured, every candidate must be in it —
+       not merely the host they are claimed to serve.
+    """
+    import ipaddress
+
+    if not isinstance(candidates, list) or not candidates:
+        return False, "candidates must be a non-empty list"
+    if len(candidates) > MAX_CANDIDATES:
+        return False, (f"{len(candidates)} candidates; at most {MAX_CANDIDATES} "
+                       f"— an origin has a handful of addresses, not a subnet")
+    for raw in candidates:
+        if not isinstance(raw, str):
+            return False, f"candidate {raw!r} is not a string"
+        value = raw.strip().strip("[]")
+        if not value:
+            return False, "empty candidate"
+        try:
+            ip = ipaddress.ip_address(value)
+        except ValueError:
+            return False, (f"{raw!r} is not an IP literal — a hostname would be "
+                           f"resolved at connect time, after any check made here")
+        if ip.is_link_local:
+            return False, (f"{value} is link-local — 169.254.169.254 is the cloud "
+                           f"metadata endpoint and is never a valid origin")
+        if ip.is_loopback or ip.is_private or ip.is_reserved or ip.is_multicast \
+                or ip.is_unspecified:
+            return False, (f"{value} is not a public address; an origin server "
+                           f"reachable only from this host is not an origin")
+        if scope is not None and not scope.empty:
+            allowed, reason = scope.allows(value)
+            if not allowed:
+                return False, f"{value} is out of scope: {reason}"
+    return True, ""
 
 
 def _paid_modules() -> set:
@@ -1230,8 +1346,7 @@ class Handler(BaseHTTPRequestHandler):
             return {}
 
     def _write_state(self, name: str, obj: dict) -> None:
-        self._state_path(name).write_text(json.dumps(obj, indent=1),
-                                          encoding="utf-8")
+        atomic_write_json(self._state_path(name), obj)
 
     def _notes_get(self, parsed):
         """Analyst notes, keyed by finding id or by target."""
@@ -1893,7 +2008,16 @@ class Handler(BaseHTTPRequestHandler):
         if scope is not None and not scope.empty:
             allowed, reason = scope.allows(host)
             if not allowed:
+                self._record("verify-origin", detail=f"host out of scope: {host}",
+                             target=host, ok=False)
                 return self._json({"error": f"out of scope: {reason}"}, 403)
+        # The candidates are the actual destinations. Checking only the host
+        # above let a scoped hostname carry an unscoped address list.
+        ok, reason = validate_candidates(cands, scope)
+        if not ok:
+            self._record("verify-origin", detail=f"candidate refused: {reason}",
+                         target=host, ok=False)
+            return self._json({"error": f"candidate refused: {reason}"}, 403)
         try:
             out = workflow.verify_origin(host, cands, self.server.jobs.cfg)
         except Exception as exc:  # noqa: BLE001
@@ -1907,6 +2031,21 @@ class Handler(BaseHTTPRequestHandler):
         seed = (body.get("seed") or body.get("target") or "").strip()
         if not seed:
             return self._json({"error": "seed required (username or e-mail)"}, 400)
+        # This does not forward the seed as a destination — the sites it
+        # queries come from the built-in registry, so it is not a
+        # request-forgery primitive. But an e-mail seed names a domain, and
+        # investigating a domain nobody authorised is exactly what the scope
+        # guard exists to prevent. Audited either way: 130+ outbound requests
+        # is not an action that should leave no trace.
+        scope = getattr(self.server, "scope", None)
+        domain = seed.rsplit("@", 1)[1] if "@" in seed else ""
+        if domain and scope is not None and not scope.empty:
+            allowed, reason = scope.allows(domain)
+            if not allowed:
+                self._record("investigate", detail=f"out of scope: {reason}",
+                             target=seed, ok=False)
+                return self._json({"error": f"out of scope: {reason}"}, 403)
+        self._record("investigate", target=seed)
         try:
             out = workflow.entity_investigation(seed, self.server.jobs.cfg)
         except Exception as exc:  # noqa: BLE001

@@ -25,8 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
           pip install pytest dnspython requests
-          # ruff is optional; install for linting but never block the build on style
-          pip install ruff || true
+          pip install ruff
 
       - name: Import check (every module registers cleanly)
         run: |
@@ -41,10 +40,17 @@ jobs:
       - name: Verification gate (compile, import, lint, tests, live smoke)
         run: bash scripts/verify.sh
 
-      - name: Lint (non-blocking)
+      # `|| true` made these decorative: ruff and mypy could fail and CI stayed
+      # green, which is the same as not running them except it looks like you
+      # do. Bug rules block; style rules stay advisory, because a build that
+      # fails on line length teaches people to ignore the build.
+      - name: Lint (bug rules — blocking)
+        run: ruff check ghost_eye --select F,E9,PLE,B
+
+      - name: Lint (style — advisory)
         run: ruff check ghost_eye || true
 
-      - name: Type-check (advisory, non-blocking)
+      - name: Type-check (advisory)
         run: |
-          pip install mypy || true
+          pip install mypy
           mypy ghost_eye/core.py ghost_eye/config.py || true

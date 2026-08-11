@@ -120,7 +120,7 @@ def _src_crtsh(host: str, sess, timeout: int) -> Set[str]:
     try:
         data = r.json()
     except ValueError:
-        raise RuntimeError("non-JSON (rate-limited or error page)")
+        raise RuntimeError("non-JSON (rate-limited or error page)") from None
     names = []
     for entry in data:
         names.extend(str(entry.get("name_value", "")).splitlines())

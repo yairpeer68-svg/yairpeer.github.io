@@ -36,7 +36,8 @@ No network. Correlation over your own scan history only.
 
 from __future__ import annotations
 
-import sqlite3
+
+from .core import open_db
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -110,7 +111,7 @@ class Baseline:
     """A learned picture of what the hosts you scan normally look like."""
 
     def __init__(self, path: str = "ghosteye.db") -> None:
-        self.conn = sqlite3.connect(path)
+        self.conn = open_db(path)
         self.conn.execute(
             """CREATE TABLE IF NOT EXISTS baseline_obs(
                    host TEXT NOT NULL, field TEXT NOT NULL, value TEXT NOT NULL,

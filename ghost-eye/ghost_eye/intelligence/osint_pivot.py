@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from ..core import REGISTRY, Result, get_module
+from ..core import Result, get_module
 
 # which modules to run when we pivot onto an entity of a given kind.
 # Only ids that actually exist in the registry are used.

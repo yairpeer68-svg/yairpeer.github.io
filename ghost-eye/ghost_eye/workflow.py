@@ -151,8 +151,42 @@ DEFAULT_RECIPES: Dict[str, List[str]] = {
 }
 
 
+def recipes_path(name: str = "recipes.yaml") -> Optional[Path]:
+    """Find the recipes file wherever the tool is actually being run from.
+
+    Callers pass the bare name "recipes.yaml", which resolves against the
+    current working directory. That is right when you run out of a clone and
+    wrong every other time: installed as a package and launched from
+    somewhere else, the file simply is not there, custom profiles silently
+    revert to the built-in defaults, and nothing says so.
+
+    Looked for in order of how specific the intent is: an explicit
+    GHOSTEYE_RECIPES, the working directory, the user's config directory,
+    then the copy shipped inside the package.
+    """
+    env = os.environ.get("GHOSTEYE_RECIPES", "").strip()
+    candidates = [Path(env)] if env else []
+    candidates += [
+        Path.cwd() / name,
+        Path.home() / ".ghosteye" / name,
+        Path(__file__).parent / "data" / name,
+    ]
+    for candidate in candidates:
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
 def load_recipes(path: Optional[str]) -> Dict[str, List[str]]:
     recipes = dict(DEFAULT_RECIPES)
+    # A bare filename means "find it", not "look only in the process's CWD".
+    if path and not os.path.isabs(path) and not os.path.exists(path):
+        found = recipes_path(os.path.basename(path))
+        if found is not None:
+            path = str(found)
     if not path or not os.path.exists(path):
         return recipes
     try:
@@ -275,10 +309,22 @@ def wrap_session(session, rate: float = 0.0,
         resp = original(method, url, **kw)
         if cache_file is not None:
             try:
-                resp.content  # force body load before serialising
-                cache_file.write_bytes(_response_to_cache(resp))
+                resp.content  # noqa: B018 - forces the body to load before serialising
+                # Several workers can hold the same cache key at once. A
+                # plain write_bytes lets one thread read what another is
+                # halfway through writing — the read then throws, gets
+                # swallowed, and the cache silently stops being a cache.
+                # Write beside it and rename: the replace is atomic, so a
+                # reader sees the old entry or the new one, never a torn one.
+                tmp = cache_file.with_name(
+                    f"{cache_file.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+                tmp.write_bytes(_response_to_cache(resp))
+                os.replace(tmp, cache_file)
             except Exception:
-                pass
+                try:
+                    tmp.unlink()
+                except Exception:  # noqa: BLE001
+                    pass
         return resp
 
     session.request = request
@@ -470,7 +516,6 @@ def deep_plan(results, target="", scope=None, max_hosts: int = 25):
     """Return (plan, assets): a list of (asset, [modules]) to scan next, derived
     from the hosts/IPs discovered in `results`."""
     from .inventory import collect_assets
-    from .core import REGISTRY
     assets = collect_assets(results, target, scope, max_hosts)
     host_mods = [get_module(i) for i in DEEP_HOST_MODULES if get_module(i)]
     ip_mods = [get_module(i) for i in DEEP_IP_MODULES if get_module(i)]
@@ -691,7 +736,6 @@ def entity_investigation(seed: str, cfg=None, run_fn=None,
     from .intelligence.identity import identity_graph
     from .reporting_ext import score_findings
     from . import opsec as _opsec
-    from .core import REGISTRY
 
     seed = (seed or "").strip()
     if not seed:

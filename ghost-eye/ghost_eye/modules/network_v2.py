@@ -67,7 +67,7 @@ class FirewallInference(Module):
 
         def probe(port):
             try:
-                with socket.create_connection((host, port), timeout=ctx.timeout) as s:
+                with socket.create_connection((host, port), timeout=ctx.timeout):
                     return port, "open"
             except ConnectionRefusedError:
                 return port, "closed"

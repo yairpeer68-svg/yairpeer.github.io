@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+
+from .core import open_db
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -36,7 +38,7 @@ def _conn(path: Optional[str] = None) -> sqlite3.Connection:
     p = str(path) if path else str(mirror_path())
     if p != ":memory:":
         Path(p).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(p)
+    conn = open_db(p)
     conn.execute(
         """CREATE TABLE IF NOT EXISTS cve(
                id TEXT PRIMARY KEY, ts REAL, data TEXT)""")
