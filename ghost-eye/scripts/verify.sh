@@ -20,6 +20,73 @@ python3 -m ruff check ghost_eye; check $?
 step "test suite (unit + all-module smoke + behavioural + engine + intelligence)"
 python3 -m pytest -q -p no:cacheprovider; check $?
 
+# Correctness gates ask "is the answer wrong?". This one asks "what does it
+# consume, and can a caller make it consume more?" — a different question that
+# every gate above is structurally unable to answer, because they all run one
+# job at a time with inputs the author chose. Four real defects (unbounded
+# concurrency, unbounded request body, no global worker ceiling, cancel that
+# did not cancel) got past the whole suite for exactly that reason.
+step "load + abuse: bounded concurrency, bounded body, real cancellation"
+python3 -m pytest -q -p no:cacheprovider tests/test_resource_limits.py; check $?
+
+step "concurrent jobs do not multiply the worker count"
+python3 - <<'PY'
+import threading, time, json, urllib.request, subprocess, sys, tempfile, os
+port = 8931
+srv = subprocess.Popen([sys.executable, "ghost_eye_web.py", "--port", str(port),
+                        "--auth-token", "LOADTOK", "--quiet",
+                        "--db", os.path.join(tempfile.mkdtemp(), "l.db")],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+site = subprocess.Popen([sys.executable, "-m", "http.server", "8932"],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+try:
+    time.sleep(3)
+    def post(path, body):
+        r = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method="POST",
+                                   data=json.dumps(body).encode())
+        r.add_header("X-Ghost-Token", "LOADTOK")
+        r.add_header("Content-Type", "application/json")
+        return json.loads(urllib.request.urlopen(r, timeout=20).read())
+    # six jobs, each asking for far more than the ceiling
+    jobs = [post("/api/scan", {"target": "http://127.0.0.1:8932",
+                               "selection": {"mode": "profile", "value": "quick"},
+                               "options": {"parallel": 10000, "timeout": 5}})["job_id"]
+            for _ in range(6)]
+    # Count threads in the SERVER process. threading.active_count() here would
+    # count this script's own threads and pass no matter what the server did —
+    # a gate that cannot fail is not a gate.
+    def server_threads():
+        try:
+            with open(f"/proc/{srv.pid}/status") as fh:
+                for line in fh:
+                    if line.startswith("Threads:"):
+                        return int(line.split()[1])
+        except OSError:
+            pass
+        return -1
+    if server_threads() < 0:
+        print("  SKIP: /proc unavailable, cannot count server threads")
+        raise SystemExit(0)
+    peak = 0
+    for _ in range(40):
+        time.sleep(0.5)
+        peak = max(peak, server_threads())
+        r = urllib.request.Request(f"http://127.0.0.1:{port}/api/job/{jobs[-1]}")
+        r.add_header("X-Ghost-Token", "LOADTOK")
+        if json.loads(urllib.request.urlopen(r, timeout=10).read())["status"] != "running":
+            break
+    from ghost_eye.webapp import MAX_TOTAL_WORKERS
+    # headroom for the HTTP server's own request threads; the point is that
+    # six jobs asking for 10000 workers each do not become 60000
+    assert peak > 1, "the thread count never moved; the probe is broken"
+    assert peak < MAX_TOTAL_WORKERS + 60, f"peak thread count {peak}"
+    print(f"  6 jobs x parallel=10000 -> peak {peak} threads in the server "
+          f"(budget {MAX_TOTAL_WORKERS})")
+finally:
+    srv.terminate(); site.terminate()
+PY
+check $?
+
 step "live smoke: dashboard serves + auth gate + CSRF gate + CLI report"
 python3 - <<'PY'
 import json, subprocess, sys, time, urllib.error, urllib.request, tempfile, os

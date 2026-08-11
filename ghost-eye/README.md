@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1477 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1501 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 739 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -894,6 +894,38 @@ as filtered. Slower is more correct.
 
 ---
 
+## Resource limits
+
+A correctness gate asks *"is the answer wrong?"*. That question cannot see a
+system that answers perfectly while consuming without limit — and four such
+defects survived the entire test suite, the fuzz harness and every browser
+check, because all of them run one job at a time with inputs their author
+chose. They were found by an outside review, which is the honest way to say
+where the method was thin.
+
+| Limit | Why |
+|-------|-----|
+| `MAX_PARALLEL = 32` | `parallel` came off the request body with only a lower bound, so one POST could ask for ten thousand threads. Clamped in `engine`, so the CLI is not the way around the ceiling the API enforces. |
+| `MAX_TOTAL_WORKERS = 64` | Per-job bounds do not compose: four jobs of 32 is 128 threads and every job looks reasonable alone. A global budget hands out what is left, so a second scan runs *slowly* rather than doubling the load — and it is told how many workers it got. |
+| `MAX_BODY_BYTES = 4 MiB` | `rfile.read(Content-Length)` allocates whatever the caller declares. Checked from the header **before** routing and before any read — checking afterwards means buffering the attack and then declining it. |
+| Bounded drain | A rejected body is read and discarded in 64 KiB chunks so the client can finish writing and actually receive the 413, with a 2-second deadline: a `Content-Length` that over-declares must not pin a worker thread, which would be a denial of service against the check that exists to prevent one. |
+
+**Cancellation now cancels.** It used to mean "stop collecting results": queued
+modules were dropped and further session requests refused, but a module already
+inside a request ran to completion, and `run_scan`'s `with ThreadPoolExecutor`
+called `shutdown(wait=True)` on the way out — so a cancelled CLI scan waited for
+every running module anyway. Now `Context` carries a `stop_event`, the engine
+refuses to *start* a module once it is set, `run_scan` shuts down with
+`wait=False`, and a cancelled job reports how many modules are still draining
+instead of claiming a clean stop while threads run.
+
+`scripts/verify.sh` gained a load-and-abuse stage that runs these checks plus a
+live one: six concurrent jobs each asking for `parallel=10000`, with the
+**server process's** thread count read from `/proc` — counting the test
+harness's own threads would have passed no matter what the server did.
+
+---
+
 ## Ownership, audit and email
 
 Three things a single-analyst tool can skip and a team cannot.
@@ -1627,10 +1659,10 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1477 tests** pass in ~20s. A single **verification gate** runs the whole thing:
+**1501 tests** pass in ~20s. A single **verification gate** runs the whole thing:
 
 ```bash
-bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
+bash scripts/verify.sh     # compile · import · ruff · tests · LOAD/ABUSE · LIVE smoke
 ```
 
 The live smoke starts the real dashboard and checks the `401`→`200` auth gate,

@@ -119,6 +119,9 @@ class JobManager:
         return jid
 
     def _make_ctx(self, options: dict, stop_event=None) -> Context:
+        # NOTE: the event is attached to the Context at the end of this method
+        # as well as wrapping the session — a module that never touches the
+        # session (DNS, raw sockets) otherwise has no way to notice a cancel.
         timeout = int(options.get("timeout") or 15)
         threads = int(options.get("threads") or 10)
         proxy = options.get("proxy") or None
@@ -150,13 +153,24 @@ class JobManager:
             value = options.get(opt)
             if value not in (None, ""):
                 setattr(ctx, opt, value)
+        # A module that never touches the session — DNS, a raw socket, a
+        # subprocess — had no way to notice a cancel. Now it can poll
+        # ctx.cancelled(), and the engine checks it before starting anything.
+        ctx.stop_event = stop_event
         return ctx
 
     def _run(self, jid: str) -> None:
         job = self.jobs[jid]
         ctx = self._make_ctx(job["options"], job["_stop"])
         mods = job["_modules"]
-        parallel = max(1, int(job["options"].get("parallel") or 3))
+        asked = clamp_parallel(job["options"].get("parallel"),
+                               default=DEFAULT_PARALLEL)
+        # Ask for what was requested, run with what the host can spare. A
+        # second concurrent scan runs slowly instead of doubling the thread
+        # count, and is told so rather than silently throttled.
+        parallel = WORKER_BUDGET.take(asked, minimum=1)
+        job["workers"] = parallel
+        job["workers_requested"] = asked
         target = job["target"]
         # feature 66: adaptive throttle that widens delay when the target/network
         # starts erroring or rate-limiting us (opt-in via options.adaptive_rate)
@@ -166,6 +180,7 @@ class JobManager:
         ex = ThreadPoolExecutor(max_workers=parallel)
         try:
             futures = {ex.submit(self._run_one, m, target, ctx, rl): m for m in mods}
+            job["in_flight"] = 0
             pending = set(futures)
             while pending:
                 if job["cancel"]:
@@ -241,13 +256,28 @@ class JobManager:
             job["status"] = "error"
             job["error"] = str(exc)
         finally:
-            # don't block on in-flight modules; drop anything still queued.
-            # workers already running finish in the background within their
-            # own socket timeout - we just stop collecting their results.
+            # Drop everything still queued, and do not block on the handful
+            # already inside a socket read. Those cannot be interrupted from
+            # here — but engine.execute_module now refuses to *start* a module
+            # once the stop event is set, and the session wrapper refuses any
+            # further request, so what keeps running is bounded by one
+            # in-flight call per worker rather than by the rest of the scan.
             try:
                 ex.shutdown(wait=False, cancel_futures=True)
             except TypeError:                       # Python < 3.9
                 ex.shutdown(wait=False)
+            # Say so rather than reporting a clean stop while threads run: the
+            # count is what the operator needs to decide whether the host is
+            # still being touched.
+            job["in_flight"] = max(0, (job.get("total") or 0) - (job.get("done") or 0)) \
+                if job["cancel"] else 0
+            if job["cancel"] and job["in_flight"]:
+                job["note"] = (f"stopped — up to {min(job['in_flight'], parallel)} "
+                               f"module(s) already mid-request are still finishing; "
+                               f"nothing new will be started")
+            # Hand the workers back before the (slow) persist, so a second scan
+            # queued behind this one gets them immediately.
+            WORKER_BUDGET.give(parallel)
             job["finished"] = time.time()
             self._persist(job)
 
@@ -399,6 +429,71 @@ def _meta() -> dict:
             "categories": cats, "profiles": recipes}
 
 
+# The ceiling lives in the engine so the CLI and the API cannot disagree about
+# what it is; re-exported here because this is where callers look for it.
+from .engine import (DEFAULT_PARALLEL, MAX_PARALLEL,  # noqa: E402,F401
+                     clamp_parallel)
+
+# Per-job concurrency is bounded, but four jobs of 32 workers is 128 threads
+# and every one of those jobs looks perfectly reasonable on its own. The
+# ceiling that actually protects the host has to be global.
+MAX_TOTAL_WORKERS = 64
+
+# A request body is read with rfile.read(Content-Length), which allocates
+# whatever the caller declares. On localhost that is a footgun; on anything
+# reachable it is a memory-exhaustion primitive that needs no authentication
+# beyond a token, and the check has to happen before the read, not after.
+MAX_BODY_BYTES = 4 * 1024 * 1024
+
+
+class _WorkerBudget:
+    """A counting semaphore that answers "how many can I have?" honestly.
+
+    Deliberately not `threading.Semaphore`: a job must be able to ask for 32,
+    be told 6, and proceed with 6. Blocking until 32 are free would make the
+    second concurrent scan hang instead of run slowly, and a scan that hangs
+    is indistinguishable from a scan that crashed.
+    """
+
+    def __init__(self, total: int) -> None:
+        self._total = int(total)
+        self._free = int(total)
+        self._lock = threading.Lock()
+
+    @property
+    def available(self) -> int:
+        with self._lock:
+            return self._free
+
+    @property
+    def total(self) -> int:
+        return self._total
+
+    def take(self, want: int, minimum: int = 0) -> int:
+        """Reserve up to `want` workers; returns how many were actually given.
+
+        `minimum` is an overdraft for the starvation case: a job handed zero
+        workers waits for ever, so one slow worker beats a dead scan.
+        """
+        want = max(1, int(want))
+        with self._lock:
+            n = min(want, self._free)
+            if n <= 0 and minimum > 0:
+                n = minimum              # deliberate overdraft; see docstring
+            self._free -= n
+            return max(0, n)
+
+    def give(self, n: int) -> None:
+        if n <= 0:
+            return
+        with self._lock:
+            # clamp, so a double-give cannot inflate the budget past its size
+            self._free = min(self._total, self._free + int(n))
+
+
+WORKER_BUDGET = _WorkerBudget(MAX_TOTAL_WORKERS)
+
+
 def _paid_modules() -> set:
     """Modules that consume a third-party API key.
 
@@ -505,11 +600,35 @@ class Handler(BaseHTTPRequestHandler):
         self._access_log(code)
 
     def _body(self) -> dict:
-        length = int(self.headers.get("Content-Length") or 0)
-        if not length:
+        """Parse the JSON request body, refusing anything oversized.
+
+        The size check runs BEFORE the read. `rfile.read(Content-Length)`
+        allocates whatever the caller declares, so checking afterwards means
+        buffering the attack before rejecting it — which is not rejecting it.
+        A declared length is only a claim, so the read is also capped at the
+        limit: a header that lies about a body four times larger must not
+        leave this thread blocked on bytes that never arrive.
+        """
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except (TypeError, ValueError):
+            self._oversized = True
+            return {}
+        if length <= 0:
+            return {}
+        if length > MAX_BODY_BYTES:
+            self._oversized = True
             return {}
         try:
-            return json.loads(self.rfile.read(length).decode("utf-8"))
+            raw = self.rfile.read(min(length, MAX_BODY_BYTES))
+        except Exception:  # noqa: BLE001 - a truncated body is a bad request
+            self._oversized = True
+            return {}
+        if len(raw) < length:              # the header lied; do not wait for more
+            self._oversized = True
+            return {}
+        try:
+            return json.loads(raw.decode("utf-8"))
         except Exception:
             return {}
 
@@ -695,14 +814,71 @@ class Handler(BaseHTTPRequestHandler):
     # can go unrecorded just because someone forgot to add a line.
     _SELF_AUDITED = ("/api/assign", "/api/email", "/api/scan")
 
+    def _too_big(self) -> bool:
+        """Is the declared body over the limit?
+
+        Answerable from the header alone, which is the whole point: this runs
+        before any handler has replied and before a single byte is read off
+        the socket. Checking after the read means buffering the attack and
+        then declining it, which is not declining it.
+        """
+        try:
+            return int(self.headers.get("Content-Length") or 0) > MAX_BODY_BYTES
+        except (TypeError, ValueError):
+            return True                 # an unparseable length is not a body
+
+    def _drain(self, limit: int = MAX_BODY_BYTES * 4) -> None:
+        """Read and discard a rejected body so the client can finish writing.
+
+        Replying while the client is still sending gets our response thrown
+        away and a broken pipe raised on their side — so the caller sees a
+        network error instead of "your body was too large", which is the one
+        thing they needed to know. Chunked and capped: a huge body costs a
+        64KB buffer, not memory proportional to the attack, and past the cap
+        we stop reading and let the connection close.
+        """
+        try:
+            remaining = min(int(self.headers.get("Content-Length") or 0), limit)
+        except (TypeError, ValueError):
+            return
+        # A Content-Length is a claim, not a fact. Draining without a deadline
+        # means a header that over-declares by 16MB holds this worker thread
+        # until the socket dies — a one-line denial of service against the
+        # very check that exists to prevent one.
+        previous = self.connection.gettimeout()
+        self.connection.settimeout(2.0)
+        try:
+            while remaining > 0:
+                try:
+                    chunk = self.rfile.read(min(65536, remaining))
+                except Exception:  # noqa: BLE001 - stalled or gone; either way, done
+                    return
+                if not chunk:
+                    return
+                remaining -= len(chunk)
+        finally:
+            self.connection.settimeout(previous)
+
     def _do_post(self):
         parsed = urlparse(self.path)
         path = parsed.path
+        self._oversized = False
         if not self._guard(parsed, state_changing=True):
             return None
         if not self._authed(parsed):
             return self._json({"error": "unauthorized"}, 401)
+        if self._too_big():
+            self._drain()
+            self._record(path[len("/api/"):], detail="body refused", ok=False)
+            return self._json(
+                {"error": f"request body exceeds {MAX_BODY_BYTES} bytes"}, 413)
         out = self._post_route(path, parsed)
+        if self._oversized:
+            # the header under-declared what arrived, or the read fell short
+            self._record(path[len("/api/"):], detail="body refused", ok=False)
+            return self._json(
+                {"error": "Content-Length did not match the body that arrived"},
+                413)
         if path.startswith("/api/") and path not in self._SELF_AUDITED:
             self._record(path[len("/api/"):])
         return out

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from typing import Callable, List, Optional, Sequence
+from typing import Any, Callable, List, Optional, Sequence
 
 from .core import Context, Module, Result, record_error
 
@@ -78,6 +78,29 @@ class AdaptiveRateLimiter:
                     "backoffs": self.backoffs}
 
 
+# One ceiling for the whole product. The API clamps to it and so does this,
+# because the CLI reaches run_scan directly and must not be the way around the
+# limit the API enforces. Two ceilings means one of them is the real one.
+MAX_PARALLEL = 32
+DEFAULT_PARALLEL = 3
+
+
+def clamp_parallel(value: Any, default: int = DEFAULT_PARALLEL) -> int:
+    """Coerce a caller-supplied worker count into [1, MAX_PARALLEL].
+
+    Junk falls back to the default rather than raising: a typo'd option should
+    run a sane scan, not refuse to scan. NaN is checked explicitly because it
+    compares False against everything and would otherwise slip past min/max.
+    """
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return default
+    if n != n:                      # NaN survived int() on some paths
+        return default
+    return max(1, min(MAX_PARALLEL, n))
+
+
 def execute_module(module: Module, target: str, ctx: Context) -> Result:
     """Run one module and NEVER raise.
 
@@ -89,6 +112,15 @@ def execute_module(module: Module, target: str, ctx: Context) -> Result:
     started = time.time()
     def _ms() -> int:
         return int((time.time() - started) * 1000)
+    # The cheapest real cancellation there is: a module sitting in the queue
+    # when the operator pressed stop must not start. Submitting every module
+    # up front means most of them are still queued at that moment, so this
+    # alone turns "stop collecting" into "stop most of the work".
+    stop_event = getattr(ctx, "stop_event", None)
+    if stop_event is not None and stop_event.is_set():
+        return Result(getattr(module, "name", mid), target,
+                      status="error", error="cancelled before it started",
+                      elapsed_ms=0)
     try:
         res = module.run(target, ctx)
     except Exception as exc:  # noqa: BLE001 - one module must never kill a scan
@@ -123,6 +155,7 @@ def run_scan(modules: Sequence[Module], target: str, ctx: Context, *,
     delay when the target/network starts erroring or rate-limiting us.
     """
     results: List[Result] = []
+    parallel = clamp_parallel(parallel, default=1)
 
     if parallel <= 1:
         for module in modules:
@@ -138,7 +171,13 @@ def run_scan(modules: Sequence[Module], target: str, ctx: Context, *,
                 on_result(module, res)
         return results
 
-    with ThreadPoolExecutor(max_workers=parallel) as ex:
+    # NOT `with ThreadPoolExecutor(...)`: leaving that block calls
+    # shutdown(wait=True), so a cancelled scan blocks until every running
+    # module finishes anyway — which is exactly the wait the operator asked to
+    # avoid. Shut down explicitly with wait=False instead.
+    ex = ThreadPoolExecutor(max_workers=parallel)
+    cancelled = False
+    try:
         def _run(m: Module) -> Result:
             if rate:
                 rate.wait()
@@ -150,6 +189,7 @@ def run_scan(modules: Sequence[Module], target: str, ctx: Context, *,
         pending = set(futures)
         while pending:
             if should_cancel and should_cancel():
+                cancelled = True
                 break
             done, pending = wait(pending, timeout=0.4,
                                  return_when=FIRST_COMPLETED)
@@ -159,4 +199,8 @@ def run_scan(modules: Sequence[Module], target: str, ctx: Context, *,
                 results.append(res)
                 if on_result:
                     on_result(module, res)
+    finally:
+        # cancel_futures drops everything still queued; wait=False means we do
+        # not sit here while the handful already inside a socket read drain.
+        ex.shutdown(wait=False, cancel_futures=cancelled)
     return results

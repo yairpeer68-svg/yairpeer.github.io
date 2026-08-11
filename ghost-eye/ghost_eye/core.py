@@ -429,11 +429,26 @@ def _render_value(value: Any, indent: int = 0) -> None:
 # --------------------------------------------------------------------------- #
 @dataclass
 class Context:
-    config: Any
+    config: Any = None
     session: Any = None
     threads: int = 10
     timeout: int = 15
     verbose: bool = False
+    # Set when the operator cancels. The engine checks it before starting each
+    # module, and long-running modules may poll it. Without somewhere for a
+    # cancel to *live*, "stop" can only ever mean "stop collecting results" —
+    # the work carries on and the UI says it stopped, which is the lie that
+    # matters.
+    stop_event: Any = None
+
+    def cancelled(self) -> bool:
+        """True once the operator has asked to stop. Safe to call from a
+        module in a loop; never raises, and answers False when unset."""
+        ev = getattr(self, "stop_event", None)
+        try:
+            return bool(ev is not None and ev.is_set())
+        except Exception:  # noqa: BLE001 - a broken flag must not break a scan
+            return False
 
 
 # --------------------------------------------------------------------------- #
