@@ -428,6 +428,12 @@ def _render_value(value: Any, indent: int = 0) -> None:
 #  Context passed to every module
 # --------------------------------------------------------------------------- #
 
+# Ceilings that belong to the Context because every execution path builds one.
+MAX_MODULE_THREADS = 64      # workers inside a single module
+DEFAULT_MODULE_THREADS = 10
+MAX_TIMEOUT = 300            # seconds; longer pins a worker with nothing to show
+
+
 def open_db(path, timeout: float = 30.0):
     """Open a SQLite connection with the settings a threaded server needs.
 
@@ -465,6 +471,33 @@ class Context:
     threads: int = 10
     timeout: int = 15
     verbose: bool = False
+
+    def __post_init__(self) -> None:
+        # `threads` sizes the pool *inside* each module, and roughly sixty
+        # modules pass it to ThreadPoolExecutor unmodified. Clamping only the
+        # number of modules in flight therefore bounds nothing: 32 modules
+        # each asking for 5000 workers is 160,000 threads, and every layer
+        # above looks correctly limited while it happens.
+        #
+        # Clamped here, in the object every execution path must build, rather
+        # than in the API — the CLI, the scheduler, the Telegram bot and the
+        # distributed worker all construct a Context, and a limit enforced in
+        # one caller is a limit with as many holes as there are callers.
+        try:
+            n = int(self.threads)
+        except (TypeError, ValueError):
+            n = DEFAULT_MODULE_THREADS
+        if n != n:                       # NaN
+            n = DEFAULT_MODULE_THREADS
+        self.threads = max(1, min(MAX_MODULE_THREADS, n))
+        try:
+            t = float(self.timeout)
+        except (TypeError, ValueError):
+            t = 15.0
+        # A timeout of zero means "never wait", which turns every module into
+        # an instant failure; an unbounded one pins a worker for ever.
+        self.timeout = type(self.timeout)(max(1, min(MAX_TIMEOUT, t))) \
+            if isinstance(self.timeout, int) else max(1.0, min(MAX_TIMEOUT, t))
     # Set when the operator cancels. The engine checks it before starting each
     # module, and long-running modules may poll it. Without somewhere for a
     # cancel to *live*, "stop" can only ever mean "stop collecting results" —

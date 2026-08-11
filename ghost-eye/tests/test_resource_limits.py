@@ -243,3 +243,84 @@ class TestCancellationStopsWork:
         src = inspect.getsource(webapp.JobManager._run)
         assert "in_flight" in src or "still finishing" in src, \
             "nothing tells the user that in-flight modules are still draining"
+
+
+class TestModuleThreadsAreBounded:
+    """The hole in the previous fix, found by sweeping for pool constructions
+    rather than by reading the diff again.
+
+    `parallel` bounds how many modules run at once. `threads` sizes the pool
+    *inside* each one, and roughly sixty modules hand it to ThreadPoolExecutor
+    unmodified — so 32 modules each asking for 5000 workers is 160,000
+    threads, with every layer above reporting a correctly bounded scan.
+    """
+
+    def test_the_ceiling_exists(self):
+        from ghost_eye.core import MAX_MODULE_THREADS
+        assert 1 < MAX_MODULE_THREADS <= 128
+
+    @pytest.mark.parametrize("asked", [5000, 65, 0, -3])
+    def test_the_context_clamps_it(self, asked):
+        from ghost_eye.core import Context, MAX_MODULE_THREADS
+        assert 1 <= Context(threads=asked).threads <= MAX_MODULE_THREADS
+
+    def test_junk_falls_back_to_the_default(self):
+        from ghost_eye.core import Context, DEFAULT_MODULE_THREADS
+        for junk in ("abc", None, [], float("nan")):
+            assert Context(threads=junk).threads == DEFAULT_MODULE_THREADS
+
+    def test_a_reasonable_value_survives(self):
+        from ghost_eye.core import Context
+        assert Context(threads=8).threads == 8
+
+    def test_it_is_clamped_in_the_context_not_in_one_caller(self):
+        """The CLI, the scheduler, the Telegram bot and the distributed worker
+        all build a Context. A limit enforced in the API has as many holes as
+        there are other callers."""
+        import inspect
+        from ghost_eye import core
+        assert "MAX_MODULE_THREADS" in inspect.getsource(core.Context)
+
+    def test_no_module_can_outgrow_the_ceiling(self):
+        """Measured, not asserted about: instrument the pool constructor and
+        run the modules that pass ctx.threads through untouched."""
+        import concurrent.futures as cf
+        from ghost_eye import engine
+        from ghost_eye.core import (MAX_MODULE_THREADS, Context, build_session,
+                                    get_module)
+        seen = []
+        original = cf.ThreadPoolExecutor.__init__
+
+        def spy(self, max_workers=None, *a, **k):
+            seen.append(max_workers)
+            return original(self, max_workers=max_workers, *a, **k)
+
+        cf.ThreadPoolExecutor.__init__ = spy
+        try:
+            ctx = Context(config=None, session=build_session(),
+                          threads=5000, timeout=1)
+            for mid in ("backups", "buckets", "admin", "s3enum", "wellknown"):
+                module = get_module(mid)
+                if module is None:
+                    continue
+                try:
+                    engine.execute_module(module, "http://127.0.0.1:1", ctx)
+                except Exception:  # noqa: BLE001
+                    pass
+        finally:
+            cf.ThreadPoolExecutor.__init__ = original
+        worst = max([s for s in seen if s] or [0])
+        assert worst <= MAX_MODULE_THREADS, \
+            f"a module built a {worst}-worker pool from an asked-for 5000"
+
+
+class TestTimeoutIsBounded:
+    def test_an_unbounded_timeout_is_clamped(self):
+        from ghost_eye.core import MAX_TIMEOUT, Context
+        assert Context(timeout=99999).timeout <= MAX_TIMEOUT
+
+    def test_a_zero_timeout_does_not_mean_never_wait(self):
+        """Zero turns every module into an instant failure that looks like a
+        dead target."""
+        from ghost_eye.core import Context
+        assert Context(timeout=0).timeout >= 1

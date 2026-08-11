@@ -21,6 +21,7 @@ a token out of free-text detail before it is written.
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from pathlib import Path
@@ -91,9 +92,16 @@ class Assignments:
     def _save(self) -> None:
         if not self.path:
             return
+        # Atomic: write_text truncates first, so a crash between truncate and
+        # write loses every assignment rather than losing the newest one.
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps(self._data, indent=1, ensure_ascii=False),
-                             encoding="utf-8")
+        blob = json.dumps(self._data, indent=1, ensure_ascii=False)
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(blob)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, self.path)
 
     # ---- operations ------------------------------------------------------ #
     def assign(self, key: str, assignee: str = "", status: str = "open",
@@ -222,7 +230,14 @@ class AuditLog:
             return
         if len(lines) <= self.cap * 2:
             return
-        self.path.write_text("\n".join(lines[-self.cap:]) + "\n", encoding="utf-8")
+        # Trimming rewrites the whole log. In place, a crash here destroys the
+        # audit trail — the one file whose loss is least acceptable.
+        tmp = self.path.with_name(self.path.name + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines[-self.cap:]) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, self.path)
 
     def tail(self, n: int = 100, action: str = "") -> List[Dict[str, Any]]:
         """Most recent entries first."""

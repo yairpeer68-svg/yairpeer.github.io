@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1531 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1542 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 739 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -906,6 +906,7 @@ where the method was thin.
 | Limit | Why |
 |-------|-----|
 | `MAX_PARALLEL = 32` | `parallel` came off the request body with only a lower bound, so one POST could ask for ten thousand threads. Clamped in `engine`, so the CLI is not the way around the ceiling the API enforces. |
+| `MAX_MODULE_THREADS = 64` | `parallel` bounds how many *modules* run at once; `threads` sizes the pool *inside* each one, and roughly sixty modules hand it to `ThreadPoolExecutor` untouched. Bounding only the first bounds nothing — 32 modules each asking for 5000 workers is 160,000 threads, with every layer above reporting a correctly limited scan. Clamped on `Context`, which every execution path must build, because a limit enforced in the API has as many holes as there are other callers. |
 | `MAX_TOTAL_WORKERS = 64` | Per-job bounds do not compose: four jobs of 32 is 128 threads and every job looks reasonable alone. A global budget hands out what is left, so a second scan runs *slowly* rather than doubling the load — and it is told how many workers it got. |
 | `MAX_BODY_BYTES = 4 MiB` | `rfile.read(Content-Length)` allocates whatever the caller declares. Checked from the header **before** routing and before any read — checking afterwards means buffering the attack and then declining it. |
 | Bounded drain | A rejected body is read and discarded in 64 KiB chunks so the client can finish writing and actually receive the 413, with a 2-second deadline: a `Content-Length` that over-declares must not pin a worker thread, which would be a denial of service against the check that exists to prevent one. |
@@ -1697,7 +1698,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1531 tests** pass in ~25s. A single **verification gate** runs the whole thing:
+**1542 tests** pass in ~40s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · lint · tests · load/abuse · lifecycle+scope · live smoke
