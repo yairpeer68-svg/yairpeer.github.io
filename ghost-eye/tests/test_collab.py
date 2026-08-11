@@ -221,3 +221,40 @@ class TestAuditLog:
         for forbidden in ("delete", "remove", "edit", "clear", "purge", "update"):
             assert not hasattr(AuditLog, forbidden), \
                 f"AuditLog.{forbidden} would make the log editable"
+
+
+class TestActiveActors:
+    """Presence, honestly: derived from what was done, because a shared token
+    gives no user identity to build a real presence protocol on."""
+
+    def test_a_recent_actor_is_listed(self, tmp_path):
+        log = AuditLog(tmp_path / "audit.jsonl")
+        log.record("scan", actor="10.0.0.5")
+        active = log.active(30)
+        assert [a["actor"] for a in active] == ["10.0.0.5"]
+        assert active[0]["actions"] == 1
+        assert active[0]["last_action"] == "scan"
+
+    def test_actions_are_counted_per_actor(self, tmp_path):
+        log = AuditLog(tmp_path / "audit.jsonl")
+        for _ in range(3):
+            log.record("scan", actor="10.0.0.5")
+        log.record("assign", actor="10.0.0.9")
+        counts = {a["actor"]: a["actions"] for a in log.active(30)}
+        assert counts == {"10.0.0.5": 3, "10.0.0.9": 1}
+
+    def test_an_old_action_is_not_presence(self, tmp_path):
+        """Someone who scanned last Tuesday is not in the room with you."""
+        path = tmp_path / "audit.jsonl"
+        path.write_text('{"at":"2020-01-01T00:00:00Z","actor":"ghost",'
+                        '"action":"scan","ok":true}\n')
+        assert AuditLog(path).active(30) == []
+
+    def test_an_empty_log_has_nobody_active(self, tmp_path):
+        assert AuditLog(tmp_path / "audit.jsonl").active(30) == []
+
+    def test_the_window_is_respected(self, tmp_path):
+        log = AuditLog(tmp_path / "audit.jsonl")
+        log.record("scan", actor="10.0.0.5")
+        assert log.active(1)          # just happened
+        assert log.active(1440)       # a wider window still contains it

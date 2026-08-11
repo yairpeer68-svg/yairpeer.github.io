@@ -3569,7 +3569,7 @@ async function assignFinding(id, statuses){
 VIEWS.audit = async ()=>{
   set(loading());
   try{
-    const d=await api("/api/audit?limit=300");
+    const d=await api("/api/audit?limit=300&active_minutes=30");
     if(VIEW!=="audit") return;
     const sum=d.summary||{};
     set(head(t("aud.t","Audit trail"),
@@ -3585,6 +3585,14 @@ VIEWS.audit = async ()=>{
         ${stat("Distinct actors", Object.keys(sum.by_actor||{}).length)}
         ${stat("Since", (sum.first||"—").slice(0,10), "first entry kept")}
       </div>
+      ${(d.active||[]).length>1?`<div class="banner info">
+        <b>${d.active.length} people have acted in the last
+        ${d.active_minutes} minutes</b> — you are sharing this console.
+        ${d.active.map(a=>`<span class="pill muted" title="last: ${esc(a.last_action)}"
+          >${esc(a.actor)} · ${a.actions}</span>`).join(" ")}
+        <span style="color:var(--muted)">Derived from what was done, not from a
+        presence protocol: a shared token gives no user identity to build one on.</span>
+      </div>`:""}
       ${(d.entries||[]).length?`<div class="tblwrap"><table>
         <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th>
           <th>Detail</th><th></th></tr></thead>

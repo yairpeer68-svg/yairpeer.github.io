@@ -152,6 +152,21 @@ class TestAudit:
                            body={} if method == "POST" else None)
             assert code == 404, f"{method} /api/audit is routed somewhere"
 
+
+    def test_recent_actors_are_reported(self, api):
+        call(api + "/api/assign", method="POST", headers=AUTH,
+             body={"key": "fp-presence", "assignee": "dana"})
+        _, out = call(api + "/api/audit", headers=AUTH)
+        assert out["active"], "nobody is active right after an action"
+        assert out["active_minutes"] > 0
+        assert all("actor" in a and "actions" in a for a in out["active"])
+
+    def test_it_does_not_claim_to_be_a_presence_protocol(self, api):
+        """A shared token gives no user identity; saying otherwise would be a
+        claim the tool cannot back."""
+        _, out = call(api + "/api/audit", headers=AUTH)
+        assert "presence protocol" in out["note"]
+
     def test_an_unauthenticated_call_leaves_no_entry(self, api):
         """The auth gate runs before the audit hook, so a 401 is not an
         'action' — otherwise anyone could fill the log from outside."""

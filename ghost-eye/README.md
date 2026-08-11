@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1458 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1465 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 739 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -915,6 +915,14 @@ anyone remembers. The log is append-only from the API's point of view: there is
 a route that reads it and none that edits or deletes it, and a test asserts
 `AuditLog` has no `delete`/`edit`/`clear` method at all.
 
+The Audit workspace also answers *"is anyone else in here right now?"* — the
+question worth asking before you delete a quarter of stored scans. It is
+derived from recent actions rather than from a presence protocol, and says so:
+the console is reached with a shared token, so there is no user identity to
+build a real one on. What can be stated honestly is who acted and when, and an
+actor whose last action was four seconds ago is someone you are sharing the
+console with.
+
 Nothing secret reaches the log. A redaction pass runs over every free-text
 detail before it is written, and it is deliberately over-eager — a labelled
 credential loses **everything after the label** (`Authorization: Basic <blob>`
@@ -1619,7 +1627,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1458 tests** pass in ~20s. A single **verification gate** runs the whole thing:
+**1465 tests** pass in ~20s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

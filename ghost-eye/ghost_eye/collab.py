@@ -248,6 +248,32 @@ class AuditLog:
             return list(self._mem)
         return out
 
+    def active(self, minutes: int = 30) -> List[Dict[str, Any]]:
+        """Who else has done something recently.
+
+        Derived from the log rather than from a presence protocol, because
+        there is no user identity here to build one on: the console is reached
+        with a shared token, so an "online users" list would be an invention.
+        What can be said honestly is *who acted, and when* — an actor whose
+        last action was four seconds ago is someone you are sharing the console
+        with, and that is the fact worth surfacing before you delete a scan.
+        """
+        cutoff = time.gmtime(time.time() - max(1, int(minutes)) * 60)
+        since = time.strftime("%Y-%m-%dT%H:%M:%SZ", cutoff)
+        seen: Dict[str, Dict[str, Any]] = {}
+        for entry in self._read():
+            at = str(entry.get("at", ""))
+            if at < since:
+                continue
+            who = str(entry.get("actor") or "?")
+            row = seen.setdefault(who, {"actor": who, "actions": 0,
+                                        "last": at, "last_action": ""})
+            row["actions"] += 1
+            if at >= row["last"]:
+                row["last"] = at
+                row["last_action"] = entry.get("action", "")
+        return sorted(seen.values(), key=lambda r: r["last"], reverse=True)
+
     def summary(self) -> Dict[str, Any]:
         entries = self._read()
         by_action: Dict[str, int] = {}

@@ -1202,12 +1202,21 @@ class Handler(BaseHTTPRequestHandler):
             limit = int(q.get("limit", ["200"])[0])
         except ValueError:
             limit = 200
+        try:
+            window = int(q.get("active_minutes", ["30"])[0])
+        except ValueError:
+            window = 30
         log = self._audit()
         return self._json({"entries": log.tail(min(limit, 1000),
                                                action=q.get("action", [""])[0]),
                            "summary": log.summary(),
+                           "active": log.active(window),
+                           "active_minutes": window,
                            "note": "append-only: there is no API that edits or "
-                                   "deletes an entry."})
+                                   "deletes an entry. 'active' is derived from "
+                                   "recent actions, not from a presence "
+                                   "protocol — a shared token gives no user "
+                                   "identity to build one on."})
 
     def _mailer(self):
         from .mailer import Mailer
