@@ -440,6 +440,13 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument("--attribute", action="store_true",
                      help="infrastructure attribution: cluster the hosts seen "
                           "into operator estates with weighted evidence")
+    out.add_argument("--anomalies", action="store_true",
+                     help="score this scan against everything you have scanned "
+                          "before and report only what is unusual for your corpus")
+    out.add_argument("--baseline-learn", action="store_true",
+                     dest="baseline_learn",
+                     help="teach the corpus baseline from this scan "
+                          "(scoring always happens before learning)")
     out.add_argument("--risk", action="store_true",
                      help="print a prioritised risk summary (#66)")
     out.add_argument("--inventory", action="store_true",
@@ -624,6 +631,12 @@ def _run_once(mods, target, cfg, args):
         _print_ip_filter(workflow.ip_filter_report(results, target))
     if getattr(args, "attribute", False):
         _print_attribution(workflow.attribution_report(results, target))
+    if getattr(args, "anomalies", False) or getattr(args, "baseline_learn", False):
+        from . import baseline
+        _print_anomalies(baseline.anomaly_report(
+            results, db=args.db, target=target,
+            learn=getattr(args, "baseline_learn", False)),
+            scored=getattr(args, "anomalies", False))
     if getattr(ctx, "opsec", None) is not None:
         _print_opsec(ctx.opsec.report())
     return results
@@ -722,6 +735,25 @@ def _print_attribution(rep: dict) -> None:
     demoted = rep.get("demoted_as_shared_infrastructure") or []
     if demoted:
         Console.kv("ignored as shared infrastructure", ", ".join(demoted[:6]))
+
+
+def _print_anomalies(rep: dict, scored: bool = True) -> None:
+    """What is unusual about this host relative to everything you've scanned."""
+    if scored:
+        Console.rule(f"Anomalies — {rep['anomaly_count']} unusual value(s) "
+                     f"vs a corpus of {rep['corpus_hosts']} host(s)")
+        if not rep.get("anomalies"):
+            Console.info(rep.get("note", "nothing unusual"))
+        for a in rep.get("anomalies", []):
+            tag = "ONLY THIS HOST" if a["unique_to_this_host"] else \
+                f"{a['seen_on_hosts']}/{a['of_hosts_with_field']} hosts"
+            Console.warn(f"[{tag}] {a['module']}.{a['field']} = {a['value'][:90]}")
+        if rep.get("by_module"):
+            Console.kv("by module", ", ".join(f"{k}={v}" for k, v in
+                                              list(rep["by_module"].items())[:8]))
+    if "learned_observations" in rep:
+        Console.good(f"baseline: learned {rep['learned_observations']} new "
+                     f"observation(s); corpus now {rep['corpus_hosts']} host(s)")
 
 
 def _print_intel(results, target):

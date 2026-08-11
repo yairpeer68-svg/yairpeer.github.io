@@ -751,6 +751,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._job_attribution(jid)
         if sub == "ipfilter":
             return self._job_ipfilter(jid)
+        if sub == "anomalies":
+            return self._job_anomalies(jid)
         if sub == "ask":
             return self._job_ask(jid, parsed)
         if sub == "summary":
@@ -910,6 +912,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(workflow.ip_filter_report(results, target))
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"ip filter failed: {exc}"}, 500)
+
+    def _job_anomalies(self, jid: str):
+        """What is unusual about this job's target relative to every host this
+        installation has ever scanned. Read-only: scoring never learns, so
+        opening the panel cannot quietly normalise the host being looked at."""
+        results = self.server.jobs.results_obj(jid)
+        if not results:
+            return self._json({"error": "no results yet"}, 404)
+        snap = self.server.jobs.snapshot(jid)
+        target = snap["target"] if snap else ""
+        try:
+            from . import baseline
+            return self._json(baseline.anomaly_report(
+                results, db=self.server.jobs.db_path, target=target, learn=False))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"anomalies failed: {exc}"}, 500)
 
     def _job_attribution(self, jid: str):
         """Infrastructure attribution for a job: cluster the hosts it saw into

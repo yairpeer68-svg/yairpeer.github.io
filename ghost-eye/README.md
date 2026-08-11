@@ -16,9 +16,9 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1035 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
+- **1057 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 483 are behavioural — see
+  raises"); the other 505 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -43,6 +43,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [Trust layer — confidence, provenance & OPSEC](#trust-layer--confidence-provenance--opsec)
 - [CDN/WAF filtering — finding the real IPs](#cdnwaf-filtering--finding-the-real-ips)
 - [Infrastructure attribution](#infrastructure-attribution)
+- [Corpus baseline — what is unusual here](#corpus-baseline--what-is-unusual-here)
 - [Reporting](#reporting)
 - [CI/CD security gate](#cicd-security-gate)
 - [Notifications](#notifications)
@@ -132,6 +133,8 @@ python3 ghost_eye_web.py --open
 | `--risk` | print a prioritised risk summary |
 | `--filter-cdn` | classify every IP found: CDN/WAF edge vs cloud vs candidate origin |
 | `--attribute` | infrastructure attribution: cluster hosts into operator estates with weighted evidence |
+| `--anomalies` | score the scan against every host you have scanned before — report only what is unusual |
+| `--baseline-learn` | teach the corpus baseline from this scan (scoring always runs first) |
 | `--inventory`, `--rollup` | asset inventory / per-host rollup |
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
 | `--ci`, `--fail-on <sev>` | CI mode: non-zero exit if findings breach the severity gate |
@@ -607,6 +610,58 @@ its weight and how many hosts carry it.
 
 Correlation only, no scanning. Attribution is evidence, not proof: verify
 before attributing ownership to a real party.
+
+---
+
+## Corpus baseline — what is unusual here
+
+A 552-module scan returns thousands of fields, and almost all of them are what
+*every* host looks like: an nginx `Server` header, a Let's Encrypt issuer, port
+443 open. Reading that output means already knowing what normal is — and the
+tool never tells you, so the one genuinely odd field sits in the same flat list
+as the four hundred that are not.
+
+`--anomalies` learns normal from **every host you have ever scanned** and
+reports only what this host does differently.
+
+```bash
+# teach the baseline while you scan (scoring always runs before learning)
+python3 ghost_eye.py -T targets.txt -p perimeter --baseline-learn --db estate.db
+
+# then ask what is unusual about one host
+python3 ghost_eye.py -t suspect.example -p perimeter --anomalies --db estate.db
+```
+
+```
+== Anomalies — 6 unusual value(s) vs a corpus of 74 host(s) ==
+  [ONLY THIS HOST]  headers.x-powered-by = JBoss-EAP/7
+  [2/74 hosts]      tls.issuer = Internal Corp CA
+  [1/74 hosts]      web.exposed_path = /jmx-console
+```
+
+This is the mirror image of [infrastructure attribution](#infrastructure-attribution).
+There, a rare shared value is strong evidence two hosts share an operator; here,
+a rare value is a reason to look. Both rest on the same measurement, so both
+inherit the same correction: **frequency over a handful of hosts is not
+knowledge**. Below 8 hosts the engine says so instead of inventing confident
+numbers.
+
+Two guards keep it from becoming a firehose:
+
+- **Identifier suppression.** A field whose distinct-value count tracks its host
+  count is an identifier, not an observation — every host has its own IP,
+  certificate serial and response time, so without this every host would be
+  maximally "anomalous" in those fields forever. Fields above 0.9
+  distinct-values-per-host are dropped automatically, so there is no
+  hand-maintained blocklist to keep current.
+- **Idempotent learning.** Observations are keyed `(host, field, value)`, so
+  re-scanning one host ten times does not make its values look ten times more
+  normal — and a host is excluded from its own prevalence, so it can never
+  teach the baseline a value and then hide behind it.
+
+Dashboard: `GET /api/job/<id>/anomalies` (read-only — opening the panel never
+learns, so it cannot quietly normalise the host you are looking at).
+
 
 ---
 
@@ -1122,7 +1177,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1035 tests** pass in ~13s. A single **verification gate** runs the whole thing:
+**1057 tests** pass in ~14s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
