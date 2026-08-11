@@ -472,6 +472,10 @@ def build_parser() -> argparse.ArgumentParser:
                      help="drop a verdict by id, reinstating the finding")
     out.add_argument("--verdicts", action="store_true",
                      help="list every standing verdict and exit")
+    out.add_argument("--fix-order", action="store_true", dest="fix_order",
+                     help="rank every CVE found by exploitation pressure "
+                          "(KEV / public exploit / EPSS forecast) times observed "
+                          "reachability — what to fix first, not 47 criticals")
     out.add_argument("--anomalies", action="store_true",
                      help="score this scan against everything you have scanned "
                           "before and report only what is unusual for your corpus")
@@ -663,6 +667,10 @@ def _run_once(mods, target, cfg, args):
         _print_ip_filter(workflow.ip_filter_report(results, target))
     if getattr(args, "attribute", False):
         _print_attribution(workflow.attribution_report(results, target))
+    if getattr(args, "fix_order", False):
+        from . import prioritise as _prio
+        _print_fix_order(_prio.prioritise(results, session=ctx.session,
+                                          timeout=ctx.timeout))
     if getattr(args, "anomalies", False) or getattr(args, "baseline_learn", False):
         from . import baseline
         _print_anomalies(baseline.anomaly_report(
@@ -816,6 +824,28 @@ def _handle_verdicts(args) -> Optional[int]:
         return None
     finally:
         store.close()
+
+
+def _print_fix_order(rep: dict) -> None:
+    """The ranked answer to 'what do I fix first', with each rank explained."""
+    Console.rule(f"Fix order — {rep['cves_found']} CVE(s), "
+                 f"{rep['act_now_count']} exploited AND reachable")
+    for item in rep.get("act_now", []):
+        Console.err(f"ACT NOW  {item['cve']}  ({item['reachability']}) "
+                    f"— {item['exploitation']}")
+    for i, item in enumerate(rep.get("fix_order", [])[:15], 1):
+        epss = f", EPSS {item['epss']:.0%}" if item.get("epss") else ""
+        cvss = f", CVSS {item['cvss']}" if item.get("cvss") else ""
+        Console.kv(f"{i:>2}. {item['cve']}",
+                   f"priority {item['priority']}  [{item['reachability']}"
+                   f"{epss}{cvss}]")
+        Console.kv("why", item["exploitation"], indent=6)
+        if item.get("hosts"):
+            Console.kv("on", ", ".join(item["hosts"]), indent=6)
+    if rep.get("unobserved_exposure"):
+        Console.warn(f"{rep['unobserved_exposure']} CVE(s) are on hosts this scan "
+                     "never observed exposed — ranked lower, NOT ruled safe")
+    Console.info(rep.get("note", ""))
 
 
 def _print_anomalies(rep: dict, scored: bool = True) -> None:

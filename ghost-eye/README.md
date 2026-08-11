@@ -16,9 +16,9 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1091 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
+- **1119 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 539 are behavioural — see
+  raises"); the other 567 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -45,6 +45,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [Infrastructure attribution](#infrastructure-attribution)
 - [Corpus baseline — what is unusual here](#corpus-baseline--what-is-unusual-here)
 - [Analyst verdicts — tell it once](#analyst-verdicts--tell-it-once)
+- [Fix order — what to do first](#fix-order--what-to-do-first)
 - [Reporting](#reporting)
 - [CI/CD security gate](#cicd-security-gate)
 - [Notifications](#notifications)
@@ -140,6 +141,7 @@ python3 ghost_eye_web.py --open
 | `--baseline-learn` | teach the corpus baseline from this scan (scoring always runs first) |
 | `--inventory`, `--rollup` | asset inventory / per-host rollup |
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
+| `--fix-order` | rank every CVE by exploitation pressure × observed reachability — what to fix first |
 | `--ci`, `--fail-on <sev>` | CI mode: non-zero exit if findings breach the severity gate |
 | `--siem <url>` | push results to Elasticsearch / Splunk / webhook (TLS verified; `--siem-insecure` to opt out for a lab collector) |
 | `--notify <webhook>` | Slack / Discord / Telegram summary |
@@ -718,6 +720,56 @@ Dashboard: `POST /api/verdict` `{id, verdict, reason?, scope?, ttl_days?}`.
 
 ---
 
+## Fix order — what to do first
+
+A scan that reports "47 critical" has not finished the job. CVSS scores a
+vulnerability in the abstract — how bad it *would* be, for anyone, if reachable
+and if exploited. It says nothing about whether anyone is exploiting it, or
+whether your instance can be reached at all, so sorting by CVSS produces a list
+nobody can act on and the real emergency sits at number 31.
+
+```bash
+python3 ghost_eye.py -t example.com -p perimeter --fix-order
+```
+
+```
+== Fix order — 41 CVE(s), 2 exploited AND reachable ==
+ACT NOW  CVE-2021-44228  (confirmed exposed) — on CISA KEV — exploited in the wild
+ 1. CVE-2021-44228   priority 94.0  [confirmed exposed, EPSS 97%, CVSS 10.0]
+      why  on CISA KEV — exploited in the wild
+      on   api.example.com
+ 2. CVE-2023-38545   priority 61.2  [exposed behind CDN/WAF, EPSS 71%, CVSS 9.8]
+…
+ 31 CVE(s) are on hosts this scan never observed exposed — ranked lower, NOT ruled safe
+```
+
+Ranking combines three things instead of one:
+
+- **Is it being exploited?** CISA KEV means *in the wild, right now*. EPSS
+  (FIRST.org) gives the probability of exploitation within 30 days — an
+  empirical forecast, not a severity opinion. EPSS can raise a quiet CVE, but a
+  low forecast never lowers a KEV one: "not predicted" is not evidence against
+  something already in use.
+- **Can it be reached?** Derived from the scan itself — a live response or an
+  open port is confirmation, a CDN/WAF range means reachable-but-filtered, a
+  private address means not reachable from outside.
+- **How bad if it lands?** CVSS, kept — but as one term among three rather than
+  the whole ranking. The result: a reachable, actively-exploited *medium*
+  outranks an unreachable critical nobody is touching.
+
+**On the honesty of reachability.** The tempting move is to score an unreachable
+finding to zero and drop it. Ghost Eye does not: a scan that did not observe a
+service exposed has not *established* that it is unreachable — it may sit behind
+auth, on an odd port, or on a host the scan never touched. Unobserved exposure
+lowers priority, is labelled `not observed exposed`, and is counted in the
+output. It never removes a finding and never claims safety.
+
+EPSS lookups are batched (one request per 100 CVEs rather than one per CVE), so
+a 240-CVE estate costs three requests instead of 240.
+
+
+---
+
 ## Reporting
 
 `-o report.<ext>` picks the format by extension, or use `--format`:
@@ -1230,7 +1282,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1091 tests** pass in ~15s. A single **verification gate** runs the whole thing:
+**1119 tests** pass in ~15s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
