@@ -660,6 +660,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._osint_deep()
         if path == "/api/investigate":
             return self._investigate()
+        if path == "/api/verdict":
+            return self._set_verdict()
         if path == "/api/verify-origin":
             return self._verify_origin()
         if path == "/api/alert-rules":
@@ -912,6 +914,33 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(workflow.ip_filter_report(results, target))
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"ip filter failed: {exc}"}, 500)
+
+    def _set_verdict(self):
+        """Rule on a finding: {id, verdict, reason?, scope?, ttl_days?}.
+
+        The id is the handle printed beside the finding; it resolves against the
+        findings this installation has already shown, so the ruling can be made
+        whenever the analyst gets to it rather than during the scan."""
+        body = self._body()
+        short = str(body.get("id", "")).strip()
+        verdict = str(body.get("verdict", "")).strip()
+        from . import verdicts as v
+        if verdict not in v.VERDICTS:
+            return self._json({"error": "verdict must be one of "
+                                        + ", ".join(v.VERDICTS)}, 400)
+        store = v.VerdictStore(self.server.jobs.db_path)
+        try:
+            finding = store.recall(short)
+            if finding is None:
+                return self._json({"error": f"unknown finding id {short!r}"}, 404)
+            return self._json(store.record(
+                finding, verdict, scope=body.get("scope", ""),
+                reason=str(body.get("reason", ""))[:400],
+                ttl_days=int(body.get("ttl_days") or v.DEFAULT_TTL_DAYS)))
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"verdict failed: {exc}"}, 500)
+        finally:
+            store.close()
 
     def _job_anomalies(self, jid: str):
         """What is unusual about this job's target relative to every host this

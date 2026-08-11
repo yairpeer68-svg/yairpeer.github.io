@@ -178,8 +178,23 @@ def handle_reports(results: List[Result], target: str, args) -> None:
         for sev in ("critical", "high", "medium", "low"):
             if score["counts"][sev]:
                 Console.kv(sev, score["counts"][sev])
-        for f in score["findings"][:12]:
-            Console.warn(f"[{f['severity']}] {f['module']}: {f['field']} = {f['detail'][:80]}")
+        # apply the analyst's standing rulings, and always say what they hid
+        from . import verdicts as _verdicts
+        ruled = _verdicts.apply_verdicts(score["findings"], db=args.db)
+        for f in ruled["findings"][:12]:
+            mark = f" ({f['verdict']})" if f.get("verdict") else ""
+            stale = "  [verdict expired — re-judge]" if f.get("verdict_expired") else ""
+            Console.warn(f"[{f['severity']}] {f['id']} {f['module']}: "
+                         f"{f['field']} = {f['detail'][:70]}{mark}{stale}")
+        if ruled["suppressed_count"]:
+            by = ", ".join(f"{k}={v}" for k, v in
+                           ruled["suppressed_by_verdict"].items())
+            Console.info(f"{ruled['suppressed_count']} finding(s) withheld by "
+                         f"your verdicts ({by}) — --verdicts to review, "
+                         f"--unmark <id> to reinstate")
+        if ruled["expired_count"]:
+            Console.warn(f"{ruled['expired_count']} verdict(s) have expired and "
+                         "no longer suppress — re-judge or re-mark them")
 
     if args.output:
         fmt = (args.format or args.output.rsplit(".", 1)[-1]).lower()
@@ -440,6 +455,23 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument("--attribute", action="store_true",
                      help="infrastructure attribution: cluster the hosts seen "
                           "into operator estates with weighted evidence")
+    out.add_argument("--mark", metavar="ID:VERDICT", action="append",
+                     help="rule on a finding by the id shown beside it: "
+                          "--mark a1b2c3d4e5f6:false_positive "
+                          "(also accepted_risk, confirmed). Applied to every "
+                          "later scan until it expires")
+    out.add_argument("--mark-reason", dest="mark_reason", default="",
+                     help="why — recorded with the verdict")
+    out.add_argument("--mark-scope", dest="mark_scope", default="",
+                     help="scope for --mark: a host, or '*' for the whole "
+                          "estate (an explicit, recorded choice)")
+    out.add_argument("--mark-ttl", dest="mark_ttl", type=int, default=180,
+                     help="days a verdict stays in force (default 180) — a "
+                          "ruling is about a moment, not forever")
+    out.add_argument("--unmark", metavar="ID", action="append",
+                     help="drop a verdict by id, reinstating the finding")
+    out.add_argument("--verdicts", action="store_true",
+                     help="list every standing verdict and exit")
     out.add_argument("--anomalies", action="store_true",
                      help="score this scan against everything you have scanned "
                           "before and report only what is unusual for your corpus")
@@ -737,6 +769,55 @@ def _print_attribution(rep: dict) -> None:
         Console.kv("ignored as shared infrastructure", ", ".join(demoted[:6]))
 
 
+def _handle_verdicts(args) -> Optional[int]:
+    """Record / drop / list analyst verdicts.
+
+    Returns an exit code when the run was only about verdicts, or None when a
+    scan should still go ahead (``--mark`` alongside a normal scan).
+    """
+    from . import verdicts as v
+    store = v.VerdictStore(args.db)
+    try:
+        for spec in (getattr(args, "unmark", None) or []):
+            n = store.clear(spec.strip())
+            (Console.good if n else Console.warn)(
+                f"verdict {spec}: {'removed' if n else 'not found'}")
+        for spec in (getattr(args, "mark", None) or []):
+            short, _, verdict = spec.partition(":")
+            verdict = (verdict or v.FALSE_POSITIVE).strip()
+            if verdict not in v.VERDICTS:
+                Console.err(f"unknown verdict {verdict!r}; use one of "
+                            + ", ".join(v.VERDICTS))
+                return 2
+            finding = store.recall(short)
+            if finding is None:
+                Console.err(f"no finding with id {short!r} — run a scan with "
+                            "--risk first; ids are printed beside each finding")
+                return 2
+            rec = store.record(finding, verdict,
+                               scope=args.mark_scope or finding.get("target", ""),
+                               reason=args.mark_reason, ttl_days=args.mark_ttl)
+            Console.good(f"{rec['id']} -> {verdict} on {rec['scope']} "
+                         f"(until {rec['expires'][:10]})")
+        if getattr(args, "verdicts", False):
+            rows = store.all()
+            Console.rule(f"Standing verdicts — {len(rows)}")
+            for r in rows:
+                flag = "  EXPIRED" if r["expired"] else ""
+                Console.kv(r["id"], f"{r['verdict']}  {r['scope']}  "
+                                    f"{r['module']}.{r['field']} = "
+                                    f"{r['detail'][:50]}{flag}")
+                if r.get("reason"):
+                    Console.kv("reason", r["reason"], indent=4)
+            if not rows:
+                Console.info("none yet — scan with --risk, then --mark <id>:"
+                             "false_positive on anything that isn't real")
+            return 0
+        return None
+    finally:
+        store.close()
+
+
 def _print_anomalies(rep: dict, scored: bool = True) -> None:
     """What is unusual about this host relative to everything you've scanned."""
     if scored:
@@ -925,6 +1006,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.doctor:
         workflow.doctor()
         return 0
+
+    if (getattr(args, "verdicts", False) or getattr(args, "unmark", None)
+            or getattr(args, "mark", None)):
+        rc = _handle_verdicts(args)
+        if rc is not None:
+            return rc
 
     if getattr(args, "check_health", None) is not None:
         return _run_health(args, cfg)

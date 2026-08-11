@@ -16,9 +16,9 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1057 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
+- **1091 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 552 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
-  raises"); the other 505 are behavioural — see
+  raises"); the other 539 are behavioural — see
   [Testing & quality](#testing--quality)
 - **`--check-health`** probes modules against known-good targets to report which
   actually still work today — catching *silent failure*, the way a module keeps
@@ -44,6 +44,7 @@ the registry. Adding a capability is just dropping a class into a file.
 - [CDN/WAF filtering — finding the real IPs](#cdnwaf-filtering--finding-the-real-ips)
 - [Infrastructure attribution](#infrastructure-attribution)
 - [Corpus baseline — what is unusual here](#corpus-baseline--what-is-unusual-here)
+- [Analyst verdicts — tell it once](#analyst-verdicts--tell-it-once)
 - [Reporting](#reporting)
 - [CI/CD security gate](#cicd-security-gate)
 - [Notifications](#notifications)
@@ -134,6 +135,8 @@ python3 ghost_eye_web.py --open
 | `--filter-cdn` | classify every IP found: CDN/WAF edge vs cloud vs candidate origin |
 | `--attribute` | infrastructure attribution: cluster hosts into operator estates with weighted evidence |
 | `--anomalies` | score the scan against every host you have scanned before — report only what is unusual |
+| `--mark <id>:<verdict>` | rule on a finding: `false_positive`, `accepted_risk`, `confirmed` — applied to every later scan |
+| `--unmark <id>`, `--verdicts` | drop a ruling / list every standing verdict |
 | `--baseline-learn` | teach the corpus baseline from this scan (scoring always runs first) |
 | `--inventory`, `--rollup` | asset inventory / per-host rollup |
 | `--exploit-intel` | check every discovered CVE against the public exploit DBs |
@@ -665,6 +668,56 @@ learns, so it cannot quietly normalise the host you are looking at).
 
 ---
 
+## Analyst verdicts — tell it once
+
+Every recon tool produces findings that are not findings: a header flagged as
+sensitive that is deliberate, an "exposed" path that is a public API, a CVE that
+does not apply to this build. Without a way to say so, the same false positive
+costs attention on every scan — and a list people learn to skim is how a real
+finding gets missed.
+
+Rule on it once and the ruling is applied from then on:
+
+```bash
+python3 ghost_eye.py -t example.com -p quick --risk --db estate.db
+#   [medium] 7f2a91c4be03  headers: x-powered-by = JBoss-EAP/7
+
+python3 ghost_eye.py --db estate.db \
+    --mark 7f2a91c4be03:false_positive --mark-reason "deliberate, behind SSO"
+
+python3 ghost_eye.py --db estate.db --verdicts       # review what you have ruled
+python3 ghost_eye.py --db estate.db --unmark 7f2a91c4be03
+```
+
+Verdicts are `false_positive`, `accepted_risk` (both withhold the finding) and
+`confirmed` (labels it, never hides it).
+
+The whole design turns on one hazard: **a suppression that outlives the thing it
+was about is worse than the noise it removed.** Mark `server = nginx/1.18` as a
+false positive, and two years later the host runs a different build with a real
+problem in the same field — a naive suppression list hides it silently, forever.
+Three rules prevent that, each pinned by a test:
+
+- **The value is part of the identity.** A verdict fingerprints
+  `scope + module + field + value`, so any change to the value is a new finding
+  that comes back for judgement. You ruled on what you saw, not on that field
+  for all time.
+- **Verdicts expire** (`--mark-ttl`, default 180 days). An expired ruling stops
+  suppressing and is reported as expired rather than silently dropped.
+- **Suppression is never invisible.** Every run prints how many findings your
+  verdicts withheld and under which rulings, and the withheld findings are kept,
+  not deleted. A count you can see is the difference between a filter and a
+  blindfold.
+
+Scope defaults to the host the finding came from, so ruling on one box does not
+quietly speak for the estate; `--mark-scope '*'` is available as an explicit,
+recorded choice.
+
+Dashboard: `POST /api/verdict` `{id, verdict, reason?, scope?, ttl_days?}`.
+
+
+---
+
 ## Reporting
 
 `-o report.<ext>` picks the format by extension, or use `--format`:
@@ -1177,7 +1230,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1057 tests** pass in ~14s. A single **verification gate** runs the whole thing:
+**1091 tests** pass in ~15s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke
