@@ -19,7 +19,6 @@ class JobsTechStack(Module):
         except ValueError as e:
             return self.fail(target, str(e))
         findings = {}
-        domain = host.split(":")[0]
 
         # check careers / jobs pages
         base = ensure_scheme(host).rstrip("/")
@@ -278,7 +277,6 @@ class OrgProfile(Module):
         except ValueError as e:
             return self.fail(target, str(e))
         base = ensure_scheme(host).rstrip("/")
-        domain = host.split(":")[0]
         findings = {}
 
         # homepage metadata
@@ -386,7 +384,6 @@ class CommitAuthors(Module):
             r = ctx.session.get(base, timeout=ctx.timeout)
             body = r.text[:50_000]
             commits = re.findall(r'\b[a-f0-9]{40}\b', body)
-            short = re.findall(r'\b[a-f0-9]{7,8}\b', body)
             if commits:
                 findings["full_commit_hashes"] = list(set(commits))[:10]
         except Exception:

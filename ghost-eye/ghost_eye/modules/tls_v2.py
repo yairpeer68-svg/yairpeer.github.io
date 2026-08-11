@@ -78,7 +78,6 @@ class Ja3Fingerprint(Module):
                 with c.wrap_socket(s, server_hostname=host) as ss:
                     cipher = ss.cipher()
                     version = ss.version()
-                    cert = ss.getpeercert()
             # JA3S approximation from server-side observables
             ja3s_raw = f"{version},{cipher[0]}"
             ja3s_hash = hashlib.md5(ja3s_raw.encode()).hexdigest()

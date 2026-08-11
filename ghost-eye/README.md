@@ -16,7 +16,7 @@ the registry. Adding a capability is just dropping a class into a file.
   brute-forcing, or DoS
 - Loads with **zero third-party dependencies** installed (each module lazily
   imports what it needs and degrades gracefully)
-- **1465 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
+- **1477 automated tests**, CI on Python 3.9 / 3.11 / 3.12. 553 of those are the
   per-module smoke test (one assertion each: "returns a `Result`, never
   raises"); the other 739 are behavioural — see
   [Testing & quality](#testing--quality)
@@ -1627,7 +1627,7 @@ real certificate). That bug had been silent since the module was written.
 - **Integration tests** — run the real `ghost_eye.py` as a subprocess against a
   local server and assert the JSON + intelligence HTML reports it produces.
 
-**1465 tests** pass in ~20s. A single **verification gate** runs the whole thing:
+**1477 tests** pass in ~20s. A single **verification gate** runs the whole thing:
 
 ```bash
 bash scripts/verify.sh     # compile · import · ruff · full tests · LIVE smoke

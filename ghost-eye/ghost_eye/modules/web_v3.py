@@ -336,7 +336,6 @@ class CachePoisonSurface(Module):
         # get baseline
         try:
             baseline = ctx.session.get(base, timeout=ctx.timeout)
-            baseline_len = len(baseline.content)
             cache_headers = {}
             for h in ["Cache-Control", "Vary", "Age", "X-Cache",
                        "X-Cache-Hits", "CF-Cache-Status", "X-Varnish"]:

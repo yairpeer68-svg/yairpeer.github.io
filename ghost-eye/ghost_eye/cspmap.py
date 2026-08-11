@@ -123,7 +123,10 @@ def _hostname(value: str) -> str:
     reports it as the site's apex domain — nonsense that then propagates into
     every "is this host ours?" decision downstream.
     """
-    name = (value or "").strip().lower()
+    # str() first: `(value or "")` keeps a non-empty non-string intact and
+    # the .strip() below then raises. This function promises to reduce
+    # "anything host-shaped", so it has to survive being handed a number.
+    name = str(value or "").strip().lower()
     if "//" in name:                      # scheme://…
         name = name.split("//", 1)[1]
     name = name.split("/", 1)[0]          # path

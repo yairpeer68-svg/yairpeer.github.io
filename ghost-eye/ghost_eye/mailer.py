@@ -205,6 +205,11 @@ def report_email(target: str, risk: Dict[str, Any],
              + (f"  score {score}" if score is not None else ""),
              f"Findings: {len(findings)}", ""]
     for f in list(findings)[:limit]:
+        if not isinstance(f, dict):
+            # a report that fails to render looks exactly like a mail server
+            # that is down; render what we can and keep going
+            lines.append(f"  [-] {str(f)[:160]}")
+            continue
         sev = str(f.get("severity") or f.get("level") or "").upper()
         title = str(f.get("title") or f.get("field") or f.get("issue") or "finding")
         detail = str(f.get("value") or f.get("detail") or "")[:160]

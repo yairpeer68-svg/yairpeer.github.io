@@ -201,3 +201,17 @@ class TestTargetOnlyMatches:
         out = search_scans([_scan("a", "example.com", "2026-01-01",
                                   {"server": "nginx"})], "zzz-nothing")
         assert out["count"] == 0 and out["target_matches"] == []
+
+
+class TestHostileInput:
+    """Found by handing the new code the inputs nobody writes on purpose.
+    The inner loop already skipped a junk result; the outer one did not, so a
+    single bad row took the whole search down."""
+
+    def test_a_junk_scan_row_is_skipped_not_fatal(self):
+        good = _scan("a", "x.com", "2026-01-01", {"server": "nginx"})
+        out = search_scans(["junk", None, 42, good], "nginx")
+        assert out["count"] == 1
+
+    def test_every_scan_being_junk_is_an_empty_result(self):
+        assert search_scans(["junk", None], "nginx")["count"] == 0

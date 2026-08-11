@@ -73,6 +73,8 @@ def search_scans(scans: List[Dict[str, Any]], query: str,
     # omission: the answer is "yes, three times — just not in any value".
     target_matches: List[Dict[str, str]] = []
     for scan in scans or []:
+        if not isinstance(scan, dict):
+            continue          # one junk row must not take the whole search down
         sid = str(scan.get("id") or "")
         tgt = str(scan.get("target") or "")
         ts = str(scan.get("ts") or "")

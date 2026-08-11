@@ -267,3 +267,19 @@ class TestHostNormalisation:
 
     def test_a_trailing_dot_is_not_an_empty_label(self):
         assert registrable_domain("example.com.") == "example.com"
+
+
+class TestNonStringHosts:
+    """`(value or "")` keeps a non-empty non-string intact and the .strip()
+    that follows raises. A function that promises to reduce "anything
+    host-shaped" has to survive being handed a number."""
+
+    @pytest.mark.parametrize("value", [12345, 3.5, True, b"x.com", ["a"], {"a": 1}])
+    def test_it_does_not_crash(self, value):
+        registrable_domain(value)          # must not raise
+
+    def test_a_number_is_returned_as_its_own_text(self):
+        assert registrable_domain(12345) == "12345"
+
+    def test_none_and_empty_are_still_empty(self):
+        assert registrable_domain(None) == "" and registrable_domain("") == ""

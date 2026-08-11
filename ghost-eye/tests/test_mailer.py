@@ -207,3 +207,18 @@ class TestReportRendering:
     def test_an_empty_risk_dict_does_not_crash(self):
         subject, body = report_email("example.com", {}, [])
         assert "example.com" in subject and "Findings: 0" in body
+
+
+class TestHostileInput:
+    def test_a_finding_that_is_not_a_dict_does_not_break_the_send(self):
+        """A report that fails to render looks exactly like a mail server that
+        is down — render what can be rendered and keep going."""
+        _, body = report_email("x.com", {}, ["a string", None, 42,
+                                             {"severity": "high", "title": "real"}])
+        assert "real" in body
+        assert "a string" in body
+        assert "Findings: 4" in body
+
+    def test_a_none_risk_is_not_a_crash(self):
+        subject, _ = report_email("x.com", None, [])
+        assert "x.com" in subject

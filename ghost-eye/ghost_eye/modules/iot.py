@@ -23,7 +23,6 @@ class UpnpScan(Module):
             host = clean_host(target)
         except ValueError as e:
             return self.fail(target, str(e))
-        base = ensure_scheme(host).rstrip("/")
         findings = {}
 
         # probe UPnP description endpoints on common ports
