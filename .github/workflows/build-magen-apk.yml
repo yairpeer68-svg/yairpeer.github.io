@@ -1,0 +1,64 @@
+name: Build Magen APK
+
+on:
+  push:
+    branches: [ "main", "claude/improve-add-everything-q69v3z" ]
+    paths: [ "magen-android/**", ".github/workflows/build-magen-apk.yml" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+
+      # בדיקה סטטית מהירה (תחביר, מניפסט, משאבים, תרגום) לפני שמבזבזים
+      # דקות על בנייה מלאה — נכשל מוקדם עם הודעה ברורה.
+      - name: Static verify
+        run: cd magen-android && python3 verify.py --strict
+
+      - name: Unit tests
+        run: cd magen-android && gradle testDebugUnitTest --no-daemon
+
+      - name: Build debug APK
+        run: cd magen-android && gradle assembleDebug --no-daemon --stacktrace -PbuildId=${GITHUB_SHA::7}
+
+      - name: Rename APK
+        run: cp magen-android/app/build/outputs/apk/debug/app-debug.apk magen.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: magen-debug-apk
+          path: magen.apk
+          retention-days: 30
+
+      - name: Publish latest APK as release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: magen-latest
+          name: "שומר הברית — גרסה אחרונה (APK)"
+          body: |
+            🛡️ הגרסה האחרונה של שומר הברית — מסנן תוכן ואפליקציית אחריות לאנדרואיד.
+
+            **התקנה:** הורד את `magen.apk` מלמטה, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
+
+            ⚠️ אפליקציה להתקנה מרצון על עצמך או על ידי הורה, כחלק מ"ברית" אישית לגלישה נקייה.
+          files: magen.apk
+          prerelease: false
+          make_latest: false

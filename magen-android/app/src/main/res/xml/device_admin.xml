@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Device Admin Policy
+
+    מוצהרות רק המדיניות שבאמת נמצאות בשימוש:
+      force-lock  — MagenDeviceAdmin.lockDeviceNow() נועל את המסך בעת זיהוי
+                    כיבוי נגישות או ניסיון להסיר את ההגנה. זו הפעולה החזקה
+                    ביותר שיש ל-Device Admin רגיל.
+      watch-login — ספירת ניסיונות כניסה כושלים.
+
+    הוסרו: wipe-data, reset-password, disable-camera, expire-password,
+    limit-password, encrypted-storage. אף אחת מהן לא נקראה מהקוד, ו-wipe-data
+    בפרט גרם למסך אישור מפחיד ("האפליקציה תוכל למחוק את כל נתוני המכשיר")
+    שהוריד משמעותית את הסיכוי שהמשתמש יאשר את ההרשאה בכלל.
+-->
+<device-admin>
+    <uses-policies>
+        <force-lock/>
+        <watch-login/>
+    </uses-policies>
+</device-admin>

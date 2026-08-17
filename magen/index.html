@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>שומר הברית — מסנן תוכן ואחריות לאנדרואיד</title>
+<meta name="description" content="שומר הברית: מסנן תוכן ואפליקציית אחריות (accountability) לאנדרואיד, בסגנון רימון/נטספארק. להתקנה מרצון על עצמך או על ידי הורה — כחלק מ״ברית״ אישית לגלישה נקייה. חינם, קוד פתוח.">
+<meta property="og:title" content="שומר הברית — גלישה נקייה, ברית אישית 🛡️">
+<meta property="og:description" content="מסנן תוכן חכם + שקיפות מול שותף אחריות. חוסם ברמת ה-DNS וה-SNI, מזהה ניסיונות עקיפה, ושולח דוח יומי. חינם, קוד פתוח.">
+<meta name="theme-color" content="#04140f">
+<link rel="apple-touch-icon" href="../tzel/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #04140f;
+    --bg-2: #071e17;
+    --card: #0b2a20;
+    --card-2: #10362999;
+    --line: #1c4a3a;
+    --text: #e9f7f0;
+    --muted: #8fb6a6;
+    --green: #2fe0a0;
+    --green-ink: #04231a;
+    --gold: #ffcf6b;
+    --red: #ff6b81;
+    --blue: #5bd0ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: "Rubik", -apple-system, "Segoe UI", Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+    overflow-x: hidden;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+  a { color: inherit; }
+
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    backdrop-filter: blur(12px); border-bottom: 1px solid var(--line);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .logo { display: flex; align-items: center; gap: 9px; font-weight: 900; font-size: 18px; }
+  .logo .i { font-size: 22px; }
+  .nav-cta {
+    background: var(--green); color: var(--green-ink); text-decoration: none;
+    font-weight: 800; font-size: 14px; padding: 9px 18px; border-radius: 999px;
+  }
+
+  .hero { position: relative; text-align: center; padding: 66px 0 44px; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    background:
+      radial-gradient(520px 340px at 78% 0%, rgba(47,224,160,.16), transparent 70%),
+      radial-gradient(600px 420px at 12% 18%, rgba(20,120,90,.30), transparent 72%);
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 13px; font-weight: 600; color: var(--green);
+    background: rgba(47,224,160,.1); border: 1px solid rgba(47,224,160,.32);
+    border-radius: 999px; padding: 6px 15px; margin-bottom: 22px;
+  }
+  .hero h1 { font-size: clamp(32px, 8vw, 56px); font-weight: 900; letter-spacing: -1.5px; line-height: 1.08; text-wrap: balance; }
+  .hero h1 em { font-style: normal; color: var(--green); }
+  .hero p.sub { font-size: clamp(16px, 4vw, 19px); color: var(--muted); max-width: 34ch; margin: 18px auto 0; text-wrap: balance; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 30px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px; text-decoration: none;
+    font-weight: 800; font-size: 16px; padding: 15px 26px; border-radius: 14px; cursor: pointer;
+    border: none;
+  }
+  .btn-primary { background: var(--green); color: var(--green-ink); box-shadow: 0 10px 30px rgba(47,224,160,.28); }
+  .btn-ghost { background: var(--card); color: var(--text); border: 1px solid var(--line); }
+  .btn:active { transform: translateY(1px); }
+  .trust { margin-top: 18px; font-size: 12.5px; color: var(--muted); }
+
+  section { padding: 46px 0; }
+  .kicker { color: var(--green); font-weight: 700; font-size: 13px; letter-spacing: .5px; text-align: center; }
+  h2.title { font-size: clamp(24px, 6vw, 34px); font-weight: 900; text-align: center; margin: 8px auto 6px; letter-spacing: -.5px; text-wrap: balance; }
+  .lead { color: var(--muted); text-align: center; max-width: 52ch; margin: 0 auto 30px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+  .card {
+    background: linear-gradient(180deg, var(--card), var(--bg-2));
+    border: 1px solid var(--line); border-radius: 18px; padding: 22px;
+  }
+  .card .ic { font-size: 28px; }
+  .card h3 { font-size: 18px; font-weight: 800; margin: 12px 0 6px; }
+  .card p { color: var(--muted); font-size: 14.5px; }
+
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .two { grid-template-columns: 1fr; } }
+  .axis { background: linear-gradient(180deg, var(--card), var(--bg-2)); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+  .axis .tag { display: inline-block; font-weight: 800; font-size: 12px; padding: 5px 12px; border-radius: 999px; margin-bottom: 12px; }
+  .axis.filter .tag { background: rgba(91,208,255,.14); color: var(--blue); }
+  .axis.acc .tag { background: rgba(255,207,107,.14); color: var(--gold); }
+  .axis h3 { font-size: 20px; font-weight: 900; margin-bottom: 8px; }
+  .axis p { color: var(--muted); font-size: 15px; }
+
+  .layers { list-style: none; display: grid; gap: 10px; max-width: 720px; margin: 0 auto; }
+  .layers li { display: flex; gap: 12px; align-items: flex-start; background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .layers .chk { color: var(--green); font-weight: 900; flex: none; }
+  .layers b { font-weight: 800; }
+  .layers span { color: var(--muted); font-size: 14px; }
+
+  .steps { counter-reset: s; list-style: none; display: grid; gap: 12px; max-width: 640px; margin: 0 auto; }
+  .steps li { counter-increment: s; position: relative; padding: 16px 62px 16px 18px; background: var(--card-2); border: 1px solid var(--line); border-radius: 14px; }
+  .steps li::before {
+    content: counter(s); position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+    width: 32px; height: 32px; border-radius: 50%; background: var(--green); color: var(--green-ink);
+    font-weight: 900; display: grid; place-items: center;
+  }
+  .steps b { display: block; margin-bottom: 2px; }
+  .steps span { color: var(--muted); font-size: 14px; }
+
+  .note { max-width: 720px; margin: 0 auto; background: rgba(255,107,129,.07); border: 1px solid rgba(255,107,129,.28); border-radius: 16px; padding: 20px 22px; }
+  .note h3 { color: var(--red); font-size: 17px; font-weight: 800; margin-bottom: 8px; }
+  .note p { color: var(--muted); font-size: 14.5px; }
+  .note p + p { margin-top: 10px; }
+
+  .final { text-align: center; }
+  .final .card { padding: 40px 24px; }
+
+  footer { border-top: 1px solid var(--line); padding: 28px 0 40px; color: var(--muted); font-size: 13px; }
+  .foot-row { display: flex; flex-wrap: wrap; gap: 14px; justify-content: space-between; align-items: center; }
+  .foot-links a { text-decoration: none; margin-inline-start: 16px; }
+  .foot-links a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <div class="logo"><span class="i">🛡️</span> שומר הברית</div>
+    <a class="nav-cta" href="#download">הורדה</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <span class="eyebrow">🛡️ מסנן תוכן ואחריות · אנדרואיד</span>
+      <h1>ברית אישית ל<em>גלישה נקייה</em></h1>
+      <p class="sub">מסנן תוכן חכם ושקיפות מול שותף אחריות — שתי שכבות שעוזרות לך להישאר במקום שבחרת להיות בו.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#download">⬇️ הורדת האפליקציה</a>
+        <a class="btn btn-ghost" href="#how">איך זה עובד</a>
+      </div>
+      <p class="trust">חינם · קוד פתוח · להתקנה מרצון על עצמך או על ילדך</p>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <p class="kicker">הרעיון</p>
+      <h2 class="title">שני צירים שמשלימים זה את זה</h2>
+      <p class="lead">שומר הברית שייך לאותה משפחה של רימון ו‑Covenant Eyes: לא נלחם במשתמש, אלא שם מחסום משמעותי ורועש ברגע של פיתוי.</p>
+      <div class="two">
+        <div class="axis filter">
+          <span class="tag">סינון</span>
+          <h3>חסימה טכנית</h3>
+          <p>חוסם תוכן לא רצוי בכמה שכבות בו‑זמנית — DNS, SNI, וסריקת מסך בזמן אמת. גם כשה‑DNS נעקף, סינון ה‑SNI ממשיך לעבוד בלי צורך ב‑Root ובלי לשבור אבטחה.</p>
+        </div>
+        <div class="axis acc">
+          <span class="tag">אחריות</span>
+          <h3>שקיפות מול שותף</h3>
+          <p>דוח יומי אוטומטי לשותף אחריות או להורה. הידיעה ש"מישהו רואה" חזקה פסיכולוגית לא פחות מהחסימה עצמה — זה הלב של מודל ה"ברית".</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:0;">
+    <div class="wrap">
+      <div class="grid">
+        <div class="card"><div class="ic">🌐</div><h3>סינון ברמת הרשת</h3><p>VPN מקומי (לא יוצא החוצה) שכופה DNS משפחתי וחוסם DNS מוצפן (DoH/DoT) וניתובי QUIC.</p></div>
+        <div class="card"><div class="ic">🔎</div><h3>סריקת מסך חכמה</h3><p>מנוע Aho‑Corasick משווה טקסט וכתובות מול אלפי מילים אסורות במעבר יחיד — מהיר וללא עומס.</p></div>
+        <div class="card"><div class="ic">🔒</div><h3>הגנה על עצמו</h3><p>מזהה ניסיונות עצירה, הסרה, "נקה נתונים" או הדלקת ADB — נועל, מתריע ומסלים.</p></div>
+        <div class="card"><div class="ic">🔍</div><h3>SafeSearch כפוי</h3><p>אוכף חיפוש בטוח בגוגל, יוטיוב ובינג — גם כשמנסים לכבות אותו בהגדרות.</p></div>
+        <div class="card"><div class="ic">📊</div><h3>סטטיסטיקות ורצף</h3><p>לוח מחוונים עם ספירת חסימות, דפוסי שעות, ומונה רצף ימים נקי לעידוד.</p></div>
+        <div class="card"><div class="ic">🔑</div><h3>קוד הורים מאובטח</h3><p>PIN עם PBKDF2‑HMAC‑SHA256 ו‑salt, הגבלת קצב מתקדמת וקוד חירום.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="layers" style="padding-top:0;">
+    <div class="wrap">
+      <p class="kicker">שכבות ההגנה</p>
+      <h2 class="title">כמה חומות, לא אחת</h2>
+      <p class="lead">אף שכבה אינה מושלמת לבדה — יחד הן הופכות את העקיפה למאמץ מודע ורועש.</p>
+      <ul class="layers">
+        <li><span class="chk">✓</span><div><b>DNS משפחתי כפוי</b> — <span>כל שאילתת DNS עוברת דרך המסנן, לא משנה לאן היא מכוונת.</span></div></li>
+        <li><span class="chk">✓</span><div><b>סינון SNI</b> — <span>שם הדומיין נקרא מתוך ה‑TLS ClientHello, עובד גם כשה‑DNS נעקף.</span></div></li>
+        <li><span class="chk">✓</span><div><b>שירות נגישות</b> — <span>סורק URL, טקסט מוקלד ותוכן DOM בזמן אמת מול רשימת מילים אסורות.</span></div></li>
+        <li><span class="chk">✓</span><div><b>Device Admin</b> — <span>מקשה על הסרה, ונועל את המכשיר בעת ניסיון ביטול ההגנה.</span></div></li>
+        <li><span class="chk">✓</span><div><b>Watchdog + החייאה</b> — <span>מנגנון שמחזיר לחיים שירותים שנעצרו, ומזהה חבלה.</span></div></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="download" class="final">
+    <div class="wrap">
+      <div class="card">
+        <p class="kicker">מוכן להתחיל?</p>
+        <h2 class="title" style="margin-top:6px;">הורד והתקן בחינם</h2>
+        <p class="lead">קובץ APK מוכן להתקנה. אין חנות, אין תשלום — פשוט מורידים ומתקינים.</p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://github.com/yairpeer68-svg/yairpeer.github.io/releases/download/magen-latest/magen.apk">⬇️ הורדת magen.apk</a>
+          <a class="btn btn-ghost" href="https://github.com/yairpeer68-svg/yairpeer.github.io/releases/tag/magen-latest">כל הגרסאות</a>
+        </div>
+        <ol class="steps" style="margin-top:28px; text-align:right;">
+          <li><b>הורדה</b><span>הורד את קובץ ה‑APK לטלפון האנדרואיד.</span></li>
+          <li><b>אישור מקור לא מוכר</b><span>פתח את הקובץ ואשר התקנה ממקור לא מוכר (אנדרואיד יבקש זאת פעם אחת).</span></li>
+          <li><b>הענקת הרשאות</b><span>מסך ההגדרה יבקש נגישות, VPN ו‑Device Admin — כל אחת מפעילה שכבת הגנה.</span></li>
+          <li><b>יצירת קוד הורים</b><span>הגדר PIN ושותף אחריות שיקבל את הדוח היומי. זהו.</span></li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top:0;">
+    <div class="wrap">
+      <div class="note">
+        <h3>⚠️ שקיפות מלאה — מה זה כן ומה לא</h3>
+        <p>שומר הברית מיועד להתקנה <b>מרצון</b> — על עצמך, או על ידי הורה על ילד — ככלי עזר, לא ככלוב. הוא פועל בשכבת Device Admin (בלי איפוס למכשיר), בדיוק כמו רימון ונטספארק.</p>
+        <p>המשמעות: ההגנה <b>מזהה ומגיבה</b> לניסיונות עקיפה, אבל משתמש נחוש ומתוחכם עדיין יכול להסיר אותה. זו התקרה של המסלול הזה, וזו בחירה מודעת לטובת התקנה קלה ללא איפוס. המטרה היא לעזור למי שבאמת רוצה — לא לנצח מלחמה טכנית.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap foot-row">
+    <div>🛡️ שומר הברית · חינם וקוד פתוח</div>
+    <div class="foot-links">
+      <a href="../">כל האפליקציות</a>
+      <a href="privacy.html">פרטיות</a>
+      <a href="https://github.com/yairpeer68-svg/yairpeer.github.io/tree/main/magen-android">קוד מקור</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
