@@ -24,8 +24,11 @@ Studio). כל אפליקציית אנדרואיד עם workflow משלה תחת
 - אפשר להריץ ידנית מטאב **Actions** → הבחירה ב‑workflow → **Run workflow**.
 
 עבור **שומר הברית** ה‑workflow מריץ קודם בדיקה סטטית
-([`magen-android/verify.py`](magen-android/verify.py)) ואת בדיקות היחידה,
-ורק אז בונה — כך תקלות נתפסות בשניות במקום אחרי בנייה מלאה.
+([`magen-android/verify.py`](magen-android/verify.py) במצב `--strict`) ואת
+בדיקות היחידה, ורק אז בונה — כך תקלות נתפסות בשניות במקום אחרי בנייה מלאה.
+ה‑APK שלו מתפרסם תחת התג **`dev-latest`** בשם `shomer-habrit.apk` (וגם עותק
+עם ה‑commit בשם, כדי שמטמון לא יגיש גרסה ישנה) — זהו הקישור שאליו מפנה
+[`magen/`](magen/).
 
 ## מבנה
 
