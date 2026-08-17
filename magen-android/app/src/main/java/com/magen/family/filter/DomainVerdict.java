@@ -118,32 +118,64 @@ public final class DomainVerdict {
      * חסימות. הרשימות מתעדכנות באיחור. ההיוריסטיקה תופסת דפוסים נפוצים —
      * שם מותג ידוע עם תוספת (xnxx2, pornhub-proxy), או צירוף של מילת-תוכן
      * מפורשת בשם הדומיין. גבולות מילה לא חלים כאן כי בשם דומיין אין רווחים.
+     *
+     * הקשחה נגד עקיפה: mirrors רבים מסתירים את המילה בעזרת leetspeak (p0rnhub,
+     * pr0n, s3xcam) או מפרידים אותה במקפים/קווים תחתונים (porn-hub, x_videos).
+     * לכן משווים לא רק מול ה-core הגולמי אלא גם מול גרסה מנורמלת שמסירה מפרידים
+     * ומחזירה ספרות-leet לאותיות. package-private כדי שבדיקת יחידה תכסה את זה.
      */
-    private static boolean looksLikeAdultMirror(String host) {
+    static boolean looksLikeAdultMirror(String host) {
+        if (host == null) return false;
         String core = host;
         int firstDot = core.indexOf('.');
         if (firstDot > 0) core = core.substring(0, firstDot);   // רק החלק לפני ה-TLD
+
+        String deleeted = deLeet(core);   // p0rn-hub -> pornhub
 
         // מותגים שידוע שיש להם עשרות mirrors
         String[] brands = { "pornhub", "xvideos", "xnxx", "xhamster", "redtube",
             "youporn", "spankbang", "brazzers", "onlyfans", "chaturbate" };
         for (String b : brands) {
-            if (core.contains(b)) return true;   // xnxx2, pornhubx, my-xvideos...
+            if (core.contains(b) || deleeted.contains(b)) return true;
         }
 
         // מילות תוכן מפורשות בתוך שם הדומיין (לא בנתיב)
         String[] tokens = { "porn", "xxx", "hentai", "sexcam", "camsex", "escort" };
         for (String t : tokens) {
-            if (core.contains(t)) return true;
+            if (core.contains(t) || deleeted.contains(t)) return true;
         }
         return false;
     }
 
-    /** דומיין-שורש: sub.a.example.com -> example.com */
-    private static String rootDomain(String host) {
-        String[] p = host.split("\\.");
-        if (p.length < 2) return host;
-        return p[p.length - 2] + "." + p[p.length - 1];
+    /**
+     * מנרמל מחרוזת לצורך ההיוריסטיקה: מסיר כל תו שאינו אות/ספרה (מקפים,
+     * קווים תחתונים), וממפה ספרות leetspeak נפוצות חזרה לאותיות. כך
+     * "p0rn-hub", "x_videos" ו-"s3xcam" מתלכדים לצורה המילולית.
+     *
+     * הערה: זו היוריסטיקה סלחנית שמעדיפה over-block על miss — בהתאם לפילוסופיית
+     * האפליקציה ("טוב מספיק למי שלא באמת מנסה לעקוף"). לכן מיפוי 1->i ולא 1->l,
+     * וללא ניסיון לפענח כל וריאציה אפשרית.
+     */
+    static String deLeet(String s) {
+        if (s == null) return "";
+        StringBuilder sb = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = Character.toLowerCase(s.charAt(i));
+            switch (c) {
+                case '0': sb.append('o'); break;
+                case '1': sb.append('i'); break;
+                case '3': sb.append('e'); break;
+                case '4': sb.append('a'); break;
+                case '5': sb.append('s'); break;
+                case '7': sb.append('t'); break;
+                case '@': sb.append('a'); break;
+                case '$': sb.append('s'); break;
+                default:
+                    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9')) sb.append(c);
+                    // כל השאר (מקף, קו תחתון, נקודה) — נבלע
+            }
+        }
+        return sb.toString();
     }
 
     /** ניקוי שם מארח: lowercase, בלי www., בלי נקודה סופית, בלי פורט. */
