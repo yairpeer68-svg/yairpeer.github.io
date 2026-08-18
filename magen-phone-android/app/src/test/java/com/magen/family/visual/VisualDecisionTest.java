@@ -5,8 +5,21 @@ import static org.junit.Assert.*;
 
 public class VisualDecisionTest {
     private VisualPolicy.Config strict() {
-        return new VisualPolicy.Config(true,"STRICT",1100,6,true,true,
-            .35f,.35f,.45f,.62f,.48f);
+        return cfg(true, "STRICT");
+    }
+
+    /**
+     * ספי הבסיס נשארים כפי שהיו כאן מאז שהמבחן נכתב; שדות ה-temporal
+     * וה-immediate מקבלים את ערכי ברירת המחדל של VisualPolicy.get, כדי
+     * שהבדיקות ימשיכו לבחון את מסלול ההחלטה הלא-temporal בלבד.
+     */
+    private static VisualPolicy.Config cfg(boolean enabled, String mode) {
+        return new VisualPolicy.Config(
+            enabled, mode, 1100L, 650L, 6,
+            true, true,
+            .35f, .35f, .45f, .62f, .48f,
+            true, 3600L, 2, 0,
+            .72f, .72f, .86f, 5);
     }
 
     @Test public void strictBlocksSexyTopClassEvenWhenFlat() {
@@ -20,8 +33,7 @@ public class VisualDecisionTest {
     }
 
     @Test public void offAlwaysAllows() {
-        VisualPolicy.Config off=new VisualPolicy.Config(false,"OFF",1100,6,true,true,
-            .35f,.35f,.45f,.62f,.48f);
+        VisualPolicy.Config off=cfg(false, "OFF");
         NsfwResult r=new NsfwResult("porn",.99f,0f,0f,0f,.99f,.01f,1);
         assertFalse(VisualDecision.shouldBlock(r,off));
     }
