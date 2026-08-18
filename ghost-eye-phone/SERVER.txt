@@ -1,0 +1,12 @@
+Ghost Eye Android 9.3.1
+Production API: https://51.20.205.229
+
+Windows build:
+  BUILD_PHONE_WINDOWS.bat
+
+Or manually:
+  gradlew.bat assembleRelease -PAPI_BASE_URL=https://51.20.205.229
+
+IMPORTANT:
+- The server must have a valid publicly trusted TLS certificate for 51.20.205.229.
+- If the AWS public IPv4 changes, rebuild the app with the new HTTPS address.
