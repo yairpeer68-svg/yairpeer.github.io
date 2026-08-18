@@ -1,4 +1,4 @@
-Ghost Eye Android 9.3.2 - Single-User Locked Mode
+Ghost Eye Phone 10.0.0 - Single-User Locked Mode
 Production API: https://51.20.205.229
 Registration: disabled
 Authentication: owner email + password only

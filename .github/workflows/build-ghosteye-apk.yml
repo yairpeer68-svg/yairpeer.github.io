@@ -67,9 +67,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ghosteye-latest
-          name: "Ghost Eye Phone — Latest APK (v9.3.2)"
+          name: "Ghost Eye Phone — Latest APK (v10.0.0)"
           body: |
-            Ghost Eye Phone Android app (v9.3.2, single-user locked mode), signed release build.
+            Ghost Eye Phone Android app (v10.0.0, single-user locked mode), signed release build.
 
             Server: https://51.20.205.229
 

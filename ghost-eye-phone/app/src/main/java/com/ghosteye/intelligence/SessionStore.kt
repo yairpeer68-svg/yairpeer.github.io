@@ -12,11 +12,30 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 class SessionStore(private val context: Context) {
-    private val alias = "universal-intelligence-session"
+    private val alias = "ghost-eye-session-v10"
+    private val legacyAlias = "universal-intelligence-session"
+    private val prefs = context.getSharedPreferences("session", Context.MODE_PRIVATE)
 
-    private fun key(): SecretKey {
+    init {
+        migrateLegacySessionIfNeeded()
+    }
+
+    private fun migrateLegacySessionIfNeeded() {
+        val version = prefs.getInt("schema", 0)
+        if (version >= 10) return
+        // Older builds used a different AndroidKeyStore key configuration. Reusing
+        // those encrypted blobs can make a valid server login look like a failed
+        // login because token persistence throws after the HTTP 200 response.
+        prefs.edit().clear().putInt("schema", 10).commit()
+        runCatching {
+            val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            if (ks.containsAlias(legacyAlias)) ks.deleteEntry(legacyAlias)
+        }
+    }
+
+    private fun key(): SecretKey = synchronized(KEY_LOCK) {
         val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (ks.getKey(alias, null) as? SecretKey)?.let { return it }
+        (ks.getKey(alias, null) as? SecretKey)?.let { return@synchronized it }
 
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         val spec = KeyGenParameterSpec.Builder(
@@ -29,7 +48,7 @@ class SessionStore(private val context: Context) {
             .setRandomizedEncryptionRequired(true)
             .build()
         generator.init(spec)
-        return generator.generateKey()
+        generator.generateKey()
     }
 
     private fun encrypt(value: String): String {
@@ -46,31 +65,51 @@ class SessionStore(private val context: Context) {
     private fun decrypt(value: String): String? {
         return try {
             val parts = value.split(":", limit = 2)
-            if (parts.size != 2) return null
-            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-            cipher.init(
-                Cipher.DECRYPT_MODE,
-                key(),
-                GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP))
-            )
-            String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8)
+            if (parts.size != 2) null
+            else {
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(
+                    Cipher.DECRYPT_MODE,
+                    key(),
+                    GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP))
+                )
+                String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8)
+            }
         } catch (_: Exception) {
             null
         }
     }
 
-    fun save(access: String, refresh: String) {
-        context.getSharedPreferences("session", Context.MODE_PRIVATE).edit()
-            .putString("access", encrypt(access))
-            .putString("refresh", encrypt(refresh))
-            .apply()
+    fun save(access: String, refresh: String): Boolean {
+        val encryptedAccess = encrypt(access)
+        val encryptedRefresh = encrypt(refresh)
+        // commit() is intentional: navigation must not happen until both tokens
+        // are durably stored. This removes a race that was possible with apply().
+        return prefs.edit()
+            .putInt("schema", 10)
+            .putString("access", encryptedAccess)
+            .putString("refresh", encryptedRefresh)
+            .commit()
     }
 
-    fun access(): String? = context.getSharedPreferences("session", Context.MODE_PRIVATE)
-        .getString("access", null)?.let(::decrypt)
+    private fun read(name: String): String? {
+        val raw = prefs.getString(name, null) ?: return null
+        val value = decrypt(raw)
+        if (value == null) {
+            // Corrupt/legacy state should never trap the UI in a fake logged-in state.
+            clear()
+        }
+        return value
+    }
 
-    fun refresh(): String? = context.getSharedPreferences("session", Context.MODE_PRIVATE)
-        .getString("refresh", null)?.let(::decrypt)
+    fun access(): String? = read("access")
+    fun refresh(): String? = read("refresh")
 
-    fun clear() = context.getSharedPreferences("session", Context.MODE_PRIVATE).edit().clear().apply()
+    fun clear() {
+        prefs.edit().clear().putInt("schema", 10).commit()
+    }
+
+    companion object {
+        private val KEY_LOCK = Any()
+    }
 }

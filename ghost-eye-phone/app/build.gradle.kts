@@ -10,8 +10,8 @@ android {
         applicationId = "com.ghosteye.intelligence"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "9.3.2"
+        versionCode = 10
+        versionName = "10.0.0"
     }
     signingConfigs {
         create("release") {
@@ -37,7 +37,9 @@ android {
     }
     buildTypes {
         debug {
-            buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8080\"")
+            val apiBase = providers.gradleProperty("API_BASE_URL").orElse("https://51.20.205.229").get()
+            require(apiBase.startsWith("https://")) { "Debug API_BASE_URL must use HTTPS" }
+            buildConfigField("String", "API_BASE_URL", "\"${apiBase.replace("\"", "\\\"")}\"")
         }
         release {
             val apiBase = providers.gradleProperty("API_BASE_URL").orElse("https://51.20.205.229").get()
@@ -54,6 +56,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.compose.ui:ui:1.7.8")
     implementation("androidx.compose.material3:material3:1.3.1")
+    implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
