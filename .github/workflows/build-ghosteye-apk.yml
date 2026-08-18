@@ -39,7 +39,7 @@ jobs:
         run: |
           cd ghost-eye-phone && gradle assembleRelease --no-daemon \
             -PAPI_BASE_URL=https://51.20.205.229 \
-            -PGHOSTEYE_KEYSTORE=release.keystore \
+            -PGHOSTEYE_KEYSTORE="$PWD/release.keystore" \
             -PGHOSTEYE_KS_PASS=ghosteye \
             -PGHOSTEYE_KEY_ALIAS=ghosteye \
             -PGHOSTEYE_KEY_PASS=ghosteye
