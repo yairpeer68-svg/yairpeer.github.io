@@ -43,18 +43,20 @@ class SessionStore(private val context: Context) {
         return "$iv:$data"
     }
 
-    private fun decrypt(value: String): String? = try {
-        val parts = value.split(":", limit = 2)
-        if (parts.size != 2) return null
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(
-            Cipher.DECRYPT_MODE,
-            key(),
-            GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP))
-        )
-        String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8)
-    } catch (_: Exception) {
-        null
+    private fun decrypt(value: String): String? {
+        return try {
+            val parts = value.split(":", limit = 2)
+            if (parts.size != 2) return null
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(
+                Cipher.DECRYPT_MODE,
+                key(),
+                GCMParameterSpec(128, Base64.decode(parts[0], Base64.NO_WRAP))
+            )
+            String(cipher.doFinal(Base64.decode(parts[1], Base64.NO_WRAP)), StandardCharsets.UTF_8)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun save(access: String, refresh: String) {
