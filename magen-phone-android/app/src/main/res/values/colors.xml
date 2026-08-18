@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- רקע — בהיר נקי -->
+    <color name="bg_light">#F5F7FB</color>
+    <color name="bg_white">#FFFFFF</color>
+    <color name="card_white">#FFFFFF</color>
+
+    <!-- ראשי — סגול/כחול של הלוגו -->
+    <color name="accent">#5B6FE8</color>
+    <color name="accent_dark">#4555C2</color>
+    <color name="accent_light">#E8ECFE</color>
+
+    <!-- משני — חם -->
+    <color name="warm">#FFB84D</color>
+    <color name="warm_light">#FFF4DF</color>
+
+    <!-- סטטוסים -->
+    <color name="success">#10B981</color>
+    <color name="success_light">#D1FAE5</color>
+    <color name="danger">#EF4444</color>
+    <color name="danger_light">#FEE2E2</color>
+    <color name="warning">#F59E0B</color>
+
+    <!-- טקסטים -->
+    <color name="text_primary">#1A1F33</color>
+    <color name="text_secondary">#5B6478</color>
+    <color name="text_muted">#9CA3AF</color>
+    <color name="white">#FFFFFF</color>
+
+    <!-- גבולות -->
+    <color name="border">#E5E7EB</color>
+    <color name="divider">#F3F4F6</color>
+
+    <!-- legacy aliases -->
+    <color name="bg_dark">#F5F7FB</color>
+    <color name="card_dark">#FFFFFF</color>
+    <color name="card_dark2">#F5F7FB</color>
+
+    <!-- צבעי מסכות הסוואה -->
+    <color name="disg_slate">#475569</color>
+    <color name="disg_amber">#F59E0B</color>
+    <color name="disg_sky">#0EA5E9</color>
+    <color name="disg_indigo">#6366F1</color>
+    <color name="disg_red">#EF4444</color>
+    <color name="disg_teal">#14B8A6</color>
+    <color name="disg_pink">#EC4899</color>
+    <color name="disg_purple">#8B5CF6</color>
+    <color name="disg_orange">#F97316</color>
+    <color name="disg_dark">#334155</color>
+    <color name="disg_green">#22C55E</color>
+    <color name="disg_cyan">#06B6D4</color>
+    <color name="disg_brown">#92400E</color>
+    <color name="disg_lime">#84CC16</color>
+    <color name="disg_blue">#3B82F6</color>
+</resources>

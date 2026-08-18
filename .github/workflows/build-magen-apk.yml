@@ -1,0 +1,121 @@
+name: Build Magen Phone APK
+
+on:
+  push:
+    branches: [ "main", "claude/convert-to-apk-5lapxp" ]
+    paths: [ "magen-phone-android/**", ".github/workflows/build-magen-apk.yml" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android API 36 + Build Tools 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      # מודל ה-Visual Shield אינו נשמר ב-git (גדול, ורישיון צד-שלישי).
+      # מורידים אותו בזמן הבנייה בדיוק כמו BUILD_APK_ON_WINDOWS.ps1,
+      # מאמתים מול ה-digest שגיטהאב מפרסם, ומזריקים את ה-SHA-256 ל-BuildConfig.
+      - name: Fetch and verify visual model
+        id: model
+        run: |
+          set -euo pipefail
+          cd magen-phone-android
+          url="https://github.com/GantMan/nsfw_model/releases/download/1.1.0/nsfw_mobilenet_v2_140_224.zip"
+          curl -fSL --retry 4 --retry-delay 3 -o model.zip "$url"
+          archive_sha="$(sha256sum model.zip | cut -d' ' -f1)"
+          expected="$(curl -fsSL -H 'User-Agent: MagenBuilder/4.2.1' \
+            https://api.github.com/repos/GantMan/nsfw_model/releases/tags/1.1.0 \
+            | jq -r '.assets[] | select(.name=="nsfw_mobilenet_v2_140_224.zip") | .digest // empty' \
+            | sed 's/^sha256://' || true)"
+          if [ -n "$expected" ]; then
+            if [ "$expected" != "$archive_sha" ]; then
+              echo "Visual model archive SHA256 mismatch: expected $expected got $archive_sha" >&2
+              exit 1
+            fi
+            echo "[Visual AI] archive digest verified against GitHub"
+          else
+            echo "[Visual AI] GitHub did not expose an asset digest; continuing with archive SHA256 $archive_sha"
+          fi
+          unzip -q -o model.zip -d model_tmp
+          src="$(find model_tmp -name 'saved_model.tflite' -type f | head -1)"
+          [ -n "$src" ] || { echo "archive did not contain saved_model.tflite" >&2; exit 1; }
+          mkdir -p app/src/main/assets
+          cp "$src" app/src/main/assets/nsfw_mobilenet_v2_140_224.tflite
+          rm -rf model.zip model_tmp
+          size="$(stat -c%s app/src/main/assets/nsfw_mobilenet_v2_140_224.tflite)"
+          [ "$size" -gt 1000000 ] || { echo "visual model looks invalid: $size bytes" >&2; exit 1; }
+          model_sha="$(sha256sum app/src/main/assets/nsfw_mobilenet_v2_140_224.tflite | cut -d' ' -f1)"
+          echo "sha=$model_sha" >> "$GITHUB_OUTPUT"
+          echo "[Visual AI] model OK: $size bytes SHA256=$model_sha"
+
+      - name: Static verifier
+        run: cd magen-phone-android && python3 verify.py --strict
+
+      - name: Unit tests
+        run: |
+          cd magen-phone-android
+          chmod +x gradlew
+          ./gradlew --no-daemon -PvisualModelSha256=${{ steps.model.outputs.sha }} \
+            -PbuildId=${GITHUB_SHA::7} testDebugUnitTest
+
+      - name: Build debug APK
+        run: |
+          cd magen-phone-android
+          ./gradlew --no-daemon -PvisualModelSha256=${{ steps.model.outputs.sha }} \
+            -PbuildId=${GITHUB_SHA::7} assembleDebug
+
+      - name: Name APK and hash it
+        run: |
+          set -euo pipefail
+          cp magen-phone-android/app/build/outputs/apk/debug/app-debug.apk magen-v4.2.1-paired-8443-debug.apk
+          sha256sum magen-v4.2.1-paired-8443-debug.apk > magen-v4.2.1-paired-8443-debug.apk.sha256
+          cat magen-v4.2.1-paired-8443-debug.apk.sha256
+          ls -l magen-v4.2.1-paired-8443-debug.apk
+
+      - name: Verify APK signature
+        run: |
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BT/apksigner" verify --print-certs magen-v4.2.1-paired-8443-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: magen-phone-debug-apk
+          path: |
+            magen-v4.2.1-paired-8443-debug.apk
+            magen-v4.2.1-paired-8443-debug.apk.sha256
+          retention-days: 30
+
+      - name: Publish APK as release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: magen-phone-latest
+          name: "מגן — אפליקציית הטלפון (APK debug)"
+          body: |
+            📱 גרסה `4.2.1-paired-8443` של אפליקציית מגן לאנדרואיד (בנייה debug לבדיקה במכשיר פיזי).
+
+            **התקנה:** הורד את `magen-v4.2.1-paired-8443-debug.apk`, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
+            אחרי ההתקנה יש להפעיל VPN, Accessibility ו-Device Admin.
+
+            שרת ברירת מחדל: `https://51.20.205.229:8443`.
+            בנייה מקומית (release חתום) — ראה `SECURITY_BUILD.md`.
+          files: |
+            magen-v4.2.1-paired-8443-debug.apk
+            magen-v4.2.1-paired-8443-debug.apk.sha256
+          prerelease: false
+          make_latest: false

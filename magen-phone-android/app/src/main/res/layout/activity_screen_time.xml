@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#F8F9FA"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="⏱ זמן מסך"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="#212529"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:id="@+id/tv_used_today"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="שימוש היום: 0ש׳ 0ד׳"
+        android:textColor="#1A73E8"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="20dp"/>
+
+    <!-- הפעל/כבה -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:drawable/dialog_holo_light_frame"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="הפעל הגבלת זמן מסך"
+            android:textSize="16sp"
+            android:textColor="#212529"/>
+        <Switch android:id="@+id/sw_screen_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+
+    <!-- בוחר זמן -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:drawable/dialog_holo_light_frame"
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="מקסימום זמן מסך ביום"
+            android:textColor="#6C757D"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="12dp"/>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+                <NumberPicker
+                    android:id="@+id/picker_hours"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="שעות"
+                    android:textColor="#6C757D"
+                    android:textSize="12sp"/>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="  :  "
+                android:textSize="24sp"
+                android:textColor="#212529"/>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center">
+                <NumberPicker
+                    android:id="@+id/picker_minutes"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="דקות"
+                    android:textColor="#6C757D"
+                    android:textSize="12sp"/>
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+
+    <android.widget.Button
+        android:id="@+id/btn_save_screen"
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:text="שמור"
+        android:textColor="#FFFFFF"
+        android:background="#1A73E8"
+        android:textSize="16sp"
+        android:textStyle="bold"/>
+
+</LinearLayout>

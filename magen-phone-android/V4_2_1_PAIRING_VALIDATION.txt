@@ -1,0 +1,19 @@
+Magen Phone v4.2.1 paired-8443 validation
+=========================================
+Server endpoint: https://51.20.205.229:8443
+Android versionCode: 12
+Android versionName: 4.2.1-paired-8443
+TLS CA SHA-256: 75:70:98:51:10:41:01:AC:A1:B7:8D:D2:D4:76:57:0A:D5:CB:AF:6C:E4:A3:FE:5D:C7:89:EB:45:B6:CB:C7:FA
+Server signing public DER SHA-256: 2A:DC:CA:EF:1D:F5:4B:B2:3E:A7:44:23:10:96:E5:0F:15:7C:36:46:FB:14:4F:D6:84:A2:64:BD:00:98:53:F0
+
+Checks performed:
+- supplied Magen Private CA parsed successfully with OpenSSL
+- CA fingerprint exactly matches the supplied server CA fingerprint
+- default Android endpoint is the live coexistence endpoint on port 8443
+- legacy 51.21.194.27 occurs only in the one-time SharedPreferences migration predicate
+- in-place upgrades force fresh enrollment when the legacy paired endpoint is detected
+- existing ECDSA response-verification public key matches the original paired VPS signing public key
+- strict verify.py includes a dedicated VPS pairing regression check
+- Visual Shield privacy/hardening regression checks still pass
+
+Note: static verification does not replace a real Gradle/Android device build. BUILD_APK_ON_WINDOWS.bat runs Gradle tests and assembleDebug on Windows.

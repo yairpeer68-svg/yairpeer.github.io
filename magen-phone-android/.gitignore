@@ -1,0 +1,17 @@
+*.iml
+.gradle/
+/local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# מודל ה-Visual Shield נמשך בזמן הבנייה (ראה .github/workflows/build-magen-apk.yml)
+app/src/main/assets/*.tflite
+VISUAL_MODEL_SHA256.lock

@@ -1,0 +1,11 @@
+Magen Phone paired deployment
+=============================
+Default VPS: https://51.20.205.229:8443
+TLS: private CA pinned in app/src/main/res/raw/magen_server_ca.crt
+CA SHA-256: 75:70:98:51:10:41:01:AC:A1:B7:8D:D2:D4:76:57:0A:D5:CB:AF:6C:E4:A3:FE:5D:C7:89:EB:45:B6:CB:C7:FA
+Application responses: ECDSA P-256 verified using MAGEN_SERVER_SIGNING_PUB_B64
+Signing public DER SHA-256: 2a:dc:ca:ef:1d:f5:4b:b2:3e:a7:44:23:10:96:e5:0f:15:7c:36:46:fb:14:4f:d6:84:a2:64:bd:00:98:53:f0
+Device identity: ECDSA P-256 private key generated inside Android Keystore during enrollment
+DeepSeek key: NOT present on Android; the VPS is the only component that talks to DeepSeek
+Unknown-domain mode: strict by default; remote classification is asynchronous and cached locally
+Blocklists: phone first tries the VPS merged snapshot (signed metadata + SHA-256), then falls back to direct public sources
