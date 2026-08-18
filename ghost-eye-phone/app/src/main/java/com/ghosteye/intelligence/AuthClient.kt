@@ -15,7 +15,6 @@ class AuthClient(private val context: Context, private val baseUrl: String) {
     private val jsonType = "application/json".toMediaType()
 
     suspend fun login(email: String, password: String): Boolean = requestAuth("/api/v1/auth/login", email, password)
-    suspend fun register(email: String, password: String): Boolean = requestAuth("/api/v1/auth/register", email, password)
 
     private suspend fun requestAuth(path: String, email: String, password: String) = withContext(Dispatchers.IO) {
         val body = JSONObject().put("email", email).put("password", password).toString().toRequestBody(jsonType)

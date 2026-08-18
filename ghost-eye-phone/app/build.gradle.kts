@@ -10,8 +10,8 @@ android {
         applicationId = "com.ghosteye.intelligence"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "9.3.1"
+        versionCode = 7
+        versionName = "9.3.2"
     }
     signingConfigs {
         create("release") {

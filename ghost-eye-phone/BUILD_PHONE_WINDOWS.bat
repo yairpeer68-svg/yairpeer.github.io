@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 echo ========================================
-echo Ghost Eye Android 9.3.1
+echo Ghost Eye Android 9.3.2 - Single User
 echo Server: https://51.20.205.229
 echo ========================================
 call gradlew.bat assembleRelease -PAPI_BASE_URL=https://51.20.205.229

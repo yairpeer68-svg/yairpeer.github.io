@@ -1,13 +1,14 @@
-# Universal Intelligence Android Client v0.4
+# Ghost Eye Android 9.3.2 - Single-User Locked Client
 
-The app now:
-1. opens Android Storage Access Framework;
-2. sends the selected file as multipart/form-data;
-3. receives a job ID;
-4. polls status;
-5. displays progress;
-6. fetches the final result;
-7. displays basic Findings / Entities / Evidence / AI summary.
+This client connects to `https://51.20.205.229`.
 
-Configure `ApiClient(..., baseUrl, token)` for the production server.
-For production use HTTPS only and store credentials securely.
+- Login only.
+- No registration UI and no registration client method.
+- Access/refresh tokens are stored using Android Keystore-backed encryption.
+- The server is expected to run `INTEL_SINGLE_USER_MODE=1`.
+
+Build on Windows:
+
+```bat
+BUILD_PHONE_WINDOWS.bat
+```
