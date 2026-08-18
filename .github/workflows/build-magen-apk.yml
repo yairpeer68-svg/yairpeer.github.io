@@ -58,8 +58,8 @@ jobs:
               -PreleaseCertSha256="$MAGEN_CERT_SHA256" \
               -PbuildId="${GITHUB_SHA::7}" && break
             n=$((n+1))
-            echo "Build attempt $n failed; retrying in $((n*30))s..."
-            sleep $((n*30))
+            echo "Build attempt $n failed; retrying in $((n*60))s..."
+            sleep $((n*60))
           done
           [ "$n" -lt 3 ]
 
