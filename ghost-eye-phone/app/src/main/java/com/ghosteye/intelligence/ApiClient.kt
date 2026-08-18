@@ -41,12 +41,12 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
         var response = client.newCall(signed(build())).execute()
         if (response.code == 401) {
             response.close()
-            if (!auth.refresh()) throw@withContext SessionExpiredException()
+            if (!auth.refresh()) throw SessionExpiredException()
             response = client.newCall(signed(build())).execute()
             if (response.code == 401) {
                 response.close()
                 auth.clearLocalSession()
-                throw@withContext SessionExpiredException()
+                throw SessionExpiredException()
             }
         }
         response
