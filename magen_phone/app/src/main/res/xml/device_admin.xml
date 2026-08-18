@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Device Admin Policy
+
+    מוצהרת רק המדיניות שבאמת נמצאת בשימוש:
+      force-lock — MagenDeviceAdmin.lockDeviceNow() נועל את המסך בעת זיהוי
+                   ניסיון השבתה/הסרה.
+
+    watch-login הוסר: אין בקוד onPasswordFailed/onPasswordSucceeded או שימוש
+    במדיניות הזו, ולכן אין הצדקה לבקש אותה מהמשתמש.
+-->
+<device-admin>
+    <uses-policies>
+        <force-lock/>
+    </uses-policies>
+</device-admin>

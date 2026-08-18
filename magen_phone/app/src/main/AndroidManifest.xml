@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+   >
+
+    <!-- ===== הרשאות בסיסיות ===== -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- שמירה במקום נכון (Scoped Storage) — לא צריך WRITE_EXTERNAL_STORAGE -->
+
+    <!-- צריך כדי לקרוא רשימת אפליקציות מותקנות (Android 11+) -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="QueryAllPackagesPermission"/>
+
+    <!-- ניטור זמן מסך -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions"/>
+
+    <!-- Device Admin uses BIND_DEVICE_ADMIN on the receiver declaration;
+         apps must not request that signature permission as a uses-permission. -->
+    <!-- התראות אבטחה נשלחות לשרת Magen -->
+
+    <!-- Geofencing — חסימה בבית הספר/מקומות מוגדרים -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
+    <!-- Night mode uses AlarmManager.setRepeating(), which is inexact on modern
+         Android and therefore does not need restricted exact-alarm permissions. -->
+
+    <application
+        android:name=".MagenApp"
+        android:allowBackup="false"
+        android:allowClearUserData="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Magen"
+        android:hardwareAccelerated="true"
+        android:usesCleartextTraffic="false">
+
+        <!-- WelcomeActivity אינה עוד ה-LAUNCHER הישיר. במקום זה יש 20
+             activity-alias להסוואה, שכולם מצביעים אליה. תמיד בדיוק אחד מהם
+             מופעל, והוא זה שמופיע במגירת האפליקציות. ראה DisguiseManager. -->
+        <activity android:name=".ui.WelcomeActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.OnboardingActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.DisguiseActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.CovenantCenterActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.DashboardActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <!-- ===== 20 מסכות הסוואה ===== -->
+        <activity-alias android:name=".disguise.AliasShield" android:exported="true"
+            android:enabled="true" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_shield" android:label="@string/disg_shield">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasCalculator" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_calculator" android:label="@string/disg_calculator">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasNotes" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_notes" android:label="@string/disg_notes">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasWeather" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_weather" android:label="@string/disg_weather">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasClock" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_clock" android:label="@string/disg_clock">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasCalendar" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_calendar" android:label="@string/disg_calendar">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasFiles" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_files" android:label="@string/disg_files">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasGallery" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_gallery" android:label="@string/disg_gallery">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasMusic" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_music" android:label="@string/disg_music">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasRadio" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_radio" android:label="@string/disg_radio">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasFlashlight" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_flashlight" android:label="@string/disg_flashlight">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasCompass" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_compass" android:label="@string/disg_compass">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasConverter" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_converter" android:label="@string/disg_converter">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasDictionary" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_dictionary" android:label="@string/disg_dictionary">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasTasks" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_tasks" android:label="@string/disg_tasks">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasScanner" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_scanner" android:label="@string/disg_scanner">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasBattery" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_battery" android:label="@string/disg_battery">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasWifi" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_wifi" android:label="@string/disg_wifi">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasRecorder" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_recorder" android:label="@string/disg_recorder">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+        <activity-alias android:name=".disguise.AliasTimer" android:exported="true"
+            android:enabled="false" android:targetActivity=".ui.WelcomeActivity"
+            android:icon="@drawable/disg_timer" android:label="@string/disg_timer">
+            <intent-filter><action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+        </activity-alias>
+
+        <activity android:name=".ui.MainActivity" android:exported="false"
+            android:launchMode="singleTop" android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.PinActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.ScreenTimeActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.NightModeActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.StatsActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.BlockedActivity" android:exported="false"
+            android:screenOrientation="portrait" android:excludeFromRecents="true"/>
+
+        <!-- מסך דוח תקלה. חייב לרוץ בתהליך נפרד: ברגע קריסה התהליך הראשי
+             גוסס, ואקטיביטי באותו תהליך הייתה מתה איתו בלי להציג דבר. -->
+        <activity android:name=".ui.DebugActivity" android:exported="false"
+            android:screenOrientation="portrait"/>
+
+        <activity android:name=".ui.CrashActivity" android:exported="false"
+            android:process=":crash" android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:launchMode="singleTask"/>
+
+        <!-- ===== שירותים ===== -->
+
+        <service android:name=".service.FilterService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="content_filter"/>
+        </service>
+
+        <!-- foregroundServiceType נדרש ב-Android 14: קריאה ל-startForeground()
+             בשירות בלי סוג מוצהר זורקת MissingForegroundServiceTypeException -->
+        <service android:name=".service.MagenVpnService" android:exported="true"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="network_content_filter"/>
+            <intent-filter>
+                <action android:name="android.net.VpnService"/>
+            </intent-filter>
+        </service>
+
+        <service android:name=".service.MagenKillSwitch" android:exported="false"/>
+
+        <service android:name=".service.MagenAccessibilityService" android:exported="true"
+            android:label="@string/accessibility_service_name"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config"/>
+        </service>
+
+        <service android:name=".service.ScreenTimeService" android:exported="false"/>
+        <service android:name=".service.NightModeService" android:exported="false"/>
+        <service android:name=".service.AppScheduleService" android:exported="false"/>
+        <service android:name=".service.GeofenceService" android:exported="false"/>
+        <service android:name=".service.TamperDetectorService" android:exported="false"/>
+
+        <service android:name=".service.MagenWatchdogJob"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false"/>
+
+        <!-- מדבקה צפה "מוגן" -->
+        <service android:name=".service.FloatingBadgeService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="protection_status_badge"/>
+        </service>
+
+        <!-- דוח פעילות יומי לשרת Magen -->
+        <service android:name=".service.ActivityReporter"
+            android:permission="android.permission.BIND_JOB_SERVICE"
+            android:exported="false"/>
+
+        <!-- ===== Broadcast Receivers ===== -->
+
+        <receiver android:name=".admin.MagenDeviceAdmin" android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data android:name="android.app.device_admin"
+                android:resource="@xml/device_admin"/>
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLE_REQUESTED"/>
+                <action android:name="android.app.action.DEVICE_ADMIN_DISABLED"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- SCREEN_ON הוסר: הוא לא נמסר ל-receiver מוצהר-Manifest אלא רק
+             לרישום בזמן ריצה, ולכן היה קוד מת. BOOT_COMPLETED מטופל ב-BootReceiver. -->
+        <receiver android:name=".service.MagenVpnWatchdog" android:exported="false">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.USER_PRESENT"/>
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".service.AppInstallReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED"/>
+                <action android:name="android.intent.action.PACKAGE_REMOVED"/>
+                <data android:scheme="package"/>
+            </intent-filter>
+        </receiver>
+
+        <receiver android:name=".service.BootReceiver" android:exported="false">
+            <intent-filter android:priority="999">
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>

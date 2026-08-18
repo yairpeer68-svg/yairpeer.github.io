@@ -1,0 +1,128 @@
+plugins {
+    id 'com.android.application'
+}
+
+def releaseStorePath = (project.findProperty("magenKeystoreFile") ?: System.getenv("MAGEN_KEYSTORE_FILE") ?: "").toString().trim()
+def releaseStorePassword = (project.findProperty("magenKeystorePassword") ?: System.getenv("MAGEN_KEYSTORE_PASSWORD") ?: "").toString()
+def releaseKeyAlias = (project.findProperty("magenKeyAlias") ?: System.getenv("MAGEN_KEY_ALIAS") ?: "").toString().trim()
+def releaseKeyPassword = (project.findProperty("magenKeyPassword") ?: System.getenv("MAGEN_KEY_PASSWORD") ?: "").toString()
+def releaseSigningConfigured = !releaseStorePath.isEmpty() && !releaseStorePassword.isEmpty()
+    && !releaseKeyAlias.isEmpty() && !releaseKeyPassword.isEmpty()
+
+android {
+    namespace 'com.magen.family'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.magen.family"
+        minSdk 26
+        targetSdk 36
+        versionCode 11
+        versionName "4.2.0-full-hardening"
+
+        // מזהה בנייה שנראה בתוך האפליקציה. ה-CI מעביר את ה-commit הקצר
+        // (-PbuildId=abc1234), וכך אפשר לוודא במבט אחד איזו גרסה מותקנת
+        // בפועל — במקום לנחש אם הורדת קובץ ישן מהמטמון.
+        resValue "string", "build_id", (project.findProperty("buildId") ?: "full-hardening-20260818")
+
+        def releaseCertSha256 = (project.findProperty("releaseCertSha256") ?: "").toString().replace(":", "").trim()
+        buildConfigField "String", "EXPECTED_SIG_SHA256", "\"${releaseCertSha256}\""
+        def updatePublicKeyBase64 = (project.findProperty("updatePublicKeyBase64") ?: "").toString().trim()
+        buildConfigField "String", "UPDATE_PUBKEY_B64", "\"${updatePublicKeyBase64}\""
+        def visualModelSha256 = (project.findProperty("visualModelSha256") ?: "").toString().replace(":", "").trim().toLowerCase()
+        buildConfigField "String", "VISUAL_MODEL_SHA256", "\"${visualModelSha256}\""
+        def magenServerUrl = (project.findProperty("magenServerUrl") ?: "https://51.21.194.27").toString().trim()
+        buildConfigField "String", "MAGEN_SERVER_URL", "\"${magenServerUrl}\""
+        def magenServerSigningPub = (project.findProperty("magenServerSigningPublicKey") ?: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAERI7z69XQfwpjHK7tqAytM9eZ0VkY7pLJwY1ZEWXW+ZNrrTJ98LzkxmghvmExkZqK9r3txOVigkbc8AqzwVPPqg==").toString().trim()
+        buildConfigField "String", "MAGEN_SERVER_SIGNING_PUB_B64", "\"${magenServerSigningPub}\""
+    }
+
+
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile file(releaseStorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
+            }
+        }
+    }
+
+    buildTypes {
+        debug { minifyEnabled false }
+        release {
+            minifyEnabled false
+            if (releaseSigningConfigured) signingConfig signingConfigs.release
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        resources {
+            excludes += [
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1',
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE*',
+                'META-INF/NOTICE*'
+            ]
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.biometric:biometric:1.1.0'
+
+    // Google LiteRT Interpreter runtime (current 1.x line) for the bundled visual model.
+    // Inference stays on the phone; screenshot bytes are never sent to the VPS.
+    implementation 'com.google.ai.edge.litert:litert:1.4.2'
+
+    // Kotlin stdlib — מאחד גרסה לכל ה-transitive
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
+    constraints {
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22')
+        implementation('org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22')
+    }
+
+    // ML Kit הוסר: ImageScanService היה קוד מת לגמרי — אף reference אחד
+    // בכל הפרויקט — אבל גרר את כל ספריית text-recognition (~10MB ל-APK).
+    // אם יוסיפו סיווג תמונות בעתיד, להחזיר את התלות יחד עם קוד שמשתמש בה.
+
+    // בדיקות יחידה (JVM) — רצות ב-CI לפני הבנייה
+    testImplementation 'junit:junit:4.13.2'
+}
+
+
+// Release must never ship unsigned or with signature verification silently disabled.
+tasks.configureEach { task ->
+    if (task.name.startsWith("pre") && task.name.endsWith("ReleaseBuild")) {
+        task.doFirst {
+            def sig = (project.findProperty("releaseCertSha256") ?: "").toString().replace(":", "").trim()
+            if (!(sig ==~ /(?i)[0-9a-f]{64}/)) {
+                throw new GradleException("Release requires -PreleaseCertSha256=<64 hex SHA-256 certificate fingerprint>")
+            }
+            if (!releaseSigningConfigured) {
+                throw new GradleException("Release signing is not configured. Set magenKeystoreFile/magenKeystorePassword/magenKeyAlias/magenKeyPassword (or MAGEN_KEYSTORE_* env vars).")
+            }
+            if (!file(releaseStorePath).isFile()) {
+                throw new GradleException("Release keystore does not exist: ${releaseStorePath}")
+            }
+        }
+    }
+}

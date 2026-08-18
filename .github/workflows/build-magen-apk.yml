@@ -1,0 +1,89 @@
+name: Build Magen APK
+
+on:
+  push:
+    branches: [ "main", "claude/convert-to-apk-57x0yb" ]
+    paths: [ "magen_phone/**", ".github/workflows/build-magen-apk.yml" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK platform 36 + build-tools
+        run: yes | sdkmanager "platforms;android-36" "build-tools;36.0.0" >/dev/null
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Generate signing keystore and derive cert SHA-256
+        working-directory: magen_phone
+        run: |
+          keytool -genkeypair -v \
+            -keystore magen.keystore \
+            -alias magen \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass magenpass -keypass magenpass \
+            -dname "CN=Magen Family, OU=Mobile, O=Magen, L=NA, ST=NA, C=IL"
+          CERT_SHA=$(keytool -list -v -keystore magen.keystore -storepass magenpass -alias magen \
+            | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ': ')
+          echo "MAGEN_CERT_SHA256=$CERT_SHA" >> "$GITHUB_ENV"
+          echo "Derived release cert SHA-256: $CERT_SHA"
+
+      - name: Build signed release APK
+        working-directory: magen_phone
+        run: |
+          chmod +x ./gradlew
+          n=0
+          until [ "$n" -ge 3 ]; do
+            ./gradlew :app:assembleRelease --no-daemon \
+              -PmagenKeystoreFile="$PWD/magen.keystore" \
+              -PmagenKeystorePassword=magenpass \
+              -PmagenKeyAlias=magen \
+              -PmagenKeyPassword=magenpass \
+              -PreleaseCertSha256="$MAGEN_CERT_SHA256" \
+              -PbuildId="${GITHUB_SHA::7}" && break
+            n=$((n+1))
+            echo "Build attempt $n failed; retrying in $((n*30))s..."
+            sleep $((n*30))
+          done
+          [ "$n" -lt 3 ]
+
+      - name: Rename APK
+        run: cp magen_phone/app/build/outputs/apk/release/app-release.apk magen.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: magen-apk
+          path: magen.apk
+          retention-days: 30
+
+      - name: Publish latest APK as release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: magen-latest
+          name: "Magen Family — Latest APK (v4.2.0)"
+          body: |
+            Magen Family Android app (v4.2.0 full hardening), signed release build.
+
+            Server: https://51.21.194.27
+
+            Install: download `magen.apk` below, open it on your phone, and allow installation from unknown sources.
+          files: magen.apk
+          prerelease: false
+          make_latest: true

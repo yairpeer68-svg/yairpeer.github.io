@@ -1,4 +1,0 @@
-Ghost Eye Phone 10.0.1 - Single-User Locked Mode
-Production API: https://51.20.205.229
-Registration: disabled
-Authentication: owner email + password only
