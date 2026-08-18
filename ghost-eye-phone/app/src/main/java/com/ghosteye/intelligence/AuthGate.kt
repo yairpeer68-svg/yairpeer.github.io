@@ -18,6 +18,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private enum class GateState { Checking, Login, Authenticated }
@@ -30,7 +31,15 @@ fun AuthGate(baseUrl: String, content: @Composable (onLogout: () -> Unit) -> Uni
     var gate by remember { mutableStateOf(GateState.Checking) }
 
     LaunchedEffect(Unit) {
-        gate = if (auth.ensureSession()) GateState.Authenticated else GateState.Login
+        gate = try {
+            if (auth.ensureSession()) GateState.Authenticated else GateState.Login
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // A corrupt local session or temporary startup problem must never
+            // terminate the Activity. Fall back to the explicit login screen.
+            GateState.Login
+        }
     }
 
     when (gate) {
@@ -189,7 +198,7 @@ private fun LoginScreen(
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                if (error != null) {
+                error?.let { message ->
                     Spacer(Modifier.height(12.dp))
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -197,7 +206,7 @@ private fun LoginScreen(
                         color = MaterialTheme.colorScheme.errorContainer
                     ) {
                         Text(
-                            error!!,
+                            message,
                             Modifier.padding(12.dp),
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             style = MaterialTheme.typography.bodySmall,

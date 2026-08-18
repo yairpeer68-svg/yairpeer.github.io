@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 echo ========================================
-echo Ghost Eye Phone 10.0.0 - Single User
+echo Ghost Eye Phone 10.0.1 - Single User
 echo Server: https://51.20.205.229
 echo ========================================
 

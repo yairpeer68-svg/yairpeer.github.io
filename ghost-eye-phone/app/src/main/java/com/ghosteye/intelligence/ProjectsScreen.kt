@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
@@ -32,6 +33,8 @@ fun ProjectsScreen(baseUrl: String, modifier: Modifier = Modifier, onSessionExpi
         try {
             projects = api.projects()
             selected?.let { p -> cases = api.cases(p.id) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             if (e is SessionExpiredException) onSessionExpired()
             else error = e.message ?: "לא ניתן לטעון פרויקטים"
@@ -44,6 +47,8 @@ fun ProjectsScreen(baseUrl: String, modifier: Modifier = Modifier, onSessionExpi
         val p = selected ?: return@LaunchedEffect
         try {
             cases = api.cases(p.id)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             if (e is SessionExpiredException) onSessionExpired()
             else error = e.message ?: "לא ניתן לטעון Cases"
@@ -130,8 +135,10 @@ fun ProjectsScreen(baseUrl: String, modifier: Modifier = Modifier, onSessionExpi
                         projects = listOf(created) + projects
                         selected = created
                         cases = emptyList()
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
-                        error = e.message ?: "יצירת הפרויקט נכשלה"
+                        if (e is SessionExpiredException) onSessionExpired() else error = e.message ?: "יצירת הפרויקט נכשלה"
                     }
                 }
             }
@@ -151,8 +158,10 @@ fun ProjectsScreen(baseUrl: String, modifier: Modifier = Modifier, onSessionExpi
                     try {
                         val created = api.createCase(p.id, title, null)
                         cases = cases + created
+                    } catch (e: CancellationException) {
+                        throw e
                     } catch (e: Exception) {
-                        error = e.message ?: "יצירת Case נכשלה"
+                        if (e is SessionExpiredException) onSessionExpired() else error = e.message ?: "יצירת Case נכשלה"
                     }
                 }
             }

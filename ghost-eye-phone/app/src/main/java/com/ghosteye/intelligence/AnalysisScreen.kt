@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
@@ -67,6 +68,8 @@ fun AnalysisScreen(baseUrl: String, modifier: Modifier = Modifier, onSessionExpi
                     }
                     delay(900)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (e is SessionExpiredException) {
                     onSessionExpired()

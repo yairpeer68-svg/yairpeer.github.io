@@ -1,4 +1,4 @@
-# Ghost Eye Phone 10.0.0
+# Ghost Eye Phone 10.0.1
 
 Single-user Android client for `https://51.20.205.229`.
 

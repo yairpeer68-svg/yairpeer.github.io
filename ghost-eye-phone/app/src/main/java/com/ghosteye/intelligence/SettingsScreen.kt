@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -33,6 +34,7 @@ fun SettingsScreen(
             checking = true
             error = null
             try { health = api.health() }
+            catch (e: CancellationException) { throw e }
             catch (e: Exception) { if (e is SessionExpiredException) onSessionExpired() else error = e.message ?: "לא ניתן להגיע לשרת" }
             finally { checking = false }
         }
@@ -104,7 +106,7 @@ fun SettingsScreen(
 
         item {
             Text(
-                "Ghost Eye Phone 10.0.0 • HTTPS only",
+                "Ghost Eye Phone 10.0.1 • HTTPS only",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

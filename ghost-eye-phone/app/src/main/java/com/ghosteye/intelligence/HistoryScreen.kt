@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 
 @Composable
 fun HistoryScreen(baseUrl: String, modifier: Modifier = Modifier, onSessionExpired: () -> Unit) {
@@ -25,6 +26,7 @@ fun HistoryScreen(baseUrl: String, modifier: Modifier = Modifier, onSessionExpir
         loading = true
         error = null
         try { jobs = api.jobs() }
+        catch (e: CancellationException) { throw e }
         catch (e: Exception) { if (e is SessionExpiredException) onSessionExpired() else error = e.message ?: "לא ניתן לטעון היסטוריה" }
         finally { loading = false }
     }
@@ -34,6 +36,7 @@ fun HistoryScreen(baseUrl: String, modifier: Modifier = Modifier, onSessionExpir
         val job = selected ?: return@LaunchedEffect
         if (job.status == "completed") {
             try { intelligence = api.intelligence(job.id) }
+            catch (e: CancellationException) { throw e }
             catch (e: Exception) { if (e is SessionExpiredException) onSessionExpired() else error = e.message ?: "לא ניתן לטעון את תוצאת הניתוח" }
         }
     }
@@ -59,12 +62,15 @@ fun HistoryScreen(baseUrl: String, modifier: Modifier = Modifier, onSessionExpir
                     if (intelligence == null) {
                         LinearProgressIndicator(Modifier.fillMaxWidth())
                     } else {
-                        IntelligenceResultHeader(intelligence!!)
-                        if (intelligence!!.findings.isNotEmpty()) {
+                        val loaded = intelligence
+                        if (loaded != null) {
+                            IntelligenceResultHeader(loaded)
+                        }
+                        if (loaded != null && loaded.findings.isNotEmpty()) {
                             Spacer(Modifier.height(8.dp))
                             SectionCard {
                                 Text("Top findings", fontWeight = FontWeight.Bold)
-                                intelligence!!.findings.take(5).forEach { f ->
+                                loaded.findings.take(5).forEach { f ->
                                     Spacer(Modifier.height(8.dp))
                                     Text("• ${f.optString("title").ifBlank { f.optString("type", "ממצא") }}", style = MaterialTheme.typography.bodySmall)
                                 }

@@ -30,18 +30,26 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
     private val auth = AuthClient(context, baseUrl)
     private val jsonType = "application/json; charset=utf-8".toMediaType()
 
-    private fun signed(builder: Request.Builder): Request {
-        val access = session.access()
+    private fun signed(builder: Request.Builder, accessOverride: String? = null): Request {
+        val access = accessOverride ?: session.access()
         if (!access.isNullOrBlank()) builder.header("Authorization", "Bearer $access")
         builder.header("Accept", "application/json")
         return builder.build()
     }
 
     private suspend fun call(build: () -> Request.Builder): Response = withContext(Dispatchers.IO) {
-        var response = client.newCall(signed(build())).execute()
+        val tokenUsed = session.access()
+        var response = client.newCall(signed(build(), tokenUsed)).execute()
         if (response.code == 401) {
             response.close()
-            if (!auth.refresh()) throw SessionExpiredException()
+            // Several Dashboard calls may hit an expired token simultaneously.
+            // refreshIfNeeded serializes token rotation and prevents one request
+            // from invalidating another request's newly issued refresh token.
+            when (auth.refreshIfNeeded(tokenUsed)) {
+                RefreshResult.Success -> Unit
+                RefreshResult.Invalid -> throw SessionExpiredException()
+                RefreshResult.Unavailable -> throw ApiException(503, "authentication service temporarily unavailable")
+            }
             response = client.newCall(signed(build())).execute()
             if (response.code == 401) {
                 response.close()
@@ -61,8 +69,16 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
         return body
     }
 
+    private fun parseObject(body: String, operation: String): JSONObject =
+        try { JSONObject(body) }
+        catch (_: Exception) { throw ApiException(502, "$operation returned invalid JSON") }
+
+    private fun parseArray(body: String, operation: String): JSONArray =
+        try { JSONArray(body) }
+        catch (_: Exception) { throw ApiException(502, "$operation returned invalid JSON") }
+
     suspend fun health(): JSONObject =
-        call { Request.Builder().url("$baseUrl/health").get() }.use { JSONObject(ensureSuccess(it, "Health")) }
+        call { Request.Builder().url("$baseUrl/health").get() }.use { parseObject(ensureSuccess(it, "Health"), "Health") }
 
     suspend fun upload(uri: Uri): String = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
@@ -80,7 +96,7 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
             .addFormDataPart("file", name, body).build()
 
         call { Request.Builder().url("$baseUrl/api/v1/files").post(multipart) }.use { r ->
-            JSONObject(ensureSuccess(r, "Upload")).getString("job_id")
+            parseObject(ensureSuccess(r, "Upload"), "Upload").optString("job_id").takeIf { it.isNotBlank() } ?: throw ApiException(502, "Upload response is missing job_id")
         }
     }
 
@@ -94,12 +110,12 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
 
     suspend fun status(jobId: String): JobSummary =
         call { Request.Builder().url("$baseUrl/api/v1/jobs/$jobId").get() }.use { r ->
-            parseJob(JSONObject(ensureSuccess(r, "Status")))
+            parseJob(parseObject(ensureSuccess(r, "Status"), "Status"))
         }
 
     suspend fun jobs(): List<JobSummary> =
         call { Request.Builder().url("$baseUrl/api/v1/jobs").get() }.use { r ->
-            val arr = JSONArray(ensureSuccess(r, "Jobs"))
+            val arr = parseArray(ensureSuccess(r, "Jobs"), "Jobs")
             buildList {
                 for (i in 0 until arr.length()) add(parseJob(arr.getJSONObject(i)))
             }
@@ -107,7 +123,7 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
 
     suspend fun intelligence(jobId: String): IntelligenceSummary =
         call { Request.Builder().url("$baseUrl/api/v2/jobs/$jobId/intelligence").get() }.use { r ->
-            val j = JSONObject(ensureSuccess(r, "Intelligence"))
+            val j = parseObject(ensureSuccess(r, "Intelligence"), "Intelligence")
             val artifact = j.optJSONObject("artifact") ?: JSONObject()
             val risk = j.optJSONObject("risk") ?: JSONObject()
             val quality = j.optJSONObject("quality") ?: JSONObject()
@@ -142,12 +158,12 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
 
     suspend fun dashboardSummary(): JSONObject =
         call { Request.Builder().url("$baseUrl/api/v1/dashboard/summary").get() }.use { r ->
-            JSONObject(ensureSuccess(r, "Dashboard"))
+            parseObject(ensureSuccess(r, "Dashboard"), "Dashboard")
         }
 
     suspend fun projects(): List<Project> =
         call { Request.Builder().url("$baseUrl/api/v1/projects").get() }.use { r ->
-            val arr = JSONArray(ensureSuccess(r, "Projects"))
+            val arr = parseArray(ensureSuccess(r, "Projects"), "Projects")
             buildList {
                 for (i in 0 until arr.length()) {
                     val j = arr.getJSONObject(i)
@@ -161,13 +177,13 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
             val body = JSONObject().put("name", name.trim()).toString().toRequestBody(jsonType)
             Request.Builder().url("$baseUrl/api/v1/projects").post(body)
         }.use { r ->
-            val j = JSONObject(ensureSuccess(r, "Create project"))
+            val j = parseObject(ensureSuccess(r, "Create project"), "Create project")
             Project(j.getString("id"), j.getString("name"))
         }
 
     suspend fun cases(projectId: String): List<CaseItem> =
         call { Request.Builder().url("$baseUrl/api/v1/projects/$projectId/cases").get() }.use { r ->
-            val arr = JSONArray(ensureSuccess(r, "Cases"))
+            val arr = parseArray(ensureSuccess(r, "Cases"), "Cases")
             buildList {
                 for (i in 0 until arr.length()) {
                     val j = arr.getJSONObject(i)
@@ -185,13 +201,13 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
                 .toString().toRequestBody(jsonType)
             Request.Builder().url("$baseUrl/api/v1/projects/cases").post(body)
         }.use { r ->
-            val j = JSONObject(ensureSuccess(r, "Create case"))
+            val j = parseObject(ensureSuccess(r, "Create case"), "Create case")
             CaseItem(j.getString("id"), j.optString("title", title.trim()), notes)
         }
 
     suspend fun graph(): Pair<List<GraphNode>, List<GraphEdge>> =
         call { Request.Builder().url("$baseUrl/api/v1/graph/ui").get() }.use { r ->
-            val j = JSONObject(ensureSuccess(r, "Graph"))
+            val j = parseObject(ensureSuccess(r, "Graph"), "Graph")
             val nodesArray = j.optJSONArray("nodes") ?: JSONArray()
             val edgesArray = j.optJSONArray("edges") ?: JSONArray()
             val nodes = buildList {
@@ -211,7 +227,7 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
 
     suspend fun audit(limit: Int = 30): List<AuditItem> =
         call { Request.Builder().url("$baseUrl/api/v1/audit?limit=$limit").get() }.use { r ->
-            val arr = JSONArray(ensureSuccess(r, "Audit"))
+            val arr = parseArray(ensureSuccess(r, "Audit"), "Audit")
             buildList {
                 for (i in 0 until arr.length()) {
                     val j = arr.getJSONObject(i)
