@@ -37,12 +37,21 @@ jobs:
 
       - name: Build signed release APK
         run: |
-          cd ghost-eye-phone && gradle assembleRelease --no-daemon \
-            -PAPI_BASE_URL=https://51.20.205.229 \
-            -PGHOSTEYE_KEYSTORE="$PWD/release.keystore" \
-            -PGHOSTEYE_KS_PASS=ghosteye \
-            -PGHOSTEYE_KEY_ALIAS=ghosteye \
-            -PGHOSTEYE_KEY_PASS=ghosteye
+          cd ghost-eye-phone
+          # Retry to ride out transient Maven Central rate limits (HTTP 429).
+          n=0
+          until [ "$n" -ge 3 ]; do
+            gradle assembleRelease --no-daemon \
+              -PAPI_BASE_URL=https://51.20.205.229 \
+              -PGHOSTEYE_KEYSTORE="$PWD/release.keystore" \
+              -PGHOSTEYE_KS_PASS=ghosteye \
+              -PGHOSTEYE_KEY_ALIAS=ghosteye \
+              -PGHOSTEYE_KEY_PASS=ghosteye && break
+            n=$((n+1))
+            echo "Build attempt $n failed; retrying in $((n*30))s..."
+            sleep $((n*30))
+          done
+          [ "$n" -lt 3 ]
 
       - name: Rename APK
         run: cp ghost-eye-phone/app/build/outputs/apk/release/app-release.apk ghost-eye.apk
