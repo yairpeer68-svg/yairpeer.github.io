@@ -14,6 +14,7 @@ import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 import com.magen.family.filter.DomainVerdict;
+import com.magen.family.server.ServerEventReporter;
 import com.magen.family.service.vpn.TunBridge;
 import com.magen.family.service.vpn.VpnEngine;
 import com.magen.family.service.vpn.VpnPolicy;
