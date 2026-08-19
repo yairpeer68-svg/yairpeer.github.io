@@ -72,14 +72,14 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
             response.close()
             when (auth.refreshIfNeeded(tokenUsed)) {
                 RefreshResult.Success -> Unit
-                RefreshResult.Invalid -> throw@withContext SessionExpiredException()
-                RefreshResult.Unavailable -> throw@withContext ApiException(503, "authentication service temporarily unavailable")
+                RefreshResult.Invalid -> throw SessionExpiredException()
+                RefreshResult.Unavailable -> throw ApiException(503, "authentication service temporarily unavailable")
             }
             response = execute(session.access())
             if (response.code == 401) {
                 response.close()
                 auth.clearLocalSession()
-                throw@withContext SessionExpiredException()
+                throw SessionExpiredException()
             }
         }
         response
