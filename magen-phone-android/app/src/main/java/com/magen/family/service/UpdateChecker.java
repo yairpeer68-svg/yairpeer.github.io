@@ -26,7 +26,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.MessageDigest;
 import java.security.PublicKey;
-import java.security.Signature;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Locale;
 
@@ -168,7 +167,7 @@ public final class UpdateChecker {
             byte[] keyBytes = Base64.decode(BuildConfig.UPDATE_PUBKEY_B64, Base64.DEFAULT);
             PublicKey key = KeyFactory.getInstance("EC")
                 .generatePublic(new X509EncodedKeySpec(keyBytes));
-            Signature verifier = Signature.getInstance("SHA256withECDSA");
+            java.security.Signature verifier = java.security.Signature.getInstance("SHA256withECDSA");
             verifier.initVerify(key);
             verifier.update(payload.getBytes(StandardCharsets.UTF_8));
             return verifier.verify(Base64.decode(sigB64, Base64.DEFAULT));

@@ -213,12 +213,12 @@ public final class HttpsInspectionProxy {
             if (!validDnsHost(host)) return;
 
             if (DomainVerdict.isBlocked(app, host)) {
-                MitmRuntimeState.blocked();
+                MitmRuntimeState.block();
                 ContentIncidentReporter.reportMitmBlock(app, host, "HTTPS_TRANSPARENT_DOMAIN");
                 return;
             }
             if (!MitmPolicy.shouldIntercept(app, host)) {
-                MitmRuntimeState.tunneled();
+                MitmRuntimeState.tunnel();
                 tunnelTransparent(client, host, 443);
                 return;
             }
@@ -230,7 +230,7 @@ public final class HttpsInspectionProxy {
                 upstream = openTlsUpstream(host, 443);
             } catch (Exception e) {
                 MitmRuntimeState.failure();
-                MitmRuntimeState.tunneled();
+                MitmRuntimeState.tunnel();
                 tunnelTransparent(client, host, 443);
                 return;
             }
@@ -240,7 +240,7 @@ public final class HttpsInspectionProxy {
                 try {
                     down = createDownstreamTls(material, client, host);
                     down.startHandshake();
-                    MitmRuntimeState.intercepted();
+                    MitmRuntimeState.intercept();
                     inspectFirstRequestThenPipe(down, up, host);
                 } catch (Exception e) {
                     MitmPolicy.markFallback(app, host, "TLS_PINNING_OR_PROTOCOL");
@@ -258,13 +258,13 @@ public final class HttpsInspectionProxy {
     private void handleConnect(Socket client, String host, int port) throws Exception {
         if (port != 443 || !validDnsHost(host)) { writeSimple(client, 403, "Proxy target rejected"); return; }
         if (DomainVerdict.isBlocked(app, host)) {
-            MitmRuntimeState.blocked();
+            MitmRuntimeState.block();
             ContentIncidentReporter.reportMitmBlock(app, host, "HTTPS_CONNECT_DOMAIN");
             writeSimple(client, 451, "Blocked by Magen");
             return;
         }
         if (!MitmPolicy.shouldIntercept(app, host)) {
-            MitmRuntimeState.tunneled();
+            MitmRuntimeState.tunnel();
             tunnelConnect(client, host, port);
             return;
         }
@@ -278,7 +278,7 @@ public final class HttpsInspectionProxy {
             upstream = openTlsUpstream(host, port);
         } catch (Exception e) {
             MitmRuntimeState.failure();
-            MitmRuntimeState.tunneled();
+            MitmRuntimeState.tunnel();
             tunnelConnect(client, host, port);
             return;
         }
@@ -291,7 +291,7 @@ public final class HttpsInspectionProxy {
             try {
                 down = createDownstreamTls(material, client, host);
                 down.startHandshake();
-                MitmRuntimeState.intercepted();
+                MitmRuntimeState.intercept();
                 inspectFirstRequestThenPipe(down, up, host);
             } catch (Exception e) {
                 MitmPolicy.markFallback(app, host, "TLS_PINNING_OR_PROTOCOL");
@@ -340,7 +340,7 @@ public final class HttpsInspectionProxy {
         String requestHost=extractHostHeader(first);
         if (requestHost==null || !host.equalsIgnoreCase(requestHost)) {
             // Do not let TLS SNI/HTTP Host disagreement become a domain-fronting bypass.
-            MitmRuntimeState.blocked();
+            MitmRuntimeState.block();
             ContentIncidentReporter.reportMitmBlock(app,host,"HTTPS_HOST_MISMATCH");
             writeTlsBlock(cout);
             return;
@@ -349,7 +349,7 @@ public final class HttpsInspectionProxy {
             // In-memory decision only. Query/header/body data are never logged or sent to the VPS.
             ContentFilter cf = new ContentFilter(app);
             if (cf.shouldBlock("https://" + host + target)) {
-                MitmRuntimeState.blocked();
+                MitmRuntimeState.block();
                 ContentIncidentReporter.reportMitmBlock(app, host, "HTTPS_PATH_LOCAL");
                 writeTlsBlock(cout);
                 return;
@@ -399,7 +399,7 @@ public final class HttpsInspectionProxy {
         int port = uri.getPort() == -1 ? 80 : uri.getPort();
         if (port != 80 || !validDnsHost(host)) { writeSimple(client, 403, "Proxy target rejected"); return; }
         if (DomainVerdict.isBlocked(app, host) || new ContentFilter(app).shouldBlock(target)) {
-            MitmRuntimeState.blocked();
+            MitmRuntimeState.block();
             ContentIncidentReporter.reportMitmBlock(app, host, "HTTP_URL");
             writeSimple(client, 451, "Blocked by Magen");
             return;

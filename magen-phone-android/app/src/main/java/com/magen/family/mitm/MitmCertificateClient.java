@@ -39,7 +39,7 @@ public final class MitmCertificateClient {
     }
     private static final int MAX_CACHE=512;
     private static final Object LOCK=new Object();
-    private static final Map<String,Entry> CACHE=new LinkedHashMap<String,Entry>(MAX_CACHE,.75f,true){protected boolean removeEldestEntry(Map.Entry<String,Entry> e){return size()>MAX_CACHE;}};
+    private static final Map<String,Entry> CACHE=new LinkedHashMap<String,Entry>(MAX_CACHE,.75f,true){protected boolean removeEldestEntry(Map.Entry<String,MitmCertificateClient.Entry> e){return size()>MAX_CACHE;}};
     private static final class Entry{final Material m;final long expiresElapsed;final String caSha;Entry(Material m,long e,String s){this.m=m;this.expiresElapsed=e;this.caSha=s;}}
     private MitmCertificateClient(){}
 
@@ -82,7 +82,7 @@ public final class MitmCertificateClient {
         SSLContext sc=SSLContext.getInstance("TLS");sc.init(kmf.getKeyManagers(),null,new SecureRandom());
         Material m=new Material(sc,leaf,ca); long ttl=Math.max(300L,Math.min(72L*3600L,p.optLong("ttl_seconds",3600L)));
         synchronized(LOCK){CACHE.put(h,new Entry(m,now+ttl*1000L,p.optString("ca_sha256","")));}
-        MitmRuntimeState.certIssued(); return m;
+        MitmRuntimeState.certIssue(); return m;
     }
 
     public static void clearCache(){synchronized(LOCK){CACHE.clear();}}
