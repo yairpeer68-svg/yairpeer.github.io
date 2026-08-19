@@ -74,7 +74,7 @@ public class ScreenTimeService extends Service {
                 Log.d(TAG, "🚫 Screen time exceeded");
                 Intent ks = new Intent(this, MagenKillSwitch.class);
                 ks.putExtra("require_pin", true);
-                startService(ks);
+                MagenKillSwitch.start(this, ks);
             }
         } else {
             limitHit = false;

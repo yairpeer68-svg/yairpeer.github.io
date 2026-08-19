@@ -76,13 +76,19 @@ public class ContentFilter {
         Pattern.compile(".*\\.(xxx|porn|sex|adult|sexy|fuck|cock|pussy)$",
             Pattern.CASE_INSENSITIVE);
 
+    private static final Pattern AMBIGUOUS_URL_TOKEN_PATTERN =
+        Pattern.compile("(^|[^a-z0-9])(xxx|sex|nude|naked|erotic)([^a-z0-9]|$)", Pattern.CASE_INSENSITIVE);
+    private static final Set<String> STRONG_RAW_KEYWORDS = new HashSet<>(Arrays.asList(
+        "porn", "adult-content", "18plus", "hentai", "nsfw"
+    ));
+
     private final Context context;
     private final AhoCorasick keywordMatcher;
 
     public ContentFilter(Context context) {
         this.context = context;
         this.keywordMatcher = new AhoCorasick();
-        keywordMatcher.addAll(BLOCKED_KEYWORDS);
+        keywordMatcher.addAll(STRONG_RAW_KEYWORDS);
         keywordMatcher.build();
     }
 
@@ -105,7 +111,7 @@ public class ContentFilter {
         }
         // מילת מפתח בנתיב/בשאילתה, מעבר לשם הדומיין עצמו
         if (containsBlockedKeyword(urlLower)) {
-            Log.d(TAG, "BLOCKED (keyword): " + urlLower);
+            Log.d(TAG, "BLOCKED (keyword in URL; value redacted)");
             recordBlocked();
             return true;
         }
@@ -167,9 +173,12 @@ public class ContentFilter {
         if (!prefs.getBoolean(MagenApp.KEY_BLOCK_ADULT, true)) return false;
         // רמת סינון LIGHT מסתמכת על דומיינים בלבד — בלי מילות מפתח
         if (!FilterPolicy.useKeywords(context)) return false;
-        // על URL משתמשים בהתאמה גולמית ולא בגבולות מילה:
-        // "freeporn.com" חייב להיתפס למרות שאין שם רווחים.
-        return keywordMatcher.containsRaw(url);
+        // Strong, unambiguous signals may match inside a path segment (e.g. "freeporn").
+        // Short/ambiguous words such as "sex" require URL-token boundaries so benign names like
+        // "sussex" are not blocked merely because they contain those letters. Host blocking has
+        // already been evaluated separately by DomainVerdict above.
+        if (keywordMatcher.containsRaw(url)) return true;
+        return AMBIGUOUS_URL_TOKEN_PATTERN.matcher(url).find();
     }
 
     public Set<String> getBlockedDomains() {

@@ -168,7 +168,7 @@ public class GeofenceService extends Service implements LocationListener {
 
         if ("block".equals(policy)) {
             // חסימה מוחלטת — KillSwitch
-            startService(new Intent(this, MagenKillSwitch.class));
+            MagenKillSwitch.start(this, new Intent(this, MagenKillSwitch.class));
         } else if ("strict".equals(policy)) {
             // strict mode — נשלף ע"י BehaviorAnalyzer.isStrictMode()
             // כאן מגדירים strict_until לעוד שעה

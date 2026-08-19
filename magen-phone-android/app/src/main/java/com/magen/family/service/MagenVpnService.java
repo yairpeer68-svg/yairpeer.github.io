@@ -11,9 +11,14 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.magen.family.filter.DomainVerdict;
+import com.magen.family.admin.EnterpriseProtection;
+import com.magen.family.mitm.HttpsInspectionProxy;
+import com.magen.family.mitm.MitmCaManager;
+import com.magen.family.mitm.MitmPolicy;
 import com.magen.family.server.ServerEventReporter;
 import com.magen.family.service.vpn.TunBridge;
 import com.magen.family.service.vpn.VpnEngine;
@@ -30,18 +35,16 @@ import java.util.Set;
 /**
  * MagenVpnService — שכבת הסינון ברמת הרשת.
  *
- * שני מצבי עבודה:
+ * מצב Production:
  *
- *   DNS-only (ברירת מחדל)
- *     מנתב לתוך המנהרה רק את ה-DNS שלנו ואת ספקי ה-DNS הידועים, ומסנן
- *     שאילתות. יציב מאוד, אבל מי שמפנה שאילתה ל-resolver שאינו ברשימה
- *     פשוט לא עובר דרכנו.
+ *   Full tunnel חובה (VpnPolicy)
+ *     מנתב 0.0.0.0/0 דרך מנוע הסינון, כך שגם DNS ל-resolver שרירותי
+ *     אינו יכול לעקוף את ההגנה. המנוע מסנן DNS/SNI וחוסם QUIC/DoT.
+ *     אם מנוע החבילות מתדרדר, השירות מבצע restart עם backoff ונשאר
+ *     fail-closed; אין downgrade אוטומטי ל-DNS-only.
  *
- *   Full tunnel (VpnPolicy.setFullTunnel)
- *     מנתב 0.0.0.0/0. *כל* חבילה עוברת דרך המנוע: סינון DNS לכל יעד,
- *     סינון SNI בתוך חיבורי TLS, חסימת QUIC ו-DoT. זו ההגנה החזקה ביותר
- *     שאפשר להשיג בלי Device Owner — אבל היא גם אומרת שבאג במנוע משבית
- *     את הרשת, ולכן היא כבויה כברירת מחדל ויש נסיגה אוטומטית.
+ *   קוד DNS-only הישן נשמר רק לתאימות מקור/שחזור מבוקר ואינו ניתן
+ *   להפעלה במדיניות Production של v4.4.
  *
  * תיקונים מהגרסה הקודמת:
  *   • השירות קורא ל-startForeground(). קודם הוא הופעל עם startForegroundService()
@@ -59,7 +62,7 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
 
     public static volatile boolean isVpnRunning = false;
 
-    /** ספקי DNS ידועים — מנותבים פנימה גם במצב DNS-only כדי לחסום DoH/DoT. */
+    /** רשימת תאימות legacy למסלול DNS-only שאינו פעיל במדיניות Production. */
     private static final Set<String> KNOWN_RESOLVERS = new HashSet<>(Arrays.asList(
         "8.8.8.8", "8.8.4.4",
         "1.1.1.1", "1.0.0.1", "1.1.1.2", "1.0.0.2", "1.1.1.3", "1.0.0.3",
@@ -88,6 +91,7 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
     private volatile FileOutputStream tunOut;
     private final Object writeLock = new Object();
     private VpnEngine engine;
+    private volatile long tunnelEstablishedAt = 0L;
 
     // ---------------- מחזור חיים ----------------
 
@@ -96,6 +100,10 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
         super.onCreate();
         VpnPolicy.init(this);
         DomainVerdict.init(this);
+        // Local-only HTTPS inspection endpoint. No public proxy port is opened.
+        if (MitmPolicy.enabled(this)) HttpsInspectionProxy.get(this).start();
+        EnterpriseProtection.configureManagedInspectionProxy(this, MitmPolicy.enabled(this));
+        MitmCaManager.ensureManagedCaAsync(this);
         startAsForeground();
     }
 
@@ -136,7 +144,8 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
 
             Notification n = b
                 .setContentTitle("סינון רשת פעיל")
-                .setContentText(VpnPolicy.fullTunnel() ? "מצב מלא" : "מצב DNS")
+                .setContentText((VpnPolicy.fullTunnel() ? "מצב מלא" : "מצב DNS")
+                    + (MitmPolicy.enabled(this) && MitmCaManager.isTrustedForInspection(this) ? " + HTTPS Inspection" : ""))
                 .setSmallIcon(com.magen.family.R.drawable.ic_notification)
                 .setOngoing(true)
                 .setContentIntent(pi)
@@ -162,7 +171,7 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
                 return;
             }
             establishedOk = true;
-            restartAttempts = 0;
+            tunnelEstablishedAt = SystemClock.elapsedRealtime();
 
             isVpnRunning = true;
             stopService(new Intent(this, MagenKillSwitch.class));
@@ -183,9 +192,9 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
 
                 engine.processPacket(packet, len);
 
-                // המנוע ביקש נסיגה — יוצאים כדי להקים מחדש במצב DNS-only
+                // המנוע ביקש recovery — יוצאים ומקימים מחדש full tunnel
                 if (engine.isDegraded()) {
-                    Log.w(TAG, "engine degraded — restarting in DNS-only mode");
+                    Log.w(TAG, "engine degraded — restarting full tunnel (fail-closed)");
                     break;
                 }
             }
@@ -225,8 +234,20 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
             Log.w(TAG, "IPv6 blackhole not applied: " + e.getMessage());
         }
 
-        // האפליקציה שלנו מחוץ למנהרה, אחרת עדכון הרשימות ייכנס ללולאה
+        // האפליקציה שלנו מחוץ למנהרה, אחרת עדכון הרשימות/CA/proxy upstream ייכנסו ללולאה
         try { builder.addDisallowedApplication(getPackageName()); } catch (Exception ignored) {}
+
+        // Start only the authenticated transparent listener. Do not advertise a normal loopback
+        // proxy: 127.0.0.1 is reachable by other Android sandboxes, and Magen's protected upstream
+        // sockets must never be usable as a local VPN-bypass service.
+        if (MitmPolicy.enabled(this)) {
+            try {
+                if (!HttpsInspectionProxy.get(this).start())
+                    Log.w(TAG, "HTTPS transparent inspection listener unavailable");
+            } catch (Exception e) {
+                Log.w(TAG, "HTTPS transparent inspection start failed: " + e.getClass().getSimpleName());
+            }
+        }
 
         try {
             return builder.establish();
@@ -247,7 +268,12 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
     private void scheduleRestartIfNeeded(boolean establishedOk) {
         if (intentionalStop) return;
 
-        if (!establishedOk) {
+        long stableFor = establishedOk && tunnelEstablishedAt > 0L
+            ? Math.max(0L, SystemClock.elapsedRealtime() - tunnelEstablishedAt) : 0L;
+        if (establishedOk && stableFor >= 60_000L) {
+            // A tunnel that stayed healthy for a full minute resets old transient failures.
+            restartAttempts = 0;
+        } else {
             restartAttempts++;
             if (restartAttempts > RESTART_MAX_ATTEMPTS) {
                 Log.e(TAG, "giving up restart after " + restartAttempts + " attempts");
@@ -258,15 +284,14 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
                 return;
             }
         }
+        tunnelEstablishedAt = 0L;
 
         long delay = Math.min(RESTART_BASE_MS * (1L << Math.min(restartAttempts, 6)),
                               RESTART_MAX_MS);
         Log.d(TAG, "restarting in " + delay + "ms (attempt " + restartAttempts + ")");
 
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            try { startService(new Intent(this, MagenVpnService.class)); }
-            catch (Exception ignored) {}
-        }, delay);
+        new Handler(Looper.getMainLooper()).postDelayed(() ->
+            ServiceRevival.reviveVpn(getApplicationContext()), delay);
     }
 
     // ---------------- TunBridge ----------------
@@ -348,6 +373,7 @@ public class MagenVpnService extends VpnService implements Runnable, TunBridge {
         isVpnRunning = false;
         if (engine != null) { engine.stop(); engine = null; }
         if (vpnThread != null) vpnThread.interrupt();
+        try { HttpsInspectionProxy.get(this).stop(); } catch (Exception ignored) {}
         super.onDestroy();
     }
 }

@@ -29,10 +29,14 @@ import com.magen.family.MagenApp;
 import com.magen.family.MagenConfig;
 import com.magen.family.R;
 import com.magen.family.admin.MagenDeviceAdmin;
+import com.magen.family.admin.EnterpriseProtection;
 import com.magen.family.filter.HostAllowList;
+import com.magen.family.mitm.MitmCaManager;
+import com.magen.family.mitm.MitmPolicy;
 import com.magen.family.service.FilterService;
 import com.magen.family.service.MagenVpnService;
 import com.magen.family.service.NightModeService;
+import com.magen.family.service.ServiceRevival;
 import com.magen.family.service.vpn.VpnPolicy;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -174,7 +178,7 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
             // כשדיאלוג המערכת חוזר, גם אם המשתמש ביטל.
             com.magen.family.service.MagenGuard.endMaintenance(this);
             if (res == RESULT_OK) {
-                startService(new Intent(this, MagenVpnService.class));
+                ServiceRevival.reviveVpn(this);
             }
             refreshVpnWarning();
             return;
@@ -219,9 +223,17 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
             pendingBlockPackage = null;
 
         } else if (req == REQ_PIN_ACCESSIBILITY) {
-            com.magen.family.service.MagenGuard.grantMaintenance(
-                this, com.magen.family.service.MagenGuard.SCOPE_ACCESSIBILITY);
-            com.magen.family.util.SafeLaunch.openAction(this, Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            if (com.magen.family.util.AccessibilityState.isMagenEnabled(this)) {
+                // Do not create a PIN-authorized path that can be reused to turn the
+                // protection back OFF. Initial enabling is handled during onboarding.
+                Toast.makeText(this, R.string.accessibility_already_protected, Toast.LENGTH_LONG).show();
+                com.magen.family.server.ServerEventReporter.report(this,
+                    "ACCESSIBILITY_SETTINGS_DENIED_WHILE_ACTIVE", "INFO", "already_enabled=true");
+            } else {
+                com.magen.family.service.MagenGuard.grantMaintenance(
+                    this, com.magen.family.service.MagenGuard.SCOPE_ACCESSIBILITY);
+                com.magen.family.util.SafeLaunch.openAction(this, Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            }
 
         } else if (req == REQ_PIN_OVERLAY) {
             com.magen.family.service.MagenGuard.grantMaintenance(
@@ -456,7 +468,7 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         try {
             Intent vpnIntent = android.net.VpnService.prepare(this);
             if (vpnIntent == null) {
-                startService(new Intent(this, MagenVpnService.class));
+                ServiceRevival.reviveVpn(this);
             }
         } catch (Exception e) {
             android.util.Log.w("MainActivity", "VPN prepare check failed: " + e.getMessage());
@@ -473,7 +485,7 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
                 startActivityForResult(vpnIntent, REQ_VPN);
             } else {
                 com.magen.family.service.MagenGuard.endMaintenance(this);
-                startService(new Intent(this, MagenVpnService.class));
+                ServiceRevival.reviveVpn(this);
                 refreshVpnWarning();
             }
         } catch (Exception e) {
@@ -557,7 +569,7 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
      * "סינון מלא" הוא ההגדרה המשמעותית ביותר באפליקציה: הוא מנתב את *כל*
      * תעבורת המכשיר דרך המסנן, מה שסוגר את האפשרות לעקוף אותו על ידי הפניית
      * שאילתות DNS לשרת אחר, ומאפשר חסימה לפי שם הדומיין בתוך חיבורי HTTPS.
-     * הוא כבוי כברירת מחדל כי הוא גם הרכיב שהכי חשוב לבדוק על מכשיר אמיתי.
+     * ב-v4.5.1 הוא מצב חובה: DNS-only אינו מגן מפני resolver שרירותי.
      */
     private void showAdvancedDialog() {
         LinearLayout root = new LinearLayout(this);
@@ -566,13 +578,14 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         root.setPadding(pad, pad / 2, pad, 0);
 
         final android.widget.CheckBox cbFullTunnel = new android.widget.CheckBox(this);
-        cbFullTunnel.setText("סינון מלא (מומלץ — בדקי אחרי הפעלה)");
-        cbFullTunnel.setChecked(VpnPolicy.fullTunnel());
+        cbFullTunnel.setText("סינון מלא — חובה (Fail-Closed)");
+        cbFullTunnel.setChecked(true);
+        cbFullTunnel.setEnabled(false);
         root.addView(cbFullTunnel);
 
         TextView hint = new TextView(this);
-        hint.setText("מנתב את כל התעבורה דרך המסנן: חוסם גם DNS חלופי וגם "
-                   + "לפי שם אתר בתוך HTTPS. אם משהו ברשת מפסיק לעבוד — כבי את זה.");
+        hint.setText("מנתב את כל תעבורת IPv4 דרך המסנן וחוסם DNS חלופי. "
+                   + "IPv6 נשאר חסום במנהרה עד שתהיה תמיכת relay מלאה, כדי למנוע דליפה.");
         hint.setTextSize(12);
         hint.setTextColor(0xFF9E9E9E);
         hint.setPadding(0, 0, 0, pad / 2);
@@ -594,6 +607,73 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
         hotspotHint.setTextColor(0xFF9E9E9E);
         hotspotHint.setPadding(0, 0, 0, pad / 2);
         root.addView(hotspotHint);
+
+        final android.widget.CheckBox cbMitm = new android.widget.CheckBox(this);
+        cbMitm.setText("HTTPS Inspection — CA מנוהל");
+        cbMitm.setChecked(MitmPolicy.enabled(this));
+        root.addView(cbMitm);
+
+        final TextView mitmStatus = new TextView(this);
+        mitmStatus.setText(MitmCaManager.statusText(this));
+        mitmStatus.setTextSize(12);
+        mitmStatus.setTextColor(0xFF9E9E9E);
+        mitmStatus.setPadding(0, 0, 0, pad / 3);
+        root.addView(mitmStatus);
+
+        Button btnMitmCa = new Button(this);
+        btnMitmCa.setAllCaps(false);
+        btnMitmCa.setText(EnterpriseProtection.isManagedOwner(this)
+            ? "התקן / רענן CA מנוהל" : "ייצא CA להתקנה ידנית");
+        root.addView(btnMitmCa);
+        btnMitmCa.setOnClickListener(v -> new Thread(() -> {
+            try {
+                if (EnterpriseProtection.isManagedOwner(this)) {
+                    boolean ok = MitmCaManager.ensureManagedCaBlocking(this);
+                    runOnUiThread(() -> {
+                        mitmStatus.setText(MitmCaManager.statusText(this));
+                        Toast.makeText(this, ok ? "✓ CA מותקן" : "התקנת CA נכשלה", Toast.LENGTH_LONG).show();
+                        if (ok) restartVpn();
+                    });
+                } else {
+                    boolean installerOpened=MitmCaManager.offerManualInstall(this);
+                    runOnUiThread(() -> Toast.makeText(this, installerOpened
+                        ? "השלם את התקנת ה-CA במסך המערכת"
+                        : "CA נשמר ב-Downloads. התקן אותו דרך הגדרות האבטחה.", Toast.LENGTH_LONG).show());
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "CA: " + e.getClass().getSimpleName(), Toast.LENGTH_LONG).show());
+            }
+        }, "MagenMitmUi").start());
+
+        if (!EnterpriseProtection.isManagedOwner(this)) {
+            Button btnConfirmCa = new Button(this);
+            btnConfirmCa.setAllCaps(false);
+            btnConfirmCa.setText("אישרתי שה-CA הותקן");
+            root.addView(btnConfirmCa);
+            btnConfirmCa.setOnClickListener(v -> {
+                MitmCaManager.setManualTrustConfirmed(this, true);
+                mitmStatus.setText(MitmCaManager.statusText(this));
+                restartVpn();
+            });
+        }
+
+        Button btnClearMitmCompat = new Button(this);
+        btnClearMitmCompat.setAllCaps(false);
+        btnClearMitmCompat.setText("נקה מטמון תאימות HTTPS");
+        root.addView(btnClearMitmCompat);
+        btnClearMitmCompat.setOnClickListener(v -> {
+            MitmPolicy.clearFallbacks(this);
+            Toast.makeText(this, "✓ מטמון התאימות נוקה", Toast.LENGTH_SHORT).show();
+        });
+
+        TextView mitmHint = new TextView(this);
+        mitmHint.setText("הפענוח מתבצע רק מקומית בטלפון. מפתח ה-CA הפרטי נשאר בשרת; "
+            + "סיסמאות, cookies, headers וגופי בקשות/תגובות אינם נשמרים. "
+            + "שירותים רגישים ותעבורה עם certificate pinning עוברים במנהרה מוצפנת.");
+        mitmHint.setTextSize(12);
+        mitmHint.setTextColor(0xFF9E9E9E);
+        mitmHint.setPadding(0, 0, 0, pad / 2);
+        root.addView(mitmHint);
 
         // התראות ומשפטי חיזוק מנוהלים דרך ה-VPS בלבד.
         TextView serverHint = new TextView(this);
@@ -652,14 +732,16 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
             .setTitle(R.string.adv_title)
             .setView(scroll)
             .setPositiveButton(R.string.save, (d, w) -> {
-                boolean wantFullTunnel = cbFullTunnel.isChecked();
-                boolean changed = wantFullTunnel != VpnPolicy.fullTunnel();
-
-                VpnPolicy.setFullTunnel(this, wantFullTunnel);
+                boolean changed = !VpnPolicy.fullTunnel();
+                VpnPolicy.setFullTunnel(this, true);
                 VpnPolicy.setBlockQuic(this, cbQuic.isChecked());
                 VpnPolicy.setBlockHotspot(this, cbHotspot.isChecked());
+                boolean mitmChanged = MitmPolicy.enabled(this) != cbMitm.isChecked();
+                MitmPolicy.setEnabled(this, cbMitm.isChecked());
+                EnterpriseProtection.configureManagedInspectionProxy(this, cbMitm.isChecked());
+                if (cbMitm.isChecked()) MitmCaManager.ensureManagedCaAsync(this);
 
-                if (changed) restartVpn();
+                if (changed || mitmChanged) restartVpn();
 
                 updateAdvancedSubtitle();
                 Toast.makeText(this, "✓", Toast.LENGTH_SHORT).show();
@@ -756,7 +838,19 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
 
         final EditText etEnroll = new EditText(this);
         etEnroll.setHint(R.string.ds_enrollment_code);
+        etEnroll.setVisibility(android.view.View.GONE);
+
+        Button btnManualPair = new Button(this);
+        btnManualPair.setAllCaps(false);
+        btnManualPair.setText(R.string.ds_manual_pair);
+        root.addView(btnManualPair);
+        btnManualPair.setOnClickListener(v -> {
+            boolean show = etEnroll.getVisibility() != android.view.View.VISIBLE;
+            etEnroll.setVisibility(show ? android.view.View.VISIBLE : android.view.View.GONE);
+            if (show && etEnroll.getParent() == null) root.addView(etEnroll);
+        });
         root.addView(etEnroll);
+        etEnroll.setVisibility(android.view.View.GONE);
 
         final CheckBox cbDs = new CheckBox(this);
         cbDs.setText(R.string.ds_enable);
@@ -789,7 +883,12 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
                 }
                 com.magen.family.filter.SafeSearchEnforcer.setSafeSearch(this, cbSafe.isChecked());
                 com.magen.family.filter.SafeSearchEnforcer.setYoutubeRestrict(this, cbYt.isChecked());
-                com.magen.family.server.ServerConfig.setBaseUrl(this, etServerUrl.getText().toString());
+                try {
+                    com.magen.family.server.ServerConfig.setBaseUrl(this, etServerUrl.getText().toString());
+                } catch (IllegalArgumentException invalidUrl) {
+                    Toast.makeText(this, R.string.ds_invalid_server_url, Toast.LENGTH_LONG).show();
+                    return;
+                }
                 com.magen.family.server.ServerConfig.setEnabled(this, cbDs.isChecked());
                 com.magen.family.filter.DomainVerdict.clearCache();
                 Toast.makeText(this, "✓", Toast.LENGTH_SHORT).show();
@@ -799,7 +898,12 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
     }
 
     private void enrollMagenServer(String url, String code, CheckBox enableBox, TextView stateView) {
-        com.magen.family.server.ServerConfig.setBaseUrl(this, url);
+        try {
+            com.magen.family.server.ServerConfig.setBaseUrl(this, url);
+        } catch (IllegalArgumentException invalidUrl) {
+            Toast.makeText(this, R.string.ds_invalid_server_url, Toast.LENGTH_LONG).show();
+            return;
+        }
         final android.app.ProgressDialog pd = new android.app.ProgressDialog(this);
         pd.setMessage(getString(R.string.ds_validate));
         pd.setCancelable(false);
@@ -808,13 +912,23 @@ findViewById(R.id.btn_screen_time).setOnClickListener(v -> askPin(REQ_PIN_SCREEN
             boolean ok = false;
             String error = null;
             try {
-                // If a code is supplied, explicitly re-enroll even when this phone was
-                // enrolled before. This recovers cleanly after a VPS database reinstall
-                // at the same IP, where local SharedPreferences may still say "enrolled".
-                if (!com.magen.family.server.ServerConfig.isEnrolled(this)
-                        || (code != null && !code.trim().isEmpty())) {
+                // Normal path: recover automatically with the already-enrolled
+                // Android Keystore identity. A manual code is only a fallback for a
+                // genuinely new key / rebuilt VPS database.
+                if (!com.magen.family.server.ServerConfig.isEnrolled(this)) {
+                    boolean recovered = false;
+                    try { recovered = com.magen.family.server.AutoServerConnector.recoverBlocking(this); }
+                    catch (Exception ignored) {}
+                    if (recovered) {
+                        com.magen.family.server.ServerConfig.setEnrolled(this, true);
+                    } else if (code != null && !code.trim().isEmpty()) {
+                        com.magen.family.server.MagenApiClient.enroll(this, code, android.os.Build.MODEL);
+                        com.magen.family.server.ServerConfig.setEnrolled(this, true);
+                    } else {
+                        throw new java.io.IOException(getString(R.string.ds_first_pair_required));
+                    }
+                } else if (code != null && !code.trim().isEmpty()) {
                     com.magen.family.server.MagenApiClient.enroll(this, code, android.os.Build.MODEL);
-                    com.magen.family.server.ServerConfig.setEnrolled(this, true);
                 }
                 ok = com.magen.family.server.PolicySyncManager.syncBlocking(this);
                 if (ok) com.magen.family.server.HeartbeatManager.sendBlocking(this);

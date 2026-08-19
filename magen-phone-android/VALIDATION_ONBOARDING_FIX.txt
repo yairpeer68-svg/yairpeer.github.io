@@ -1,1 +1,0 @@
-Magen 3.0.4 onboarding regression checks: PASS via verify.py --strict.

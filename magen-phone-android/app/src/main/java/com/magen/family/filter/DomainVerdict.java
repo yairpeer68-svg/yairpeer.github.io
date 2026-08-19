@@ -86,39 +86,44 @@ public final class DomainVerdict {
         // 1.25 כללי allow/block ידניים מה-VPS מגיעים בתוך policy חתום.
         int serverRule = com.magen.family.server.ServerRuleCache.get(ctx, h);
         if (serverRule == com.magen.family.server.ServerRuleCache.ALLOW) return false;
-        if (serverRule == com.magen.family.server.ServerRuleCache.BLOCK) return true;
+        if (serverRule == com.magen.family.server.ServerRuleCache.BLOCK) return blockIncident(ctx,h,"SERVER_RULE","MANUAL_POLICY",1.0);
+
+        // YouTube compatibility: generic tracker/adult lists may contain telemetry
+        // hosts such as s.youtube.com. Blocking those breaks watch history and can
+        // make the app look offline. Explicit parent/VPS BLOCK rules above still win.
+        if (YouTubeEssentialHosts.isEssential(h)) return false;
 
         // 1.5 חוסמים ספקי DoH/DoT ידועים — אחרת אפשר לעקוף את סינון ה-DNS
         //     שלנו ע"י שליחת שאילתות מוצפנות ל-resolver חיצוני.
-        if (DohResolvers.isDohHost(h)) return true;
+        if (DohResolvers.isDohHost(h)) return blockIncident(ctx,h,"DOH_BYPASS_GUARD","BYPASS_RESOLVER",1.0);
 
         // 2. רשימה קשיחה + סיומות (.xxx/.porn/...) — קטגוריית adult
         init(ctx);
         ContentFilter cf = contentFilter;
-        if (cf != null && cf.isHostBlocked(h)) return true;
+        if (cf != null && cf.isHostBlocked(h)) return blockIncident(ctx,h,"STATIC_ADULT_RULES","ADULT_EXPLICIT",1.0);
 
         // 3. קטגוריות נוספות שהמשתמש הדליק (הימורים/היכרויות/חברתי/קניות/אלימות)
         //    מעבירים את המארח המלא: CategoryLists יודע לחלץ את הליבה הרשומה
         //    נכון גם בסיומות דו-חלקיות (bet365.co.uk), מה ש-rootDomain כאן
         //    לא ידע — הוא היה מחזיר "co.uk".
-        if (CategoryLists.isBlockedByCategory(ctx, h)) return true;
+        if (CategoryLists.isBlockedByCategory(ctx, h)) return blockIncident(ctx,h,"CATEGORY_POLICY","CATEGORY_BLOCK",1.0);
 
         // 4. Bloom filter מרוחק — כולל התאמת סאב-דומיינים
         try {
-            if (RemoteBlocklist.isBlocked(h)) return true;
+            if (RemoteBlocklist.isBlocked(h)) return blockIncident(ctx,h,"REMOTE_BLOCKLIST","ADULT_BLOCKLIST",1.0);
         } catch (Exception e) {
             Log.w(TAG, "remote list check failed: " + e.getMessage());
         }
 
         // 5. זיהוי mirror/proxy דינמי — אתרים חדשים שהרשימות עוד לא הכירו
-        if (looksLikeAdultMirror(h)) return true;
+        if (looksLikeAdultMirror(h)) return blockIncident(ctx,h,"MIRROR_HEURISTIC","ADULT_MIRROR",0.96);
 
         // 6. VPS Intelligence — רק אחרי שכל הידע המקומי מוצה. DeepSeek לעולם
         // לא נקרא מתוך thread ה-VPN: cache מקומי מוחזר מייד, וב-miss נשלחת
         // בדיקה אסינכרונית. strict_unknown חוסם זמנית עד שה-verdict החתום חוזר.
         try {
             int remote = com.magen.family.server.ServerVerdictCache.get(ctx, h);
-            if (remote == com.magen.family.server.ServerVerdictCache.BLOCK) return true;
+            if (remote == com.magen.family.server.ServerVerdictCache.BLOCK) return blockIncident(ctx,h,"SERVER_VERDICT_CACHE","SERVER_CLASSIFIED",1.0);
             if (remote == com.magen.family.server.ServerVerdictCache.SAFE) return false;
             if (com.magen.family.server.ServerConfig.ready(ctx)) {
                 if (remote == com.magen.family.server.ServerVerdictCache.NONE)
@@ -130,6 +135,12 @@ public final class DomainVerdict {
         }
 
         return false;
+    }
+
+    private static boolean blockIncident(Context ctx,String host,String source,String category,double confidence) {
+        try { com.magen.family.server.ContentIncidentReporter.reportDomainBlock(ctx,host,source,category,confidence); }
+        catch (Exception ignored) {}
+        return true;
     }
 
     /**

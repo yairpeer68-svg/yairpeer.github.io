@@ -1,26 +1,20 @@
-MAGEN v4.2.1.0 FULL HARDENING - WINDOWS APK BUILD
-================================================
+Magen v4.5.1 — Windows Production Build + Audited HTTPS Inspection
+=======================================
 
-Run: BUILD_APK_ON_WINDOWS.bat
+Run:
+  BUILD_APK_ON_WINDOWS.bat
 
-Recommended prerequisites:
-- Android Studio / Android SDK
-- JDK 21 or 17. The builder intentionally avoids Java 25.
+The script builds a signed RELEASE APK, not a debug APK.
+It runs strict static verification, release unit tests, assembleRelease,
+apksigner verification, and writes an APK SHA-256 file.
 
-The builder:
-- locates Android SDK and JDK 21/17
-- ensures Android API 36 + Build Tools 36.0.0
-- downloads pinned visual model release 1.1.0 when missing
-- verifies GitHub asset digest when available and creates/checks a local model SHA256 lock
-- injects model SHA256 for Android runtime verification
-- runs verify.py --strict (when Python is installed)
-- runs Gradle unit tests
-- runs assembleDebug
-- verifies APK signature
-- writes APK SHA256
+First production build:
+- A persistent EC P-256 release signing key is created in .magen-private.
+- BACK UP .magen-private SECURELY.
+- Never publish/share that directory.
 
-Output:
-  magen-v4.2.1.1-paired-8443-debug.apk
-  magen-v4.2.1.1-paired-8443-debug.apk.sha256
+Fresh VPS pairing:
+  IMPORT_SERVER_PAIRING_ON_WINDOWS.bat C:\path\to\pairing-folder
 
-Debug APK is for physical-device testing. Production/release builds require your own release keystore and certificate fingerprint; see SECURITY_BUILD.md.
+Server endpoint:
+  https://51.20.205.229:8443

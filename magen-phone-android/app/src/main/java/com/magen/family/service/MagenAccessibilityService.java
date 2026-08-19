@@ -1,5 +1,6 @@
 package com.magen.family.service;
 
+import android.os.SystemClock;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
 import android.content.Intent;
@@ -15,6 +16,7 @@ import com.magen.family.filter.AhoCorasick;
 import com.magen.family.filter.ContentFilter;
 import com.magen.family.server.RemoteIntelligenceClient;
 import com.magen.family.server.ServerEventReporter;
+import com.magen.family.server.ContentIncidentReporter;
 import com.magen.family.ui.BlockedActivity;
 import com.magen.family.visual.MagenVisualCurtain;
 import com.magen.family.visual.NsfwResult;
@@ -166,15 +168,46 @@ public class MagenAccessibilityService extends AccessibilityService {
         visualShield = new VisualShieldEngine(this, (blockedPkg, result) ->
             mainHandler.post(() -> blockVisual(blockedPkg, result)));
 
+        // The only reason for an accessibility setup scope is to turn the service ON.
+        // Once connected, keeping that scope alive would also permit turning it OFF.
+        if (MagenGuard.allows(this, MagenGuard.SCOPE_ACCESSIBILITY))
+            MagenGuard.endMaintenance(this);
+        MagenGuard.endSetupGrace(this);
+
         Log.d(TAG, "✓ Connected + Visual Shield");
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        try {
+            onAccessibilityEventSafe(event);
+        } catch (RuntimeException e) {
+            // OEM accessibility trees occasionally throw IllegalStateException /
+            // SecurityException while windows are being replaced. A filtering error
+            // must not kill the whole protection process.
+            Log.e(TAG, "accessibility event handler recovered", e);
+            try {
+                org.json.JSONObject d = new org.json.JSONObject()
+                    .put("exception", e.getClass().getName())
+                    .put("message", e.getMessage() == null ? "" : e.getMessage());
+                StackTraceElement[] st = e.getStackTrace();
+                if (st != null && st.length > 0) d.put("top_frame", st[0].toString());
+                ServerEventReporter.report(this, "ACCESSIBILITY_HANDLER_ERROR", "HIGH", d);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void onAccessibilityEventSafe(AccessibilityEvent event) {
         if (event == null) return;
 
         String pkg = event.getPackageName() != null ? event.getPackageName().toString() : "";
         String className = event.getClassName() != null ? event.getClassName().toString() : "";
+
+        // ColorOS/Android may render the final "Disable accessibility service?"
+        // confirmation from package "android" instead of Settings. Catch that
+        // system-owned dialog before the generic system-UI ignore path.
+        if (("android".equals(pkg) || "com.android.systemui".equals(pkg))
+                && handleProtectionDisableConfirmation()) return;
 
         // ההגנה מפני שיבוש רצה *לפני* ובלי תלות במתג סינון התוכן.
         // קודם היה כאן "אם הסינון כבוי — צא", ולכן כיבוי המתג הרג גם את
@@ -184,7 +217,7 @@ public class MagenAccessibilityService extends AccessibilityService {
         // מעבר בין מסכים. בלי זה, מסך הגדרות שכבר פתוח אפשר היה לשנות בו
         // מתגים בלי ששום בדיקה תרוץ — פרצה אמיתית.
         if (isSettingsPackage(pkg) || pkg.contains("vpndialog")) {
-            long nowSd = System.currentTimeMillis();
+            long nowSd = SystemClock.elapsedRealtime();
             boolean stateChanged =
                 event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED;
             if (stateChanged || nowSd - lastSelfDefenseAt >= SELF_DEFENSE_INTERVAL_MS) {
@@ -287,7 +320,7 @@ public class MagenAccessibilityService extends AccessibilityService {
         // מדויק, ובלי הרשאת הקלטת מסך.
         if (pkg.equals(getPackageName())) return;   // האפליקציה שלנו
 
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();
         // ה-throttle חל על *כל* האפליקציות, כולל החברתיות.
         // קודם היה כאן "isSocial ||", כלומר בטיקטוק/יוטיוב/אינסטגרם סריקת ה-DOM
         // הרקורסיבית רצה על כל אירוע תוכן בלי שום השהיה — מקור ודאי ל-ANR
@@ -460,9 +493,12 @@ public class MagenAccessibilityService extends AccessibilityService {
                                     findText(root, "סינון תוכן"))) ||
                         containsIgnoreCase(className, "accessibility");
                     if (armed && accessibilityScreen) {
-                        if (MagenGuard.allows(this, MagenGuard.SCOPE_ACCESSIBILITY)) return false;
+                        // This AccessibilityService is executing right now, therefore it
+                        // is already enabled. There is no legitimate setup reason to stay
+                        // on its own disable screen. Emergency recovery remains separate.
                         if (behaviorAnalyzer != null) behaviorAnalyzer.recordUninstallAttempt();
-                        ServerEventReporter.report(this, "ACCESSIBILITY_SETTINGS_BLOCKED", "HIGH", "Magen accessibility settings");
+                        ServerEventReporter.report(this, "ACCESSIBILITY_SETTINGS_BLOCKED", "CRITICAL",
+                            "active_service_disable_screen");
                         block();
                         return true;
                     }
@@ -610,6 +646,28 @@ public class MagenAccessibilityService extends AccessibilityService {
                c.contains("installedappdetail") || c.contains("manageapplications");
     }
 
+    private boolean handleProtectionDisableConfirmation() {
+        if (!MagenGuard.isArmed(this) || MagenGuard.allowsAnySensitiveScreen(this)) return false;
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return false;
+        try {
+            boolean ourApp = findText(root, "שומר הברית") || findText(root, "Magen")
+                || findText(root, "סינון תוכן");
+            boolean disabling = findText(root, "להשבית") || findText(root, "השבתה")
+                || findText(root, "כיבוי") || findText(root, "Disable")
+                || findText(root, "Turn off") || findText(root, "Stop service");
+            if (!ourApp || !disabling) return false;
+            ServerEventReporter.report(this, "ACCESSIBILITY_DISABLE_CONFIRM_BLOCKED", "CRITICAL",
+                "system_confirmation_dialog");
+            MagenTransparentBlock.show(this);
+            performGlobalAction(GLOBAL_ACTION_BACK);
+            performGlobalAction(GLOBAL_ACTION_HOME);
+            return true;
+        } finally {
+            root.recycle();
+        }
+    }
+
     private String sensitiveScopeForClass(String className) {
         if (className == null) return null;
         String c = className.toLowerCase(java.util.Locale.ROOT);
@@ -635,7 +693,7 @@ public class MagenAccessibilityService extends AccessibilityService {
         lastTelegramTextHash = hash;
         lastTelegramAiAt = now;
 
-        RemoteIntelligenceClient.classifyTextAsync(getApplicationContext(), text, verdict -> {
+        RemoteIntelligenceClient.classifyTextAsync(getApplicationContext(), text, pkg, verdict -> {
             if (!Boolean.TRUE.equals(verdict)) return;
             mainHandler.post(() -> {
                 AccessibilityNodeInfo current = getRootInActiveWindow();
@@ -643,7 +701,7 @@ public class MagenAccessibilityService extends AccessibilityService {
                     if (current != null && current.getPackageName() != null
                             && TELEGRAM_PACKAGES.contains(current.getPackageName().toString())) {
                         lastContentBlockPkg = pkg;
-                        lastContentBlockTime = System.currentTimeMillis();
+                        lastContentBlockTime = SystemClock.elapsedRealtime();
                         ServerEventReporter.report(this, "TELEGRAM_AI_BLOCK", "HIGH", "DeepSeek classified visible Telegram text as adult");
                         block();
                     }
@@ -735,10 +793,11 @@ public class MagenAccessibilityService extends AccessibilityService {
         if (!pkg.equals(currentPkg)) return;
 
         lastContentBlockPkg = pkg;
-        lastContentBlockTime = System.currentTimeMillis();
+        lastContentBlockTime = SystemClock.elapsedRealtime();
         MagenVisualCurtain.show(this, result.label);
         ServerEventReporter.report(this, "VISUAL_BLOCK_LOCAL", "HIGH",
             "package=" + pkg + " " + result.compact());
+        ContentIncidentReporter.reportVisualBlock(this, pkg, result);
         performGlobalAction(GLOBAL_ACTION_BACK);
         performGlobalAction(GLOBAL_ACTION_HOME);
         mainHandler.postDelayed(() -> {
@@ -766,7 +825,7 @@ public class MagenAccessibilityService extends AccessibilityService {
             int minutes = MagenConfig.getLockoutMinutes(this);
             Intent ks = new Intent(this, MagenKillSwitch.class);
             ks.putExtra("lockout_minutes", minutes);
-            try { startService(ks); } catch (Exception ignored) {}
+            MagenKillSwitch.start(this, ks);
         }
     }
 

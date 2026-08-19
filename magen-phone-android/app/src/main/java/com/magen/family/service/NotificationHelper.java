@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
+import android.net.Uri;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
@@ -49,13 +50,18 @@ public class NotificationHelper {
             "ACTIVITY_DIGEST", "INFO", digest != null ? digest : summary);
     }
 
-    /** התראה על עדכון זמין — לחיצה פותחת את קישור ההורדה. */
-    public static void notifyUpdateAvailable(Context ctx, String versionName, String apkUrl) {
+    /** התראה על עדכון שכבר הורד ואומת — לחיצה פותחת את Package Installer בלבד. */
+    public static void notifyUpdateAvailable(Context ctx, String versionName, Uri verifiedApk) {
         ensureChannel(ctx, CHANNEL_DIGEST, false);
         try {
-            Intent open = (apkUrl != null && !apkUrl.isEmpty())
-                ? new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(apkUrl))
-                : new Intent(ctx, MainActivity.class);
+            Intent open;
+            if (verifiedApk != null) {
+                open = new Intent(Intent.ACTION_VIEW);
+                open.setDataAndType(verifiedApk, "application/vnd.android.package-archive");
+                open.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } else {
+                open = new Intent(ctx, MainActivity.class);
+            }
             open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             PendingIntent pi = PendingIntent.getActivity(ctx, 3, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);

@@ -51,6 +51,10 @@ public final class MagenGuard {
 
     public static void grantMaintenance(Context ctx, String scope) {
         if (scope == null || scope.isEmpty()) return;
+        // Once Magen Accessibility is already enabled, opening its settings can only
+        // weaken/disable it. Initial setup still works because the service is OFF then.
+        if (SCOPE_ACCESSIBILITY.equals(scope)
+                && com.magen.family.util.AccessibilityState.isMagenEnabled(ctx)) return;
         prefs(ctx).edit()
             .putLong(KEY_UNTIL, System.currentTimeMillis() + WINDOW_MS)
             .putString(KEY_SCOPE, scope)

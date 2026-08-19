@@ -6,6 +6,10 @@ import android.content.Context;
 import android.os.UserManager;
 import android.util.Log;
 
+import com.magen.family.mitm.MitmCaManager;
+import com.magen.family.mitm.HttpsInspectionProxy;
+import com.magen.family.mitm.MitmPolicy;
+
 /**
  * שכבת האכיפה החזקה ביותר שאנדרואיד נותן לאפליקציית ניהול.
  *
@@ -66,6 +70,11 @@ public final class EnterpriseProtection {
             try { dpm.setUninstallBlocked(admin, pkg, true); }
             catch (Exception e) { Log.w(TAG, "setUninstallBlocked: " + e.getMessage()); }
 
+            // Device Owner/Profile Owner can install the dedicated HTTPS-inspection CA without
+            // exporting its private key. The signer private key stays on the VPS.
+            MitmCaManager.ensureManagedCaAsync(app);
+            configureManagedInspectionProxy(app, MitmPolicy.enabled(app));
+
             Log.i(TAG, "managed enforcement active: always-on VPN + lockdown + app/VPN restrictions");
             return true;
         } catch (SecurityException e) {
@@ -76,4 +85,30 @@ public final class EnterpriseProtection {
             return false;
         }
     }
+    /**
+     * Device-owner-only recommended global proxy. This broadens coverage on Android versions and
+     * libraries that consult the managed proxy, while the Full-Tunnel transparent redirect remains
+     * the enforcement path for apps that ignore proxy recommendations. The listener is loopback-only.
+     */
+    public static boolean configureManagedInspectionProxy(Context context, boolean enabled) {
+        Context app = context.getApplicationContext();
+        try {
+            DevicePolicyManager dpm = (DevicePolicyManager)
+                app.getSystemService(Context.DEVICE_POLICY_SERVICE);
+            if (dpm == null || !dpm.isDeviceOwnerApp(app.getPackageName())) return false;
+            ComponentName admin = MagenDeviceAdmin.getComponentName(app);
+            // v4.5.1 intentionally clears the global explicit proxy. Enforcement is performed by
+            // the authenticated transparent Full-Tunnel path; exposing a normal loopback proxy
+            // would allow another local app to tunnel through Magen's protected sockets.
+            dpm.setRecommendedGlobalProxy(admin, null);
+            return true;
+        } catch (SecurityException e) {
+            Log.w(TAG, "managed proxy not permitted: " + e.getMessage());
+            return false;
+        } catch (Exception e) {
+            Log.w(TAG, "managed proxy configuration failed: " + e.getClass().getSimpleName());
+            return false;
+        }
+    }
+
 }

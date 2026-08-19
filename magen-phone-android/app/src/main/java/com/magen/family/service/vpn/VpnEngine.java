@@ -1,5 +1,6 @@
 package com.magen.family.service.vpn;
 
+import android.os.SystemClock;
 import android.util.Log;
 
 import java.io.IOException;
@@ -18,10 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   ICMP ואחרים     נזרקים.
  *
  * מנגנון בטיחות:
- *   מצב full tunnel אומר שכל תעבורת המכשיר עוברת דרך הקוד הזה. אם משהו בו
- *   נשבר, המשתמש נשאר בלי אינטרנט. לכן נספרים כשלים, ומעל סף מסוים המנוע
- *   מכבה את עצמו ומסמן ל-VpnService לחזור למצב DNS-only — עדיף סינון חלקי
- *   על פני מכשיר מנותק.
+ *   מצב full tunnel אומר שכל תעבורת המכשיר עוברת דרך הקוד הזה. כשלים
+ *   חוזרים גורמים להפעלה מחדש של המנהרה, אך v4.5.1 אינו מוריד אוטומטית
+ *   ל-DNS-only משום שזה פותח מחדש עקיפת DNS שרירותי.
  */
 public class VpnEngine {
 
@@ -61,14 +61,14 @@ public class VpnEngine {
         Log.d(TAG, "engine stopped. " + VpnStats.summary());
     }
 
-    /** האם המנוע ביקש נסיגה למצב DNS-only? */
+    /** האם המנוע ביקש restart של המנהרה? */
     public boolean isDegraded() { return degraded; }
 
     /**
      * מעבד חבילה אחת מה-TUN. נקרא מה-thread של לולאת הקריאה בלבד.
      */
     public void processPacket(byte[] packet, int length) {
-        if (!running || length < 20) return;
+        if (!running || packet == null || length < 20 || length > packet.length) return;
 
         try {
             int version = Ipv4.version(packet);
@@ -78,6 +78,9 @@ public class VpnEngine {
 
             int ihl = Ipv4.ihl(packet);
             if (ihl < 20 || ihl > length) return;
+            int totalLength = Ipv4.totalLength(packet);
+            if (totalLength < ihl || totalLength > length) return;
+            length = totalLength;                     // ignore any bytes beyond IPv4 Total Length
             if (Ipv4.isFragment(packet)) return;
 
             switch (Ipv4.protocol(packet)) {
@@ -101,11 +104,11 @@ public class VpnEngine {
     }
 
     /**
-     * סופר כשלים. אם המנוע לא יציב — מוותרים על full tunnel כדי לא להשאיר
-     * את המכשיר בלי רשת.
+     * סופר כשלים. אם המנוע לא יציב — מבקשים restart fail-closed.
+     * לעולם לא מבטלים full tunnel אוטומטית.
      */
     private void reportFailure(Exception e) {
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();
         if (now - failureWindowStart > FAILURE_WINDOW_MS) {
             failureWindowStart = now;
             failures.set(0);
@@ -116,8 +119,7 @@ public class VpnEngine {
 
         if (count >= FAILURE_THRESHOLD && !degraded) {
             degraded = true;
-            VpnPolicy.disableFullTunnelForSession();
-            Log.e(TAG, "too many failures — falling back to DNS-only mode");
+            Log.e(TAG, "too many failures — requesting full-tunnel restart (fail-closed)");
         }
     }
 

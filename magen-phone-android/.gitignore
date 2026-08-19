@@ -12,6 +12,10 @@ captures/
 *.keystore
 *.jks
 
+# Local release signing material - never commit/share
+.magen-private/
+VISUAL_MODEL_SHA256.lock
+
 # מודל ה-Visual Shield נמשך בזמן הבנייה (ראה .github/workflows/build-magen-apk.yml)
 app/src/main/assets/*.tflite
-VISUAL_MODEL_SHA256.lock
+.puretest/

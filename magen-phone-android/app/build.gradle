@@ -17,23 +17,23 @@ android {
         applicationId "com.magen.family"
         minSdk 26
         targetSdk 36
-        versionCode 12
-        versionName "4.2.1-paired-8443"
+        versionCode 19
+        versionName "4.5.1-audited-https-inspection-8443"
 
         // מזהה בנייה שנראה בתוך האפליקציה. ה-CI מעביר את ה-commit הקצר
         // (-PbuildId=abc1234), וכך אפשר לוודא במבט אחד איזו גרסה מותקנת
         // בפועל — במקום לנחש אם הורדת קובץ ישן מהמטמון.
-        resValue "string", "build_id", (project.findProperty("buildId") ?: "paired-8443-20260819")
+        resValue "string", "build_id", (project.findProperty("buildId") ?: "audited-https-inspection-8443-20260819")
 
-        def releaseCertSha256 = (project.findProperty("releaseCertSha256") ?: "").toString().replace(":", "").trim()
+        def releaseCertSha256 = (project.findProperty("releaseCertSha256") ?: System.getenv("MAGEN_RELEASE_CERT_SHA256") ?: "").toString().replace(":", "").trim()
         buildConfigField "String", "EXPECTED_SIG_SHA256", "\"${releaseCertSha256}\""
-        def updatePublicKeyBase64 = (project.findProperty("updatePublicKeyBase64") ?: "").toString().trim()
+        def updatePublicKeyBase64 = (project.findProperty("updatePublicKeyBase64") ?: System.getenv("MAGEN_UPDATE_PUBKEY_B64") ?: "").toString().trim()
         buildConfigField "String", "UPDATE_PUBKEY_B64", "\"${updatePublicKeyBase64}\""
         def visualModelSha256 = (project.findProperty("visualModelSha256") ?: "").toString().replace(":", "").trim().toLowerCase()
         buildConfigField "String", "VISUAL_MODEL_SHA256", "\"${visualModelSha256}\""
-        def magenServerUrl = (project.findProperty("magenServerUrl") ?: "https://51.20.205.229:8443").toString().trim()
+        def magenServerUrl = (project.findProperty("magenServerUrl") ?: System.getenv("MAGEN_SERVER_URL") ?: "https://51.20.205.229:8443").toString().trim()
         buildConfigField "String", "MAGEN_SERVER_URL", "\"${magenServerUrl}\""
-        def magenServerSigningPub = (project.findProperty("magenServerSigningPublicKey") ?: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAERI7z69XQfwpjHK7tqAytM9eZ0VkY7pLJwY1ZEWXW+ZNrrTJ98LzkxmghvmExkZqK9r3txOVigkbc8AqzwVPPqg==").toString().trim()
+        def magenServerSigningPub = (project.findProperty("magenServerSigningPublicKey") ?: System.getenv("MAGEN_SERVER_SIGNING_PUBLIC_KEY") ?: "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAERI7z69XQfwpjHK7tqAytM9eZ0VkY7pLJwY1ZEWXW+ZNrrTJ98LzkxmghvmExkZqK9r3txOVigkbc8AqzwVPPqg==").toString().trim()
         buildConfigField "String", "MAGEN_SERVER_SIGNING_PUB_B64", "\"${magenServerSigningPub}\""
     }
 
@@ -54,9 +54,14 @@ android {
     }
 
     buildTypes {
-        debug { minifyEnabled false }
+        debug {
+            minifyEnabled false
+            debuggable true
+        }
         release {
             minifyEnabled false
+            debuggable false
+            jniDebuggable false
             if (releaseSigningConfigured) signingConfig signingConfigs.release
         }
     }
@@ -113,7 +118,7 @@ dependencies {
 tasks.configureEach { task ->
     if (task.name.startsWith("pre") && task.name.endsWith("ReleaseBuild")) {
         task.doFirst {
-            def sig = (project.findProperty("releaseCertSha256") ?: "").toString().replace(":", "").trim()
+            def sig = (project.findProperty("releaseCertSha256") ?: System.getenv("MAGEN_RELEASE_CERT_SHA256") ?: "").toString().replace(":", "").trim()
             if (!(sig ==~ /(?i)[0-9a-f]{64}/)) {
                 throw new GradleException("Release requires -PreleaseCertSha256=<64 hex SHA-256 certificate fingerprint>")
             }

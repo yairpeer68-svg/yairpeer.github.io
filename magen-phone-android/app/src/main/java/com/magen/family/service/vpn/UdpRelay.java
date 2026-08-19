@@ -1,5 +1,6 @@
 package com.magen.family.service.vpn;
 
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.magen.family.filter.DomainVerdict;
@@ -84,15 +85,18 @@ public class UdpRelay {
 
     /** מקבל חבילת IPv4/UDP מה-TUN. */
     public void handleOutbound(byte[] packet, int length) {
+        if (packet == null || length < 28 || length > packet.length) return;
         int ihl        = Ipv4.ihl(packet);
         int deviceIp   = Ipv4.srcIp(packet);
         int remoteIp   = Ipv4.dstIp(packet);
         int devicePort = Ipv4.srcPort(packet, ihl);
         int remotePort = Ipv4.dstPort(packet, ihl);
 
+        if (ihl < 20 || ihl > length - 8) return;
+        int udpLen = ((packet[ihl + 4] & 0xFF) << 8) | (packet[ihl + 5] & 0xFF);
+        if (udpLen < 8 || udpLen > length - ihl) return;
         int payloadOff = ihl + 8;
-        int payloadLen = length - payloadOff;
-        if (payloadLen < 0) return;
+        int payloadLen = udpLen - 8;
 
         // DoT — אין דרך לראות מה בפנים, חוסמים לכל יעד
         if (remotePort == 853) {
@@ -174,17 +178,18 @@ public class UdpRelay {
             session = openSession(key, deviceIp, devicePort, remoteIp, remotePort, isDns);
             if (session == null) return;
         }
-        session.lastUse = System.currentTimeMillis();
+        session.lastUse = SystemClock.elapsedRealtime();
 
         try {
-            // ל-DNS מפנים תמיד ל-upstream המסונן שלנו
-            InetSocketAddress target = isDns
-                ? new InetSocketAddress(VpnPolicy.upstreamDns(), 53)
-                : new InetSocketAddress(
-                    java.net.InetAddress.getByAddress(Ipv4.ipToBytes(remoteIp)), remotePort);
-
             ByteBuffer buf = ByteBuffer.wrap(packet, payloadOff, payloadLen);
-            session.channel.send(buf, target);
+            // Each channel is connected to exactly one peer in openSession(). Besides simplifying
+            // writes, this makes the kernel discard UDP datagrams from every other source.
+            int written = session.channel.write(buf);
+            if (written != payloadLen) {
+                // Non-blocking UDP may return zero under local send-buffer pressure. A datagram
+                // cannot be partially queued safely, so drop this packet and let UDP/DNS retry.
+                Log.d(TAG, "udp local send buffer busy; datagram dropped");
+            }
         } catch (Exception e) {
             Log.w(TAG, "udp send failed: " + e.getMessage());
             closeSession(session);
@@ -205,6 +210,15 @@ public class UdpRelay {
                 return null;
             }
 
+            // Connect after VpnService.protect(). DNS sessions connect to Magen's filtered
+            // resolver; ordinary UDP sessions connect to the original destination. A connected
+            // DatagramChannel accepts inbound packets only from this exact peer.
+            InetSocketAddress target = isDns
+                ? new InetSocketAddress(VpnPolicy.upstreamDns(), 53)
+                : new InetSocketAddress(
+                    java.net.InetAddress.getByAddress(Ipv4.ipToBytes(remoteIp)), remotePort);
+            ch.connect(target);
+
             Session s = new Session();
             s.channel    = ch;
             s.deviceIp   = deviceIp;
@@ -212,7 +226,7 @@ public class UdpRelay {
             s.remoteIp   = remoteIp;
             s.remotePort = remotePort;
             s.isDns      = isDns;
-            s.lastUse    = System.currentTimeMillis();
+            s.lastUse    = SystemClock.elapsedRealtime();
             s.key        = key;
 
             sessions.put(key, s);
@@ -268,14 +282,15 @@ public class UdpRelay {
     private void readResponse(Session s, ByteBuffer buffer) {
         try {
             buffer.clear();
-            if (s.channel.receive(buffer) == null) return;
+            int received = s.channel.read(buffer);
+            if (received <= 0) return;
             buffer.flip();
 
             int len = buffer.remaining();
             byte[] payload = new byte[len];
             buffer.get(payload);
 
-            s.lastUse = System.currentTimeMillis();
+            s.lastUse = SystemClock.elapsedRealtime();
 
             // מזייפים את המקור ככתובת שהמכשיר פנה אליה, אחרת הוא ידחה את התשובה
             byte[] reply = Ipv4.buildUdp(s.remoteIp, s.remotePort,
@@ -290,7 +305,7 @@ public class UdpRelay {
     }
 
     private void cleanupIdle() {
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();
         if (now - lastCleanup < CLEANUP_EVERY_MS) return;
         lastCleanup = now;
 

@@ -58,7 +58,7 @@ public class SecurityGuard {
     }
 
     /**
-     * Private DNS שהוגדר לספק חיצוני. במצב DNS-only הוא עוקף את הסינון שלנו
+     * Private DNS שהוגדר לספק חיצוני. בגרסאות legacy של DNS-only הוא עקף את הסינון
      * (המכשיר שולח DoT ישירות לספק). מזהים ומנחים לכבות / להעדיף full tunnel.
      */
     public static String getPrivateDnsSpecifier(Context ctx) {

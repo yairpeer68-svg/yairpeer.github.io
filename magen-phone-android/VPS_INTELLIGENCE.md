@@ -40,3 +40,14 @@
 
 `RemoteBlocklist.update()` now prefers the paired VPS snapshot at `/v1/blocklist/meta`.
 The metadata is verified with the embedded Magen server public key, the gzip is checked against the signed SHA-256 and hard size/count limits, and only then is a new Bloom cache published atomically. If this path fails, the existing UT1 + StevenBlack download path remains as an offline/server-failure fallback.
+
+## v4.3 Content Incidents
+
+חסימה בפועל מדווחת ל־`/v1/incidents` באמצעות זהות המכשיר החתומה. הדיווח נשמר בתור מקומי מוגבל אם השרת אינו זמין ונשלח שוב ב־heartbeat הבא.
+
+עקרונות פרטיות:
+- DOMAIN: נשמר host מנורמל ומטא־דאטה של ההחלטה.
+- TEXT: הטקסט הגלוי עצמו אינו נשמר ב־incident; נשלח SHA-256 חד־כיווני + package + קטגוריה/ציון.
+- VISUAL: צילום המסך לעולם אינו נשלח; נשמרים רק package וציוני classifier מספריים.
+
+ה־heartbeat כולל counters של קריאות domain/text, cache hits, blocks, failures ועומק תור incidents.

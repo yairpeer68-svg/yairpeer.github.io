@@ -25,7 +25,7 @@ public final class DnsMessage {
      */
     public static String extractQueryName(byte[] dns, int off, int len) {
         try {
-            if (len < HEADER_LEN + 5) return null;
+            if (!validRange(dns, off, len, HEADER_LEN + 5)) return null;
 
             // QR bit (ביט 15 של flags) חייב להיות 0 = שאילתה
             int flags = ((dns[off + 2] & 0xFF) << 8) | (dns[off + 3] & 0xFF);
@@ -79,7 +79,7 @@ public final class DnsMessage {
 
     private static byte[] buildEmptyResponse(byte[] query, int off, int len, int rcode) {
         try {
-            if (len < HEADER_LEN) return null;
+            if (!validRange(query, off, len, HEADER_LEN)) return null;
 
             int questionEnd = findQuestionEnd(query, off, len);
             if (questionEnd < 0) return null;
@@ -106,9 +106,13 @@ public final class DnsMessage {
 
     /** סוג השאילתה הראשונה (QTYPE). 1=A, 28=AAAA, 65=HTTPS. -1 אם לא ידוע. */
     public static int queryType(byte[] dns, int off, int len) {
-        int end = findQuestionEnd(dns, off, len);
-        if (end < 0) return -1;
-        return ((dns[end - 4] & 0xFF) << 8) | (dns[end - 3] & 0xFF);
+        try {
+            int end = findQuestionEnd(dns, off, len);
+            if (end < 0) return -1;
+            return ((dns[end - 4] & 0xFF) << 8) | (dns[end - 3] & 0xFF);
+        } catch (Exception e) {
+            return -1;
+        }
     }
 
     /**
@@ -121,7 +125,7 @@ public final class DnsMessage {
      */
     public static byte[] buildAResponse(byte[] query, int off, int len, byte[] ip4) {
         try {
-            if (len < HEADER_LEN || ip4 == null || ip4.length != 4) return null;
+            if (!validRange(query, off, len, HEADER_LEN) || ip4 == null || ip4.length != 4) return null;
 
             // רק אם זו שאילתת A (QTYPE=1) — אחרת עדיף לא לזייף
             int questionEnd = findQuestionEnd(query, off, len);
@@ -164,6 +168,7 @@ public final class DnsMessage {
 
     /** מחזיר את ההיסט שאחרי קטע השאלה (QNAME + QTYPE + QCLASS), או -1. */
     private static int findQuestionEnd(byte[] dns, int off, int len) {
+        if (!validRange(dns, off, len, HEADER_LEN + 5)) return -1;
         int pos = off + HEADER_LEN;
         int end = off + len;
 
@@ -178,5 +183,9 @@ public final class DnsMessage {
             pos += 1 + labelLen;
         }
         return -1;
+    }
+
+    private static boolean validRange(byte[] data, int off, int len, int minLen) {
+        return data != null && off >= 0 && len >= minLen && off <= data.length - len;
     }
 }

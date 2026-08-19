@@ -87,10 +87,19 @@ public class MagenApp extends Application {
 
         Log.d(TAG, "MagenApp starting...");
 
+        // Near-real-time VPS observability. Neither path is required for local blocking.
+        com.magen.family.server.ProcessExitReporter.collectAsync(this);
+        com.magen.family.server.RealtimeHealthReporter.start(this);
+        com.magen.family.server.MainThreadWatchdog.start(this);
+
         initDefaults();
         migrateLegacyPin();
         migrateLegacyDeepSeekSecret();
         resetCountersIfNeeded();
+
+        // Normal upgrades/restarts reconnect to the VPS automatically using the
+        // already-enrolled Android Keystore identity. No enrollment code is needed.
+        com.magen.family.server.AutoServerConnector.start(this);
 
         VpnPolicy.init(this);
         DomainVerdict.init(this);

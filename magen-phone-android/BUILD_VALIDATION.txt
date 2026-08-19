@@ -1,7 +1,0 @@
-Magen Phone 3.0.4 validation
-- versionCode 8 / versionName 3.0.4 / build_id hardening-v304-20260818
-- verify.py --strict: PASS (104 Java, 61 XML, 29 manifest components)
-- pure-Java HostUtil + AhoCorasick + DomainBloomFilter compile/runtime harness: PASS
-- Phone/VPS CA: MATCH
-- Phone/VPS server signing public key: MATCH
-- Full Android Gradle build is not executed in this environment because services.gradle.org DNS is blocked. Use BUILD_APK_ON_WINDOWS.bat.

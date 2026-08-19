@@ -1,5 +1,6 @@
 package com.magen.family.server;
 
+import android.os.SystemClock;
 import android.content.Context;
 import android.util.Log;
 import com.magen.family.service.FallSentences;
@@ -22,7 +23,7 @@ public final class ServerEncouragementClient {
     private ServerEncouragementClient() {}
 
     public static void syncAsync(Context ctx) {
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();
         if (syncing || now - lastSyncAt < THROTTLE_MS || !ServerConfig.ready(ctx)) return;
         syncing = true;
         Context app = ctx.getApplicationContext();
@@ -49,7 +50,7 @@ public final class ServerEncouragementClient {
             } catch (Exception e) {
                 Log.w(TAG, "sync failed: " + e.getMessage());
             } finally {
-                lastSyncAt = System.currentTimeMillis();
+                lastSyncAt = SystemClock.elapsedRealtime();
                 syncing = false;
             }
         });

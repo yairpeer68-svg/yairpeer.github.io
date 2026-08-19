@@ -28,12 +28,14 @@ public class MagenVpnWatchdog extends BroadcastReceiver {
                 Intent vpnPrepare = VpnService.prepare(context);
                 if (vpnPrepare == null) {
                     // VPN מאושר — הפעל
-                    context.startService(new Intent(context, MagenVpnService.class));
-                    Log.d(TAG, "VPN restarted");
+                    ServiceRevival.reviveVpn(context);
+                    Log.d(TAG, "VPN revive requested");
                 }
             }
 
             // בדוק אם יש VPN חיצוני פעיל
+            com.magen.family.server.RealtimeHealthReporter.poke();
+
             if (isExternalVpnActive(context)) {
                 Log.w(TAG, "External VPN detected! Starting KillSwitch");
                 // MagenKillSwitch אינו foreground service — startForegroundService()
@@ -41,7 +43,7 @@ public class MagenVpnWatchdog extends BroadcastReceiver {
                 // גרם ל-ForegroundServiceDidNotStartInTimeException.
                 Intent ks = new Intent(context, MagenKillSwitch.class);
                 ks.putExtra("require_pin", true);
-                context.startService(ks);
+                MagenKillSwitch.start(context, ks);
             }
         }
     }

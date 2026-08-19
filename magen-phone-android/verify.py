@@ -518,8 +518,178 @@ def check_hardening_regressions():
     if 'TYPE_PANIC' not in kill:
         error('V4', 'MagenKillSwitch אינו מבקש משפט PANIC')
 
-    return 'PIN maintenance / VPS alerts / Telegram AI / dynamic VPN detection / v4 phrases'
+    return 'PIN maintenance / VPS alerts / content AI / dynamic VPN detection / v4 protections'
 
+
+
+def check_v440_reliability():
+    """Production reliability/privacy invariants introduced in v4.4."""
+    global checks_run
+    checks_run += 1
+    base=os.path.join(SRC,'com','magen','family')
+    rt=read(os.path.join(base,'server','RealtimeHealthReporter.java'))
+    cfg=read(os.path.join(base,'server','ServerConfig.java'))
+    api=read(os.path.join(base,'server','MagenApiClient.java'))
+    bl=read(os.path.join(base,'service','RemoteBlocklist.java'))
+    hb=read(os.path.join(base,'server','HeartbeatManager.java'))
+    events=read(os.path.join(base,'server','ServerEventReporter.java'))
+    incidents=read(os.path.join(base,'server','ContentIncidentReporter.java'))
+    watchdog=read(os.path.join(base,'service','MagenVpnWatchdog.java'))
+    tamper=read(os.path.join(base,'service','TamperDetectorService.java'))
+    vpn=read(os.path.join(base,'service','MagenVpnService.java'))
+    revival=read(os.path.join(base,'service','ServiceRevival.java'))
+    if 'registerDefaultNetworkCallback' not in rt or 'POKE_DEBOUNCE_MS' not in rt:
+        error('v4.4','חסר NetworkCallback/debounce לחזרה מהירה של telemetry אחרי שינוי רשת')
+    for token in ('ScheduledFuture<?> nextTask','SCHEDULE_LOCK','nextTask.cancel(false)'):
+        if token not in rt:
+            error('v4.4','Heartbeat scheduler אינו מבטיח task יחיד: '+token)
+    if 'REQUIRED_PUBLIC_PORT=8443' not in cfg or 'new URI(' not in cfg:
+        error('v4.4','ServerConfig אינו מקבע HTTPS/8443 באמצעות URI validation')
+    if 'setInstanceFollowRedirects(false)' not in api or 'response too large' not in api:
+        error('v4.4','MagenApiClient חסר redirect/response-size hardening')
+    if 'ALLOW_DIRECT_PUBLIC_FALLBACK = false' not in bl or 'VPS_SIGNED' not in bl:
+        error('v4.4','Blocklist production אינו signed-only')
+    for token in ('blocklist_loaded_domains','blocklist_source','server_failure_streak','full_tunnel'):
+        if token not in hb: error('v4.4','Heartbeat חסר '+token)
+    if 'client_event_id' not in events or 'UUID.randomUUID()' not in events:
+        error('v4.4','אירועי telemetry חסרים idempotency ID')
+    if 'client_incident_id' not in incidents or 'UUID.randomUUID()' not in incidents:
+        error('v4.4','Content incidents חסרים idempotency ID')
+    # Background guards must never launch the VPN with startService() on Android O+.
+    for name,text in (('MagenVpnWatchdog',watchdog),('TamperDetectorService',tamper),('MagenVpnService',vpn)):
+        if 'startService(new Intent(' in text and 'MagenVpnService.class' in text:
+            error('v4.4', name+' עדיין מפעיל MagenVpnService עם startService במקום ServiceRevival')
+    if 'startForegroundService(svc)' not in revival or 'Build.VERSION_CODES.O' not in revival:
+        error('v4.4','ServiceRevival אינו מפעיל VPN כ-ForegroundService ב-Android O+')
+    return '8443 URL policy / network recovery / signed blocklist / idempotent telemetry'
+
+def check_v450_https_inspection():
+    """Managed HTTPS inspection invariants: local-only proxy, privacy, CA lifecycle and 8443 control plane."""
+    global checks_run
+    checks_run += 1
+    base=os.path.join(SRC,'com','magen','family')
+    mitm=os.path.join(base,'mitm')
+    required=['HttpsInspectionProxy.java','MitmPolicy.java','MitmCaManager.java','MitmCertificateClient.java','MitmRuntimeState.java']
+    for name in required:
+        if not os.path.isfile(os.path.join(mitm,name)):
+            error('v4.5','חסר '+name)
+    proxy=read(os.path.join(mitm,'HttpsInspectionProxy.java'))
+    policy=read(os.path.join(mitm,'MitmPolicy.java'))
+    ca=read(os.path.join(mitm,'MitmCaManager.java'))
+    certs=read(os.path.join(mitm,'MitmCertificateClient.java'))
+    vpn=read(os.path.join(base,'service','MagenVpnService.java'))
+    enterprise=read(os.path.join(base,'admin','EnterpriseProtection.java'))
+    relay=read(os.path.join(base,'service','vpn','TcpRelay.java'))
+    incidents=read(os.path.join(base,'server','ContentIncidentReporter.java'))
+    content=read(os.path.join(base,'filter','ContentFilter.java'))
+    heartbeat=read(os.path.join(base,'server','HeartbeatManager.java'))
+    if 'public static final int TRANSPARENT_PORT = 18083' not in proxy or 'new byte[]{127,0,0,1}' not in proxy or 'bindLoopback' not in proxy:
+        error('v4.5','חסר transparent local TLS listener על loopback:18083')
+    if 'MAGEN2 ' not in proxy or 'transparentToken' not in proxy or 'constantTimeTokenEquals' not in proxy:
+        error('v4.5','transparent listener אינו מאומת ב-token מקומי')
+    if 'public static final int PORT = 18082' in proxy or 'builder.setHttpProxy' in vpn or 'buildDirectProxy("127.0.0.1"' in vpn:
+        error('v4.5','explicit loopback proxy חשוף ועלול לאפשר local VPN bypass')
+    if 'HttpsInspectionProxy.get(this).start()' not in vpn:
+        error('v4.5','VpnService אינו מפעיל את transparent inspection listener')
+    if 'addDisallowedApplication(getPackageName())' not in vpn:
+        error('v4.5','Magen app אינו מוחרג מה-VPN ועלול ליצור proxy loop')
+    if 'installCaCert' not in ca or 'hasCaCertInstalled' not in ca or 'offerManualInstall' not in ca:
+        error('v4.5','מחזור החיים של CA חסר Device Owner/manual install')
+    if 'ensureManagedCaAsync(app)' not in enterprise:
+        error('v4.5','Device Owner enforcement אינו מתקין CA מנוהל')
+    if 'setRecommendedGlobalProxy(admin, null)' not in enterprise or 'configureManagedInspectionProxy' not in enterprise:
+        error('v4.5','Device Owner אינו מנקה explicit global proxy לא בטוח')
+    for token in ('pendingInspectionRedirect','HttpsInspectionProxy.TRANSPARENT_PORT','transparentPreamble','reconnectOriginal','MitmPolicy.shouldIntercept'):
+        if token not in relay: error('v4.5','TcpRelay חסר transparent interception: '+token)
+    if 'getPrivate().getEncoded()' in certs or 'private_key' in certs.lower():
+        # Comments may mention a private key; only actual export API is forbidden.
+        if 'getPrivate().getEncoded()' in certs:
+            error('v4.5','נמצא export של private leaf key')
+    if 'public_key_spki_b64' not in certs or '/v1/mitm/leaf' not in certs:
+        error('v4.5','בקשת leaf אינה שולחת public SPKI בלבד')
+    if 'proxy-authorization' not in proxy or 'Connection: close' not in proxy:
+        error('v4.5','proxy אינו מסיר proxy credentials/מכריח policy decision לכל HTTP/1.1 request')
+    if 'relaySingleHttpRequest' not in proxy or 'relayChunkedBody' not in proxy or 'pipeBidirectional(clientTls' in proxy:
+        error('v4.5','HTTPS inspection עלול להעביר HTTP/1.1 request שני ללא בדיקה')
+    if 'TLS_PINNING_OR_PROTOCOL' not in proxy or 'markFallback' not in proxy:
+        error('v4.5','חסר fallback ל-pinning/protocol בלי bypass')
+    for token in ('HTTPS_HOST_MISMATCH','content-length/transfer-encoding ambiguity','hardenTlsProtocols','TLSv1.2'):
+        if token not in proxy: error('v4.5','HTTPS proxy חסר hardening: '+token)
+    if 'Single-writer rule' not in relay or 'conn.upstreamConnected = false' not in relay:
+        error('v4.5','TcpRelay חסר write-order/redirect race hardening')
+    if 'forceRefreshAsync' not in certs or 'clearCache' not in certs:
+        error('v4.5','leaf cache אינו מטפל ב-CA rotation')
+    if 'cert.verify(cert.getPublicKey())' not in ca or 'getBasicConstraints()!=0' not in ca:
+        error('v4.5','Android אינו מאמת Root CA self-signed pathlen=0')
+    if 'MAX_FALLBACKS=512' not in policy or 'pruneFallbacks' not in policy:
+        error('v4.5','compatibility fallback cache אינו מוגבל בגודל')
+    for sensitive in ('paypal.com','bankhapoalim.co.il','clalit.co.il','bitwarden.com','1password.com','lastpass.com','dashlane.com'):
+        if sensitive not in policy: error('v4.5','חסר privacy bypass ל-'+sensitive)
+    if 'BLOCKED (keyword): " + urlLower' in content:
+        error('v4.5','ContentFilter עדיין עלול לרשום URL מלא בלוג')
+    if 'reportMitmFallback' not in incidents or '"","","ALLOW"' not in incidents:
+        error('v4.5','MITM fallback telemetry אינו privacy-minimized')
+    for token in ('mitm_ca_trusted','mitm_proxy_running','mitm_intercepted','mitm_fallback','mitm_failures'):
+        if token not in heartbeat: error('v4.5','Heartbeat חסר '+token)
+    return 'local CA proxy / Device Owner CA / pinning fallback / privacy / MITM telemetry'
+
+
+
+def check_v451_audit_hardening():
+    """Regression gates for bugs found by the line-by-line v4.5.1 audit."""
+    global checks_run
+    checks_run += 1
+    base=os.path.join(SRC,'com','magen','family')
+    relay=read(os.path.join(base,'service','vpn','TcpRelay.java'))
+    udp=read(os.path.join(base,'service','vpn','UdpRelay.java'))
+    engine=read(os.path.join(base,'service','vpn','VpnEngine.java'))
+    kill=read(os.path.join(base,'service','MagenKillSwitch.java'))
+    recovery=read(os.path.join(base,'server','AutoServerConnector.java'))
+    update=read(os.path.join(base,'service','UpdateChecker.java'))
+    notify=read(os.path.join(base,'service','NotificationHelper.java'))
+    ca=read(os.path.join(base,'mitm','MitmCaManager.java'))
+    leaf=read(os.path.join(base,'mitm','MitmCertificateClient.java'))
+    manifest=read(MANIFEST)
+    gradle=read(os.path.join(ROOT,'app','build.gradle'))
+    builder=read(os.path.join(ROOT,'BUILD_APK_ON_WINDOWS.ps1'))
+
+    for token in ('TcpSeq.unwrap','sendSynAck(conn, false)','SecureRandom','deviceFinReceived',
+                  'finAckedByDevice','maybeShutdownUpstreamOutput','upstreamInputEof','refreshInterestOps'):
+        if token not in relay: error('v4.5.1','TCP audit hardening חסר: '+token)
+    if 'ch.connect(target)' not in udp or 's.channel.read(' not in udp:
+        error('v4.5.1','UDP session אינו מחובר ל-peer המדויק')
+    if '.receive(' in udp or '.send(' in udp:
+        error('v4.5.1','UDP relay חזר ל-unconnected receive/send')
+    if 'Ipv4.totalLength' not in engine:
+        error('v4.5.1','VpnEngine אינו מכבד IPv4 Total Length')
+
+    if 'startForeground(NOTIF_ID' not in kill or 'startForegroundService(intent)' not in kill:
+        error('v4.5.1','MagenKillSwitch אינו Foreground Service בטוח')
+    if 'MagenKillSwitch" android:exported="false"\n            android:foregroundServiceType="specialUse"' not in manifest:
+        error('v4.5.1','Manifest חסר specialUse ל-MagenKillSwitch')
+    # No caller should directly background-start the kill switch anymore.
+    for path in java_files(SRC):
+        txt=read(path)
+        if 'MagenKillSwitch' in txt and ('startService(ks)' in txt or 'startService(new Intent(this, MagenKillSwitch.class))' in txt):
+            error('v4.5.1', rel(path)+' מפעיל KillSwitch ישירות עם startService')
+
+    if 'client_recovery_id' not in recovery or 'UUID.randomUUID()' not in recovery:
+        error('v4.5.1','/v1/recover חסר client idempotency ID מתמשך')
+    for token in ('sha256','downloadAndVerifyApk','verifyApkIdentityAndSigner','EXPECTED_SIG_SHA256','FileProvider.getUriForFile'):
+        if token not in update: error('v4.5.1','verified update pipeline חסר: '+token)
+    if 'application/vnd.android.package-archive' not in notify or 'FLAG_GRANT_READ_URI_PERMISSION' not in notify:
+        error('v4.5.1','Package Installer אינו מקבל verified content URI')
+    if 'REQUEST_INSTALL_PACKAGES' not in manifest or '.update-files' not in manifest:
+        error('v4.5.1','Manifest חסר verified-update FileProvider/install permission')
+    if 'MAGEN_UPDATE_PUBKEY_B64") ?: ""' not in gradle and 'MAGEN_UPDATE_PUBKEY_B64") ?: "").toString()' not in gradle:
+        error('v4.5.1','update key אינו fail-closed כברירת מחדל')
+    if "$pair['magenServerSigningPublicKey']" in builder and 'MAGEN_UPDATE_PUBKEY_B64 = $pair' in builder:
+        error('v4.5.1','Windows builder ממחזר online server key כ-update trust root')
+
+    for txt,name in ((ca,'CA'),(leaf,'leaf')):
+        if 'DEVICE_BOUND' not in txt or 'DeviceIdentity.deviceId' not in txt:
+            error('v4.5.1',name+' אינו מאמת device-bound scope')
+    return 'TCP/UDP edge cases / FGS lock / device-bound CA / verified APK updates'
 
 def check_visual_phase2():
     xml = read(os.path.join(RES, 'xml', 'accessibility_service_config.xml'))
@@ -632,6 +802,9 @@ def main():
         ("שירותי חזית", check_foreground_services),
         ("מנוע הרשאות", check_permission_engine_regressions),
         ("הקשחה חדשה", check_hardening_regressions),
+        ("אמינות v4.4", check_v440_reliability),
+        ("HTTPS Inspection v4.5", check_v450_https_inspection),
+        ("Audit hardening v4.5.1", check_v451_audit_hardening),
         ("Visual Shield", check_visual_phase2),
         ("VPS pairing", check_paired_endpoint),
     ]

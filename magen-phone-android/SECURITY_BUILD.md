@@ -1,16 +1,15 @@
-# Secure build — Magen Phone 3.0.4
+# Secure build — Magen Phone v4.5.1 Audited HTTPS Inspection
 
-## Debug
-
-`BUILD_APK_ON_WINDOWS.bat` בונה APK debug ומחשב SHA-256.
-
-## Release
-
-Release דורש keystore אמיתי ו-SHA-256 של תעודת החתימה. אין להמציא fingerprint.
-הגדר את ערכי Gradle/Environment המתאימים ל-`magenKeystoreFile`, סיסמאות/alias ו-`releaseCertSha256`.
-
-## Server trust
-
-האפליקציה משתמשת ב-HTTPS עם CA פרטי מוטמע ובחתימת ECDSA נפרדת ל-policies/verdicts/blocklists. ה-DeepSeek API key נשאר רק ב-VPS.
-
-אין הרשאת SMS ואין credentials של שירות התראות חיצוני בתוך APK.
+- Production output is `assembleRelease`; Debug output is never presented as final.
+- Release signing identity is persistent/private under `.magen-private` unless CI explicitly supplies a keystore.
+- `IntegrityGuard` receives the release certificate SHA-256 fingerprint at build time.
+- The VPS uses a private CA embedded only as a public trust anchor; there is no trust-all TLS mode.
+- Server URLs are restricted to HTTPS with explicit TCP 8443 and no path/query/embedded credentials.
+- Redirects are disabled in the Android VPS client and response sizes are bounded.
+- Device requests are signed; important server responses are independently application-signed.
+- Operational retries use new nonces and client event/incident IDs for idempotency.
+- Visual model trust is SHA-256 pinned; first bootstrap requires upstream digest or independent primary/mirror agreement.
+- Full Tunnel is mandatory; automatic downgrade to DNS-only is disabled.
+- IPv6 remains fail-closed until a complete IPv6 relay exists.
+- Production Android accepts only the VPS-signed merged blocklist; direct unsigned public-list fallback is disabled.
+- Device Owner remains optional but recommended for OS-level Always-On VPN/Lockdown enforcement.

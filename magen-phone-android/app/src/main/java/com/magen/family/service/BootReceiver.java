@@ -47,6 +47,7 @@ public class BootReceiver extends BroadcastReceiver {
                 try {
                     ProtectionWatch.checkAsync(context.getApplicationContext());
                 } catch (Exception ignored) {}
+                com.magen.family.server.RealtimeHealthReporter.poke();
                 break;
             default:
                 break;

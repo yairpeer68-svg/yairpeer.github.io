@@ -1,5 +1,6 @@
 package com.magen.family.service;
 
+import android.os.SystemClock;
 import android.content.Context;
 import android.content.Intent;
 import android.net.VpnService;
@@ -26,7 +27,7 @@ public final class ServiceRevival {
 
     /** מקים את כל מה שאפשר להקים. מוגן מפני קריאות תכופות מדי. */
     public static void reviveAll(Context ctx) {
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();
         if (now - lastRun < 3000) return;   // דה-באונס
         lastRun = now;
 
@@ -34,6 +35,7 @@ public final class ServiceRevival {
         rescheduleWatchdog(ctx);
         ensureTamperRunning(ctx);
         ensureWatchers(ctx);
+        com.magen.family.server.RealtimeHealthReporter.poke();
     }
 
     /** מפעיל את ה-VPN אם ההרשאה קיימת והוא לא רץ. */
@@ -52,6 +54,7 @@ public final class ServiceRevival {
             } else {
                 ctx.startService(svc);
             }
+            com.magen.family.server.RuntimeHealthState.countVpnRestart();
             Log.d(TAG, "VPN revive requested");
         } catch (Exception e) {
             Log.e(TAG, "reviveVpn failed: " + e.getMessage());

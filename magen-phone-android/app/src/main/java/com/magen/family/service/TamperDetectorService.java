@@ -70,7 +70,7 @@ public class TamperDetectorService extends Service {
         }
         if (!vpnOn && lastVpn) {
             issues.append("\n• ה-VPN שלנו הושבת");
-            startService(new Intent(this, MagenVpnService.class));
+            ServiceRevival.reviveVpn(this);
         }
 
         if (foreignVpn) {
@@ -82,7 +82,7 @@ public class TamperDetectorService extends Service {
                     "🚨 VPN חיצוני זוהה — ההגנה נעקפת! המכשיר ננעל.");
             }
             // נסיון מתמשך להחזיר את ה-VPN שלנו (יצליח כשהחיצוני יכובה)
-            startService(new Intent(this, MagenVpnService.class));
+            ServiceRevival.reviveVpn(this);
         }
 
         if (issues.length() > 0) {
@@ -131,7 +131,10 @@ public class TamperDetectorService extends Service {
     @Override
     public void onDestroy() {
         if (checker != null) handler.removeCallbacks(checker);
-        startService(new Intent(this, TamperDetectorService.class));
+        try { startService(new Intent(this, TamperDetectorService.class)); }
+        catch (RuntimeException e) {
+            Log.w(TAG, "self-restart deferred by Android: " + e.getClass().getSimpleName());
+        }
         super.onDestroy();
     }
 }

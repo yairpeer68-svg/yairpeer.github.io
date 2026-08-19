@@ -470,7 +470,7 @@ public class PinActivity extends BaseActivity {
                 android.content.Intent i = new android.content.Intent(this,
                     com.magen.family.service.MagenKillSwitch.class);
                 i.putExtra("require_pin", requirePin);
-                startService(i);
+                com.magen.family.service.MagenKillSwitch.start(this, i);
             }
         } catch (Exception ignored) {}
     }

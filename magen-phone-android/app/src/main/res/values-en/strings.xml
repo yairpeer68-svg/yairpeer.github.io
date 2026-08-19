@@ -225,7 +225,12 @@
     <string name="appcat_nothing">No apps to block in this category.</string>
     <string name="appcat_confirm">Block %d apps in this category?</string>
     <string name="ds_server_url">VPS address (HTTPS)</string>
+    <string name="ds_invalid_server_url">The VPS address must use HTTPS on port 8443, with no path or embedded credentials</string>
     <string name="ds_enrollment_code">Enrollment Code from server</string>
     <string name="ds_enrolled">✓ Device enrolled on server</string>
     <string name="ds_not_enrolled">Device is not enrolled yet</string>
+    <string name="ds_manual_pair">Manual pairing (only if automatic connection fails)</string>
+    <string name="ds_first_pair_required">The server does not know this device key. One-time pairing is required for a new installation.</string>
+    <string name="ds_auto_note">Server connection is automatic for an already enrolled device.</string>
+    <string name="accessibility_already_protected">Accessibility protection is already active. To prevent accidental disabling, Magen does not open the disable screen while protection is active.</string>
 </resources>

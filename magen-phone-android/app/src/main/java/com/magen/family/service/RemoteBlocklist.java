@@ -55,6 +55,12 @@ public class RemoteBlocklist {
     // אופציונלי — רשימה פרטית משלך (השאירי ריק אם אין)
     private static final String CUSTOM_LIST_URL = "";
 
+    // Production phones trust blocklists only after the paired VPS signs the merged
+    // snapshot. Direct Internet list downloads remain in this source for controlled
+    // recovery builds, but are deliberately disabled in production to avoid turning
+    // a third-party source/CDN compromise into arbitrary device-wide blocking.
+    private static final boolean ALLOW_DIRECT_PUBLIC_FALLBACK = false;
+
     private static final String BLOOM_CACHE = "domain_bloom.bin";
     private static final int TIMEOUT_MS = 30000;
     private static final int MIN_BUILTIN_SOURCE_DOMAINS = 1_000;
@@ -67,6 +73,9 @@ public class RemoteBlocklist {
     private static final double FALSE_POSITIVE = 0.01;
 
     private static volatile DomainBloomFilter filter = null;
+    private static volatile long loadedVersion = 0L;
+    private static volatile String loadedSource = "NONE";
+    private static final String META_PREFS = "magen_blocklist_meta";
 
     /** בדיקה מהירה — לשימוש במסננים (נגישות/VPN). */
     public static boolean isBlocked(String host) {
@@ -79,6 +88,25 @@ public class RemoteBlocklist {
     public static int loadedCount() {
         DomainBloomFilter f = filter;
         return f == null ? 0 : f.getItemCount();
+    }
+
+    public static long loadedVersion() { return loadedVersion; }
+    public static String loadedSource() { return loadedSource; }
+
+    private static void loadMeta(Context ctx) {
+        try {
+            android.content.SharedPreferences p=ctx.getSharedPreferences(META_PREFS,Context.MODE_PRIVATE);
+            loadedVersion=Math.max(0L,p.getLong("version",0L));
+            loadedSource=p.getString("source","CACHE");
+            if(loadedSource==null || loadedSource.trim().isEmpty()) loadedSource="CACHE";
+        } catch(Exception ignored) { loadedVersion=0L; loadedSource="CACHE"; }
+    }
+
+    private static void saveMeta(Context ctx,long version,String source) {
+        loadedVersion=Math.max(0L,version);
+        loadedSource=(source==null||source.trim().isEmpty())?"UNKNOWN":source.trim();
+        ctx.getSharedPreferences(META_PREFS,Context.MODE_PRIVATE).edit()
+            .putLong("version",loadedVersion).putString("source",loadedSource).apply();
     }
 
     // ---------------- טעינה מ-cache ----------------
@@ -98,6 +126,7 @@ public class RemoteBlocklist {
             try (FileInputStream fis = new FileInputStream(target)) {
                 filter = DomainBloomFilter.readFrom(fis);
             }
+            loadMeta(ctx);
             if (backup.exists() && !backup.delete())
                 Log.w(TAG, "could not delete stale bloom backup");
             Log.d(TAG, "Loaded bloom from cache: ~" + filter.getItemCount() + " domains");
@@ -136,6 +165,11 @@ public class RemoteBlocklist {
             if (serverCount > 0) return serverCount;
         }
 
+        if (!ALLOW_DIRECT_PUBLIC_FALLBACK) {
+            Log.w(TAG, "signed VPS blocklist unavailable — retaining last-known-good cache");
+            return -1;
+        }
+
         DomainBloomFilter bloom = new DomainBloomFilter(EXPECTED_DOMAINS, FALSE_POSITIVE);
 
         IngestResult ut1 = ingest(UT1_ADULT_URL, bloom, SourceType.UT1_TAR_GZ);
@@ -158,7 +192,9 @@ public class RemoteBlocklist {
             Log.w(TAG, "No domains ingested — keeping existing filter");
             return -1;
         }
-        return publishBloom(ctx, bloom, total);
+        int published=publishBloom(ctx, bloom, total);
+        if(published>0) saveMeta(ctx,System.currentTimeMillis()/1000L,"PUBLIC_FALLBACK");
+        return published;
     }
 
     /** Pull one signed merged blocklist from the paired VPS. */
@@ -172,6 +208,7 @@ public class RemoteBlocklist {
             String path = meta.optString("path", "");
             String expectedSha = meta.optString("sha256", "").toLowerCase();
             int declaredCount = meta.optInt("domains", 0);
+            long declaredVersion = Math.max(0L, meta.optLong("version", 0L));
             boolean currentPath = "/v1/blocklist/file".equals(path);
             boolean legacySignedPath = "/downloads/adult-domains.txt.gz".equals(path);
             if ((!currentPath && !legacySignedPath)
@@ -214,7 +251,10 @@ public class RemoteBlocklist {
             if (count < MIN_BUILTIN_SOURCE_DOMAINS || Math.abs((long)count - declaredCount) > Math.max(10L, declaredCount / 1000L))
                 throw new SecurityException("server blocklist count mismatch");
             int result = publishBloom(ctx, bloom, count);
-            if (result > 0) Log.d(TAG, "✓ Installed signed VPS blocklist: ~" + count + " domains");
+            if (result > 0) {
+                saveMeta(ctx,declaredVersion,"VPS_SIGNED");
+                Log.d(TAG, "✓ Installed signed VPS blocklist: ~" + count + " domains version=" + declaredVersion);
+            }
             return result;
         } catch (Exception e) {
             Log.w(TAG, "signed VPS blocklist unavailable: " + e.getMessage());

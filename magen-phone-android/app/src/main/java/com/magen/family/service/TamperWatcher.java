@@ -1,5 +1,6 @@
 package com.magen.family.service;
 
+import android.os.SystemClock;
 import android.content.Context;
 import android.database.ContentObserver;
 import android.os.Handler;
@@ -90,7 +91,7 @@ public final class TamperWatcher {
     private static void onAccessibilityChanged(Context ctx) {
         if (isOurAccessibilityEnabled(ctx)) return;   // הודלק/נשאר דלוק — הכל טוב
 
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();
         if (now - lastAccessibilityReact < REACT_COOLDOWN_MS) return;
         lastAccessibilityReact = now;
 
@@ -104,7 +105,7 @@ public final class TamperWatcher {
         try {
             android.content.Intent ks = new android.content.Intent(ctx, MagenKillSwitch.class);
             ks.putExtra("require_pin", true);
-            ctx.startService(ks);
+            MagenKillSwitch.start(ctx, ks);
         } catch (Exception e) {
             Log.e(TAG, "KillSwitch after accessibility off failed: " + e.getMessage());
         }
@@ -119,7 +120,7 @@ public final class TamperWatcher {
     private static void onAdbChanged(Context ctx) {
         if (!SecurityGuard.isAdbEnabled(ctx)) return;   // כובה — טוב
 
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();
         if (now - lastAdbReact < REACT_COOLDOWN_MS) return;
         lastAdbReact = now;
 

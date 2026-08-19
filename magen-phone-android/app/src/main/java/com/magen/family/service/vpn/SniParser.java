@@ -27,6 +27,8 @@ public final class SniParser {
      * מחזיר null אם עוד אין מספיק בייטים או שלא נמצא שם.
      */
     public static String extractHost(byte[] buf, int len) {
+        if (buf == null || len <= 0) return null;
+        len = Math.min(len, buf.length);
         String sni = extractTlsSni(buf, len);
         if (sni != null) return sni;
         return extractHttpHost(buf, len);
@@ -41,6 +43,8 @@ public final class SniParser {
      * להמשיך להצטבר ומשחררים את החיבור.
      */
     public static boolean mayContainHost(byte[] buf, int len) {
+        if (buf == null) return false;
+        len = Math.max(0, Math.min(len, buf.length));
         if (len < 1) return true;                     // מוקדם מדי להכריע
         if ((buf[0] & 0xFF) == 0x16) return true;     // TLS handshake
         if (len < 8) return true;
@@ -56,6 +60,8 @@ public final class SniParser {
      * אם כן ולא נמצא SNI — אין טעם להמשיך לחכות.
      */
     public static boolean isTlsRecordComplete(byte[] buf, int len) {
+        if (buf == null) return false;
+        len = Math.max(0, Math.min(len, buf.length));
         if (len < 5) return false;
         if ((buf[0] & 0xFF) != 0x16) return false;
         int recordLen = u16(buf, 3);
@@ -81,27 +87,37 @@ public final class SniParser {
      */
     public static String extractTlsSni(byte[] buf, int len) {
         try {
+            if (buf == null) return null;
+            len = Math.max(0, Math.min(len, buf.length));
             if (len < 45) return null;
             if ((buf[0] & 0xFF) != 0x16) return null;    // לא handshake
+            int recordLen = u16(buf, 3);
+            int recordEnd = 5 + recordLen;
+            if (recordEnd > len || recordEnd < 9) return null;
             if ((buf[5] & 0xFF) != 0x01) return null;    // לא ClientHello
+            int handshakeLen = ((buf[6] & 0xFF) << 16) | ((buf[7] & 0xFF) << 8) | (buf[8] & 0xFF);
+            int handshakeEnd = 9 + handshakeLen;
+            if (handshakeEnd > recordEnd || handshakeEnd < 43) return null;
+            int parseEnd = Math.min(recordEnd, handshakeEnd);
 
             int pos = 43;                                 // אחרי random
 
             int sessionIdLen = buf[pos] & 0xFF;
             pos += 1 + sessionIdLen;
-            if (pos + 2 > len) return null;
+            if (pos + 2 > parseEnd) return null;
 
             int cipherSuitesLen = u16(buf, pos);
             pos += 2 + cipherSuitesLen;
-            if (pos + 1 > len) return null;
+            if (pos + 1 > parseEnd) return null;
 
             int compressionLen = buf[pos] & 0xFF;
             pos += 1 + compressionLen;
-            if (pos + 2 > len) return null;
+            if (pos + 2 > parseEnd) return null;
 
             int extensionsLen = u16(buf, pos);
             pos += 2;
-            int extensionsEnd = Math.min(pos + extensionsLen, len);
+            if (extensionsLen > parseEnd - pos) return null;
+            int extensionsEnd = pos + extensionsLen;
 
             while (pos + 4 <= extensionsEnd) {
                 int extType = u16(buf, pos);
@@ -138,7 +154,7 @@ public final class SniParser {
         if (nameLen <= 0 || pos + nameLen > off + len) return null;
 
         try {
-            return new String(buf, pos, nameLen, "US-ASCII").toLowerCase();
+            return normalizeDnsHost(new String(buf, pos, nameLen, "US-ASCII"));
         } catch (Exception e) {
             return null;
         }
@@ -149,6 +165,8 @@ public final class SniParser {
     /** מחפש "Host:" בכותרות HTTP בטקסט רגיל. */
     public static String extractHttpHost(byte[] buf, int len) {
         try {
+            if (buf == null) return null;
+            len = Math.max(0, Math.min(len, buf.length));
             if (len < 16) return null;
             // רק אם זה נראה כמו בקשת HTTP
             String head = new String(buf, 0, Math.min(len, 8), "US-ASCII");
@@ -165,7 +183,7 @@ public final class SniParser {
             String host = text.substring(start, end).trim().toLowerCase();
             int colon = host.indexOf(':');
             if (colon > 0) host = host.substring(0, colon);
-            return host.isEmpty() ? null : host;
+            return normalizeDnsHost(host);
         } catch (Exception e) {
             return null;
         }
@@ -180,6 +198,24 @@ public final class SniParser {
 
     private static int indexOfIgnoreCase(String haystack, String needle) {
         return haystack.toLowerCase().indexOf(needle.toLowerCase());
+    }
+
+    private static String normalizeDnsHost(String host) {
+        if (host == null) return null;
+        host = host.trim().toLowerCase();
+        if (host.endsWith(".")) host = host.substring(0, host.length() - 1);
+        if (host.isEmpty() || host.length() > 253) return null;
+        String[] labels = host.split("\\.", -1);
+        if (labels.length < 2) return null;
+        for (String label : labels) {
+            if (label.isEmpty() || label.length() > 63) return null;
+            if (label.charAt(0) == '-' || label.charAt(label.length() - 1) == '-') return null;
+            for (int i = 0; i < label.length(); i++) {
+                char c = label.charAt(i);
+                if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-')) return null;
+            }
+        }
+        return host;
     }
 
     private static int u16(byte[] b, int o) {

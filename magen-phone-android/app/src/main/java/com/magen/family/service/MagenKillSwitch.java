@@ -1,6 +1,9 @@
 package com.magen.family.service;
 
 import android.app.Service;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -28,6 +31,8 @@ import com.magen.family.ui.PinActivity;
  */
 public class MagenKillSwitch extends Service {
 
+    private static final String CHANNEL_ID = "magen_killswitch";
+    private static final int NOTIF_ID = 2005;
     private static final String PREFS = "magen_killswitch";
     private static final String KEY_UNLOCK_AT  = "unlock_at";
     /** נעילה שנפתחת רק ב-PIN (בלי טיימר). חייבת להישמר כדי לשרוד יציאה מהמסך. */
@@ -43,6 +48,45 @@ public class MagenKillSwitch extends Service {
     private Runnable ticker;
 
     @Override public IBinder onBind(Intent intent) { return null; }
+
+    /** Start safely from receivers/background services on modern Android. */
+    public static boolean start(Context ctx, Intent intent) {
+        try {
+            intent.setClass(ctx, MagenKillSwitch.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) ctx.startForegroundService(intent);
+            else ctx.startService(intent);
+            return true;
+        } catch (RuntimeException e) {
+            android.util.Log.e("MagenKillSwitch", "start failed: " + e.getClass().getSimpleName());
+            return false;
+        }
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        ensureForeground();
+    }
+
+    private void ensureForeground() {
+        NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm != null
+                && nm.getNotificationChannel(CHANNEL_ID) == null) {
+            NotificationChannel ch = new NotificationChannel(
+                CHANNEL_ID, "הגנת נעילה", NotificationManager.IMPORTANCE_LOW);
+            ch.setDescription("שומר על מסך הנעילה של Magen פעיל");
+            nm.createNotificationChannel(ch);
+        }
+        Notification.Builder b = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+            ? new Notification.Builder(this, CHANNEL_ID)
+            : new Notification.Builder(this);
+        b.setSmallIcon(com.magen.family.R.drawable.ic_notification)
+            .setContentTitle("Magen — הגנה פעילה")
+            .setContentText("נעילת הגנה פעילה")
+            .setOngoing(true)
+            .setCategory(Notification.CATEGORY_SERVICE);
+        startForeground(NOTIF_ID, b.build());
+    }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {

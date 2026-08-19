@@ -225,7 +225,12 @@
     <string name="appcat_nothing">אין אפליקציות לחסימה בקטגוריה הזו.</string>
     <string name="appcat_confirm">לחסום %d אפליקציות בקטגוריה הזו?</string>
     <string name="ds_server_url">כתובת VPS (HTTPS)</string>
+    <string name="ds_invalid_server_url">כתובת ה־VPS חייבת להיות HTTPS על פורט 8443, ללא נתיב או פרטי התחברות</string>
     <string name="ds_enrollment_code">Enrollment Code מהשרת</string>
     <string name="ds_enrolled">✓ המכשיר רשום בשרת</string>
     <string name="ds_not_enrolled">המכשיר עדיין לא רשום בשרת</string>
+    <string name="ds_manual_pair">צימוד ידני (רק אם החיבור האוטומטי נכשל)</string>
+    <string name="ds_first_pair_required">השרת לא מכיר את מפתח המכשיר. נדרש צימוד חד-פעמי בהתקנה חדשה.</string>
+    <string name="ds_auto_note">החיבור לשרת מתבצע אוטומטית במכשיר שכבר נרשם.</string>
+    <string name="accessibility_already_protected">שירות הנגישות כבר פעיל ומוגן. כדי למנוע כיבוי בטעות, האפליקציה לא פותחת את מסך ההשבתה כשההגנה פעילה.</string>
 </resources>

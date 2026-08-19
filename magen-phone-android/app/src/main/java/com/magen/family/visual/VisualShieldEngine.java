@@ -1,5 +1,6 @@
 package com.magen.family.visual;
 
+import android.os.SystemClock;
 import android.accessibilityservice.AccessibilityService;
 import android.graphics.Bitmap;
 import android.hardware.HardwareBuffer;
@@ -74,7 +75,7 @@ public final class VisualShieldEngine implements AutoCloseable {
         VisualPolicy.Config cfg = VisualPolicy.get(service);
         if (!cfg.enabled || "OFF".equalsIgnoreCase(cfg.mode)) return;
 
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();
         if (now < nextAllowedAfter) return;
         long interval = effectiveInterval(cfg, eventType);
         long due = lastScanAt + interval;
@@ -89,7 +90,7 @@ public final class VisualShieldEngine implements AutoCloseable {
 
     private void startCapture(String pkg, VisualPolicy.Config cfg) {
         if (closed || !inFlight.compareAndSet(false, true)) return;
-        lastScanAt = System.currentTimeMillis();
+        lastScanAt = SystemClock.elapsedRealtime();
         pendingPackage = "";
         capture(pkg, cfg);
     }
@@ -115,7 +116,7 @@ public final class VisualShieldEngine implements AutoCloseable {
 
                         try {
                             if (software == null || classifier == null || closed) return;
-                            long now = System.currentTimeMillis();
+                            long now = SystemClock.elapsedRealtime();
                             long hash = VisualFrameFingerprint.dHash(software);
                             if (pkg.equals(lastHashPackage) && lastHashAt > 0 &&
                                 now - lastHashAt <= DUPLICATE_WINDOW_MS &&
@@ -208,7 +209,7 @@ public final class VisualShieldEngine implements AutoCloseable {
             if (pkg == null || pkg.isEmpty()) return;
             VisualPolicy.Config cfg = VisualPolicy.get(service);
             if (!cfg.enabled || "OFF".equalsIgnoreCase(cfg.mode)) return;
-            long now = System.currentTimeMillis();
+            long now = SystemClock.elapsedRealtime();
             if (now < nextAllowedAfter) return;
             long wait = (lastScanAt + effectiveInterval(cfg, eventType)) - now;
             if (wait > 0) {
@@ -242,13 +243,13 @@ public final class VisualShieldEngine implements AutoCloseable {
         if (failures >= cfg.maxConsecutiveFailures) {
             int exponent = Math.min(6, failures - cfg.maxConsecutiveFailures);
             long backoff = Math.min(60_000L, 2_000L << exponent);
-            nextAllowedAfter = System.currentTimeMillis() + backoff;
+            nextAllowedAfter = SystemClock.elapsedRealtime() + backoff;
         }
         reportUnavailable(detail + " failures=" + failures);
     }
 
     private void reportUnavailable(String detail) {
-        long now = System.currentTimeMillis();
+        long now = SystemClock.elapsedRealtime();
         if (now - lastErrorReportAt < ERROR_REPORT_COOLDOWN_MS) return;
         lastErrorReportAt = now;
         ServerEventReporter.report(service, "VISUAL_CAPTURE_UNAVAILABLE", "MEDIUM", detail);

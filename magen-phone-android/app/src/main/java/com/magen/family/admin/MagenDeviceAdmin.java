@@ -60,7 +60,7 @@ public class MagenDeviceAdmin extends DeviceAdminReceiver {
         try {
             Intent ks = new Intent(context, MagenKillSwitch.class);
             ks.putExtra("require_pin", true);
-            context.startService(ks);
+            MagenKillSwitch.start(context, ks);
         } catch (Exception e) {
             Log.e(TAG, "KillSwitch start failed: " + e.getMessage());
         }
@@ -94,7 +94,7 @@ public class MagenDeviceAdmin extends DeviceAdminReceiver {
         // השאר KillSwitch פעיל
         try {
             Intent ks = new Intent(context, MagenKillSwitch.class);
-            context.startService(ks);
+            MagenKillSwitch.start(context, ks);
         } catch (Exception ignored) {}
 
         // לא פותחים UI מתוך BroadcastReceiver/רקע. באנדרואיד מודרני פתיחת

@@ -27,6 +27,18 @@ jobs:
       - name: Install Android API 36 + Build Tools 36
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
+      # שם ה-APK נגזר מ-versionName שב-build.gradle, כדי ששדרוג גרסה
+      # לא ידרוש לגעת ב-workflow ולא ייווצר קובץ עם שם של גרסה ישנה.
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/.*versionName *"\([^"]*\)".*/\1/p' magen-phone-android/app/build.gradle | head -1)"
+          [ -n "$version" ] || { echo "could not read versionName" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "apk=magen-v$version-debug.apk" >> "$GITHUB_OUTPUT"
+          echo "building $version"
+
       # מודל ה-Visual Shield אינו נשמר ב-git (גדול, ורישיון צד-שלישי).
       # מורידים אותו בזמן הבנייה בדיוק כמו BUILD_APK_ON_WINDOWS.ps1,
       # מאמתים מול ה-digest שגיטהאב מפרסם, ומזריקים את ה-SHA-256 ל-BuildConfig.
@@ -38,7 +50,7 @@ jobs:
           url="https://github.com/GantMan/nsfw_model/releases/download/1.1.0/nsfw_mobilenet_v2_140_224.zip"
           curl -fSL --retry 4 --retry-delay 3 -o model.zip "$url"
           archive_sha="$(sha256sum model.zip | cut -d' ' -f1)"
-          expected="$(curl -fsSL -H 'User-Agent: MagenBuilder/4.2.1' \
+          expected="$(curl -fsSL -H 'User-Agent: MagenBuilder' \
             https://api.github.com/repos/GantMan/nsfw_model/releases/tags/1.1.0 \
             | jq -r '.assets[] | select(.name=="nsfw_mobilenet_v2_140_224.zip") | .digest // empty' \
             | sed 's/^sha256://' || true)"
@@ -82,24 +94,32 @@ jobs:
       - name: Name APK and hash it
         run: |
           set -euo pipefail
-          cp magen-phone-android/app/build/outputs/apk/debug/app-debug.apk magen-v4.2.1-paired-8443-debug.apk
-          sha256sum magen-v4.2.1-paired-8443-debug.apk > magen-v4.2.1-paired-8443-debug.apk.sha256
-          cat magen-v4.2.1-paired-8443-debug.apk.sha256
-          ls -l magen-v4.2.1-paired-8443-debug.apk
+          apk="${{ steps.ver.outputs.apk }}"
+          cp magen-phone-android/app/build/outputs/apk/debug/app-debug.apk "$apk"
+          sha256sum "$apk" > "$apk.sha256"
+          cat "$apk.sha256"
+          ls -l "$apk"
 
       - name: Verify APK signature
         run: |
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
-          "$BT/apksigner" verify --print-certs magen-v4.2.1-paired-8443-debug.apk
+          "$BT/apksigner" verify --print-certs "${{ steps.ver.outputs.apk }}"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: magen-phone-debug-apk
           path: |
-            magen-v4.2.1-paired-8443-debug.apk
-            magen-v4.2.1-paired-8443-debug.apk.sha256
+            ${{ steps.ver.outputs.apk }}
+            ${{ steps.ver.outputs.apk }}.sha256
           retention-days: 30
+
+      # ה-release מוחלף לגמרי בכל בנייה, כדי שלא יישארו APK-ים של גרסאות
+      # ישנות לצד החדש — מי שנכנס לקישור מקבל בדיוק גרסה אחת.
+      - name: Remove previous release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete magen-phone-latest --yes --cleanup-tag || true
 
       - name: Publish APK as release
         uses: softprops/action-gh-release@v2
@@ -107,15 +127,15 @@ jobs:
           tag_name: magen-phone-latest
           name: "מגן — אפליקציית הטלפון (APK debug)"
           body: |
-            📱 גרסה `4.2.1-paired-8443` של אפליקציית מגן לאנדרואיד (בנייה debug לבדיקה במכשיר פיזי).
+            📱 גרסה `${{ steps.ver.outputs.version }}` של אפליקציית מגן לאנדרואיד (בנייה debug לבדיקה במכשיר פיזי).
 
-            **התקנה:** הורד את `magen-v4.2.1-paired-8443-debug.apk`, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
+            **התקנה:** הורד את `${{ steps.ver.outputs.apk }}`, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
             אחרי ההתקנה יש להפעיל VPN, Accessibility ו-Device Admin.
 
             שרת ברירת מחדל: `https://51.20.205.229:8443`.
             בנייה מקומית (release חתום) — ראה `SECURITY_BUILD.md`.
           files: |
-            magen-v4.2.1-paired-8443-debug.apk
-            magen-v4.2.1-paired-8443-debug.apk.sha256
+            ${{ steps.ver.outputs.apk }}
+            ${{ steps.ver.outputs.apk }}.sha256
           prerelease: false
           make_latest: false

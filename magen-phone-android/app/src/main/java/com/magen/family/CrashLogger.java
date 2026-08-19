@@ -6,6 +6,9 @@ import android.content.pm.PackageInfo;
 import android.os.Build;
 
 import com.magen.family.ui.CrashActivity;
+import com.magen.family.server.ServerEventReporter;
+
+import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -50,6 +53,11 @@ public class CrashLogger {
             // 2. קובץ להיסטוריה
             try { writeToFile(app, report); } catch (Exception ignored) {}
 
+            // 2b. תור telemetry מתמיד. אין רשת כאן: התהליך קורס ולכן שומרים
+            // סינכרונית ושולחים בהפעלה/heartbeat הבא.
+            try { ServerEventReporter.enqueueForLaterSync(app, "APP_CRASH_JAVA", "CRITICAL", buildTelemetry(thread, ex)); }
+            catch (Exception ignored) {}
+
             // 3. מסך שקופץ מיד
             try {
                 Intent i = new Intent(app, CrashActivity.class);
@@ -91,7 +99,47 @@ public class CrashLogger {
             StringWriter sw = new StringWriter();
             if (t != null) t.printStackTrace(new PrintWriter(sw));
             writeToFile(ctx.getApplicationContext(), "[HANDLED] " + where + "\n" + sw);
+            JSONObject d=new JSONObject().put("where",where==null?"":where);
+            if(t!=null){
+                d.put("exception",t.getClass().getName());
+                if(t.getMessage()!=null)d.put("message",redact(t.getMessage(),800));
+                StackTraceElement[] f=t.getStackTrace(); if(f!=null&&f.length>0)d.put("top_frame",f[0].toString());
+            }
+            ServerEventReporter.report(ctx,"APP_HANDLED_ERROR","MEDIUM",d);
         } catch (Exception ignored) {}
+    }
+
+
+    private static JSONObject buildTelemetry(Thread thread, Throwable ex) {
+        JSONObject d=new JSONObject();
+        try {
+            d.put("exception",ex==null?"unknown":ex.getClass().getName());
+            d.put("thread",thread==null?"?":thread.getName());
+            d.put("sdk_int",Build.VERSION.SDK_INT);
+            d.put("device",Build.MANUFACTURER+" "+Build.MODEL);
+            d.put("process_uptime_ms",com.magen.family.server.RealtimeHealthReporter.processUptimeMs());
+            if(ex!=null){
+                if(ex.getMessage()!=null)d.put("message",redact(ex.getMessage(),1000));
+                StackTraceElement[] frames=ex.getStackTrace(); StringBuilder st=new StringBuilder();
+                int n=Math.min(frames==null?0:frames.length,35);
+                for(int i=0;i<n;i++){ if(st.length()>3800)break; st.append(frames[i].toString()).append('\n'); }
+                d.put("stack",st.toString());
+                if(frames!=null&&frames.length>0)d.put("top_frame",frames[0].toString());
+                if(ex.getCause()!=null)d.put("cause",ex.getCause().getClass().getName());
+            }
+        } catch(Exception ignored) {}
+        return d;
+    }
+
+    /** Redact common secrets/query strings before crash telemetry leaves the device. */
+    private static String redact(String value, int max) {
+        if (value == null) return "";
+        String s = value;
+        try {
+            s = s.replaceAll("(?i)(authorization|bearer|api[_-]?key|token|password|secret)\\s*[:=]\\s*[^\\s,;]+", "$1=<redacted>");
+            s = s.replaceAll("(?i)(https?://[^\\s?#]+)\\?[^\\s]+", "$1?<redacted>");
+        } catch (Exception ignored) {}
+        return s.substring(0, Math.min(max, s.length()));
     }
 
     private static String buildReport(Context ctx, Thread thread, Throwable ex) {

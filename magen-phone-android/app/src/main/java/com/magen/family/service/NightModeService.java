@@ -56,7 +56,7 @@ public class NightModeService extends Service {
 
         if (isNight) {
             // הצג KillSwitch
-            startService(new Intent(this, MagenKillSwitch.class));
+            MagenKillSwitch.start(this, new Intent(this, MagenKillSwitch.class));
             Log.d(TAG, "🌙 Night mode active");
         } else {
             stopMagenKillSwitch();
