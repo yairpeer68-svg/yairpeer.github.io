@@ -1,4 +1,4 @@
-Magen Android pairing — v4.5.1
+Magen Android pairing — v4.5.2
 
 Bundled live server:
   https://51.20.205.229:8443

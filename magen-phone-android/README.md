@@ -1,7 +1,14 @@
-# Magen Phone v4.5.1 — Audited HTTPS Inspection (8443)
+# Magen Phone v4.5.2 — Audited HTTPS Inspection + One-shot Short-form Auto Skip (8443)
 
 
-## Audited HTTPS Inspection v4.5.1
+## v4.5.2: HTTPS Inspection + Short-form Auto Skip
+
+### One-shot short-form behavior
+
+When the local Visual Shield confirms unsafe content on a supported vertical short-form feed, Magen hides the frame and sends exactly one upward accessibility gesture. A second automatic gesture is forbidden until Android reports a real scroll. If the feed does not advance, the same item is not swiped repeatedly; Magen falls back to the normal hard visual block. A burst circuit breaker stops automatic scrolling after 4 unsafe skips inside 15 seconds and pauses auto-skip for 20 seconds.
+
+Supported surfaces: TikTok, YouTube Shorts, Instagram/Facebook Reels, and Snapchat Spotlight. TikTok is recognized by package; the others require their short-form UI marker so ordinary feeds are not auto-scrolled.
+
 
 - Public Magen control plane remains `https://51.20.205.229:8443`; no public MITM proxy port is opened and port 443 is untouched.
 - There is **no explicit localhost proxy**. The old `127.0.0.1:18082` path was removed because another local app could potentially use it as a VPN bypass.

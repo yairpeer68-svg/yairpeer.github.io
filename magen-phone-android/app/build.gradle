@@ -17,13 +17,13 @@ android {
         applicationId "com.magen.family"
         minSdk 26
         targetSdk 36
-        versionCode 19
-        versionName "4.5.1-audited-https-inspection-8443"
+        versionCode 20
+        versionName "4.5.2-shortform-autoskip-8443"
 
         // מזהה בנייה שנראה בתוך האפליקציה. ה-CI מעביר את ה-commit הקצר
         // (-PbuildId=abc1234), וכך אפשר לוודא במבט אחד איזו גרסה מותקנת
         // בפועל — במקום לנחש אם הורדת קובץ ישן מהמטמון.
-        resValue "string", "build_id", (project.findProperty("buildId") ?: "audited-https-inspection-8443-20260819")
+        resValue "string", "build_id", (project.findProperty("buildId") ?: "shortform-autoskip-8443-20260819")
 
         def releaseCertSha256 = (project.findProperty("releaseCertSha256") ?: System.getenv("MAGEN_RELEASE_CERT_SHA256") ?: "").toString().replace(":", "").trim()
         buildConfigField "String", "EXPECTED_SIG_SHA256", "\"${releaseCertSha256}\""

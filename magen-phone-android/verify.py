@@ -691,6 +691,32 @@ def check_v451_audit_hardening():
             error('v4.5.1',name+' אינו מאמת device-bound scope')
     return 'TCP/UDP edge cases / FGS lock / device-bound CA / verified APK updates'
 
+def check_v452_shortform_autoskip():
+    svc = read(os.path.join(SRC, 'com', 'magen', 'family', 'service', 'MagenAccessibilityService.java'))
+    guard_path = os.path.join(SRC, 'com', 'magen', 'family', 'service', 'ShortFormSkipGuard.java')
+    curtain = read(os.path.join(SRC, 'com', 'magen', 'family', 'visual', 'MagenVisualCurtain.java'))
+    xml = read(os.path.join(RES, 'xml', 'accessibility_service_config.xml'))
+    gradle = read(os.path.join(ROOT, 'app', 'build.gradle'))
+    test_path = os.path.join(ROOT, 'app', 'src', 'test', 'java', 'com', 'magen', 'family', 'service', 'ShortFormSkipGuardTest.java')
+
+    if not os.path.isfile(guard_path):
+        error('v4.5.2', 'ShortFormSkipGuard חסר')
+        return 'missing guard'
+    guard = read(guard_path)
+    for token in ('WAITING_FOR_ADVANCE', 'MAX_SKIPS_PER_BURST', 'CIRCUIT_BREAK_MS', 'markScrolled', 'markGestureFailed'):
+        if token not in guard: error('v4.5.2', 'anti-loop guard חסר: '+token)
+    for token in ('dispatchGesture(', 'showAutoSkip(', 'SHORTFORM_AUTOSKIP_CIRCUIT', 'shortFormSkipGuard.markScrolled'):
+        if token not in svc: error('v4.5.2', 'one-shot short-form skip חסר: '+token)
+    if 'android:canPerformGestures="true"' not in xml:
+        error('v4.5.2', 'Accessibility Service אינו מורשה לבצע gesture')
+    if 'FLAG_NOT_TOUCHABLE' not in curtain or 'showAutoSkip' not in curtain:
+        error('v4.5.2', 'auto-skip curtain חייב להיות pass-through/non-touchable')
+    if 'versionName "4.5.2-shortform-autoskip-8443"' not in gradle:
+        error('v4.5.2', 'versionName לא עודכן')
+    if not os.path.isfile(test_path):
+        error('v4.5.2', 'חסרות בדיקות ShortFormSkipGuard')
+    return 'one-shot swipe / scroll confirmation / same-item suppression / burst circuit breaker'
+
 def check_visual_phase2():
     xml = read(os.path.join(RES, 'xml', 'accessibility_service_config.xml'))
     if 'android:canTakeScreenshot="true"' not in xml:
@@ -805,6 +831,7 @@ def main():
         ("אמינות v4.4", check_v440_reliability),
         ("HTTPS Inspection v4.5", check_v450_https_inspection),
         ("Audit hardening v4.5.1", check_v451_audit_hardening),
+        ("Short-form auto-skip v4.5.2", check_v452_shortform_autoskip),
         ("Visual Shield", check_visual_phase2),
         ("VPS pairing", check_paired_endpoint),
     ]

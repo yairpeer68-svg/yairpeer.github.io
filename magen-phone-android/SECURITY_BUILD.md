@@ -1,4 +1,4 @@
-# Secure build — Magen Phone v4.5.1 Audited HTTPS Inspection
+# Secure build — Magen Phone v4.5.2 Audited HTTPS Inspection + Short-form Auto Skip
 
 - Production output is `assembleRelease`; Debug output is never presented as final.
 - Release signing identity is persistent/private under `.magen-private` unless CI explicitly supplies a keystore.

@@ -1,3 +1,13 @@
+# v4.5.2 — One-shot Short-form Auto Skip
+
+- Visual Shield can now skip a detected unsafe TikTok/Shorts/Reels/Spotlight item with exactly one upward accessibility gesture instead of closing the entire app.
+- Anti-loop state machine: no second swipe until a real scroll confirms advancement, same-item suppression, 1.8s gesture cooldown, and a 4-skips/15s circuit breaker with a 20s safety pause.
+- If the gesture is rejected/cancelled or the feed does not advance, Magen falls back to the existing hard visual block instead of retrying endlessly.
+- Auto-skip curtain is opaque but non-touchable so the accessibility gesture reaches the underlying feed; it auto-hides and never schedules another gesture.
+- Supported short-form surfaces: TikTok, YouTube Shorts, Instagram/Facebook Reels, Snapchat Spotlight (non-TikTok apps require their short-form UI marker).
+- No visible text/signature used for anti-looping is logged or sent to the VPS.
+- Server endpoint remains https://51.20.205.229:8443.
+
 # Magen Phone v4.5.1 — Audited HTTPS Inspection
 
 ## v4.5.1

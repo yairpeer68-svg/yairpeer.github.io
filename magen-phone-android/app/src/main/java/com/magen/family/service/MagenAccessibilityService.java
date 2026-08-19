@@ -3,7 +3,9 @@ package com.magen.family.service;
 import android.os.SystemClock;
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
+import android.accessibilityservice.GestureDescription;
 import android.content.Intent;
+import android.graphics.Path;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
@@ -60,6 +62,7 @@ public class MagenAccessibilityService extends AccessibilityService {
     private ContentFilter contentFilter;
     private BehaviorAnalyzer behaviorAnalyzer;
     private VisualShieldEngine visualShield;
+    private final ShortFormSkipGuard shortFormSkipGuard = new ShortFormSkipGuard();
     private final AhoCorasick matcher = new AhoCorasick();
     private final android.os.Handler mainHandler =
         new android.os.Handler(android.os.Looper.getMainLooper());
@@ -104,6 +107,8 @@ public class MagenAccessibilityService extends AccessibilityService {
         "com.ss.android.ugc.trill",
         "com.instagram.android",
         "com.facebook.android",
+        "com.facebook.katana",
+        "com.facebook.lite",
         "com.snapchat.android",
         "com.twitter.android",
         "com.reddit.frontpage",
@@ -202,6 +207,13 @@ public class MagenAccessibilityService extends AccessibilityService {
 
         String pkg = event.getPackageName() != null ? event.getPackageName().toString() : "";
         String className = event.getClassName() != null ? event.getClassName().toString() : "";
+
+        // A real accessibility scroll confirms that a previous one-shot short-form skip
+        // advanced the feed. This is the main anti-loop signal: without it, Magen will not
+        // issue another automatic swipe for the same pending item.
+        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+            shortFormSkipGuard.markScrolled(pkg, SystemClock.elapsedRealtime());
+        }
 
         // ColorOS/Android may render the final "Disable accessibility service?"
         // confirmation from package "android" instead of Settings. Catch that
@@ -794,10 +806,107 @@ public class MagenAccessibilityService extends AccessibilityService {
 
         lastContentBlockPkg = pkg;
         lastContentBlockTime = SystemClock.elapsedRealtime();
-        MagenVisualCurtain.show(this, result.label);
         ServerEventReporter.report(this, "VISUAL_BLOCK_LOCAL", "HIGH",
             "package=" + pkg + " " + result.compact());
         ContentIncidentReporter.reportVisualBlock(this, pkg, result);
+
+        // Short-form feeds are handled differently: instead of closing the whole app for one
+        // bad clip, Magen performs exactly one upward swipe. The state machine below refuses to
+        // repeat that swipe until a real scroll event confirms the feed advanced, and a circuit
+        // breaker stops a run of many unsafe clips from turning into an endless auto-scroll loop.
+        if (tryAutoSkipShortForm(pkg, result)) return;
+
+        hardBlockVisual(pkg, result);
+    }
+
+    private boolean tryAutoSkipShortForm(String pkg, NsfwResult result) {
+        if (!isShortFormFeed(pkg)) return false;
+
+        long now = SystemClock.elapsedRealtime();
+        long signature = currentShortFormSignature(pkg);
+        ShortFormSkipGuard.Decision decision = shortFormSkipGuard.evaluate(pkg, signature, now);
+
+        if (decision == ShortFormSkipGuard.Decision.COOLDOWN) {
+            // The previous one-shot swipe is still in flight. Do not block and, critically, do
+            // not dispatch another gesture.
+            return true;
+        }
+        if (decision == ShortFormSkipGuard.Decision.WAITING_FOR_ADVANCE ||
+                decision == ShortFormSkipGuard.Decision.SAME_ITEM) {
+            ServerEventReporter.report(this, "SHORTFORM_AUTOSKIP_NO_ADVANCE", "MEDIUM",
+                "package=" + pkg + " decision=" + decision.name());
+            return false;
+        }
+        if (decision == ShortFormSkipGuard.Decision.CIRCUIT_OPEN) {
+            ServerEventReporter.report(this, "SHORTFORM_AUTOSKIP_CIRCUIT", "HIGH",
+                "package=" + pkg + " cooldown_ms=" + shortFormSkipGuard.circuitRemainingMs(now));
+            return false;
+        }
+
+        MagenVisualCurtain.showAutoSkip(this, result.label);
+        ServerEventReporter.report(this, "SHORTFORM_AUTO_SKIP", "HIGH",
+            "package=" + pkg + " source=visual one_shot=true");
+
+        int width = Math.max(1, getResources().getDisplayMetrics().widthPixels);
+        int height = Math.max(1, getResources().getDisplayMetrics().heightPixels);
+        float x = width * 0.50f;
+        Path path = new Path();
+        path.moveTo(x, height * 0.78f);
+        path.lineTo(x, height * 0.22f);
+        GestureDescription gesture = new GestureDescription.Builder()
+            .addStroke(new GestureDescription.StrokeDescription(path, 0L, 320L))
+            .build();
+
+        boolean accepted;
+        try {
+            accepted = dispatchGesture(gesture, new AccessibilityService.GestureResultCallback() {
+                @Override public void onCompleted(GestureDescription gestureDescription) {
+                    ServerEventReporter.report(MagenAccessibilityService.this,
+                        "SHORTFORM_AUTO_SKIP_COMPLETED", "INFO", "package=" + pkg);
+                    mainHandler.postDelayed(MagenVisualCurtain::hide, 650L);
+                }
+
+                @Override public void onCancelled(GestureDescription gestureDescription) {
+                    shortFormSkipGuard.markGestureFailed(pkg, SystemClock.elapsedRealtime());
+                    ServerEventReporter.report(MagenAccessibilityService.this,
+                        "SHORTFORM_AUTO_SKIP_CANCELLED", "MEDIUM", "package=" + pkg);
+                    mainHandler.post(() -> {
+                        MagenVisualCurtain.hide();
+                        hardBlockVisualIfStillForeground(pkg, result);
+                    });
+                }
+            }, null);
+        } catch (RuntimeException e) {
+            accepted = false;
+            Log.w(TAG, "short-form auto-skip dispatch failed", e);
+        }
+
+        if (!accepted) {
+            shortFormSkipGuard.markGestureFailed(pkg, SystemClock.elapsedRealtime());
+            MagenVisualCurtain.hide();
+            ServerEventReporter.report(this, "SHORTFORM_AUTO_SKIP_REJECTED", "MEDIUM",
+                "package=" + pkg);
+            return false;
+        }
+
+        // Safety hide in case an OEM never invokes the gesture callback. No retry is scheduled.
+        mainHandler.postDelayed(MagenVisualCurtain::hide, 1_100L);
+        return true;
+    }
+
+    private void hardBlockVisualIfStillForeground(String pkg, NsfwResult result) {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        try {
+            if (root == null || root.getPackageName() == null ||
+                    !pkg.equals(root.getPackageName().toString())) return;
+        } finally {
+            if (root != null) root.recycle();
+        }
+        hardBlockVisual(pkg, result);
+    }
+
+    private void hardBlockVisual(String pkg, NsfwResult result) {
+        MagenVisualCurtain.show(this, result.label);
         performGlobalAction(GLOBAL_ACTION_BACK);
         performGlobalAction(GLOBAL_ACTION_HOME);
         mainHandler.postDelayed(() -> {
@@ -808,6 +917,67 @@ public class MagenAccessibilityService extends AccessibilityService {
                 startActivity(i);
             } catch (Exception ignored) {}
         }, 180L);
+    }
+
+    private boolean isShortFormFeed(String pkg) {
+        if (pkg == null || pkg.isEmpty()) return false;
+        // TikTok's primary surface is a vertical one-item feed, so no fragile UI marker is needed.
+        if (pkg.equals("com.zhiliaoapp.musically") || pkg.equals("com.ss.android.ugc.trill")) {
+            return true;
+        }
+
+        boolean candidate = pkg.equals("com.google.android.youtube") ||
+            pkg.equals("com.instagram.android") ||
+            pkg.equals("com.facebook.android") ||
+            pkg.equals("com.facebook.katana") ||
+            pkg.equals("com.facebook.lite") ||
+            pkg.equals("com.snapchat.android");
+        if (!candidate) return false;
+
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return false;
+        try {
+            if (pkg.equals("com.google.android.youtube")) {
+                return findText(root, "Shorts");
+            }
+            if (pkg.equals("com.instagram.android") || pkg.startsWith("com.facebook.")) {
+                return findText(root, "Reels") || findText(root, "רילס");
+            }
+            return findText(root, "Spotlight") || findText(root, "זרקור");
+        } finally {
+            root.recycle();
+        }
+    }
+
+    /**
+     * Local-only stable-ish signature for the current short item. It is never logged or sent to
+     * the VPS. Removing digits makes like/view counters less likely to turn the same clip into a
+     * different item merely because a counter changed.
+     */
+    private long currentShortFormSignature(String pkg) {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return 0L;
+        try {
+            String text = collectVisibleText(root, 1200);
+            if (text == null) return 0L;
+            String normalized = text.toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("\\p{Nd}+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+            if (normalized.length() < 12) return 0L;
+            return fnv1a64(pkg + "|" + normalized);
+        } finally {
+            root.recycle();
+        }
+    }
+
+    private static long fnv1a64(String value) {
+        long h = 0xcbf29ce484222325L;
+        for (int i = 0; i < value.length(); i++) {
+            h ^= value.charAt(i);
+            h *= 0x100000001b3L;
+        }
+        return h;
     }
 
     private void block() {

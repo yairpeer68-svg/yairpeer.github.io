@@ -1,4 +1,4 @@
-# START HERE — Magen Phone v4.5.1 Audited HTTPS Inspection
+# START HERE — Magen Phone v4.5.2 Audited HTTPS Inspection + Short-form Auto Skip
 
 1. ודא שה־VPS זמין על `https://51.20.205.229:8443`.
 2. לשרת קיים ששודרג אין צורך להחליף CA או pairing.

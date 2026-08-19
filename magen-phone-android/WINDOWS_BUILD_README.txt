@@ -1,4 +1,4 @@
-Magen v4.5.1 — Windows Production Build + Audited HTTPS Inspection
+Magen v4.5.2 — Windows Production Build + Audited HTTPS Inspection + Short-form Auto Skip
 =======================================
 
 Run:

@@ -163,7 +163,7 @@ function Initialize-ReleaseSigning([string]$JavaHome, [string]$ProjectDir) {
 
 $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ProjectDir
-Info 'Windows APK builder v4.5.1-audited-https-inspection-8443'
+Info 'Windows APK builder v4.5.2-shortform-autoskip-8443'
 Info "Project: $ProjectDir"
 
 $JavaHome = Find-JavaHome
@@ -325,7 +325,7 @@ if ($LASTEXITCODE -ne 0) { Fail 'Gradle release APK build failed.' }
 
 $builtApk = Join-Path $ProjectDir 'app\build\outputs\apk\release\app-release.apk'
 if (-not (Test-Path $builtApk)) { Fail "Build succeeded but APK was not found at $builtApk" }
-$outName = 'magen-v4.5.1-audited-https-inspection-8443-release.apk'
+$outName = 'magen-v4.5.2-shortform-autoskip-8443-release.apk'
 $outApk = Join-Path $ProjectDir $outName
 Copy-Item $builtApk $outApk -Force
 
