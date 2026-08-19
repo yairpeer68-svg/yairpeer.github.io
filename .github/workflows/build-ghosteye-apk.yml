@@ -1,0 +1,62 @@
+name: Build Ghost Eye APK
+
+on:
+  push:
+    branches: [ "main", "claude/github-apk-build-uyzghz" ]
+    paths: [ "ghosteye-android/**", ".github/workflows/build-ghosteye-apk.yml" ]
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "כתובת השרת (חייבת להתחיל ב-https://)"
+        required: false
+        default: "https://51.20.205.229"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        working-directory: ghosteye-android
+        run: gradle assembleDebug --no-daemon -PAPI_BASE_URL=${{ inputs.api_base_url || 'https://51.20.205.229' }}
+
+      - name: Rename APK
+        run: cp ghosteye-android/app/build/outputs/apk/debug/app-debug.apk ghosteye.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghosteye-apk
+          path: ghosteye.apk
+          retention-days: 30
+
+      - name: Publish latest APK as release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ghosteye-latest
+          name: "Ghost Eye Phone 10.1.1 — גרסה אחרונה (APK)"
+          body: |
+            👁️ הגרסה האחרונה של Ghost Eye Phone לאנדרואיד (10.1.1).
+
+            **התקנה:** הורד את `ghosteye.apk` מלמטה, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
+
+            שרת: `https://51.20.205.229` · אנדרואיד 8.0 ומעלה.
+          files: ghosteye.apk
+          prerelease: false
+          make_latest: false

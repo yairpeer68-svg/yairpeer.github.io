@@ -1,0 +1,5 @@
+Ghost Eye Phone 10.1.1
+Production API: https://51.20.205.229
+Registration: disabled
+Authentication: password-only owner login; owner identity is resolved server-side
+Displayed account: ******er68

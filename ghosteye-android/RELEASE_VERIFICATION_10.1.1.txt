@@ -1,0 +1,29 @@
+Ghost Eye Phone 10.1.1 - VERIFIED SOURCE RELEASE
+================================================
+Verification date: 2026-08-19
+
+Source review scope
+-------------------
+- Entire Android source tree scanned.
+- 40 text/source/config files, 2,881 lines reviewed by static gates.
+- versionCode 15 / versionName 10.1.1
+- HTTPS-only API base enforced in Gradle
+- android:usesCleartextTraffic="false"
+- full owner email is not embedded in Android source
+- UI displays only masked owner label
+- Android endpoint list compared with actual FastAPI route table: all referenced routes exist
+- no TODO/FIXME, `!!`, GlobalScope, runBlocking, cleartext API URLs or hard-coded Gmail address found in app source
+- Kotlin compiler parse pass was attempted; Android/Compose classes are unavailable in this verification container, so unresolved Android symbols are expected.
+
+Functional source gates
+-----------------------
+- password-only single-user login contract matches server /api/v1/auth/login-owner
+- synchronized refresh-token rotation path reviewed
+- encrypted atomic session persistence path reviewed
+- upload uses streaming request body, bounded long-upload timeouts and idempotency key
+- cancellation-safe Dashboard/screens and retry monitoring paths reviewed
+- API/JSON parsing fails to controlled UI errors rather than uncaught Activity exceptions
+
+Build limitation
+----------------
+A complete `assembleDebug`/`assembleRelease` cannot be executed here because the Android SDK/Gradle dependencies are not available and the environment cannot resolve services.gradle.org. BUILD_PHONE_WINDOWS.bat is included for the real Windows/Android SDK build gate.

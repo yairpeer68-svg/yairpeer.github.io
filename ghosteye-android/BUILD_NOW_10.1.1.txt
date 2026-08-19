@@ -1,0 +1,16 @@
+Ghost Eye Phone 10.1.1 - Verified build
+=======================================
+
+Windows:
+  BUILD_PHONE_WINDOWS.bat
+
+APK output:
+  app\\build\\outputs\\apk\\debug\\app-debug.apk
+
+Optional connected-device verification (USB debugging):
+  VERIFY_PHONE_WINDOWS.bat
+
+Server target:
+  https://51.20.205.229
+
+The owner email is not embedded in the Android source; the UI displays only the masked owner label.
