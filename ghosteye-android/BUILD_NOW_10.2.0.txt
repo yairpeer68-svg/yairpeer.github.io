@@ -1,0 +1,4 @@
+Ghost Eye Phone 10.2.0
+1. Run BUILD_PHONE_WINDOWS.bat
+2. Install app\build\outputs\apk\debug\app-debug.apk
+3. Verify login, file analysis, Target Scan, result details and delete controls.

@@ -1,0 +1,19 @@
+Ghost Eye Phone 11.1.0 — Case Workspace + Intelligence Automation
+
+Static verification completed in the build workspace:
+- Version name: 11.1.0
+- versionCode: 25
+- AndroidX enabled
+- Java target: 17
+- Kotlin target: 17
+- 24 Kotlin files / 6056 Kotlin lines
+- String/comment-aware delimiter validation: PASS
+- Android XML parsing: PASS
+- Duplicate imports: 0
+- Kotlin non-null assertions (!!): 0
+- Full owner email in app source/resources: not found
+- Server IP in visible Kotlin/XML UI: not found
+- Case entity-search URL builder uses OkHttp HttpUrl parsing
+
+Not claimed in this workspace:
+- Full Gradle assembleDebug/assembleRelease and device runtime testing require the user's Windows Android SDK/device.

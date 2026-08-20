@@ -1,0 +1,17 @@
+Ghost Eye Phone 10.5.0 — Windows build
+
+1. Extract the ZIP to a new folder.
+2. Open CMD inside the ghost-eye-phone folder.
+3. Run:
+
+BUILD_PHONE_WINDOWS.bat
+
+Expected APK:
+app\build\outputs\apk\debug\app-debug.apk
+
+Requirements:
+- Temurin JDK 21 installed under C:\Program Files\Eclipse Adoptium\jdk-21*
+- Android SDK with platform 35 and Build Tools 34+
+- Internet may be needed on the first Gradle build to obtain dependencies.
+
+The app uses only two main tabs: קובץ and דומיין.

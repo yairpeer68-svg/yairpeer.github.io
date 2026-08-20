@@ -1,0 +1,16 @@
+Ghost Eye Phone 11.0.0 — Windows build
+
+Testing APK:
+  BUILD_PHONE_WINDOWS.bat
+Output:
+  app\build\outputs\apk\debug\app-debug.apk
+
+Production signed APK + AAB:
+  1. Run GENERATE_RELEASE_KEYSTORE_WINDOWS.bat once (or use your existing secure keystore).
+  2. Copy keystore.properties.example to keystore.properties and fill it locally.
+  3. Run BUILD_RELEASE_WINDOWS.bat
+Outputs:
+  app\build\outputs\apk\release\app-release.apk
+  app\build\outputs\bundle\release\app-release.aab
+
+Never send the keystore or its passwords in chat and do not add keystore.properties to source control.

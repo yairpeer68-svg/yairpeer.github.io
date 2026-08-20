@@ -1,0 +1,25 @@
+Ghost Eye Phone 11.0.0 — Autonomous Intelligence Release Verification
+
+Static/build-workspace verification:
+- Version name: 11.0.0
+- versionCode: 24
+- Java bytecode target: 17
+- Kotlin JVM target: 17
+- Main bottom tabs: exactly File + Domain
+- Kotlin files: 23
+- Kotlin source lines: 5460
+- Duplicate Kotlin imports: 0
+- Kotlin delimiter/string/comment structure scan: PASS
+- Kotlin parser pass: no syntax/"expecting"/conflicting-import diagnostics detected (Android/Compose symbols are unresolved in this non-Android workspace, as expected)
+- Android XML parsing: PASS
+- AndroidX enabled: PASS
+- Invalid throw@withContext pattern: NOT FOUND
+- TODO/FIXME in app source/resources: 0
+- Full owner email in app source: NOT FOUND
+- Server IP in visible Android source: NOT FOUND
+- 11.0 intelligence/snapshot API client contract strings: PASS
+- Release minification/resource shrinking configured: PASS
+- Local release signing workflow provided without bundled keystore secrets: PASS
+
+Limitation:
+- A complete Android assembleDebug/assembleRelease cannot be run in this workspace because the Android SDK/Compose toolchain is not installed here. Build on Windows with BUILD_PHONE_WINDOWS.bat; then run VERIFY_PHONE_WINDOWS.bat on the installed APK/device to catch runtime crashes.

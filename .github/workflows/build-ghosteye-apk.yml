@@ -1,0 +1,50 @@
+name: Build Ghost Eye APK
+
+on:
+  push:
+    branches: [ "main", "claude/app-conversion-msqqul" ]
+    paths: [ "ghosteye-android/**", ".github/workflows/build-ghosteye-apk.yml" ]
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "כתובת השרת (HTTPS). ריק = ברירת המחדל שבפרויקט"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Build debug APK
+        working-directory: ghosteye-android
+        env:
+          API_BASE_URL: ${{ github.event.inputs.api_base_url }}
+        run: |
+          if [ -n "$API_BASE_URL" ]; then
+            gradle assembleDebug --no-daemon -PAPI_BASE_URL="$API_BASE_URL"
+          else
+            gradle assembleDebug --no-daemon
+          fi
+
+      - name: Rename APK
+        run: cp ghosteye-android/app/build/outputs/apk/debug/app-debug.apk ghost-eye.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghost-eye-apk
+          path: ghost-eye.apk
+          retention-days: 30

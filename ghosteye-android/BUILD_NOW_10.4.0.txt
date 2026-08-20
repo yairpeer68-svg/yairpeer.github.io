@@ -1,0 +1,11 @@
+Ghost Eye Phone 10.4.0 — Windows Build
+======================================
+
+Open CMD inside the ghost-eye-phone folder and run:
+
+  BUILD_PHONE_WINDOWS.bat
+
+The script detects Temurin JDK 21 and runs a clean debug build.
+Expected APK:
+
+  app\build\outputs\apk\debug\app-debug.apk

@@ -1,0 +1,16 @@
+Ghost Eye Phone 10.2.0 - SOURCE VERIFICATION
+
+Verified in this environment:
+- Kotlin source delimiter/syntax pass (no parser-level "expecting" errors)
+- Android XML parses successfully
+- versionCode 16 / versionName 10.2.0
+- usesCleartextTraffic=false
+- no public server IP in UI Kotlin/resources/docs
+- no full owner email in phone source
+- supplied Ghost Eye logo included in launcher/splash/login/header resources
+- selectable target-scan UI present
+- full intelligence result UI present
+- delete controls present for jobs/scans/projects/cases/reports/audit/local crash log
+
+Limitation:
+A full Gradle assembleDebug/assembleRelease was not possible in this environment because Android SDK/Gradle dependencies are unavailable. Build the final APK on Windows with BUILD_PHONE_WINDOWS.bat.
