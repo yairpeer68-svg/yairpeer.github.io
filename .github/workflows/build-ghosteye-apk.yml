@@ -11,9 +11,14 @@ on:
         required: false
         default: ""
 
+concurrency:
+  group: ghosteye-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -32,11 +37,15 @@ jobs:
         working-directory: ghosteye-android
         env:
           API_BASE_URL: ${{ github.event.inputs.api_base_url }}
+          # material-icons-extended is large; the project default of 2g starves
+          # Kotlin compilation and D8 dexing on a 2-core runner.
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g"
         run: |
+          ARGS="assembleDebug --no-daemon --console=plain --stacktrace"
           if [ -n "$API_BASE_URL" ]; then
-            gradle assembleDebug --no-daemon -PAPI_BASE_URL="$API_BASE_URL"
+            gradle $ARGS -PAPI_BASE_URL="$API_BASE_URL"
           else
-            gradle assembleDebug --no-daemon
+            gradle $ARGS
           fi
 
       - name: Rename APK
