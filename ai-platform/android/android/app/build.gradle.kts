@@ -41,6 +41,10 @@ android {
                         "or pass -PALLOW_UNSIGNED_RELEASE=true to accept a debug-signed release build."
                     )
                 }
+                // Fall back to the debug key. Leaving signingConfig unset produces an
+                // UNSIGNED apk, which Android refuses to install at all - the artifact
+                // would look fine and be useless on a device.
+                signingConfig = signingConfigs.getByName("debug")
                 logger.warn("Release build is debug-signed: ALLOW_UNSIGNED_RELEASE=true")
             }
             isMinifyEnabled = true; isShrinkResources = true
