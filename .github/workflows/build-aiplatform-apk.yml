@@ -73,8 +73,11 @@ jobs:
           # so the artifact is rejected here rather than shipped.
           apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
           "$apksigner" verify --print-certs "$apk"
-          unzip -p "$apk" AndroidManifest.xml | strings | grep -q 'com.aiplatform.app' \
-            || { echo "::error::Package id missing from the manifest"; exit 1; }
+          # aapt2, not `strings`: the binary manifest stores its string pool as UTF-16,
+          # which `strings` skips by default.
+          aapt2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -1)"
+          "$aapt2" dump packagename "$apk"
+          test "$("$aapt2" dump packagename "$apk")" = "com.aiplatform.app"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
