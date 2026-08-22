@@ -61,9 +61,18 @@ jobs:
           # No upload keystore is configured, so this is debug-signed: installable by
           # sideloading, but not publishable and not upgradable in place.
           flutter build apk --release $defines -PALLOW_UNSIGNED_RELEASE=true
+          # Also emit per-ABI APKs. The universal build carries native code for three
+          # architectures and lands around 48MB; a single-ABI APK is roughly a third of
+          # that, which matters on mobile data and for attachment size limits.
+          flutter build apk --release --split-per-abi $defines -PALLOW_UNSIGNED_RELEASE=true
 
-      - name: Name the artifact
-        run: cp build/app/outputs/flutter-apk/app-release.apk "$GITHUB_WORKSPACE/ai-platform.apk"
+      - name: Name the artifacts
+        run: |
+          out=build/app/outputs/flutter-apk
+          cp "$out/app-release.apk" "$GITHUB_WORKSPACE/ai-platform.apk"
+          cp "$out/app-arm64-v8a-release.apk" "$GITHUB_WORKSPACE/ai-platform-arm64.apk"
+          cp "$out/app-armeabi-v7a-release.apk" "$GITHUB_WORKSPACE/ai-platform-arm32.apk"
+          ls -lh "$GITHUB_WORKSPACE"/ai-platform*.apk
 
       - name: Verify the APK is signed and installable
         run: |
@@ -72,7 +81,11 @@ jobs:
           # An unsigned APK builds cleanly and then cannot be installed on any device,
           # so the artifact is rejected here rather than shipped.
           apksigner="$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)"
-          "$apksigner" verify --print-certs "$apk"
+          for f in "$GITHUB_WORKSPACE"/ai-platform*.apk; do
+            echo "== $f"
+            sha256sum "$f"
+            "$apksigner" verify --print-certs "$f"
+          done
           # aapt2, not `strings`: the binary manifest stores its string pool as UTF-16,
           # which `strings` skips by default.
           aapt2="$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -1)"
@@ -83,7 +96,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ai-platform-apk
-          path: ai-platform.apk
+          path: |
+            ai-platform.apk
+            ai-platform-arm64.apk
+            ai-platform-arm32.apk
           retention-days: 30
           if-no-files-found: error
 
@@ -95,7 +111,15 @@ jobs:
           body: |
             🤖 **AI Platform 2.1.1** — לקוח אנדרואיד.
 
-            **התקנה:** הורד את `ai-platform.apk`, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
+            **התקנה:** הורד APK, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
+
+            | קובץ | מתאים ל | גודל |
+            |---|---|---|
+            | `ai-platform-arm64.apk` | כל טלפון מודרני (מומלץ) | ~17MB |
+            | `ai-platform-arm32.apk` | מכשירים ישנים (32 סיביות) | ~15MB |
+            | `ai-platform.apk` | אוניברסלי — עובד על הכל | ~48MB |
+
+            אם אינך בטוח — קח את `ai-platform-arm64.apk`.
 
             **הפעלה ראשונה:** האפליקציה תבקש את כתובת השרת שלך. הזן את הדומיין
             (לדוגמה `api.example.com`) — היא תשלים לבד את הנתיב, תבדוק שהשרת עונה
@@ -105,6 +129,9 @@ jobs:
 
             ⚠️ ה־APK חתום במפתח debug. הוא מותקן בסייד־לואד אך אינו ניתן לפרסום
             בחנות ולא לעדכון במקום. ליצירת מפתח חתימה — ראה `ai-platform/docs/ANDROID.md`.
-          files: ai-platform.apk
+          files: |
+            ai-platform.apk
+            ai-platform-arm64.apk
+            ai-platform-arm32.apk
           prerelease: false
           make_latest: false
