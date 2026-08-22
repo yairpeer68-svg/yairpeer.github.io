@@ -9,7 +9,10 @@ if (keystorePropertiesFile.exists()) { FileInputStream(keystorePropertiesFile).u
 android {
     namespace = "com.aiplatform.app"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // file_picker, flutter_secure_storage, path_provider_android and
+    // flutter_plugin_android_lifecycle all require 27.x; the Flutter default is 26.x and
+    // the build warns on every run. NDK releases are backward compatible.
+    ndkVersion = "27.0.12077973"
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = JavaVersion.VERSION_17.toString() }
     defaultConfig { applicationId = "com.aiplatform.app"; minSdk = 23; targetSdk = flutter.targetSdkVersion; versionCode = flutter.versionCode; versionName = flutter.versionName }
