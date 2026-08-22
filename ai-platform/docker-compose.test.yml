@@ -1,0 +1,26 @@
+name: ai-platform-test
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment: {POSTGRES_DB: ai_platform_test, POSTGRES_USER: ai_platform, POSTGRES_PASSWORD: ai_platform_test}
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U ai_platform -d ai_platform_test"], interval: 3s, timeout: 3s, retries: 30}
+    networks: [testnet]
+  redis:
+    image: redis:7.4-alpine
+    healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 3s, timeout: 3s, retries: 30}
+    networks: [testnet]
+  tests:
+    build: {context: ./server, dockerfile: Dockerfile.test}
+    environment:
+      APP_ENV: test
+      DATABASE_URL: postgresql+asyncpg://ai_platform:ai_platform_test@postgres:5432/ai_platform_test
+      REDIS_URL: redis://redis:6379/15
+      JWT_SECRET: integration-test-secret-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      TRUSTED_HOSTS: localhost,127.0.0.1
+      CORS_ORIGINS: http://localhost:5173
+      DEEPSEEK_API_KEY: integration-mocked-key
+      RUN_INTEGRATION: "1"
+      AI_PROVIDER_MODE: mock
+    depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}}
+    networks: [testnet]
+networks: {testnet: {}}

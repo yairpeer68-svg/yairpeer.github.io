@@ -1,0 +1,16 @@
+services:
+  nginx:
+    ports: ["80:8080", "443:8443"]
+    volumes:
+      - ./deploy/nginx/nginx.prod.conf:/etc/nginx/templates/default.conf.template:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    environment:
+      SERVER_NAME: "${SERVER_NAME}"
+      ENGINEERING_MAX_ARCHIVE_MB: "${ENGINEERING_MAX_ARCHIVE_MB:-100}"
+  api:
+    environment: {APP_ENV: production}
+  worker:
+    environment: {APP_ENV: production}
+  scheduler:
+    environment: {APP_ENV: production}

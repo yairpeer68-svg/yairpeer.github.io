@@ -1,0 +1,10 @@
+.dart_tool/
+.packages
+build/
+android/local.properties
+android/key.properties
+android/.gradle/
+*.iml
+.idea/
+.flutter-plugins
+.flutter-plugins-dependencies

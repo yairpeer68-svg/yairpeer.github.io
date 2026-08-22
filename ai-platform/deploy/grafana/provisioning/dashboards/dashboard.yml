@@ -1,0 +1,6 @@
+apiVersion: 1
+providers:
+  - name: AI Platform
+    folder: AI Platform
+    type: file
+    options: {path: /var/lib/grafana/dashboards}

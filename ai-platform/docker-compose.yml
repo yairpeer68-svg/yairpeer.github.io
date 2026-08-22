@@ -1,0 +1,116 @@
+name: ai-platform
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"], interval: 10s, timeout: 5s, retries: 10}
+    networks: [backend]
+    restart: unless-stopped
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server","--appendonly","yes","--save","60","1","--maxmemory-policy","noeviction"]
+    volumes: [redis_data:/data]
+    healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 10s, timeout: 3s, retries: 10}
+    networks: [backend]
+    restart: unless-stopped
+  workspace-init:
+    image: alpine:3.20
+    command: ["sh","-c","mkdir -p /workspaces && chown -R 10001:10001 /workspaces"]
+    volumes: [engineering_workspaces:/workspaces]
+    restart: "no"
+  runner:
+    build: {context: ./runner, dockerfile: "${RUNNER_DOCKERFILE:-Dockerfile}"}
+    environment:
+      RUNNER_TOKEN: ${ENGINEERING_RUNNER_TOKEN}
+      WORKSPACE_ROOT: /workspaces
+      RUNNER_ALLOWED_COMMANDS: ${ENGINEERING_ALLOWED_COMMANDS:-python,python3,pytest,ruff,mypy,git,npm,npx,node,dart,flutter,gradle,./gradlew}
+      RUNNER_MAX_TIMEOUT: ${ENGINEERING_COMMAND_TIMEOUT_SECONDS:-180}
+      RUNNER_CONCURRENCY: ${ENGINEERING_RUNNER_CONCURRENCY:-3}
+      RUNNER_MEMORY_LIMIT_BYTES: "${RUNNER_MEMORY_LIMIT_BYTES:-3221225472}"
+      RUNNER_CPU_SECONDS: "${RUNNER_CPU_SECONDS:-600}"
+    depends_on: {workspace-init: {condition: service_completed_successfully}}
+    volumes: [engineering_workspaces:/workspaces]
+    networks: [runner]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    pids_limit: 512
+    mem_limit: "${RUNNER_MEM_LIMIT:-4g}"
+    cpus: "${RUNNER_CPUS:-2.0}"
+    restart: unless-stopped
+  api:
+    build: {context: ./server}
+    env_file: .env
+    depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}, workspace-init: {condition: service_completed_successfully}}
+    volumes: [engineering_workspaces:/workspaces]
+    expose: ["8080"]
+    networks: [backend, edge]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: "${API_MEM_LIMIT:-1g}"
+    restart: unless-stopped
+  scheduler:
+    build: {context: ./server}
+    command: ["python","-m","app.workers.scheduler"]
+    env_file: .env
+    depends_on: {redis: {condition: service_healthy}, worker: {condition: service_started}}
+    networks: [backend]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    restart: unless-stopped
+  worker:
+    build: {context: ./server}
+    command: ["dramatiq","app.workers.worker","--processes","2","--threads","4"]
+    env_file: .env
+    depends_on: {postgres: {condition: service_healthy}, redis: {condition: service_healthy}, workspace-init: {condition: service_completed_successfully}, runner: {condition: service_started}}
+    volumes: [engineering_workspaces:/workspaces]
+    networks: [backend, egress, runner]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: "${WORKER_MEM_LIMIT:-1g}"
+    restart: unless-stopped
+  nginx:
+    build: {context: ., dockerfile: deploy/nginx/Dockerfile}
+    depends_on: [api]
+    environment:
+      ENGINEERING_MAX_ARCHIVE_MB: "${ENGINEERING_MAX_ARCHIVE_MB:-100}"
+    ports: ["127.0.0.1:8080:8080"]
+    networks: [edge]
+    read_only: true
+    tmpfs: [/var/cache/nginx, /var/run, /tmp]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    restart: unless-stopped
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    profiles: [observability]
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes: ["./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"]
+    networks: [backend]
+    restart: unless-stopped
+  grafana:
+    image: grafana/grafana:12.1.1
+    profiles: [observability]
+    environment: {GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-change-me}", GF_USERS_ALLOW_SIGN_UP: "false"}
+    volumes: ["grafana_data:/var/lib/grafana", "./deploy/grafana/provisioning:/etc/grafana/provisioning:ro", "./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro"]
+    ports: ["127.0.0.1:3000:3000"]
+    networks: [backend]
+    restart: unless-stopped
+networks:
+  backend: {internal: true}
+  runner: {internal: true}
+  edge: {}
+  egress: {}
+volumes: {postgres_data: {}, redis_data: {}, grafana_data: {}, engineering_workspaces: {}}

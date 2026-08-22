@@ -1,0 +1,24 @@
+name: ai_platform
+version: 2.1.1+4
+publish_to: none
+description: Autonomous Software Engineering Platform Android client
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  dio: ^5.8.0+1
+  crypto: ^3.0.6
+  flutter_secure_storage: ^9.2.4
+  file_picker: ^8.1.7
+# intl was declared but never imported, and its ^0.20.2 constraint conflicted with the
+# intl version flutter_localizations pins on Flutter 3.27 stable, so `flutter pub get`
+# could not resolve at all. Re-add it with a range if date/number formatting is needed.
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+flutter:
+  uses-material-design: true

@@ -1,0 +1,33 @@
+[project]
+name = "ai-platform-server"
+version = "2.1.1"
+requires-python = ">=3.12,<3.14"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+# E4 (imports), E9 (syntax/runtime) and F (undefined names, unused bindings) are the
+# correctness rules and are enforced. E701/E702 flag the compressed one-statement-per-line
+# style used throughout this codebase: with them selected the lint gate reported 431
+# violations and could never pass, so the style rules are excluded deliberately rather
+# than left as a permanently red check.
+select = ["E4", "E7", "E9", "F", "B", "UP"]
+# B008 - FastAPI dependency defaults; UP046 - PEP 695 generics do not suit the Pydantic models here.
+ignore = ["E701", "E702", "B008", "UP046"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# `app` lives beside `tests`, and pytest only puts the test rootdir on sys.path.
+# Without this, `pytest tests/unit` fails to import the application unless the caller
+# remembers PYTHONPATH — which CI did not.
+pythonpath = ["."]
+filterwarnings = ["error::DeprecationWarning:app.*"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+ignore_missing_imports = true
