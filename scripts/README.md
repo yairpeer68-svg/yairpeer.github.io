@@ -1,35 +1,57 @@
 # scripts
 
-## `yt-playlist-dl.sh` — הורדת פלייליסט מיוטיוב עם עמידות ל‑403
+## הורדת פלייליסט מיוטיוב עם עמידות ל‑403
+
+שתי גרסאות של אותו כלי, עם אותה התנהגות ואותן אפשרויות:
+
+| קובץ | מה זה |
+|---|---|
+| `yt_playlist_dl.py` | Python, משתמש ב‑`yt-dlp` כספרייה |
+| `yt-playlist-dl.sh` | Bash, עוטף את `yt-dlp` כפקודה |
 
 ### התקנה
 
 ```bash
 pipx install yt-dlp        # או: pip install -U yt-dlp / brew install yt-dlp
 brew install ffmpeg        # או: sudo apt install ffmpeg
-chmod +x scripts/yt-playlist-dl.sh
 ```
+
+> לגרסת ה‑Python צריך ש‑`yt-dlp` יהיה מותקן באותו Python שמריץ את הסקריפט
+> (`pip install -U yt-dlp`), ולא רק כ‑binary דרך `pipx`/`brew`.
 
 ### שימוש
 
 ```bash
 # הורדה רגילה עד 1080p
-./scripts/yt-playlist-dl.sh "https://www.youtube.com/playlist?list=PLxxxx"
+python3 scripts/yt_playlist_dl.py "https://www.youtube.com/playlist?list=PLxxxx"
 
 # אודיו בלבד (mp3) לתיקייה מסוימת, עם עדכון yt-dlp לפני
-./scripts/yt-playlist-dl.sh "https://youtube.com/playlist?list=PLxxxx" -o ~/Music -a -U
+python3 scripts/yt_playlist_dl.py "URL" -o ~/Music -a -U
 
 # עם cookies מהדפדפן והאטת קצב — הקומבינציה שהכי עוזרת מול חסימות
-./scripts/yt-playlist-dl.sh "https://youtube.com/playlist?list=PLxxxx" -c firefox -r 2M
+python3 scripts/yt_playlist_dl.py "URL" -c firefox -r 2M
 
 # רק פריטים 1‑10, עם כתוביות
-./scripts/yt-playlist-dl.sh "https://youtube.com/playlist?list=PLxxxx" -i 1-10 -s
-
-# להעביר דגלים נוספים ישירות ל-yt-dlp
-./scripts/yt-playlist-dl.sh "https://youtube.com/playlist?list=PLxxxx" -- --write-thumbnail
+python3 scripts/yt_playlist_dl.py "URL" -i 1-10 -s
 ```
 
-`-h` מציג את רשימת האפשרויות המלאה.
+אותן פקודות בדיוק בגרסת ה‑Bash:
+
+```bash
+chmod +x scripts/yt-playlist-dl.sh
+./scripts/yt-playlist-dl.sh "URL" -o ~/Music -a -U
+./scripts/yt-playlist-dl.sh "URL" -- --write-thumbnail   # דגלים נוספים ישירות ל-yt-dlp
+```
+
+`-h` מציג את רשימת האפשרויות המלאה בשתי הגרסאות.
+
+### איזו גרסה לבחור
+
+שתיהן עושות את אותו דבר. ה‑Python נוחה יותר לעריכה ולשילוב בקוד אחר
+(אפשר לייבא את `build_opts` ו‑`attempt` ולהשתמש בהן), ובגרסה הזו `-U`
+מעדכן את `yt-dlp` ואז מריץ את התהליך מחדש כדי לטעון את הגרסה החדשה.
+ה‑Bash לא דורש שום דבר מעבר ל‑`yt-dlp` ב‑PATH, ומאפשר להעביר דגלים
+נוספים ל‑`yt-dlp` אחרי `--`.
 
 ### למה מקבלים 403 ואיך הסקריפט מטפל בזה
 
@@ -39,12 +61,12 @@ chmod +x scripts/yt-playlist-dl.sh
 
 | סיבה | מה הסקריפט עושה |
 |---|---|
-| cache מקומי עם חתימות/`nsig` ישנים | `--rm-cache-dir` לפני כל סבב |
+| cache מקומי עם חתימות/`nsig` ישנים | ניקוי ה‑cache לפני כל סבב |
 | ה־player client שנבחר לא מתאים למה שמורידים | סבב על `tv → web_safari → mweb → ios → android_vr → web` |
-| חתימה שפגה באמצע הורדה ארוכה | `--fragment-retries 50` + `--retry-sleep http:exp=1:60` |
-| יותר מדי בקשות במקביל → זיהוי כבוט | מהניסיון השני: `--concurrent-fragments 1` ו‑`--sleep-requests` |
-| תוכן שדורש התחברות / אימות גיל | נפילה חזרה ל‑`--cookies-from-browser` |
-| IPv6 של הספק חסום ביוטיוב | `--force-ipv4` |
+| חתימה שפגה באמצע הורדה ארוכה | 50 ניסיונות חוזרים למקטע + backoff מעריכי עד 60 שניות |
+| יותר מדי בקשות במקביל → זיהוי כבוט | מהניסיון השני: מקטע אחד בכל פעם והשהיה בין בקשות |
+| תוכן שדורש התחברות / אימות גיל | נפילה חזרה ל‑cookies מהדפדפן |
+| IPv6 של הספק חסום ביוטיוב | כפיית IPv4 |
 | גרסת yt-dlp ישנה אחרי שינוי בצד יוטיוב | `-U` מעדכן לפני ההורדה |
 
 בין הניסיונות נשמר ארכיון (`<תיקיית יעד>/.downloaded.txt`), כך שסרטון
