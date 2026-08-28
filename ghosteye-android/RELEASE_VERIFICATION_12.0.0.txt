@@ -1,0 +1,17 @@
+Ghost Eye Phone 12.0.0 — Autonomous Intelligence Core verification
+
+Static release checks:
+- versionName 12.0.0 / versionCode 26: PASS
+- New AutonomyConsoleCard wired into InvestigationScreen: PASS
+- Autonomy/correlation/evidence-chain API methods present: PASS
+- Password rememberSaveable storage: ABSENT
+- Unsafe result!! occurrences: 0
+- FLAG_SECURE: PRESENT
+- Android cleartext traffic: DISABLED
+- Gradle 8.7 distribution SHA-256 pin: PRESENT
+- gradlew shell syntax: PASS
+- Kotlin parser-error scan on modified Kotlin sources: PASS
+- Android CI: Gradle 8.7 setup + checksum check + assembleDebug + unit tests + lint
+
+Environment limitation:
+- A local Android build could not start in this workspace because Gradle 8.7 is not cached and DNS access to services.gradle.org is unavailable. The release therefore does not claim a local APK build PASS; the included CI/build scripts perform the real Android compile in an environment with Gradle available.

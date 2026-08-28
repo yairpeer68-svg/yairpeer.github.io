@@ -1,0 +1,4 @@
+Ghost Eye Phone 11.0.0
+Backend endpoint is embedded in BuildConfig and intentionally hidden from visible application UI.
+HTTPS is required.
+Autonomous network pivots require explicit user authorisation.

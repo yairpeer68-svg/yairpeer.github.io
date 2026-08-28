@@ -1,0 +1,21 @@
+Ghost Eye Phone 10.7.0 — Autonomous Production Release Verification
+
+Static/build-workspace verification:
+- Version name: 10.7.0
+- versionCode: 23
+- Java bytecode target: 17
+- Kotlin JVM target: 17
+- Main bottom tabs: exactly File + Domain
+- Kotlin files: 22
+- Kotlin source lines: 5053
+- Duplicate Kotlin imports: 0
+- Kotlin delimiter/string/comment structure scan: PASS
+- Kotlin parser pass: no syntax/"expecting" diagnostics were detected (Android/Compose references are unresolved in this non-Android workspace, as expected)
+- Full owner email in app source/resources: NOT FOUND
+- Server IP in visible Kotlin/resources: NOT FOUND
+- AndroidX enabled: PASS
+- Release minification/resource shrinking configured: PASS
+- Local release signing workflow provided without bundled secrets: PASS
+
+Limitation:
+- A complete Android assembleDebug/assembleRelease was not run in this workspace because the Android SDK/Compose toolchain is not installed here. Build the APK on the user's Windows Android environment using BUILD_PHONE_WINDOWS.bat. Build the signed production APK/AAB only after creating a private local release keystore.

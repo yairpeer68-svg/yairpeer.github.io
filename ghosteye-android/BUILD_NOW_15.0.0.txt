@@ -1,0 +1,11 @@
+Ghost Eye Phone 15.0.0
+
+Recommended verified build environment:
+  JDK 21
+  Android SDK matching compileSdk in app/build.gradle.kts
+  Gradle 8.7 (wrapper/bootstrap verifies SHA-256)
+
+Commands:
+  ./gradlew clean testDebugUnitTest lintDebug assembleDebug assembleRelease
+
+If using --offline, Gradle 8.7 must already exist in the local cache; the bootstrap intentionally fails closed otherwise.

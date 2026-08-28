@@ -1,0 +1,22 @@
+Ghost Eye Phone 10.5.0 — Release Verification
+
+STATIC VERIFICATION
+- Version name: 10.5.0
+- Version code: 22
+- Kotlin source files: 21
+- Kotlin source lines: 4353
+- Duplicate imports: 0
+- Kotlin delimiter structural check: PASS
+- Android XML parse: PASS
+- android.useAndroidX=true: PASS
+- Java target: 17
+- Kotlin target: 17
+- throw@withContext regression: NOT FOUND
+- Full owner email in phone source: NOT FOUND
+- Server IP in visible app source/resources: NOT FOUND
+- Server endpoint exists only in build configuration: PASS
+- Two main tabs: File / Domain: PASS
+- File-to-domain/IP pivot requires explicit target-scan authorization: PASS
+
+IMPORTANT
+A final Android assembleDebug was not executed in the packaging environment because it does not contain the user's Android SDK/Gradle cache. Build the final APK on Windows with BUILD_PHONE_WINDOWS.bat and treat that result as the authoritative compile/install verification.

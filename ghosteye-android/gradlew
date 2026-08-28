@@ -1,0 +1,37 @@
+#!/usr/bin/env sh
+set -eu
+DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+VERSION=8.7
+SHA256=544c35d6bd849ae8a5ed0bcea39ba677dc40f49df7d1835561582da2009b961d
+CACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/manual-wrapper/gradle-$VERSION"
+GRADLE="$CACHE/bin/gradle"
+OFFLINE=0
+for ARG in "$@"; do
+  if [ "$ARG" = "--offline" ]; then OFFLINE=1; fi
+done
+# Prefer an already-installed matching Gradle in offline/developer environments.
+if command -v gradle >/dev/null 2>&1; then
+  INSTALLED_VERSION="$(gradle --version 2>/dev/null | awk '/^Gradle / {print $2; exit}')"
+  if [ "$INSTALLED_VERSION" = "$VERSION" ]; then
+    exec gradle -p "$DIR" "$@"
+  fi
+fi
+if [ ! -x "$GRADLE" ]; then
+  if [ "$OFFLINE" -eq 1 ]; then
+    echo "Gradle $VERSION is not cached; --offline cannot bootstrap it." >&2
+    exit 2
+  fi
+  ZIP="${TMPDIR:-/tmp}/gradle-$VERSION-bin.zip"
+  mkdir -p "$(dirname "$CACHE")"
+  if command -v curl >/dev/null 2>&1; then curl -fL "https://services.gradle.org/distributions/gradle-$VERSION-bin.zip" -o "$ZIP";
+  elif command -v wget >/dev/null 2>&1; then wget -O "$ZIP" "https://services.gradle.org/distributions/gradle-$VERSION-bin.zip";
+  else echo "curl or wget is required for first Gradle bootstrap" >&2; exit 1; fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    printf '%s  %s\n' "$SHA256" "$ZIP" | sha256sum -c -
+  else
+    echo "sha256sum is required to verify the Gradle distribution" >&2; rm -f "$ZIP"; exit 1
+  fi
+  unzip -q -o "$ZIP" -d "$(dirname "$CACHE")"
+  rm -f "$ZIP"
+fi
+exec "$GRADLE" -p "$DIR" "$@"

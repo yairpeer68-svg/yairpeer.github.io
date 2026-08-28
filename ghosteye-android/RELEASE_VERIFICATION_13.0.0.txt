@@ -1,0 +1,14 @@
+Ghost Eye Phone 13.0.0 — Release Verification
+
+Static/local gates:
+- versionCode 29 / versionName 13.0.0: PASS
+- Android API v3 contract presence: PASS
+- Android XML parsing: PASS
+- gradlew shell syntax: PASS
+- release guard: PASS
+- Standalone kotlinc parser check of changed Kotlin files: no syntax/illegal-escape/unclosed-token diagnostics.
+
+Build limitation:
+- A full Android Gradle build cannot be truthfully marked PASS in this environment because Gradle 8.7 is not cached and external Gradle bootstrap DNS/network is unavailable.
+- `./gradlew --offline ...` now fails fast with exit code 2 when Gradle 8.7 is absent, instead of attempting a network download.
+- CI should run assembleDebug/assembleRelease, unit tests, lint, signing verification and device/instrumentation tests with an Android SDK + Gradle 8.7 environment.

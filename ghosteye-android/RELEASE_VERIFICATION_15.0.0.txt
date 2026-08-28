@@ -1,0 +1,12 @@
+Ghost Eye Phone 15.0.0 — Release Verification
+
+Verified in the build environment on 2026-08-28:
+- versionCode 31 / versionName 15.0.0
+- XML parsing: PASS
+- Android release guard: PASS
+- /api/v5 Cyber/Provider/CVE/AI contract references present in Android client
+- Kotlin standalone parser check: no syntax/illegal-escape/unclosed-token diagnostics
+
+Not verified locally:
+- Full Gradle 8.7 Android build, because Gradle 8.7 is not cached in this environment and offline bootstrap correctly fails closed.
+- Release signing/instrumentation/physical-device E2E.

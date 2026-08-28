@@ -1,0 +1,41 @@
+Ghost Eye Phone 10.4.0 — Deep Intelligence Release Verification
+===============================================================
+
+Static/source verification performed on 2026-08-19:
+- Kotlin source files: 21
+- Kotlin source lines: 4118
+- Duplicate Kotlin imports: PASS (none)
+- Kotlin delimiter/structure check: PASS
+- Kotlin parser-level scan for syntax / conflicting-import / withContext regressions: PASS
+- Android XML parse: PASS (2 XML files)
+- android.useAndroidX=true: PASS
+- Java source/target compatibility: 17
+- Kotlin jvmTarget: 17
+- versionCode: 21
+- versionName: 10.4.0
+- Visible Kotlin/resources contain no production server IP and no full owner email: PASS
+- Deep Intelligence parser/rescan/watch UI/timeline/relationship/search source checks: PASS
+- throw@withContext regression: NOT FOUND
+
+10.4 UI/features present:
+- two clean primary flows: File and Domain/IP
+- one-tap full target scan
+- Scan Again & Compare
+- smart result summary and priority findings
+- attack-surface view
+- in-result search
+- target timeline
+- readable relationship map
+- opt-in daily Watch Mode
+- signed report creation/verification/deletion
+- scan/analysis deletion
+
+Important build note:
+A full Android assembleDebug is NOT claimed from this Linux build workspace because
+it does not contain an Android SDK/Compose classpath. The Windows build script is
+included and configured for the user's JDK 21 environment. Build on Windows with:
+
+  BUILD_PHONE_WINDOWS.bat
+
+Expected output:
+  app\build\outputs\apk\debug\app-debug.apk

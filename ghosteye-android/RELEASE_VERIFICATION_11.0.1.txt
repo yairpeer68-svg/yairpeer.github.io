@@ -1,0 +1,9 @@
+Ghost Eye Phone 11.0.1 verification
+- Unsafe result!! occurrences: 0
+- Password rememberSaveable storage: REMOVED
+- FLAG_SECURE: ADDED
+- Gradle 8.7 SHA-256 verification: ADDED (official distribution checksum)
+- Android build/test/lint CI: ADDED
+- Shell bootstrap syntax: PASS
+
+Note: local Gradle build could not run because this build environment could not resolve services.gradle.org. CI is included to run assembleDebug, unit tests and lint with network access.

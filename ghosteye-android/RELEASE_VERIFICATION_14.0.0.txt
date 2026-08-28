@@ -1,0 +1,16 @@
+Ghost Eye Phone 14.0.0 — Release Verification
+
+Verified locally on 2026-08-20:
+- versionCode: 30
+- versionName: 14.0.0
+- Android XML parse: PASS
+- Kotlin standalone lexical/syntax diagnostics on changed v14 sources: no syntax/illegal-escape/unclosed-token diagnostics
+- Release hygiene guard: PASS
+- Gradle offline bootstrap behavior: PASS (fails immediately and clearly when Gradle 8.7 is not cached)
+- CI contract: assembleDebug + assembleRelease + testDebugUnitTest + lintDebug
+
+Not claimed as locally verified:
+- Full Android Gradle compile/build in this environment because Gradle 8.7/Android dependency cache is unavailable and offline mode correctly refuses network bootstrap.
+- Physical-device/instrumented E2E.
+
+A release APK/AAB should only be called verified after the included Android CI succeeds and the deployment/device E2E gate is run.

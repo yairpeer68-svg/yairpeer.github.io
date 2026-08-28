@@ -1,0 +1,12 @@
+Ghost Eye Phone 12.2.0 - Release Verification
+
+RESULT: PASS for the static gates available in this environment
+
+Verified:
+  versionCode 28 / versionName 12.2.0
+  Android release hygiene guard: PASS
+  Changed Kotlin files: no syntax/illegal-escape/unclosed-token diagnostics from local kotlinc scan
+  Android CI workflow includes Gradle 8.7 checksum verification, build, unit tests and lint
+
+Not claimed as locally verified:
+  Full Android Gradle/SDK build. This environment does not provide the complete Android/Gradle dependency set needed for a trustworthy assemble/lint result.

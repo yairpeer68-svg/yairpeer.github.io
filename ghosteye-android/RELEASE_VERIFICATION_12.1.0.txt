@@ -1,0 +1,8 @@
+Ghost Eye Phone 12.1.0 — Intelligence Sources Federation verification
+
+- versionName 12.1.0 / versionCode 27: PASS
+- Federation API client methods added: PASS (static inspection)
+- Investigation source UI added: PASS (static inspection)
+- Domain/IP source lookup UI added: PASS (static inspection)
+- Kotlin standalone parse reached only unresolved Android/Compose references; no syntax/illegal-escape diagnostics found
+- Full Gradle build: NOT RUN because Gradle distribution is unavailable locally and services.gradle.org DNS is blocked in this environment

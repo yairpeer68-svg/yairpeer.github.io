@@ -1,0 +1,60 @@
+name: Build Ghost Eye APK
+
+on:
+  push:
+    branches: [ "main", "claude/app-with-icon-42l9wj" ]
+    paths: [ "ghosteye-android/**", ".github/workflows/build-ghosteye-apk.yml" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Release hygiene guard
+        run: python3 ghosteye-android/scripts/release_guard.py ghosteye-android
+
+      - name: Build debug APK
+        run: cd ghosteye-android && gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Rename APK
+        run: cp ghosteye-android/app/build/outputs/apk/debug/app-debug.apk ghosteye.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghosteye-apk
+          path: ghosteye.apk
+          retention-days: 30
+
+      - name: Publish latest APK as release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ghosteye-latest
+          name: "Ghost Eye — גרסה אחרונה (APK)"
+          body: |
+            👁️ הגרסה האחרונה של אפליקציית Ghost Eye לאנדרואיד.
+
+            **התקנה:** הורד את `ghosteye.apk` מלמטה, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
+          files: ghosteye.apk
+          prerelease: false
+          make_latest: false
