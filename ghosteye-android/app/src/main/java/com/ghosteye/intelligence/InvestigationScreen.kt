@@ -30,8 +30,6 @@ fun InvestigationLaunchCard(
     val context = LocalContext.current
     val api = remember(baseUrl) { ApiClient(context, baseUrl) }
     val scope = rememberCoroutineScope()
-    val networkAvailable = rememberNetworkAvailable()
-    val appActive = rememberAppActive()
     var allowNetwork by remember(seedJobId, networkAlreadyAuthorized) { mutableStateOf(networkAlreadyAuthorized) }
     var busy by remember(seedJobId) { mutableStateOf(false) }
     var message by remember(seedJobId) { mutableStateOf<String?>(null) }
@@ -126,6 +124,8 @@ fun InvestigationsScreen(
     val context = LocalContext.current
     val api = remember(baseUrl) { ApiClient(context, baseUrl) }
     val scope = rememberCoroutineScope()
+    val networkAvailable = rememberNetworkAvailable()
+    val appActive = rememberAppActive()
     var investigations by remember { mutableStateOf<List<InvestigationSummary>>(emptyList()) }
     var selectedId by remember(initialInvestigationId) { mutableStateOf(initialInvestigationId) }
     var selected by remember { mutableStateOf<InvestigationSummary?>(null) }
