@@ -9,9 +9,18 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ghosteye-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # material-icons-extended is heavy; the project default of 2g starves
+      # Kotlin compilation and dexing on a public runner.
+      GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8
     steps:
       - uses: actions/checkout@v4
 
@@ -33,7 +42,7 @@ jobs:
         run: python3 ghosteye-android/scripts/release_guard.py ghosteye-android
 
       - name: Build debug APK
-        run: cd ghosteye-android && gradle assembleDebug --no-daemon --stacktrace
+        run: cd ghosteye-android && gradle assembleDebug --no-daemon --console=plain --stacktrace
 
       - name: Rename APK
         run: cp ghosteye-android/app/build/outputs/apk/debug/app-debug.apk ghosteye.apk
