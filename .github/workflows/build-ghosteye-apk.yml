@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ghosteye-apk-${{ github.ref }}
@@ -53,17 +53,3 @@ jobs:
           name: ghosteye-apk
           path: ghosteye.apk
           retention-days: 30
-
-      - name: Publish latest APK as release
-        if: github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ghosteye-latest
-          name: "Ghost Eye — גרסה אחרונה (APK)"
-          body: |
-            👁️ הגרסה האחרונה של אפליקציית Ghost Eye לאנדרואיד.
-
-            **התקנה:** הורד את `ghosteye.apk` מלמטה, פתח אותו בטלפון ואשר התקנה ממקור לא מוכר.
-          files: ghosteye.apk
-          prerelease: false
-          make_latest: false
