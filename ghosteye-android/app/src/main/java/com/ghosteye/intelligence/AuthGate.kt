@@ -92,7 +92,7 @@ private fun SecureSplash() {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(
-                painter = painterResource(R.mipmap.ic_launcher),
+                painter = painterResource(R.drawable.ghost_eye_brand),
                 contentDescription = "Ghost Eye",
                 modifier = Modifier.size(96.dp).clip(RoundedCornerShape(24.dp)),
                 contentScale = ContentScale.Crop
@@ -154,7 +154,7 @@ private fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Image(
-                    painter = painterResource(R.mipmap.ic_launcher),
+                    painter = painterResource(R.drawable.ghost_eye_brand),
                     contentDescription = "Ghost Eye",
                     modifier = Modifier.size(112.dp).clip(RoundedCornerShape(28.dp)),
                     contentScale = ContentScale.Crop

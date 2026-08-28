@@ -63,7 +63,7 @@ fun MainShell(
                         horizontalArrangement = Arrangement.spacedBy(9.dp)
                     ) {
                         Image(
-                            painter = painterResource(R.mipmap.ic_launcher),
+                            painter = painterResource(R.drawable.ghost_eye_brand),
                             contentDescription = "Ghost Eye",
                             modifier = Modifier.size(32.dp).clip(RoundedCornerShape(9.dp)),
                             contentScale = ContentScale.Crop
