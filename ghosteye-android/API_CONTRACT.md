@@ -106,3 +106,7 @@ Authenticated owner-scoped v15 surfaces:
 - `POST /api/v5/ai/council` — evidence-grounded Ghost AI Council for an owner-scoped investigation.
 
 Safety contract: active operations default to disabled; global Kill Switch defaults to ON; human approval defaults to required; destructive exploitation, credential attacks and unrestricted shell access are not exposed by this API.
+
+## Free OSINT Mesh 1.1
+- `GET /api/v2/intelligence/free-osint-registry` — authenticated registry of free/open/community OSINT sources and active adapter state. Never returns provider secrets.
+- Origin exposure remains passive-only; CT/archive-discovered subdomains may be DNS-resolved, but candidate origin IPs are not contacted.

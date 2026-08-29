@@ -1,9 +1,23 @@
-# Ghost Eye Phone 15.0.0 — Cyber Operations
+# Ghost Eye Phone 2.0.5 — Intelligence Command Center
 
-Android command center for Ghost Eye Server 15.0.0. Existing file analysis, target investigations, Global Intelligence and Unified Intelligence remain available. Version 15 adds a dedicated SOC/Cyber Operations surface with fail-closed safety state, authorized scope/ROE visibility, Provider Vault management, CVE-2026 intelligence, provider usage/cost summaries, and Ghost AI Council inside investigations.
+Ghost Eye Phone is the Android command center for the Ghost Eye 2.0 Intelligence Fabric.
 
-Provider secrets are submitted only to the authenticated server over HTTPS, are never returned by read APIs, and are cleared from the Android entry state after save/error. Active operations remain disabled and human approval remains required by default.
+## Primary workspace
 
-Version: **15.0.0** (`versionCode 31`).
+The 2.0.5 navigation is intentionally reduced to five clear destinations:
 
-See `WHAT_CHANGED_15.0.0.md`, `API_CONTRACT.md`, and `RELEASE_VERIFICATION_15.0.0.txt`.
+- **Home** — live command overview, Fabric/Graph metrics, Watchtower alerts, OSINT/API readiness, recent investigations and quick actions.
+- **Investigate** — Intelligence Fabric investigations across OSINT, Evidence Fusion, Vulnerability Intelligence and persistent knowledge.
+- **Graph** — Global Entity Graph, entity timelines, relationships and graph analytics.
+- **Watchtower** — continuous watches, Risk Delta, prioritized alerts and acknowledge/evaluate controls.
+- **More** — Vulnerability Intelligence and the OSINT Source/API Center without crowding the main navigation.
+
+## Security and reliability
+
+Provider secrets are sent only to the authenticated Ghost Eye server over HTTPS. Read APIs never return the secret value. Background Watchtower work is network-constrained and session expiration remains fail-closed.
+
+The mobile client does not enable active exploitation or direct origin probing. Intelligence and OSINT workflows remain evidence-oriented and passive by default.
+
+Version: **2.0.5** (`versionCode 45`).
+
+See `RELEASE_NOTES_2.0.5_HOME_COMMAND_CENTER.md` and `API_CONTRACT.md`.

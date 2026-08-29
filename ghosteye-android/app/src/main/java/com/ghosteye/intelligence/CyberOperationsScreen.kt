@@ -32,6 +32,8 @@ fun CyberOperationsScreen(
     var capabilities by remember { mutableStateOf<JSONObject?>(null) }
     var control by remember { mutableStateOf<JSONObject?>(null) }
     var providers by remember { mutableStateOf<JSONObject?>(null) }
+    var providerEnvironment by remember { mutableStateOf<JSONObject?>(null) }
+    var fabricStatus by remember { mutableStateOf<JSONObject?>(null) }
     var usage by remember { mutableStateOf<JSONObject?>(null) }
     var cveSources by remember { mutableStateOf<JSONObject?>(null) }
     var cveResults by remember { mutableStateOf(JSONArray()) }
@@ -44,8 +46,23 @@ fun CyberOperationsScreen(
     var secret by remember { mutableStateOf("") }
     var cveQuery by remember { mutableStateOf("") }
     var kevOnly by remember { mutableStateOf(false) }
+    var originDomain by remember { mutableStateOf("") }
+    var originResult by remember { mutableStateOf<JSONObject?>(null) }
+    var originLoading by remember { mutableStateOf(false) }
+    var deepResult by remember { mutableStateOf<JSONObject?>(null) }
+    var deepLoading by remember { mutableStateOf(false) }
+    var deepUseAi by remember { mutableStateOf(false) }
 
-    val providerNames = listOf("openai", "deepseek", "virustotal", "urlscan", "securitytrails", "shodan", "greynoise", "abuseipdb", "certspotter", "censys", "nvd", "github", "misp", "taxii")
+    val aiProviders = setOf("openai", "deepseek", "openrouter", "anthropic", "gemini", "groq", "mistral", "xai", "cohere", "together", "replicate", "perplexity")
+    val providerNames = listOf(
+        "openai", "deepseek", "openrouter", "anthropic", "gemini", "groq", "mistral", "xai",
+        "cohere", "together", "replicate", "perplexity",
+        "virustotal", "urlscan", "securitytrails", "shodan", "greynoise", "abuseipdb", "ipinfo",
+        "certspotter", "netlas", "binaryedge", "leakix", "fullhunt", "censys", "abusech",
+        "spamhaus", "alienvault_otx", "pulsedive", "hybrid_analysis", "ipqualityscore",
+        "whoisxmlapi", "builtwith", "hunter", "hibp",
+        "nvd", "github", "misp", "taxii"
+    )
 
     fun refresh() {
         if (loading) return
@@ -55,6 +72,8 @@ fun CyberOperationsScreen(
                 capabilities = api.cyberCapabilities()
                 control = api.cyberControl()
                 providers = api.providerVaultStatus()
+                providerEnvironment = api.providerEnvironmentStatus()
+                fabricStatus = api.intelligenceFabricStatus()
                 usage = api.providerUsageV15()
                 cveSources = api.cveSourcesV15()
                 cveResults = api.cveSearchV15(cveQuery, 2026, kevOnly, 100).optJSONArray("results") ?: JSONArray()
@@ -80,16 +99,36 @@ fun CyberOperationsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
+            CommandHero(
+                eyebrow = "OSINT & PROVIDERS",
+                title = "מרכז המקורות",
+                subtitle = "OSINT Mesh, Provider Vault, AI Council, CVE sources וסטטוס החיבורים במקום אחד."
+            )
+        }
+        item {
             SectionCard {
-                Text("Cyber Operations 15", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text("SOC, CVE‑2026, Provider Vault ויכולות סייבר מורשות. פעולות אקטיביות נשארות חסומות כברירת מחדל.", style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(10.dp))
+                SectionHeader("מצב המערכת", "רענון כל מקורות המודיעין וה-provider diagnostics")
                 Button(onClick = { refresh() }, enabled = !loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Text(if (loading) "טוען…" else "רענן מרכז סייבר")
+                    Text(if (loading) "טוען…" else "רענן מקורות")
                 }
-                if (loading) { Spacer(Modifier.height(8.dp)); LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+                if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+
+        fabricStatus?.let { f ->
+            item {
+                SectionCard {
+                    Text("Intelligence Fabric 2.0", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    val osint = f.optJSONObject("osint") ?: JSONObject()
+                    Text("OSINT registry: ${osint.optInt("registry_total", 0)}")
+                    Text("Federation adapters: ${osint.optInt("federation_adapters", 0)}")
+                    Text("Knowledge entities: ${f.optInt("entities", 0)}")
+                    Text("Graph relationships: ${f.optInt("relationships", 0)}")
+                    Text("Stored observations: ${f.optInt("observations", 0)}")
+                    Text("Max sources/run: ${osint.optInt("max_sources_per_run", 64)}")
+                }
             }
         }
 
@@ -117,6 +156,20 @@ fun CyberOperationsScreen(
                         MetricCard("סה״כ", payload.optInt("feature_count", features.length()).toString(), Modifier.weight(1f))
                         MetricCard("Incidents", incidents.length().toString(), Modifier.weight(1f))
                         MetricCard("CVE‑2026", cveResults.length().toString(), Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+
+        providerEnvironment?.let { env ->
+            item {
+                SectionCard {
+                    Text("Provider Environment", fontWeight = FontWeight.Bold)
+                    Text("השרת חושף רק אילו משתני .env קיימים/חסרים — לעולם לא את ערכי המפתחות.", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("Providers", env.optInt("total", 0).toString(), Modifier.weight(1f))
+                        MetricCard("Configured", env.optInt("configured_count", 0).toString(), Modifier.weight(1f))
                     }
                 }
             }
@@ -152,7 +205,7 @@ fun CyberOperationsScreen(
                         if (value.isBlank()) return@Button
                         scope.launch {
                             try {
-                                api.saveProviderSecret(provider, value, provider in setOf("openai", "deepseek"))
+                                api.saveProviderSecret(provider, value, provider in aiProviders)
                                 secret = ""
                                 providers = api.providerVaultStatus()
                                 error = null
@@ -236,6 +289,114 @@ fun CyberOperationsScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        item {
+            SectionCard {
+                Text("Deep Investigation Fusion", fontWeight = FontWeight.Bold)
+                Text("חקירת OSINT פסיבית שמצליבה עד 32 מקורות, מדרגת evidence לפי עצמאות/אמינות/freshness ומציגה facts מגובים במקום רשימת תוצאות גולמית.", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = originDomain,
+                    onValueChange = { originDomain = it.take(253) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Domain") },
+                    singleLine = true
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("AI Council על evidence בלבד", style = MaterialTheme.typography.bodySmall)
+                    Switch(checked = deepUseAi, onCheckedChange = { deepUseAi = it })
+                }
+                Button(
+                    onClick = {
+                        if (originDomain.isBlank() || deepLoading) return@Button
+                        scope.launch {
+                            deepLoading = true
+                            try {
+                                deepResult = api.deepInvestigation("domain", originDomain, if (deepUseAi) "smart" else "none")
+                                error = null
+                            } catch (e: SessionExpiredException) { onSessionExpired() }
+                            catch (e: Exception) { error = e.message ?: "Deep Investigation נכשלה" }
+                            finally { deepLoading = false }
+                        }
+                    },
+                    enabled = originDomain.isNotBlank() && !deepLoading,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (deepLoading) "ממזג evidence…" else "הרץ Deep Investigation") }
+
+                deepResult?.let { result ->
+                    Spacer(Modifier.height(10.dp))
+                    val fusion = result.optJSONObject("fusion") ?: JSONObject()
+                    val quality = fusion.optJSONObject("quality") ?: JSONObject()
+                    val topFacts = fusion.optJSONArray("top_facts") ?: JSONArray()
+                    Text("Evidence grade: ${quality.optString("grade", "-")} • ${quality.optInt("score", 0)}/100", fontWeight = FontWeight.SemiBold)
+                    Text("${fusion.optInt("corroborated_fact_count", 0)} corroborated facts • ${result.optInt("observation_count", 0)} observations", style = MaterialTheme.typography.bodySmall)
+                    for (i in 0 until minOf(topFacts.length(), 5)) {
+                        val fact = topFacts.optJSONObject(i) ?: continue
+                        Text("• ${fact.optString("type")}: ${fact.optString("value")} — ${(fact.optDouble("confidence", 0.0) * 100).toInt()}% / ${fact.optInt("source_count", 0)} sources", style = MaterialTheme.typography.labelSmall)
+                    }
+                    val origin = result.optJSONObject("origin_exposure")
+                    val topOrigin = origin?.optJSONObject("top_candidate")
+                    if (topOrigin != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("Origin exposure candidate: ${topOrigin.optString("ip")} • ${(topOrigin.optDouble("confidence", 0.0) * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
+                    }
+                    val ai = result.optJSONObject("ai")
+                    if (ai != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text("AI agreement: ${ai.optString("agreement", "not-run")}", style = MaterialTheme.typography.bodySmall)
+                        ai.optString("summary").takeIf { it.isNotBlank() }?.let { Text(it.take(900), style = MaterialTheme.typography.labelSmall, maxLines = 12) }
+                    }
+                    val contradictions = fusion.optJSONArray("contradictions") ?: JSONArray()
+                    if (contradictions.length() > 0) Text("⚠ ${contradictions.length()} ambiguity/contradiction item(s) require review", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+
+        item {
+            SectionCard {
+                Text("Origin Server Exposure", fontWeight = FontWeight.Bold)
+                Text("OSINT פסיבי בלבד: DNS היסטורי, VirusTotal, urlscan, SecurityTrails, Netlas, BinaryEdge, FullHunt ו‑LeakIX. המערכת לא פונה ישירות ל‑IP מועמד.", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = originDomain,
+                    onValueChange = { originDomain = it.take(253) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Domain") },
+                    singleLine = true
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        if (originDomain.isBlank() || originLoading) return@Button
+                        scope.launch {
+                            originLoading = true
+                            try {
+                                originResult = api.originExposure(originDomain)
+                                error = null
+                            } catch (e: SessionExpiredException) { onSessionExpired() }
+                            catch (e: Exception) { error = e.message ?: "בדיקת Origin נכשלה" }
+                            finally { originLoading = false }
+                        }
+                    },
+                    enabled = originDomain.isNotBlank() && !originLoading,
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (originLoading) "מצליב מקורות…" else "בדוק חשיפת Origin") }
+
+                originResult?.let { result ->
+                    Spacer(Modifier.height(10.dp))
+                    val top = result.optJSONObject("top_candidate")
+                    Text("Candidates: ${result.optInt("candidate_count", 0)} • Evidence: ${result.optInt("observation_count", 0)}", style = MaterialTheme.typography.bodySmall)
+                    if (top != null) {
+                        Text("Top candidate: ${top.optString("ip")}", fontWeight = FontWeight.SemiBold)
+                        Text("Confidence: ${"%.1f".format(top.optDouble("confidence", 0.0) * 100)}% • ${top.optInt("source_count", 0)} sources", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        Text("לא נמצא Origin candidate עם evidence מספיק.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    val errs = result.optJSONArray("provider_errors") ?: JSONArray()
+                    if (errs.length() > 0) Text("${errs.length()} provider(s) לא זמינים כרגע", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

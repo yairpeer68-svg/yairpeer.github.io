@@ -22,8 +22,8 @@ android {
         applicationId = "com.ghosteye.intelligence"
         minSdk = 26
         targetSdk = 35
-        versionCode = 32
-        versionName = "1.1.0"
+        versionCode = 45
+        versionName = "2.0.5"
     }
 
     compileOptions {
@@ -86,6 +86,7 @@ dependencies {
     implementation("androidx.compose.material3:material3:1.3.1")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
 }

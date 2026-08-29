@@ -36,6 +36,7 @@ fun GlobalIntelligenceScreen(
     var selected by remember { mutableStateOf<JSONObject?>(null) }
     var graph by remember { mutableStateOf<JSONObject?>(null) }
     var timeline by remember { mutableStateOf<JSONArray?>(null) }
+    var analytics by remember { mutableStateOf<JSONObject?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var watchMessage by remember { mutableStateOf<String?>(null) }
@@ -47,6 +48,7 @@ fun GlobalIntelligenceScreen(
             selected = api.globalEntity(id)
             graph = api.globalEntityGraph(id, depth = 2, maxNodes = 150)
             timeline = api.globalEntityTimeline(id, 100).optJSONArray("events") ?: JSONArray()
+            analytics = api.globalEntityGraphAnalytics(id, depth = 3, maxNodes = 250)
             error = null
         } catch (e: SessionExpiredException) {
             onSessionExpired()
@@ -73,6 +75,7 @@ fun GlobalIntelligenceScreen(
                 selected = null
                 graph = null
                 timeline = null
+                analytics = null
                 error = null
             } catch (e: SessionExpiredException) {
                 onSessionExpired()
@@ -92,20 +95,15 @@ fun GlobalIntelligenceScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
+            CommandHero(
+                eyebrow = "GLOBAL ENTITY GRAPH",
+                title = "מפת הידע שלך",
+                subtitle = "Domain, IP, Hash, ASN, Package, CVE ו-URL מחוברים לגרף אחד עם provenance וזמן."
+            )
+        }
+        item {
             SectionCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.AccountTree, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(9.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Global Intelligence Graph", fontWeight = FontWeight.Bold)
-                        Text(
-                            "חפש domain, IP, hash, ASN, package או URL בכל היסטוריית החקירות שלך.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
+                SectionHeader("חיפוש בגרף", "חפש בכל היסטוריית החקירות והראיות שנשמרו")
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it.take(256) },
@@ -136,7 +134,7 @@ fun GlobalIntelligenceScreen(
             val entity = details.optJSONObject("entity") ?: JSONObject()
             item {
                 SectionCard {
-                    TextButton(onClick = { selected = null; graph = null; timeline = null }) {
+                    TextButton(onClick = { selected = null; graph = null; timeline = null; analytics = null }) {
                         Icon(Icons.Rounded.ArrowBack, contentDescription = null)
                         Spacer(Modifier.width(6.dp))
                         Text("חזרה לתוצאות")
@@ -202,15 +200,32 @@ fun GlobalIntelligenceScreen(
                     SectionCard {
                         val nodes = g.optJSONArray("nodes")?.length() ?: 0
                         val edges = g.optJSONArray("edges")?.length() ?: 0
-                        Text("Neighborhood", fontWeight = FontWeight.Bold)
+                        Text("Interactive neighborhood", fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             MetricCard("Nodes", nodes.toString(), Modifier.weight(1f))
                             MetricCard("Edges", edges.toString(), Modifier.weight(1f))
                         }
+                        Spacer(Modifier.height(10.dp))
+                        InteractiveEntityGraph(g, Modifier.fillMaxWidth()) { nodeId ->
+                            if (nodeId != entity.optString("id")) scope.launch { loadEntity(nodeId) }
+                        }
                         if (g.optBoolean("truncated", false)) {
                             Spacer(Modifier.height(6.dp))
                             Text("התצוגה קוצצה להגבלת בטיחות/ביצועים.", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+            analytics?.let { a ->
+                item {
+                    SectionCard {
+                        Text("Graph analytics", fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(8.dp))
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            MetricCard("Components", a.optInt("component_count", a.optJSONArray("components")?.length() ?: 0).toString(), Modifier.weight(1f))
+                            MetricCard("Hubs", (a.optJSONArray("top_hubs")?.length() ?: 0).toString(), Modifier.weight(1f))
+                            MetricCard("Relations", (a.optJSONObject("relation_distribution")?.length() ?: 0).toString(), Modifier.weight(1f))
                         }
                     }
                 }

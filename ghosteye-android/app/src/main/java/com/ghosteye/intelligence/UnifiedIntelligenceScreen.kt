@@ -41,6 +41,8 @@ fun UnifiedIntelligenceScreen(
     var clusters by remember { mutableStateOf<JSONObject?>(null) }
     var watchlists by remember { mutableStateOf<JSONObject?>(null) }
     var alerts by remember { mutableStateOf<JSONObject?>(null) }
+    var freeOsint by remember { mutableStateOf<JSONObject?>(null) }
+    var threatFeeds by remember { mutableStateOf<JSONObject?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -60,6 +62,8 @@ fun UnifiedIntelligenceScreen(
                 clusters = api.infrastructureClusters(500)
                 watchlists = api.intelligenceWatchlistsV14()
                 alerts = api.intelligenceAlertsV14(50)
+                freeOsint = api.freeOsintRegistry()
+                threatFeeds = api.threatFeedMeshStatus()
                 error = null
             } catch (e: SessionExpiredException) {
                 onSessionExpired()
@@ -91,6 +95,51 @@ fun UnifiedIntelligenceScreen(
                 }
                 if (loading) { Spacer(Modifier.height(8.dp)); LinearProgressIndicator(Modifier.fillMaxWidth()) }
                 error?.let { Spacer(Modifier.height(8.dp)); Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            }
+        }
+
+        freeOsint?.let { registry ->
+            val rows = registry.optJSONArray("sources") ?: JSONArray()
+            val activeRows = (0 until rows.length()).mapNotNull { rows.optJSONObject(it) }.filter { it.optBoolean("active", false) }
+            item {
+                SectionCard {
+                    Text("Free OSINT Mesh", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("קטלוג", registry.optInt("total_sources", rows.length()).toString(), Modifier.weight(1f))
+                        MetricCard("Adapters פעילים", registry.optInt("active_adapters", activeRows.size).toString(), Modifier.weight(1f))
+                        MetricCard("בהרחבה", registry.optInt("catalog_only", 0).toString(), Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    activeRows.take(12).forEach { row ->
+                        Text("• ${row.optString("name", row.optString("id"))} — ${row.optString("access", "free")}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (activeRows.size > 12) Text("+${activeRows.size - 12} מקורות פעילים נוספים", style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+
+        threatFeeds?.let { mesh ->
+            val feeds = mesh.optJSONArray("feeds") ?: JSONArray()
+            val healthy = (0 until feeds.length()).mapNotNull { feeds.optJSONObject(it) }.count { it.optString("status") == "ok" }
+            item {
+                SectionCard {
+                    Text("Background Threat Feed Harvester", fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricCard("Feeds", mesh.optInt("feed_count", feeds.length()).toString(), Modifier.weight(1f))
+                        MetricCard("תקינים", healthy.toString(), Modifier.weight(1f))
+                        MetricCard("IOC פעילים", mesh.optInt("active_indicator_count", 0).toString(), Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    (0 until feeds.length()).mapNotNull { feeds.optJSONObject(it) }.forEach { row ->
+                        val status = row.optString("status", "never-synced")
+                        val count = row.optInt("records_active", 0)
+                        Text("• ${row.optString("name", row.optString("id"))} — $status • $count IOC", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("ה־feeds מסונכרנים בשרת ונבדקים מקומית בזמן חקירה; הטלפון לא מוריד feeds ולא נחשף למפתחות.", style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
 

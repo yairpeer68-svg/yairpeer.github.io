@@ -501,6 +501,17 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
             parseObject(ensureSuccess(r, "Intelligence source health"), "Intelligence source health")
         }
 
+
+    suspend fun freeOsintRegistry(): JSONObject =
+        call { Request.Builder().url("$baseUrl/api/v2/intelligence/free-osint-registry").get() }.use { r ->
+            parseObject(ensureSuccess(r, "Free OSINT registry"), "Free OSINT registry")
+        }
+
+    suspend fun threatFeedMeshStatus(): JSONObject =
+        call { Request.Builder().url("$baseUrl/api/v2/intelligence/threat-feed-mesh").get() }.use { r ->
+            parseObject(ensureSuccess(r, "Threat feed mesh"), "Threat feed mesh")
+        }
+
     suspend fun intelligenceMemory(
         entityType: String,
         entityValue: String,
@@ -527,7 +538,7 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
             .put("entity_type", entityType)
             .put("entity_value", entityValue)
             .put("privacy_mode", privacyMode)
-            .put("max_sources", maxSources.coerceIn(1, 12))
+            .put("max_sources", maxSources.coerceIn(1, 32))
         val body = payload.toString().toRequestBody(jsonType)
         return call(retryIo = true) {
             Request.Builder().url("$baseUrl/api/v2/intelligence/lookup").post(body)
@@ -551,7 +562,7 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
     ): JSONObject {
         val payload = JSONObject()
             .put("privacy_mode", privacyMode)
-            .put("max_sources", maxSources.coerceIn(1, 12))
+            .put("max_sources", maxSources.coerceIn(1, 32))
         val body = payload.toString().toRequestBody(jsonType)
         return call(retryIo = true) {
             Request.Builder().url("$baseUrl/api/v2/investigations/$investigationId/sources/refresh").post(body)
@@ -597,6 +608,32 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
         call { Request.Builder().url("$baseUrl/api/v4/alerts?limit=${limit.coerceIn(1, 200)}").get() }.use { r ->
             parseObject(ensureSuccess(r, "Intelligence alerts"), "Intelligence alerts")
         }
+
+    suspend fun evaluateAllWatchlistsV20(limit: Int = 100): JSONObject =
+        call {
+            Request.Builder().url("$baseUrl/api/v4/watchlists/evaluate-all?limit=${limit.coerceIn(1, 500)}")
+                .post("{}".toRequestBody(jsonType))
+        }.use { r -> parseObject(ensureSuccess(r, "Watchtower evaluate all"), "Watchtower evaluate all") }
+
+    suspend fun watchtowerStatusV20(): JSONObject =
+        call { Request.Builder().url("$baseUrl/api/v4/watchtower/status").get() }.use { r ->
+            parseObject(ensureSuccess(r, "Watchtower status"), "Watchtower status")
+        }
+
+    suspend fun acknowledgeAlertV20(alertId: String): JSONObject {
+        val id = java.net.URLEncoder.encode(alertId, "UTF-8")
+        return call { Request.Builder().url("$baseUrl/api/v4/alerts/$id/ack").post("{}".toRequestBody(jsonType)) }.use { r ->
+            parseObject(ensureSuccess(r, "Acknowledge alert"), "Acknowledge alert")
+        }
+    }
+
+    suspend fun riskTimelineV20(entityType: String, entityValue: String, limit: Int = 50): JSONObject {
+        val t = java.net.URLEncoder.encode(entityType, "UTF-8")
+        val v = java.net.URLEncoder.encode(entityValue, "UTF-8")
+        return call { Request.Builder().url("$baseUrl/api/v2/intelligence/risk-timeline?entity_type=$t&entity_value=$v&limit=${limit.coerceIn(1, 500)}").get() }.use { r ->
+            parseObject(ensureSuccess(r, "Risk timeline"), "Risk timeline")
+        }
+    }
 
     suspend fun createEntityWatchlistV14(name: String, entityType: String, entityValue: String): JSONObject =
         call {
@@ -646,6 +683,23 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
         val url = "$baseUrl/api/v3/intelligence/graph?entity_id=$id&depth=${depth.coerceIn(0, 3)}&max_nodes=${maxNodes.coerceIn(1, 250)}"
         return call { Request.Builder().url(url).get() }.use { r ->
             parseObject(ensureSuccess(r, "Global intelligence graph"), "Global intelligence graph")
+        }
+    }
+
+    suspend fun globalEntityGraphAnalytics(entityId: String, depth: Int = 3, maxNodes: Int = 250): JSONObject {
+        val id = java.net.URLEncoder.encode(entityId, "UTF-8")
+        val url = "$baseUrl/api/v3/intelligence/graph/analytics?entity_id=$id&depth=${depth.coerceIn(0, 3)}&max_nodes=${maxNodes.coerceIn(1, 250)}"
+        return call { Request.Builder().url(url).get() }.use { r ->
+            parseObject(ensureSuccess(r, "Entity graph analytics"), "Entity graph analytics")
+        }
+    }
+
+    suspend fun globalEntityShortestPath(sourceEntityId: String, targetEntityId: String, maxHops: Int = 8): JSONObject {
+        val source = java.net.URLEncoder.encode(sourceEntityId, "UTF-8")
+        val target = java.net.URLEncoder.encode(targetEntityId, "UTF-8")
+        val url = "$baseUrl/api/v3/intelligence/graph/shortest-path?source_entity_id=$source&target_entity_id=$target&max_hops=${maxHops.coerceIn(1, 12)}"
+        return call { Request.Builder().url(url).get() }.use { r ->
+            parseObject(ensureSuccess(r, "Entity shortest path"), "Entity shortest path")
         }
     }
 
@@ -886,6 +940,10 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
     suspend fun providerVaultStatus(): JSONObject =
         call { Request.Builder().url("$baseUrl/api/v5/providers").get() }.use { parseObject(ensureSuccess(it, "Provider vault"), "Provider vault") }
 
+    suspend fun providerEnvironmentStatus(): JSONObject =
+        call { Request.Builder().url("$baseUrl/api/v2/intelligence/provider-environment").get() }
+            .use { parseObject(ensureSuccess(it, "Provider environment"), "Provider environment") }
+
     suspend fun saveProviderSecret(provider: String, secret: String, reasoning: Boolean = true): JSONObject {
         val body = JSONObject()
             .put("secret", secret)
@@ -928,9 +986,76 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
         call { Request.Builder().url("$baseUrl/api/v5/cve/sources").get() }
             .use { parseObject(ensureSuccess(it, "CVE sources"), "CVE sources") }
 
+    suspend fun liveVulnerabilityIntelligence(cveId: String): JSONObject {
+        val id = Uri.encode(cveId.trim())
+        return call { Request.Builder().url("$baseUrl/api/v5/cve/live-intelligence?cve_id=$id").get() }
+            .use { parseObject(ensureSuccess(it, "Live vulnerability intelligence"), "Live vulnerability intelligence") }
+    }
+
+    suspend fun packageVulnerabilityIntelligence(packageName: String, ecosystem: String): JSONObject {
+        val pkg = Uri.encode(packageName.trim())
+        val eco = Uri.encode(ecosystem.trim())
+        return call { Request.Builder().url("$baseUrl/api/v5/cve/live-intelligence?package=$pkg&ecosystem=$eco").get() }
+            .use { parseObject(ensureSuccess(it, "Package vulnerability intelligence"), "Package vulnerability intelligence") }
+    }
+
     suspend fun cveDetailsV15(cveId: String): JSONObject =
         call { Request.Builder().url("$baseUrl/api/v5/cve/${Uri.encode(cveId)}").get() }
             .use { parseObject(ensureSuccess(it, "CVE details"), "CVE details") }
+
+    suspend fun originExposure(domain: String): JSONObject {
+        val body = JSONObject()
+            .put("domain", domain.trim())
+            .put("max_sources", 10)
+            .toString().toRequestBody(jsonType)
+        return call { Request.Builder().url("$baseUrl/api/v2/intelligence/origin-exposure").post(body) }
+            .use { parseObject(ensureSuccess(it, "Origin exposure"), "Origin exposure") }
+    }
+
+    suspend fun deepInvestigation(entityType: String, entityValue: String, aiMode: String = "none"): JSONObject {
+        val body = JSONObject()
+            .put("entity_type", entityType.trim())
+            .put("entity_value", entityValue.trim())
+            .put("max_sources", 32)
+            .put("privacy_mode", "passive_external")
+            .put("ai_mode", aiMode)
+            .toString().toRequestBody(jsonType)
+        val deepClient = client.newBuilder().readTimeout(90, TimeUnit.SECONDS).callTimeout(110, TimeUnit.SECONDS).build()
+        return call(httpClient = deepClient) { Request.Builder().url("$baseUrl/api/v2/intelligence/deep-investigation").post(body) }
+            .use { parseObject(ensureSuccess(it, "Deep investigation"), "Deep investigation") }
+    }
+
+    suspend fun intelligenceFabricStatus(): JSONObject =
+        call { Request.Builder().url("$baseUrl/api/v2/intelligence/fabric/status").get() }
+            .use { parseObject(ensureSuccess(it, "Intelligence Fabric status"), "Intelligence Fabric status") }
+
+    suspend fun intelligenceFabricV2(entityType: String, entityValue: String, ecosystem: String? = null): JSONObject {
+        val payload = JSONObject()
+            .put("entity_type", entityType.trim())
+            .put("entity_value", entityValue.trim())
+            .put("max_sources", 48)
+            .put("privacy_mode", "passive_external")
+            .put("persist", true)
+            .put("save_snapshot", true)
+        ecosystem?.takeIf { it.isNotBlank() }?.let { payload.put("ecosystem", it.trim()) }
+        val body = payload.toString().toRequestBody(jsonType)
+        val c = client.newBuilder().readTimeout(120, TimeUnit.SECONDS).callTimeout(150, TimeUnit.SECONDS).build()
+        return call(httpClient = c) { Request.Builder().url("$baseUrl/api/v2/intelligence/fabric").post(body) }
+            .use { parseObject(ensureSuccess(it, "Intelligence Fabric 2.0"), "Intelligence Fabric 2.0") }
+    }
+
+    suspend fun intelligenceAutopilot(entityType: String, entityValue: String): JSONObject {
+        val body = JSONObject()
+            .put("entity_type", entityType.trim())
+            .put("entity_value", entityValue.trim())
+            .put("max_sources", 32)
+            .put("privacy_mode", "passive_external")
+            .put("save_snapshot", true)
+            .toString().toRequestBody(jsonType)
+        val c = client.newBuilder().readTimeout(90, TimeUnit.SECONDS).callTimeout(110, TimeUnit.SECONDS).build()
+        return call(httpClient = c) { Request.Builder().url("$baseUrl/api/v2/intelligence/autopilot").post(body) }
+            .use { parseObject(ensureSuccess(it, "Intelligence autopilot"), "Intelligence autopilot") }
+    }
 
     suspend fun cyberIncidentsV15(): JSONArray =
         call { Request.Builder().url("$baseUrl/api/v5/cyber/incidents").get() }

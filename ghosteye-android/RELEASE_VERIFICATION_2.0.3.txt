@@ -1,0 +1,19 @@
+Ghost Eye Phone 2.0.3 — Watchtower Intelligence
+
+Verified in build environment:
+- Android release_guard: CLEAN
+- no real .env / keystore / local.properties included
+- WorkManager remains network-constrained and minimum 15-minute periodic cadence
+- API hooks present for Watchtower evaluate-all/status/ack and risk timeline
+- source package integrity: PASS
+
+Not verified here:
+- Full Gradle/Kotlin compile. Gradle 8.7 is not cached and --offline bootstrap fails.
+
+2.0.3 additions:
+- prioritized Watchtower command center
+- evaluate-now control
+- CVE/package/domain/IP watch presets
+- acknowledge alerts from phone
+- background evaluation before notification fetch
+- higher-priority notification behavior for urgent evidence
