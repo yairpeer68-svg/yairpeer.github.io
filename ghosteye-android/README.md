@@ -1,10 +1,10 @@
-# Ghost Eye Phone 2.0.5 — Intelligence Command Center
+# Ghost Eye Phone 2.2.0 — Intelligence Command Center
 
 Ghost Eye Phone is the Android command center for the Ghost Eye 2.0 Intelligence Fabric.
 
 ## Primary workspace
 
-The 2.0.5 navigation is intentionally reduced to five clear destinations:
+The 2.2.0 navigation is intentionally reduced to five clear destinations:
 
 - **Home** — live command overview, Fabric/Graph metrics, Watchtower alerts, OSINT/API readiness, recent investigations and quick actions.
 - **Investigate** — Intelligence Fabric investigations across OSINT, Evidence Fusion, Vulnerability Intelligence and persistent knowledge.
@@ -18,6 +18,6 @@ Provider secrets are sent only to the authenticated Ghost Eye server over HTTPS.
 
 The mobile client does not enable active exploitation or direct origin probing. Intelligence and OSINT workflows remain evidence-oriented and passive by default.
 
-Version: **2.0.5** (`versionCode 45`).
+Version: **2.2.0** (`versionCode 47`).
 
-See `RELEASE_NOTES_2.0.5_HOME_COMMAND_CENTER.md` and `API_CONTRACT.md`.
+See `RELEASE_NOTES_2.2.0_FEATURE_CONSOLIDATION.md` and `API_CONTRACT.md`.

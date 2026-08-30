@@ -1,0 +1,9 @@
+Ghost Eye Phone 2.2.0 — Feature Consolidation
+Verification performed in build workspace:
+- Android release guard: PASS
+- Static integration checks: PASS
+- Security Posture card wired to modules.security_posture: PASS
+- Screenshot policy: normal target scan screen is not FLAG_SECURE; scoped secret helper retained: PASS
+- Kotlin/Gradle full compilation: NOT VERIFIED in this environment
+  Reason: Gradle bootstrap requires services.gradle.org and DNS resolution is unavailable here.
+- Windows 11 one-click APK build script included for real local compile.

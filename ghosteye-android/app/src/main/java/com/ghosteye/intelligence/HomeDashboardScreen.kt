@@ -34,7 +34,9 @@ private data class HomeState(
     val registry: JSONObject = JSONObject(),
     val alerts: JSONArray = JSONArray(),
     val investigations: List<InvestigationSummary> = emptyList(),
-    val server: JSONObject = JSONObject()
+    val server: JSONObject = JSONObject(),
+    val inventory: JSONObject = JSONObject(),
+    val inventoryChanges: JSONObject = JSONObject()
 )
 
 @Composable
@@ -54,6 +56,7 @@ fun HomeDashboardScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var lastRefresh by remember { mutableLongStateOf(0L) }
+    var inventoryQuery by remember { mutableStateOf("") }
 
     fun refresh() {
         scope.launch {
@@ -76,8 +79,10 @@ fun HomeDashboardScreen(
                 val alertObj = safe(JSONObject()) { api.intelligenceAlertsV14(12) }
                 val server = safe(JSONObject()) { api.mobileStatus() }
                 val investigations = safe(emptyList<InvestigationSummary>()) { api.investigations(8) }
+                val inventory = safe(JSONObject()) { api.assetInventory(500) }
+                val inventoryChanges = safe(JSONObject()) { api.assetInventoryChanges(50) }
                 val alerts = alertObj.optJSONArray("items") ?: alertObj.optJSONArray("alerts") ?: JSONArray()
-                state = HomeState(fabric, watchtower, env, registry, alerts, investigations, server)
+                state = HomeState(fabric, watchtower, env, registry, alerts, investigations, server, inventory, inventoryChanges)
                 error = null
                 lastRefresh = System.currentTimeMillis()
             } catch (e: SessionExpiredException) {
@@ -166,6 +171,14 @@ fun HomeDashboardScreen(
         }
 
         item {
+            AssetInventoryCard(state.inventory, inventoryQuery, { inventoryQuery = it })
+        }
+
+        if (state.inventoryChanges.optInt("change_count", 0) > 0) {
+            item { InventoryChangesCard(state.inventoryChanges) }
+        }
+
+        item {
             SectionCard {
                 SectionHeader("מצב המערכת", "Fabric, Watchtower ו־Provider readiness")
                 StatusLine(Icons.Rounded.Memory, "Intelligence Fabric", if (entities > 0 || relationships > 0) "ACTIVE" else "READY", entities > 0 || relationships > 0)
@@ -194,6 +207,102 @@ fun HomeDashboardScreen(
             item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
         }
         item { Spacer(Modifier.height(10.dp)) }
+    }
+}
+
+@Composable
+private fun AssetInventoryCard(inventory: JSONObject, query: String, onQueryChange: (String) -> Unit) {
+    val domains = inventory.optJSONArray("domains") ?: JSONArray()
+    val ips = inventory.optJSONArray("ips") ?: JSONArray()
+    val services = inventory.optJSONArray("services") ?: JSONArray()
+    val cves = inventory.optJSONArray("cves") ?: JSONArray()
+    val total = domains.length() + ips.length() + services.length() + cves.length()
+    SectionCard {
+        SectionHeader("כל הדומיינים והנכסים", "מסך אחד לצילום מצב כמו httpx")
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("סינון דומיין / IP / שירות") },
+            leadingIcon = { Icon(Icons.Rounded.FilterAlt, contentDescription = null) },
+            shape = RoundedCornerShape(14.dp)
+        )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            InventoryStat("Domains", inventory.optInt("domain_count", 0), Modifier.weight(1f))
+            InventoryStat("Subdomains", inventory.optInt("subdomain_count", 0), Modifier.weight(1f))
+            InventoryStat("IPs", inventory.optInt("ip_count", 0), Modifier.weight(1f))
+        }
+        Spacer(Modifier.height(12.dp))
+        if (total == 0) {
+            Text("אין עדיין תוצאות סריקה שמורות. הרץ סריקת Target כדי לאכלס את הרשימה.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else {
+            Text("DOMAINS + SUBDOMAINS", style = MaterialTheme.typography.labelMedium, color = GhostEyePalette.Cyan)
+            for (i in 0 until domains.length()) {
+                val row = domains.optJSONObject(i) ?: continue
+                if (query.isNotBlank() && !row.optString("value").contains(query, ignoreCase = true)) continue
+                Text(
+                    text = "${row.optString("value")}  ·  ${row.optString("type", "domain")}",
+                    modifier = Modifier.padding(vertical = 3.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (ips.length() > 0) {
+                Spacer(Modifier.height(8.dp))
+                Text("IPS", style = MaterialTheme.typography.labelMedium, color = GhostEyePalette.Violet)
+                for (i in 0 until ips.length()) {
+                    val value = ips.optJSONObject(i)?.optString("value").orEmpty()
+                    if (query.isBlank() || value.contains(query, ignoreCase = true)) Text(value, modifier = Modifier.padding(vertical = 2.dp), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            if (services.length() > 0) {
+                Spacer(Modifier.height(8.dp))
+                Text("SERVICES", style = MaterialTheme.typography.labelMedium, color = GhostEyePalette.Amber)
+                for (i in 0 until services.length()) {
+                    val row = services.optJSONObject(i) ?: continue
+                    if (query.isNotBlank() && !row.optString("value").contains(query, ignoreCase = true) && !row.optString("service").contains(query, ignoreCase = true)) continue
+                    Text("${row.optString("value")}  ·  ${row.optString("service", "unknown")}", modifier = Modifier.padding(vertical = 2.dp), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            if (cves.length() > 0) {
+                Spacer(Modifier.height(8.dp))
+                Text("CVEs", style = MaterialTheme.typography.labelMedium, color = GhostEyePalette.Rose)
+                for (i in 0 until cves.length()) {
+                    val value = cves.optJSONObject(i)?.optString("value").orEmpty()
+                    if (query.isBlank() || value.contains(query, ignoreCase = true)) Text(value, modifier = Modifier.padding(vertical = 2.dp), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun InventoryStat(label: String, value: Int, modifier: Modifier = Modifier) {
+    Surface(modifier, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)) {
+        Column(Modifier.padding(9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(value.toString(), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun InventoryChangesCard(payload: JSONObject) {
+    val changes = payload.optJSONArray("changes") ?: JSONArray()
+    SectionCard {
+        SectionHeader("שינויים מאז הסריקה הקודמת", "נכסים חדשים או שהוסרו")
+        for (i in 0 until changes.length()) {
+            val row = changes.optJSONObject(i) ?: continue
+            val added = row.optString("change") == "added"
+            Text(
+                text = "${if (added) "+" else "−"} ${row.optString("value")}  ·  ${row.optString("kind")}",
+                modifier = Modifier.padding(vertical = 3.dp),
+                color = if (added) GhostEyePalette.Emerald else GhostEyePalette.Rose,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 }
 

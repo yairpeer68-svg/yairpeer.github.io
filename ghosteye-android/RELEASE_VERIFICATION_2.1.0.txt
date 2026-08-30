@@ -1,0 +1,7 @@
+Ghost Eye Phone 2.1.0 verification
+==================================
+release_guard.py: PASS
+Kotlin source structural guard: PASS
+Global FLAG_SECURE: REMOVED
+Credential-state FLAG_SECURE: PRESENT (password/API-secret fields only)
+Gradle compile: NOT VERIFIED (Gradle 8.7 unavailable offline in build environment)

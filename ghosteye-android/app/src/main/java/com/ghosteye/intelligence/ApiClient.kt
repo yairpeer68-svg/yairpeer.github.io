@@ -366,6 +366,16 @@ class ApiClient(private val context: Context, private val baseUrl: String) {
             parseObject(ensureSuccess(r, "Mobile status"), "Mobile status")
         }
 
+    suspend fun assetInventory(limit: Int = 500): JSONObject =
+        call { Request.Builder().url("$baseUrl/api/v2/targets/inventory?limit=${limit.coerceIn(1, 1000)}").get() }.use { r ->
+            parseObject(ensureSuccess(r, "Asset inventory"), "Asset inventory")
+        }
+
+    suspend fun assetInventoryChanges(limit: Int = 50): JSONObject =
+        call { Request.Builder().url("$baseUrl/api/v2/targets/inventory/changes?limit=${limit.coerceIn(1, 500)}").get() }.use { r ->
+            parseObject(ensureSuccess(r, "Asset changes"), "Asset changes")
+        }
+
     suspend fun cancelJob(jobId: String): JSONObject =
         call { Request.Builder().url("$baseUrl/api/v2/platform/jobs/$jobId/cancel").post(ByteArray(0).toRequestBody(null)) }.use { r ->
             parseObject(ensureSuccess(r, "Cancel job"), "Cancel job")

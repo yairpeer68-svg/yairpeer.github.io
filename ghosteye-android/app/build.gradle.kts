@@ -22,8 +22,8 @@ android {
         applicationId = "com.ghosteye.intelligence"
         minSdk = 26
         targetSdk = 35
-        versionCode = 45
-        versionName = "2.0.5"
+        versionCode = 47
+        versionName = "2.2.0"
     }
 
     compileOptions {

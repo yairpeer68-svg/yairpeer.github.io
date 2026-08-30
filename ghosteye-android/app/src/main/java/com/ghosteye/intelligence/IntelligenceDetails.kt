@@ -85,6 +85,12 @@ fun IntelligenceDetailsColumn(
             ChangeSummaryCard(changes)
         }
 
+        val websiteExposure = deep.optJSONObject("website_exposure")
+            ?: intelligence.modules.optJSONObject("exposure")
+        if (websiteExposure != null && websiteExposure.length() > 0) {
+            WebsiteExposureCard(websiteExposure)
+        }
+
         val attackSurface = deep.optJSONObject("attack_surface")
         if (attackSurface != null && attackSurface.length() > 0) {
             AttackSurfaceCard(attackSurface)
@@ -513,6 +519,121 @@ private fun FileSimilarityCard(fileIntel: JSONObject) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun WebsiteExposureCard(exposure: JSONObject) {
+    val score = exposure.optInt("score", 0)
+    val band = exposure.optString("band", "low")
+    val counts = exposure.optJSONObject("cve_counts") ?: JSONObject()
+    val cves = jsonObjects(exposure.optJSONArray("cve_matches"))
+    val services = jsonObjects(exposure.optJSONArray("services"))
+    val dns = exposure.optJSONObject("dns_security") ?: JSONObject()
+    val http = exposure.optJSONObject("http_security") ?: JSONObject()
+    val tls = exposure.optJSONObject("tls") ?: JSONObject()
+
+    SectionCard {
+        Text("Website Security & Exposure", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "תמונת חשיפה מאוחדת: שירותים ציבוריים, טכנולוגיות, CVE, DNS, HTTP ו־TLS.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MetricCard("חשיפה", "$score/100", Modifier.weight(1f), riskAccentShared(score))
+            MetricCard("CVE", counts.optInt("total", cves.size).toString(), Modifier.weight(1f))
+            MetricCard("KEV", counts.optInt("kev", 0).toString(), Modifier.weight(1f), if (counts.optInt("kev", 0) > 0) riskAccentShared(92) else MaterialTheme.colorScheme.primary)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "רמה: ${band.uppercase()} • מאומת ${counts.optInt("confirmed", 0)} • סביר ${counts.optInt("probable", 0)} • אפשרי ${counts.optInt("possible", 0)}",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        if (cves.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            Text("CVE רלוונטיים", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(6.dp))
+            cves.take(12).forEachIndexed { index, cve ->
+                if (index > 0) Spacer(Modifier.height(7.dp))
+                val id = cve.optString("cve_id", "CVE")
+                val confidence = cve.optString("confidence", "possible")
+                val cvss = if (cve.has("cvss_score") && !cve.isNull("cvss_score")) cve.optDouble("cvss_score", 0.0) else null
+                val epss = if (cve.has("epss_score") && !cve.isNull("epss_score")) cve.optDouble("epss_score", 0.0) else null
+                val tech = cve.optString("technology")
+                val version = cve.optString("detected_version")
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.34f)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(id, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                when (confidence) { "confirmed" -> "מאומת"; "probable" -> "סביר"; else -> "אפשרי" },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            buildString {
+                                if (tech.isNotBlank()) append(tech)
+                                if (version.isNotBlank()) append(" $version")
+                                if (cvss != null) append(" • CVSS ${"%.1f".format(cvss)}")
+                                if (epss != null) append(" • EPSS ${"%.3f".format(epss)}")
+                                if (cve.optBoolean("kev", false)) append(" • CISA KEV")
+                                if (cve.optBoolean("known_ransomware", false)) append(" • Ransomware")
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        cve.optString("reason").takeIf { it.isNotBlank() }?.let {
+                            Spacer(Modifier.height(3.dp))
+                            Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+
+        val sensitive = services.filter { it.optBoolean("sensitive", false) }
+        if (sensitive.isNotEmpty()) {
+            Spacer(Modifier.height(14.dp))
+            Text("שירותים רגישים שחשופים", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
+            sensitive.take(10).forEach { service ->
+                Text(
+                    "• ${service.optInt("port", 0)}/${service.optString("service", "service")} — ${service.optString("recommendation")}",
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        Text("Security posture", fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.labelLarge)
+        Text(
+            buildString {
+                append(if (dns.optBoolean("spf_present", false)) "SPF ✓" else "SPF חסר")
+                append(" • ")
+                append(if (dns.optBoolean("dmarc_present", false)) "DMARC ✓" else "DMARC חסר")
+                append(" • ")
+                append(if (dns.optBoolean("dnssec_present", false)) "DNSSEC ✓" else "DNSSEC לא זוהה")
+                append(" • HTTP headers חסרים ${jsonStrings(http.optJSONArray("missing_headers")).size}")
+                tls.optString("version").takeIf { it.isNotBlank() }?.let { append(" • $it") }
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "התאמת CVE היא הערכת חשיפה מבוססת ראיות, לא הוכחה שניתן לנצל את החולשה. גרסה ותצורה מדויקות קובעות את הסטטוס הסופי.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

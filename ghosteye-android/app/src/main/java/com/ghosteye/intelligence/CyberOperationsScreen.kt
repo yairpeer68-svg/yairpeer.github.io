@@ -44,6 +44,7 @@ fun CyberOperationsScreen(
     var provider by remember { mutableStateOf("openai") }
     var providerMenu by remember { mutableStateOf(false) }
     var secret by remember { mutableStateOf("") }
+    SensitiveContentProtection(secret.isNotBlank())
     var cveQuery by remember { mutableStateOf("") }
     var kevOnly by remember { mutableStateOf(false) }
     var originDomain by remember { mutableStateOf("") }

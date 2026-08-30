@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
 echo ========================================
-echo Ghost Eye Phone 11.0.0 - Signed Release
+echo Ghost Eye Phone 2.2.0 - Signed Release
 echo ========================================
 
 if not exist "keystore.properties" (
@@ -13,16 +13,7 @@ if not exist "keystore.properties" (
   exit /b 1
 )
 
-set "FOUND_JAVA21="
-for /d %%D in ("C:\Program Files\Eclipse Adoptium\jdk-21*") do (
-  if exist "%%~fD\bin\java.exe" set "FOUND_JAVA21=%%~fD"
-)
-if not defined FOUND_JAVA21 (
-  echo ERROR: Temurin JDK 21 was not found.
-  exit /b 1
-)
-set "JAVA_HOME=!FOUND_JAVA21!"
-set "PATH=!JAVA_HOME!\bin;!PATH!"
+where java >nul 2>nul || (echo ERROR: Java not found in PATH.& exit /b 1)
 java -version
 if errorlevel 1 exit /b 1
 

@@ -233,9 +233,9 @@ fun TargetScanScreen(
                     }
                     Spacer(Modifier.width(14.dp))
                     Column {
-                        Text("סריקת דומיין / אתר", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Text("Website Security & Exposure", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text(
-                            "יעד אחד, כפתור אחד: איסוף, קישור, הערכת סיכון והשוואה לסריקות קודמות.",
+                            "דומיין אחד → פורטים ושירותים → טכנולוגיות → CVE → TLS/DNS/HTTP → ציון חשיפה והמלצות.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -361,6 +361,9 @@ fun TargetScanScreen(
 
         result?.let { intelligence ->
             item {
+                SecurityPostureCard(intelligence.modules.optJSONObject("security_posture"))
+            }
+            item {
                 IntelligenceDetailsColumn(
                     intelligence = intelligence,
                     reportStatus = reportStatus,
@@ -460,5 +463,62 @@ private fun targetKindLabel(value: String): String {
         clean.startsWith("http://", true) || clean.startsWith("https://", true) -> "אתר / URL"
         Regex("^\\d{1,3}(?:\\.\\d{1,3}){3}$").matches(clean) -> "כתובת IP"
         else -> "דומיין"
+    }
+}
+
+
+@Composable
+private fun SecurityPostureCard(posture: org.json.JSONObject?) {
+    if (posture == null) return
+    val summary = posture.optJSONObject("summary") ?: org.json.JSONObject()
+    val score = posture.optInt("score", 0).coerceIn(0, 100)
+    val band = posture.optString("band", "low").uppercase()
+    val priorities = posture.optJSONArray("top_priorities") ?: org.json.JSONArray()
+    val surface = posture.optJSONObject("attack_surface") ?: org.json.JSONObject()
+    val sensitive = summary.optInt("sensitive_services", 0)
+    val kev = summary.optInt("kev", 0)
+    val cves = summary.optInt("cves_total", 0)
+    val open = summary.optInt("open_services", 0)
+
+    SectionCard {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Security Posture", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text("תמונת החשיפה המאוחדת של היעד", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            AssistChip(onClick = {}, enabled = false, label = { Text("$band • $score/100") })
+        }
+        Spacer(Modifier.height(14.dp))
+        Text("$open שירותים פתוחים • $sensitive רגישים • $cves התאמות CVE • $kev KEV", fontWeight = FontWeight.SemiBold)
+
+        if (priorities.length() > 0) {
+            Spacer(Modifier.height(14.dp))
+            Text("מה הכי דחוף עכשיו", fontWeight = FontWeight.Bold)
+            for (i in 0 until minOf(priorities.length(), 5)) {
+                val row = priorities.optJSONObject(i) ?: continue
+                val title = row.optString("title", "Finding")
+                val severity = row.optString("severity", "info").uppercase()
+                val cve = row.optString("cve_id").takeIf { it.isNotBlank() }
+                Spacer(Modifier.height(7.dp))
+                Text("• $severity • ${cve?.let { "$it • " } ?: ""}$title", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        val services = surface.optJSONArray("sensitive_services") ?: org.json.JSONArray()
+        if (services.length() > 0) {
+            Spacer(Modifier.height(14.dp))
+            Text("שירותים רגישים החשופים לרשת", fontWeight = FontWeight.Bold)
+            for (i in 0 until minOf(services.length(), 8)) {
+                val row = services.optJSONObject(i) ?: continue
+                Text("• ${row.optInt("port")} / ${row.optString("service", "unknown")}", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "Confirmed / Probable / Possible מבוססים על איכות הראיות; התאמת CVE לבדה אינה הוכחה שניתן לנצל את היעד.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

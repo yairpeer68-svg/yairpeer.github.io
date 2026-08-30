@@ -9,6 +9,10 @@ POST /api/v1/diff -> artifact comparison
 
 The Android client is a thin client; analysis happens on the server.
 
+Operational probes:
+- `GET /health/live` — unauthenticated liveness probe.
+- `GET /health/ready` — unauthenticated dependency-aware readiness probe; returns `503` until database, Redis, storage and the isolated analyzer are ready.
+
 ## 10.7 Autonomous Investigations
 
 Authenticated endpoints used by the Android client:

@@ -47,6 +47,7 @@ fun ProviderCenterScreen(baseUrl: String, modifier: Modifier = Modifier, onSessi
     var query by remember { mutableStateOf("") }
     var selectedProvider by remember { mutableStateOf<String?>(null) }
     var secret by remember { mutableStateOf("") }
+    SensitiveContentProtection(secret.isNotBlank())
     var loading by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
